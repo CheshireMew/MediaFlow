@@ -3,12 +3,17 @@ from pathlib import Path
 from loguru import logger
 import uuid
 import asyncio
+from typing import Optional, Callable, Dict
 from src.config import settings
 from src.models.schemas import MediaAsset
 from src.services.platforms.factory import PlatformFactory
 from src.utils.subtitle_manager import SubtitleManager
 import re
 import time
+
+# Type aliases for callback functions
+ProgressCallback = Callable[[float, str], None]  # (progress: float, message: str) -> None
+CancelCheckCallback = Callable[[], bool]          # () -> bool (True if cancelled)
 
 def clean_ansi(text: str) -> str:
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
@@ -18,10 +23,20 @@ class DownloaderService:
     def __init__(self):
         self.output_dir = settings.TEMP_DIR
 
-    async def download(self, url: str, proxy: str = None, playlist_title: str = None, 
-                progress_callback=None, check_cancel_callback=None, download_subs: bool = False,
-                resolution: str = "best", task_id: str = None, cookie_file: str = None,
-                filename: str = None, local_source: str = None) -> MediaAsset:
+    async def download(
+        self,
+        url: str,
+        proxy: Optional[str] = None,
+        playlist_title: Optional[str] = None,
+        progress_callback: Optional[ProgressCallback] = None,
+        check_cancel_callback: Optional[CancelCheckCallback] = None,
+        download_subs: bool = False,
+        resolution: str = "best",
+        task_id: Optional[str] = None,
+        cookie_file: Optional[str] = None,
+        filename: Optional[str] = None,
+        local_source: Optional[str] = None
+    ) -> MediaAsset:
         """
         Async download entry point.
         1. Analyzes URL via PlatformFactory (Strategy Pattern)
@@ -72,10 +87,21 @@ class DownloaderService:
             )
         )
 
-    def _perform_download_sync(self, url: str, start_url: str = None, proxy: str = None, playlist_title: str = None, 
-                progress_callback=None, check_cancel_callback=None, download_subs: bool = False,
-                resolution: str = "best", task_id: str = None, cookie_file: str = None,
-                filename: str = None, local_source: str = None) -> MediaAsset:
+    def _perform_download_sync(
+        self,
+        url: str,
+        start_url: Optional[str] = None,
+        proxy: Optional[str] = None,
+        playlist_title: Optional[str] = None,
+        progress_callback: Optional[ProgressCallback] = None,
+        check_cancel_callback: Optional[CancelCheckCallback] = None,
+        download_subs: bool = False,
+        resolution: str = "best",
+        task_id: Optional[str] = None,
+        cookie_file: Optional[str] = None,
+        filename: Optional[str] = None,
+        local_source: Optional[str] = None
+    ) -> MediaAsset:
         """
         Synchronous download using yt-dlp.
         Internal method, run in executor.
@@ -196,7 +222,12 @@ class DownloaderService:
 
 
 
-    def _progress_hook(self, d, progress_callback, check_cancel_callback):
+    def _progress_hook(
+        self,
+        d: Dict,
+        progress_callback: Optional[ProgressCallback],
+        check_cancel_callback: Optional[CancelCheckCallback]
+    ) -> None:
         # 1. Check for cancellation
         if check_cancel_callback and check_cancel_callback():
             raise Exception("Download cancelled by user")
