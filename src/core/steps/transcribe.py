@@ -11,6 +11,10 @@ def _get_asr_service():
     return container.get(Services.ASR)
 
 
+def _get_task_manager():
+    return container.get(Services.TASK_MANAGER)
+
+
 class TranscribeStep(PipelineStep):
     @property
     def name(self) -> str:
@@ -30,6 +34,14 @@ class TranscribeStep(PipelineStep):
         # Also run transcribe in executor because it blocks!
         loop = asyncio.get_running_loop()
         asr_service = _get_asr_service()
+        tm = _get_task_manager()
+
+        def progress_cb(percent, msg):
+            if task_id:
+                asyncio.run_coroutine_threadsafe(
+                    tm.update_task(task_id, progress=percent, message=msg),
+                    loop
+                )
         
         result = await loop.run_in_executor(
             None,
@@ -38,7 +50,9 @@ class TranscribeStep(PipelineStep):
                 model_name=model,
                 device=device,
                 language=language,
-                initial_prompt=initial_prompt
+                initial_prompt=initial_prompt,
+                task_id=task_id,
+                progress_callback=progress_cb
             )
         )
         

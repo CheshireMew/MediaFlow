@@ -213,4 +213,4 @@ class TaskManager:
         task = self.tasks.get(task_id)
         return task.cancelled if task else False
 
-task_manager = TaskManager()
+

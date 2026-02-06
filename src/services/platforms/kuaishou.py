@@ -24,8 +24,10 @@ class KuaishouPlatform(BasePlatform):
         else:
             logger.info(f"[Kuaishou] Step 2: Could not extract ID from URL")
 
-        from src.services.browser_service import browser_service
-        from src.services.sniffer import sniffer
+        from src.core.container import container, Services
+        
+        browser_service = container.get(Services.BROWSER)
+        sniffer = container.get(Services.SNIFFER)
         import asyncio
         
         logger.info(f"[Kuaishou] Step 3: Prepare Dual-Strategy")

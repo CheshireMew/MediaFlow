@@ -2,7 +2,10 @@ import asyncio
 import random
 from loguru import logger
 from typing import Optional, Dict
-from src.services.browser_service import browser_service
+from src.core.container import container, Services
+
+def _get_browser():
+    return container.get(Services.BROWSER)
 
 # Configuration Constants
 MIN_VIDEO_URL_LENGTH = 50       # Minimum length for valid video URLs
@@ -26,7 +29,7 @@ class NetworkSniffer:
         Navigate to a URL and extract information using custom JavaScript.
         """
         # Get context from browser service
-        context = await browser_service.get_stealth_context(user_agent)
+        context = await _get_browser().get_stealth_context(user_agent)
         page = await context.new_page()
         
         result = {}
@@ -66,7 +69,7 @@ class NetworkSniffer:
         """
         found_url = None
         extracted_title = "Video" # Default title
-        context = await browser_service.get_stealth_context() 
+        context = await _get_browser().get_stealth_context() 
         page = await context.new_page()
         viewport = context.pages[0].viewport_size if context.pages else None
 
@@ -129,7 +132,8 @@ class NetworkSniffer:
                                 extracted_title = t
                                 custom_title_found = True
                                 logger.success(f"[Sniffer] Custom title locked: {extracted_title}")
-                    except Exception: pass
+                    except Exception as e:
+                        logger.debug(f"[Sniffer] Custom JS execution failed: {e}")
 
                 # Try to play to trigger request (Interaction is crucial for Desktop UA)
                 if step % INTERACTION_INTERVAL == 2:
@@ -166,4 +170,4 @@ class NetworkSniffer:
         
         return None
 
-sniffer = NetworkSniffer()
+

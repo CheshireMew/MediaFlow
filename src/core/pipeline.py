@@ -92,4 +92,4 @@ class PipelineRunner:
 
 # Note: PipelineRunner is registered via container in main.py
 # The global instance is kept for backward compatibility but will be deprecated
-pipeline_runner = PipelineRunner()
+

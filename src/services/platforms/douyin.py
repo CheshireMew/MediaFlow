@@ -3,7 +3,16 @@ from typing import Optional
 from loguru import logger
 from src.services.platforms.base import BasePlatform
 from src.models.schemas import AnalyzeResult, PlaylistItem
-from src.services.cookie_manager import cookie_manager
+from src.core.container import container, Services
+
+def _get_cookie_manager():
+    return container.get(Services.COOKIE_MANAGER)
+
+def _get_browser():
+    return container.get(Services.BROWSER)
+
+def _get_sniffer():
+    return container.get(Services.SNIFFER)
 
 
 class DouyinPlatform(BasePlatform):
@@ -35,8 +44,8 @@ class DouyinPlatform(BasePlatform):
         logger.info(f"[Douyin] Extracted ID: {video_id}")
 
         # 2. Use Playwright to sniff the real video URL
-        from src.services.browser_service import browser_service
-        from src.services.sniffer import sniffer
+        browser_service = _get_browser()
+        sniffer = _get_sniffer()
         
         logger.info(f"[Douyin] Sniffing video URL via Playwright...")
         try:

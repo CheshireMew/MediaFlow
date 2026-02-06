@@ -5,7 +5,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
 from loguru import logger
-from src.services.cookie_manager import cookie_manager
+from src.core.container import container, Services
+
+def _get_api_cookie_manager():
+    return container.get(Services.COOKIE_MANAGER)
 
 
 router = APIRouter(prefix="/cookies", tags=["Cookies"])
@@ -32,7 +35,7 @@ async def save_cookies(req: CookieSaveRequest):
         if not req.cookies:
             raise HTTPException(status_code=400, detail="No cookies provided")
         
-        cookie_path = cookie_manager.save_cookies(req.domain, req.cookies)
+        cookie_path = _get_api_cookie_manager().save_cookies(req.domain, req.cookies)
         
         return CookieStatusResponse(
             domain=req.domain,
@@ -49,8 +52,9 @@ async def check_cookie_status(domain: str):
     """
     Check if we have valid cookies for a domain.
     """
-    has_valid = cookie_manager.has_valid_cookies(domain)
-    cookie_path = cookie_manager.get_cookie_path(domain)
+    cm = _get_api_cookie_manager()
+    has_valid = cm.has_valid_cookies(domain)
+    cookie_path = cm.get_cookie_path(domain)
     
     return CookieStatusResponse(
         domain=domain,
@@ -64,5 +68,5 @@ async def clear_cookies(domain: str):
     """
     Clear cookies for a domain.
     """
-    success = cookie_manager.clear_cookies(domain)
+    success = _get_api_cookie_manager().clear_cookies(domain)
     return {"success": success, "domain": domain}

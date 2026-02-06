@@ -273,4 +273,4 @@ class ASRService:
             
         return final_segments, "\n".join(full_text_list)
 
-asr_service = ASRService()
+

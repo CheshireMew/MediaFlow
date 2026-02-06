@@ -249,4 +249,4 @@ class DownloaderService:
             if progress_callback:
                 progress_callback(100.0, "Processing completed")
 
-downloader_service = DownloaderService()
+

@@ -132,4 +132,4 @@ class BrowserService:
         return context
 
 # Singleton instance
-browser_service = BrowserService()
+

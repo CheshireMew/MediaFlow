@@ -41,7 +41,8 @@ class LLMTranslator:
         """
         Dynamically construct the OpenAI client based on active settings.
         """
-        from src.services.settings_manager import settings_manager
+        from src.core.container import container, Services
+        settings_manager = container.get(Services.SETTINGS_MANAGER)
         
         provider = settings_manager.get_active_llm_provider()
         if not provider:
@@ -73,7 +74,8 @@ class LLMTranslator:
         input_text = "\n".join([f"[{s.id}] {s.start:.2f}-{s.end:.2f}: {s.text}" for s in segments])
         
         # --- Glossary Injection ---
-        from src.services.translator.glossary_service import glossary_service
+        from src.core.container import container, Services
+        glossary_service = container.get(Services.GLOSSARY)
         relevant_terms = glossary_service.get_relevant_terms(input_text)
         
         system_prompt = f"You are a professional subtitle translator translating to {target_language}."
@@ -250,4 +252,4 @@ Rules:
         return translated_segments
 
 # Singleton instance
-llm_translator = LLMTranslator()
+

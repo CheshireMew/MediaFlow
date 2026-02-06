@@ -127,4 +127,4 @@ class SettingsManager:
         else:
             raise ValueError(f"Provider {provider_id} not found")
 
-settings_manager = SettingsManager()
+

@@ -96,4 +96,4 @@ class AnalyzerService:
         return result
 
 
-analyzer_service = AnalyzerService()
+

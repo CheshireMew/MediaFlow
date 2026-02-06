@@ -89,4 +89,4 @@ class CookieManager:
 
 
 # Singleton instance
-cookie_manager = CookieManager()
+

@@ -83,4 +83,4 @@ class GlossaryService:
                 relevant.append(term)
         return relevant
 
-glossary_service = GlossaryService()
+
