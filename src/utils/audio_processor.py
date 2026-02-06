@@ -10,6 +10,9 @@ class AudioProcessor:
     def get_audio_duration(audio_path: str) -> float:
         """Get audio duration using ffprobe."""
         try:
+            if not Path(audio_path).exists():
+                raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
             cmd = [
                 settings.FFPROBE_PATH, 
                 "-v", "error", 
@@ -17,7 +20,8 @@ class AudioProcessor:
                 "-of", "default=noprint_wrappers=1:nokey=1", 
                 audio_path
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            # Security: shell=False is default but explicit is better.
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=False)
             return float(result.stdout.strip())
         except Exception as e:
             logger.error(f"Failed to get duration: {e}")
@@ -30,6 +34,10 @@ class AudioProcessor:
         Returns a list of (start, end) tuples for silence.
         """
         logger.info("Detecting silence intervals...")
+        if not Path(audio_path).exists():
+             logger.error(f"Audio file not found: {audio_path}")
+             return []
+
         cmd = [
             settings.FFMPEG_PATH,
             "-i", audio_path,
@@ -39,7 +47,7 @@ class AudioProcessor:
         ]
         
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", shell=False)
             # ffmpeg writes silencedetect output to stderr
             output = result.stderr
             
@@ -140,7 +148,11 @@ class AudioProcessor:
             cmd.extend(["-c:a", "libmp3lame", "-q:a", "4", str(chunk_path)])
             
             try:
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                # Validate input path before processing each chunk (though verified at start)
+                if not Path(audio_path).exists():
+                    raise FileNotFoundError(f"Source file lost: {audio_path}")
+
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, shell=False)
                 chunks.append((str(chunk_path), current_start))
                 current_start = end_point if end_point else 0 # Next start
             except Exception as e:
