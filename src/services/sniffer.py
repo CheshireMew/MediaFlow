@@ -90,8 +90,8 @@ class NetworkSniffer:
                 # Basic cleanup for Douyin title "Content - 抖音..."
                 if "- 抖音" in extracted_title:
                     extracted_title = extracted_title.split("- 抖音")[0].strip()
-            except: 
-                pass
+            except Exception as e:
+                logger.debug(f"[Sniffer] Title extraction warning: {e}")
 
             custom_title_found = False
             post_url_found_steps = 0
@@ -140,7 +140,8 @@ class NetworkSniffer:
                              
                         # 3. Generic click
                         await page.evaluate("document.body.click()")
-                     except: pass
+                     except Exception as e:
+                         logger.debug(f"[Sniffer] Interaction step warning: {e}")
             
             # Loop finished
             if found_url:

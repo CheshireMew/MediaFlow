@@ -8,9 +8,6 @@ from src.api.v1 import transcribe, pipeline, analyze, ws, tasks, cookies, transl
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-
-
-
     # Startup logic
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     settings.init_dirs()
@@ -18,7 +15,6 @@ async def lifespan(app: FastAPI):
     # Initialize Core Services
     from src.services.browser_service import browser_service
     # await browser_service.start() # Lazy load to save RAM
-    
     
     logger.info(f"Directories initialized at {settings.BASE_DIR}")
     yield
@@ -46,12 +42,19 @@ app.include_router(settings_api.router, prefix="/api/v1")
 app.include_router(audio.router, prefix="/api/v1")
 app.include_router(glossary.router, prefix="/api/v1")
 
-# CORS (Allow Electron to connect)
+# CORS (Restricted to local Electron and Vite dev server)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://127.0.0.1:5173",   # Vite Dev Server
+        "http://localhost:5173",
+        "http://127.0.0.1:8000",   # FastAPI (self)
+        "http://localhost:8000",
+        "file://",                  # Electron Production
+        "app://.",                  # Electron custom protocol
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
