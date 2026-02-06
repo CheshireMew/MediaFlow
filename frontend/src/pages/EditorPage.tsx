@@ -88,6 +88,8 @@ export function EditorPage() {
       }
   };
 
+  // State for Find & Replace dialog (moved before hook call)
+  const [showFindReplace, setShowFindReplace] = useState(false);
   useEditorShortcuts({
       videoRef,
       selectedIds,
@@ -95,20 +97,10 @@ export function EditorPage() {
       undo,
       redo,
       deleteSegments,
-      splitSegment
+      splitSegment,
+      onSave: handleSave,
+      onToggleFindReplace: () => setShowFindReplace(prev => !prev)
   });
-
-  // Global Save Shortcut (Ctrl+S)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-            e.preventDefault();
-            handleSave();
-        }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [regions, saveSubtitleFile]); // Need latest regions/fn
 
 
   // --- View Handlers ---
@@ -142,19 +134,6 @@ export function EditorPage() {
       }
   };
 
-  const [showFindReplace, setShowFindReplace] = useState(false);
-
-  // Global Shortcuts for Find & Replace (Ctrl+F)
-  useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-          if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-              e.preventDefault();
-              setShowFindReplace(prev => !prev);
-          }
-      };
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   const handleContextMenu = (e: any, id: string) => {
       // Logic: If right click on unselected, select it.

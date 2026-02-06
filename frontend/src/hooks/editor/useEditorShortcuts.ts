@@ -8,6 +8,8 @@ interface EditorShortcutsProps {
   redo: () => void;
   deleteSegments: (ids: string[]) => void;
   splitSegment: (currentTime: number) => void;
+  onSave?: () => void; // Ctrl+S
+  onToggleFindReplace?: () => void; // Ctrl+F
 }
 
 export function useEditorShortcuts({
@@ -18,6 +20,8 @@ export function useEditorShortcuts({
   redo,
   deleteSegments,
   splitSegment,
+  onSave,
+  onToggleFindReplace,
 }: EditorShortcutsProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -27,6 +31,18 @@ export function useEditorShortcuts({
       );
 
       if (e.ctrlKey || e.metaKey) {
+        // Ctrl+S: Save
+        if (e.key === "s" && onSave) {
+          e.preventDefault();
+          onSave();
+          return;
+        }
+        // Ctrl+F: Toggle Find & Replace
+        if (e.key === "f" && onToggleFindReplace) {
+          e.preventDefault();
+          onToggleFindReplace();
+          return;
+        }
         if (e.code === "KeyZ") {
           e.preventDefault();
           if (e.shiftKey) {
@@ -98,5 +114,7 @@ export function useEditorShortcuts({
     deleteSegments,
     splitSegment,
     videoRef,
+    onSave,
+    onToggleFindReplace,
   ]);
 }
