@@ -1,11 +1,18 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from src.services.task_manager import task_manager
+
+from src.core.container import container, Services
 
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
+
+def _get_task_manager():
+    return container.get(Services.TASK_MANAGER)
+
+
 @router.websocket("/tasks")
 async def websocket_endpoint(websocket: WebSocket):
-    await task_manager.connect(websocket)
+    tm = _get_task_manager()
+    await tm.connect(websocket)
     try:
         while True:
             # Keep connection alive and handle incoming messages (e.g. cancel requests)
@@ -14,8 +21,8 @@ async def websocket_endpoint(websocket: WebSocket):
             if data.get("action") == "cancel":
                 task_id = data.get("task_id")
                 if task_id:
-                    await task_manager.cancel_task(task_id)
+                    await tm.cancel_task(task_id)
     except WebSocketDisconnect:
-        task_manager.disconnect(websocket)
-    except Exception as e: # Handle other disconnect scenarios
-        task_manager.disconnect(websocket)
+        tm.disconnect(websocket)
+    except Exception:  # Handle other disconnect scenarios
+        tm.disconnect(websocket)

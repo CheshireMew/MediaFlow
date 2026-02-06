@@ -8,19 +8,48 @@ from src.api.v1 import transcribe, pipeline, analyze, ws, tasks, cookies, transl
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup logic
+    # === Service Registration ===
+    from src.core.container import container, Services
+    from src.services.task_manager import TaskManager
+    from src.services.asr import ASRService
+    from src.services.downloader import DownloaderService
+    from src.services.browser_service import BrowserService
+    from src.services.sniffer import NetworkSniffer
+    from src.services.settings_manager import SettingsManager
+    from src.services.cookie_manager import CookieManager
+    from src.services.analyzer import AnalyzerService
+    from src.services.translator.llm_translator import LLMTranslator
+    from src.services.translator.glossary_service import GlossaryService
+    from src.core.pipeline import PipelineRunner
+    
+    container.register(Services.TASK_MANAGER, TaskManager)
+    container.register(Services.ASR, ASRService)
+    container.register(Services.DOWNLOADER, DownloaderService)
+    container.register(Services.BROWSER, BrowserService)
+    container.register(Services.SNIFFER, NetworkSniffer)
+    container.register(Services.SETTINGS_MANAGER, SettingsManager)
+    container.register(Services.COOKIE_MANAGER, CookieManager)
+    container.register(Services.ANALYZER, AnalyzerService)
+    container.register(Services.LLM_TRANSLATOR, LLMTranslator)
+    container.register(Services.GLOSSARY, GlossaryService)
+    container.register(Services.PIPELINE, PipelineRunner)
+    
+    # === Startup Logic ===
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     settings.init_dirs()
-    
-    # Initialize Core Services
-    from src.services.browser_service import browser_service
-    # await browser_service.start() # Lazy load to save RAM
-    
     logger.info(f"Directories initialized at {settings.BASE_DIR}")
+    logger.info(f"Registered {len(container._factories)} services")
+    
     yield
-    # Shutdown logic
+    
+    # === Shutdown Logic ===
     logger.info("Shutting down...")
-    await browser_service.stop()
+    # Stop browser if it was instantiated
+    if container.has(Services.BROWSER) and Services.BROWSER in container._instances:
+        browser = container.get(Services.BROWSER)
+        await browser.stop()
+    container.reset()
+
 
 app = FastAPI(
     title=settings.APP_NAME,

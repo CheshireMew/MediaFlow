@@ -6,7 +6,13 @@ import asyncio
 from typing import Callable, Any, Optional, Dict
 from loguru import logger
 
-from src.services.task_manager import task_manager
+from src.core.container import container, Services
+
+
+def _get_task_manager():
+    """Get task manager from container (lazy load)."""
+    return container.get(Services.TASK_MANAGER)
+
 
 
 class BackgroundTaskRunner:
@@ -42,7 +48,7 @@ class BackgroundTaskRunner:
         """
         try:
             # 1. Update status to running
-            await task_manager.update_task(
+            await _get_task_manager().update_task(
                 task_id, 
                 status="running", 
                 message=start_message
@@ -53,7 +59,7 @@ class BackgroundTaskRunner:
             
             def progress_callback(progress: int, message: str):
                 asyncio.run_coroutine_threadsafe(
-                    task_manager.update_task(
+                    _get_task_manager().update_task(
                         task_id, 
                         progress=float(progress), 
                         message=message
@@ -79,7 +85,7 @@ class BackgroundTaskRunner:
                 final_result = result.dict()
             
             # 5. Update task as completed
-            await task_manager.update_task(
+            await _get_task_manager().update_task(
                 task_id,
                 status="completed",
                 progress=100.0,
@@ -90,7 +96,7 @@ class BackgroundTaskRunner:
             
         except Exception as e:
             logger.error(f"Task {task_id} failed: {e}")
-            await task_manager.update_task(
+            await _get_task_manager().update_task(
                 task_id,
                 status="failed",
                 message=str(e),

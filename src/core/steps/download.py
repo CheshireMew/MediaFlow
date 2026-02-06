@@ -1,10 +1,19 @@
 import asyncio
 from loguru import logger
+
 from src.core.steps.base import PipelineStep
 from src.core.steps.registry import StepRegistry
 from src.core.context import PipelineContext
-from src.services.downloader import downloader_service
-from src.services.task_manager import task_manager
+from src.core.container import container, Services
+
+
+def _get_downloader():
+    return container.get(Services.DOWNLOADER)
+
+
+def _get_task_manager():
+    return container.get(Services.TASK_MANAGER)
+
 
 class DownloadStep(PipelineStep):
     @property
@@ -17,20 +26,22 @@ class DownloadStep(PipelineStep):
             raise ValueError("Download step requires 'url' param")
         
         loop = asyncio.get_running_loop()
+        tm = _get_task_manager()
         
         # Callbacks for sync code
         def progress_cb(percent, msg):
             if task_id:
                 asyncio.run_coroutine_threadsafe(
-                    task_manager.update_task(task_id, progress=percent, message=msg),
+                    tm.update_task(task_id, progress=percent, message=msg),
                     loop
                 )
 
         def check_cancel_cb():
-            return task_id and task_manager.is_cancelled(task_id)
+            return task_id and tm.is_cancelled(task_id)
 
         # Run download async (it handles thread pool internally)
-        asset = await downloader_service.download(
+        downloader = _get_downloader()
+        asset = await downloader.download(
             url, 
             proxy=params.get("proxy"),
             playlist_title=params.get("playlist_title"),
@@ -48,6 +59,7 @@ class DownloadStep(PipelineStep):
         ctx.set("media_filename", asset.filename)
         ctx.set("title", asset.title)
         logger.success(f"Step Download finished. Path: {asset.path}")
+
 
 # Register at module level
 StepRegistry.register(DownloadStep())

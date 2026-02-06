@@ -1,9 +1,15 @@
 import asyncio
 from loguru import logger
+
 from src.core.steps.base import PipelineStep
 from src.core.steps.registry import StepRegistry
 from src.core.context import PipelineContext
-from src.services.asr import asr_service
+from src.core.container import container, Services
+
+
+def _get_asr_service():
+    return container.get(Services.ASR)
+
 
 class TranscribeStep(PipelineStep):
     @property
@@ -22,9 +28,8 @@ class TranscribeStep(PipelineStep):
         initial_prompt = params.get("initial_prompt")
         
         # Also run transcribe in executor because it blocks!
-        # Assuming asr_service.transcribe is synchronous/blocking
-        
         loop = asyncio.get_running_loop()
+        asr_service = _get_asr_service()
         
         result = await loop.run_in_executor(
             None,
@@ -40,6 +45,7 @@ class TranscribeStep(PipelineStep):
         ctx.set("transcript", result.text)
         ctx.set("segments", result.segments)
         logger.success(f"Step Transcribe finished. Text len: {len(result.text)}")
+
 
 # Register at module level
 StepRegistry.register(TranscribeStep())

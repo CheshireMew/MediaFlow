@@ -4,11 +4,18 @@ from typing import List, Optional
 from loguru import logger
 
 from src.models.schemas import SubtitleSegment, TaskResponse
-from src.services.translator.llm_translator import llm_translator
-from src.services.task_manager import task_manager
 from src.core.task_runner import BackgroundTaskRunner
+from src.core.container import container, Services
 
 router = APIRouter(prefix="/translate", tags=["Translator"])
+
+
+def _get_task_manager():
+    return container.get(Services.TASK_MANAGER)
+
+
+def _get_llm_translator():
+    return container.get(Services.LLM_TRANSLATOR)
 
 
 class TranslateRequest(BaseModel):
@@ -28,6 +35,7 @@ async def run_translation_task(task_id: str, req: TranslateRequest):
     Background translation task.
     Uses BackgroundTaskRunner to eliminate boilerplate.
     """
+    llm_translator = _get_llm_translator()
     await BackgroundTaskRunner.run(
         task_id=task_id,
         worker_fn=llm_translator.translate_segments,
@@ -50,7 +58,7 @@ async def translate_subtitles(req: TranslateRequest, background_tasks: Backgroun
     Submit a translation task.
     """
     try:
-        task_id = await task_manager.create_task(
+        task_id = await _get_task_manager().create_task(
             task_type="translate",
             initial_message="Queued",
             task_name=f"Translate to {req.target_language}",

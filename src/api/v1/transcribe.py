@@ -1,12 +1,19 @@
-import asyncio
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from src.models.schemas import TranscribeRequest, TaskResponse
-from src.services.asr import asr_service
-from src.services.task_manager import task_manager
-from src.core.task_runner import BackgroundTaskRunner
 from loguru import logger
 
+from src.models.schemas import TranscribeRequest, TaskResponse
+from src.core.task_runner import BackgroundTaskRunner
+from src.core.container import container, Services
+
 router = APIRouter(prefix="/transcribe", tags=["Transcription"])
+
+
+def _get_task_manager():
+    return container.get(Services.TASK_MANAGER)
+
+
+def _get_asr_service():
+    return container.get(Services.ASR)
 
 
 async def run_transcription_task(task_id: str, req: TranscribeRequest):
@@ -14,6 +21,7 @@ async def run_transcription_task(task_id: str, req: TranscribeRequest):
     Background worker function for transcription.
     Uses BackgroundTaskRunner to eliminate boilerplate.
     """
+    asr_service = _get_asr_service()
     await BackgroundTaskRunner.run(
         task_id=task_id,
         worker_fn=asr_service.transcribe,
@@ -39,7 +47,7 @@ async def transcribe_audio(req: TranscribeRequest, background_tasks: BackgroundT
     logger.info(f"Received transcription request: {req.dict()}")
     try:
         # Create Task
-        task_id = await task_manager.create_task(
+        task_id = await _get_task_manager().create_task(
             task_type="transcribe",
             initial_message="Queued",
             task_name=f"Transcribe {req.audio_path.split('/')[-1] or 'Audio'}",
