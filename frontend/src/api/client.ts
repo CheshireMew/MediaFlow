@@ -34,144 +34,131 @@ export interface AnalyzeResult {
   extra_info?: Record<string, any>; // Flexible field for cookies etc
 }
 
-export const apiClient = {
-  checkHealth: async () => {
-    try {
-      // Use base URL from config (strip /api/v1 for health endpoint)
-      const baseUrl = API_BASE.replace("/api/v1", "");
-      const res = await fetch(`${baseUrl}/health`);
-      return await res.json();
-    } catch (e) {
-      console.error("Health check failed:", e);
-      throw e;
+// Internal Generic Request Wrapper
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...options.headers,
+  };
+
+  try {
+    const res = await fetch(url, { ...options, headers });
+
+    if (!res.ok) {
+      let errorMessage = `API request failed: ${res.status} ${res.statusText}`;
+      try {
+        const errorText = await res.text();
+        // Try parsing JSON error detail if available
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.detail) errorMessage = errorJson.detail;
+          else if (errorJson.message) errorMessage = errorJson.message;
+          else errorMessage = errorText;
+        } catch {
+          if (errorText) errorMessage = errorText;
+        }
+      } catch (e) {
+        // Ignore body parsing error
+      }
+      throw new Error(errorMessage);
     }
+
+    // Check content type before parsing json
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+      return (await res.json()) as T;
+    }
+    // For non-JSON responses (like void actions), return generic success if needed or null
+    // If the caller expects T, this might be an issue if T isn't void-compatible.
+    // Assuming mostly JSON APIs here.
+    return {} as T;
+  } catch (error: any) {
+    console.error(`Status: Error requesting ${endpoint}`, error);
+    throw error;
+  }
+}
+
+export const apiClient = {
+  checkHealth: () => {
+    // Health check might be on root URL, not /api/v1
+    const baseUrl = API_BASE.replace("/api/v1", "");
+    return request<any>(`${baseUrl}/health`);
   },
 
-  analyzeUrl: async (url: string): Promise<AnalyzeResult> => {
-    const res = await fetch(`${API_BASE}/analyze/`, {
+  analyzeUrl: (url: string) => {
+    return request<AnalyzeResult>("/analyze/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
     });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Analysis failed: ${err}`);
-    }
-    return await res.json();
   },
 
-  runPipeline: async (req: PipelineRequest) => {
-    const res = await fetch(`${API_BASE}/pipeline/run`, {
+  runPipeline: (req: PipelineRequest) => {
+    return request<any>("/pipeline/run", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Pipeline failed: ${err}`);
-    }
-    return await res.json();
   },
 
-  cancelAllTasks: async () => {
-    const res = await fetch(`${API_BASE}/tasks/cancel-all`, {
-      method: "POST",
-    });
-    if (!res.ok) {
-      throw new Error("Failed to cancel all tasks");
-    }
-    return await res.json();
+  cancelAllTasks: () => {
+    return request<any>("/tasks/cancel-all", { method: "POST" });
   },
 
-  resumeTask: async (taskId: string) => {
-    const res = await fetch(`${API_BASE}/tasks/${taskId}/resume`, {
-      method: "POST",
-    });
-    if (!res.ok) {
-      throw new Error("Failed to resume task");
-    }
-    return await res.json();
+  resumeTask: (taskId: string) => {
+    return request<any>(`/tasks/${taskId}/resume`, { method: "POST" });
   },
 
-  deleteTask: async (taskId: string) => {
-    const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      throw new Error("Failed to delete task");
-    }
-    return await res.json();
+  deleteTask: (taskId: string) => {
+    return request<any>(`/tasks/${taskId}`, { method: "DELETE" });
   },
 
-  deleteAllTasks: async () => {
-    const res = await fetch(`${API_BASE}/tasks/`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      throw new Error("Failed to delete all tasks");
-    }
-    return await res.json();
+  deleteAllTasks: () => {
+    return request<any>("/tasks/", { method: "DELETE" });
   },
 
   // Cookie management
-  saveCookies: async (domain: string, cookies: any[]) => {
-    const res = await fetch(`${API_BASE}/cookies/save`, {
+  saveCookies: (domain: string, cookies: any[]) => {
+    return request<any>("/cookies/save", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ domain, cookies }),
     });
-    if (!res.ok) {
-      throw new Error("Failed to save cookies");
-    }
-    return await res.json();
   },
 
-  checkCookieStatus: async (domain: string) => {
-    const res = await fetch(`${API_BASE}/cookies/status/${domain}`);
-    if (!res.ok) {
-      throw new Error("Failed to check cookie status");
-    }
-    return await res.json();
+  checkCookieStatus: (domain: string) => {
+    return request<any>(`/cookies/status/${domain}`);
   },
 
   // Settings API
-  getSettings: async () => {
-    const res = await fetch(`${API_BASE}/settings/`);
-    if (!res.ok) throw new Error("Failed to fetch settings");
-    return await res.json();
+  getSettings: () => {
+    return request<any>("/settings/");
   },
 
-  updateSettings: async (settings: any) => {
-    const res = await fetch(`${API_BASE}/settings/`, {
+  updateSettings: (settings: any) => {
+    return request<any>("/settings/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings),
     });
-    if (!res.ok) throw new Error("Failed to update settings");
-    return await res.json();
   },
 
-  setActiveProvider: async (providerId: string) => {
-    const res = await fetch(`${API_BASE}/settings/active-provider`, {
+  setActiveProvider: (providerId: string) => {
+    return request<any>("/settings/active-provider", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider_id: providerId }),
     });
-    if (!res.ok) throw new Error("Failed to set active provider");
-    return await res.json();
   },
 
-  detectSilence: async (payload: {
+  detectSilence: (payload: {
     file_path: string;
     threshold: string;
     min_duration: number;
   }) => {
-    const res = await fetch(`${API_BASE}/audio/detect-silence`, {
+    return request<any>("/audio/detect-silence", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error("Failed to detect silence");
-    return await res.json();
   },
 };

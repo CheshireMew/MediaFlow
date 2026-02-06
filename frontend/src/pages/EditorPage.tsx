@@ -3,8 +3,11 @@ import { useState, useRef, useEffect } from "react";
 import { WaveformPlayer } from "../components/editor/WaveformPlayer";
 import { SubtitleList } from "../components/editor/SubtitleList";
 import { FindReplaceDialog } from "../components/dialogs/FindReplaceDialog";
-import { Clapperboard, Save, Scissors, Wand2 } from "lucide-react";
 import { ContextMenu, type ContextMenuItem } from "../components/ui/ContextMenu";
+
+// Extracted Components
+import { EditorHeader } from "../components/editor/EditorHeader";
+import { VideoPreview } from "../components/editor/VideoPreview";
 
 // Custom Hooks
 import { useEditorState } from "../hooks/editor/useEditorState";
@@ -86,6 +89,49 @@ export function EditorPage() {
       } catch (e) {
           alert("Failed to save file. See console.");
       }
+  };
+
+  const handleSmartSplit = async () => {
+        if (!confirm("Start Smart Split (Voice Detection)?\n\nThis will OVERWRITE segments based on detected voice activity (non-silence).")) return;
+        
+        try {
+            const silences = await detectSilence(); // returns [start, end][] of SILENCE
+            const duration = videoRef.current?.duration || 0;
+            
+            if (silences && silences.length > 0 && duration > 0) {
+                const speechSegments: {start: number, end: number}[] = [];
+                let lastEnd = 0;
+
+                // Invert silence to get speech
+                // Silence: [0, 2], [5, 8] -> Speech: [2, 5], [8, end]
+                // Logic: Speech is from (lastEnd) to (currentSilenceStart)
+                
+                silences.forEach(([silStart, silEnd]) => {
+                    if (silStart > lastEnd + 0.1) { // Min speech duration 0.1s
+                        speechSegments.push({ start: lastEnd, end: silStart });
+                    }
+                    lastEnd = Math.max(lastEnd, silEnd);
+                });
+
+                // Add final segment if there's audio after last silence
+                if (lastEnd < duration - 0.1) {
+                    speechSegments.push({ start: lastEnd, end: duration });
+                }
+
+                const newSegments = speechSegments.map((seg, idx) => ({
+                    id: String(idx + 1),
+                    start: seg.start,
+                    end: seg.end,
+                    text: "" 
+                }));
+                
+                setRegions(newSegments);
+            } else {
+                alert("No silence/speech pattern detected.");
+            }
+        } catch (e) {
+            alert("Failed to run detection. " + e);
+        }
   };
 
   // State for Find & Replace dialog (moved before hook call)
@@ -226,85 +272,14 @@ export function EditorPage() {
 
   return (
     <div className="h-full flex flex-col bg-slate-950 text-slate-100 overflow-hidden">
-        {/* Header - Added pr-40 for Window Controls */}
-        <header className="h-14 border-b border-slate-700 flex items-center justify-between pl-4 pr-40 bg-slate-900 select-none" style={{ WebkitAppRegion: 'drag' } as any}>
-            <div className="flex items-center gap-3 no-drag" style={{ WebkitAppRegion: 'no-drag' } as any}>
-                <Clapperboard className="text-indigo-500" />
-                <h1 className="font-bold text-lg">Editor Workspace</h1>
-                <div className="h-4 w-[1px] bg-slate-700 mx-2"></div>
-                <button onClick={openFile} className="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded transition-colors">
-                    Open Media
-                </button>
-            </div>
-            <div className="flex items-center gap-2 no-drag" style={{ WebkitAppRegion: 'no-drag' } as any}>
-                 <div className="flex items-center gap-2 mr-4">
-                    <input 
-                        type="checkbox" 
-                        id="autoScroll" 
-                        checked={autoScroll} 
-                        onChange={(e) => setAutoScroll(e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <label htmlFor="autoScroll" className="text-xs text-slate-400 select-none cursor-pointer">Auto-Scroll</label>
-                 </div>
-                 
-                 <button 
-                    onClick={async () => {
-                        if (!confirm("Start Smart Split (Voice Detection)?\n\nThis will OVERWRITE segments based on detected voice activity (non-silence).")) return;
-                        
-                        try {
-                            const silences = await detectSilence(); // returns [start, end][] of SILENCE
-                            const duration = videoRef.current?.duration || 0;
-                            
-                            if (silences && silences.length > 0 && duration > 0) {
-                                const speechSegments: {start: number, end: number}[] = [];
-                                let lastEnd = 0;
-
-                                // Invert silence to get speech
-                                // Silence: [0, 2], [5, 8] -> Speech: [2, 5], [8, end]
-                                // Logic: Speech is from (lastEnd) to (currentSilenceStart)
-                                
-                                silences.forEach(([silStart, silEnd]) => {
-                                    if (silStart > lastEnd + 0.1) { // Min speech duration 0.1s
-                                        speechSegments.push({ start: lastEnd, end: silStart });
-                                    }
-                                    lastEnd = Math.max(lastEnd, silEnd);
-                                });
-
-                                // Add final segment if there's audio after last silence
-                                if (lastEnd < duration - 0.1) {
-                                    speechSegments.push({ start: lastEnd, end: duration });
-                                }
-
-                                const newSegments = speechSegments.map((seg, idx) => ({
-                                    id: String(idx + 1),
-                                    start: seg.start,
-                                    end: seg.end,
-                                    text: "" 
-                                }));
-                                
-                                setRegions(newSegments);
-                            } else {
-                                alert("No silence/speech pattern detected.");
-                            }
-                        } catch (e) {
-                            alert("Failed to run detection. " + e);
-                        }
-                    }}
-                    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded text-sm transition-colors text-slate-300"
-                    title="Auto-split by Silence"
-                 >
-                     <Wand2 size={16} /> <span className="hidden sm:inline">Smart Split</span>
-                 </button>
-
-                 <button 
-                     onClick={handleSave}
-                     className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 px-4 py-1.5 rounded text-sm font-medium transition-colors"
-                 >
-                     <Save size={16} /> Save
-                 </button>
-            </div>
-        </header>
+        {/* Header */}
+        <EditorHeader 
+            autoScroll={autoScroll}
+            setAutoScroll={setAutoScroll}
+            onOpenFile={openFile}
+            onSave={handleSave}
+            onSmartSplit={handleSmartSplit}
+        />
 
         {/* Main Workspace: Top Split */}
         <div className="flex-1 flex min-h-0">
@@ -357,51 +332,15 @@ export function EditorPage() {
              </div>
              
              {/* Right: Video Preview */}
-             <div className="flex-1 bg-black flex flex-col relative justify-center items-center">
-                 {mediaUrl ? (
-                     <div className="w-full h-full relative p-4 flex flex-col">
-                         <div className="flex-1 relative flex items-center justify-center bg-black/50 rounded-lg overflow-hidden border border-slate-800">
-                             <video 
-                                ref={videoRef}
-                                src={mediaUrl}
-                                className="max-w-full max-h-full shadow-2xl"
-                                controls={false} 
-                                onTimeUpdate={handleTimeUpdate}
-                                onClick={() => {
-                                    if(videoRef.current?.paused) videoRef.current.play();
-                                    else videoRef.current?.pause();
-                                }}
-                             />
-                             {/* Overlay Subtitles */}
-                             <div className="absolute bottom-8 left-0 right-0 text-center pointer-events-none">
-                                 <span className="bg-black/60 text-white px-2 py-1 rounded text-lg font-medium shadow-sm backdrop-blur-sm">
-                                     {regions.find(r => currentTime >= r.start && currentTime < r.end)?.text || ""}
-                                 </span>
-                             </div>
-                         </div>
-                         
-                         {/* Mini Controls */}
-                         <div className="h-12 flex items-center justify-center gap-4 bg-slate-900 border-t border-slate-800 mt-2 rounded-lg">
-                             <span className="font-mono text-cyan-400 text-sm">
-                                 {new Date(currentTime * 1000).toISOString().substr(11, 8)}
-                             </span>
-                             <button
-                               onClick={() => videoRef.current && splitSegment(videoRef.current.currentTime)}
-                               disabled={!activeSegmentId}
-                               className="flex items-center gap-1 text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded disabled:opacity-50"
-                               title="Split at Current Time"
-                             >
-                                 <Scissors size={14} /> Split
-                             </button>
-                         </div>
-                     </div>
-                 ) : (
-                     <div className="text-slate-600 flex flex-col items-center">
-                         <Clapperboard size={48} className="mb-4 opacity-50" />
-                         <p>No media loaded</p>
-                     </div>
-                 )}
-             </div>
+             <VideoPreview 
+                mediaUrl={mediaUrl}
+                videoRef={videoRef}
+                currentTime={currentTime}
+                regions={regions}
+                activeSegmentId={activeSegmentId}
+                handleTimeUpdate={handleTimeUpdate}
+                splitSegment={(t) => splitSegment(t)}
+             />
         </div>
         
         {/* Bottom: Waveform Timeline */}
