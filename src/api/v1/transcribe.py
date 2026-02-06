@@ -3,60 +3,32 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from src.models.schemas import TranscribeRequest, TaskResponse
 from src.services.asr import asr_service
 from src.services.task_manager import task_manager
+from src.core.task_runner import BackgroundTaskRunner
 from loguru import logger
 
 router = APIRouter(prefix="/transcribe", tags=["Transcription"])
 
+
 async def run_transcription_task(task_id: str, req: TranscribeRequest):
     """
     Background worker function for transcription.
+    Uses BackgroundTaskRunner to eliminate boilerplate.
     """
-    try:
-        # Update status to running
-        await task_manager.update_task(task_id, status="running", message="Starting transcription...")
-        
-        # Get event loop for thread-safe progress updates
-        loop = asyncio.get_running_loop()
-        
-        def sync_progress_callback(progress: int, message: str):
-            asyncio.run_coroutine_threadsafe(
-                task_manager.update_task(task_id, progress=float(progress), message=message),
-                loop
-            )
+    await BackgroundTaskRunner.run(
+        task_id=task_id,
+        worker_fn=asr_service.transcribe,
+        worker_kwargs={
+            "audio_path": req.audio_path,
+            "model_name": req.model,
+            "device": req.device,
+            "language": req.language,
+            "task_id": task_id,
+            "initial_prompt": req.initial_prompt,
+        },
+        start_message="Starting transcription...",
+        success_message="Transcribed successfully",
+    )
 
-        # Run the blocking transcription in a separate thread
-        # We use run_in_executor to avoid blocking the main event loop
-        result = await asyncio.get_running_loop().run_in_executor(
-            None, 
-            lambda: asr_service.transcribe(
-                audio_path=req.audio_path,
-                model_name=req.model,
-                device=req.device,
-                language=req.language,
-                task_id=task_id,
-                initial_prompt=req.initial_prompt,
-                progress_callback=sync_progress_callback
-            )
-        )
-        
-        # Update task with result
-        await task_manager.update_task(
-            task_id, 
-            status="completed", 
-            progress=100.0, 
-            message="Transcribed successfully",
-            result=result.dict()
-        )
-        logger.success(f"Task {task_id} completed.")
-
-    except Exception as e:
-        logger.error(f"Task {task_id} failed: {e}")
-        await task_manager.update_task(
-            task_id, 
-            status="failed", 
-            message=str(e),
-            error=str(e)
-        )
 
 @router.post("/", response_model=TaskResponse)
 async def transcribe_audio(req: TranscribeRequest, background_tasks: BackgroundTasks):
