@@ -46,7 +46,6 @@ export function TranscriptionResults({ result, onSendToEditor, onSendToTranslato
                     video_path: result.video_path || result.audio_path,
                     subtitle_path: result.srt_path || result.subtitle_path
                 };
-                console.log('[TranscriptionResults] Sending to Translator:', payload);
                 if (payload.subtitle_path) {
                      onSendToTranslator(payload as any); 
                 } else {

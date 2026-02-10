@@ -28,6 +28,32 @@ class Settings(BaseSettings):
 
     # ASR Settings
     ASR_MAX_WORKERS: int = 2
+    ASR_MODEL_DIR: Path = BASE_DIR / "models" / "faster-whisper"
+    
+    # Model Map (Can be overridden by env var ASR_MODELS='{"tiny":"..."}')
+    # Default uses ModelScope mirror for China accessibility
+    ASR_MODELS: dict = {
+        "tiny": "pengzhendong/faster-whisper-tiny",
+        "base": "pengzhendong/faster-whisper-base",
+        "small": "pengzhendong/faster-whisper-small",
+        "medium": "pengzhendong/faster-whisper-medium",
+        "large-v1": "pengzhendong/faster-whisper-large-v1",
+        "large-v2": "pengzhendong/faster-whisper-large-v2",
+        "large-v3": "pengzhendong/faster-whisper-large-v3",
+        "large-v3-turbo": "pengzhendong/faster-whisper-large-v3-turbo",
+    }
+
+    # Downloader Settings
+    DOWNLOADER_PROXY: str = "" # Set via env: DOWNLOADER_PROXY=http://127.0.0.1:7890
+    DOWNLOADER_FORMATS: dict = {
+        "best": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
+        "4k": "bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/mp4",
+        "2k": "bestvideo[height<=1440][ext=mp4]+bestaudio[ext=m4a]/mp4",
+        "1080p": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/mp4",
+        "720p": "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4",
+        "480p": "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/mp4",
+        "audio": "bestaudio[ext=m4a]/bestaudio/best"
+    }
 
     # LLM Settings (Translator) - Must be set in .env file
     LLM_API_KEY: str = ""  # Required: Set VITE_LLM_API_KEY in .env

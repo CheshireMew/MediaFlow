@@ -1,0 +1,28 @@
+appId: com.mediaflow.ui
+productName: MediaFlow
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - from: .
+    filter:
+      - package.json
+      - dist-electron/**/*
+      - dist/**/*
+extraResources:
+  - from: ../bin
+    to: bin
+    filter:
+      - "**/*"
+  - from: ../models
+    to: models
+    filter:
+      - "**/*"
+win:
+  target: nsis
+  icon: resources/icon.ico
+  artifactName: ${productName}-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: true

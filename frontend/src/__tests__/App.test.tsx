@@ -12,7 +12,7 @@ import App from '../App'
 
 // Mock Lucide icons and other complex components
 vi.mock('lucide-react', () => {
-  const icons = ['LayoutDashboard', 'Download', 'Type', 'Languages', 'Video', 'Settings', 'Clapperboard', 'Save', 'Scissors', 'Trash2', 'Plus', 'Play', 'Pause', 'Upload', 'CheckCircle', 'ChevronRight', 'X', 'Mic', 'Search', 'Clock', 'ChevronDown', 'Info', 'AlertCircle', 'Filter', 'ArrowLeftRight']
+  const icons = ['LayoutDashboard', 'Download', 'Type', 'Languages', 'Video', 'Settings', 'Clapperboard', 'Save', 'Scissors', 'Trash2', 'Plus', 'Play', 'Pause', 'Upload', 'CheckCircle', 'ChevronRight', 'X', 'Mic', 'Search', 'Clock', 'ChevronDown', 'Info', 'AlertCircle', 'Filter', 'ArrowLeftRight', 'Pencil', 'FileAudio', 'LogOut']
   const mockIcons: any = {
     __esModule: true
   }
@@ -56,6 +56,6 @@ vi.mock('../pages/TranslatorPage', () => ({ TranslatorPage: () => <div data-test
 
 test('renders app with navigation sidebar', () => {
   render(<App />)
-  // Check for sidebar items via "MediaFlow" title
-  expect(screen.getByText(/MediaFlow/i)).toBeInTheDocument()
+  // Check for sidebar items via "Editor" title
+  expect(screen.getByTitle(/Editor/i)).toBeInTheDocument()
 })

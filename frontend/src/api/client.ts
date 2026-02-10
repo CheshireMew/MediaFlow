@@ -77,8 +77,13 @@ async function request<T>(
     // If the caller expects T, this might be an issue if T isn't void-compatible.
     // Assuming mostly JSON APIs here.
     return {} as T;
+    return {} as T;
   } catch (error: any) {
     console.error(`Status: Error requesting ${endpoint}`, error);
+    // Generic Error Toast via Event
+    import("../utils/toast").then(({ toast }) => {
+      toast.error(error.message || "An unexpected error occurred");
+    });
     throw error;
   }
 }

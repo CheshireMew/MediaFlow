@@ -109,12 +109,6 @@ export function useTranscriber() {
               type: "video/mp4",
             } as unknown as File;
             setFile(fakeFile);
-            console.log(
-              "[Transcriber] Auto-loaded file from navigation:",
-              data.video_path,
-              "size:",
-              fileSize,
-            );
           };
           loadFileWithSize();
         }
@@ -228,8 +222,6 @@ export function useTranscriber() {
       alert("No subtitle file available to translate.");
       return;
     }
-
-    console.log("[Transcriber] Navigating to Translator with:", targetResult);
 
     // Use the unified navigation protocol
     sessionStorage.setItem(

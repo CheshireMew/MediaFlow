@@ -112,7 +112,6 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
         });
 
         ws.on('ready', () => {
-             console.log("Waveform ready");
              setIsReady(true);
              if (!peaks && onPeaksGenerated) {
                  const exported = ws.exportPeaks();

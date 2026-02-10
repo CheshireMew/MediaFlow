@@ -32,7 +32,6 @@ export function useDownloaderController() {
   // Debug Electron
   useEffect(() => {
     if (window.electronAPI) {
-      // console.log("[Debug] Electron API available");
     }
   }, []);
 

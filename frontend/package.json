@@ -19,6 +19,7 @@
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-router-dom": "^7.13.0",
     "react-virtualized-auto-sizer": "^2.0.2",
     "react-window": "^2.2.6",
     "wavesurfer.js": "^7.12.1",

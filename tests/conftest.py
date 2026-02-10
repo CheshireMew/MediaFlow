@@ -1,9 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 from src.main import app
-from src.services.asr import asr_service
-from src.services.downloader import downloader_service
-from src.services.llm_translator import llm_translator
+from src.core.container import container, Services
+from unittest.mock import MagicMock
 
 @pytest.fixture
 def client():
@@ -11,16 +10,25 @@ def client():
     return TestClient(app)
 
 @pytest.fixture
-def mock_asr(mocker):
+def mock_asr():
     """Mock for ASRService."""
-    return mocker.patch("src.services.asr.asr_service")
+    mock = MagicMock()
+    container.override(Services.ASR, mock)
+    yield mock
+    container.reset()
 
 @pytest.fixture
-def mock_downloader(mocker):
+def mock_downloader():
     """Mock for DownloaderService."""
-    return mocker.patch("src.services.downloader.downloader_service")
+    mock = MagicMock()
+    container.override(Services.DOWNLOADER, mock)
+    yield mock
+    container.reset()
 
 @pytest.fixture
-def mock_llm(mocker):
+def mock_llm():
     """Mock for LLMTranslator."""
-    return mocker.patch("src.services.llm_translator.llm_translator")
+    mock = MagicMock()
+    container.override(Services.LLM_TRANSLATOR, mock)
+    yield mock
+    container.reset()

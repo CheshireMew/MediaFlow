@@ -227,6 +227,26 @@ ipcMain.handle(
   },
 );
 
+// IPC: Window Controls
+ipcMain.on("window:minimize", () => {
+  const win = BrowserWindow.getFocusedWindow();
+  win?.minimize();
+});
+
+ipcMain.on("window:maximize", () => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (win?.isMaximized()) {
+    win.unmaximize();
+  } else {
+    win?.maximize();
+  }
+});
+
+ipcMain.on("window:close", () => {
+  const win = BrowserWindow.getFocusedWindow();
+  win?.close();
+});
+
 // IPC: Fetch cookies for a domain (visible window for user verification)
 ipcMain.handle(
   "cookies:fetch",
@@ -311,12 +331,9 @@ const createWindow = () => {
     // For now, let's stick to standard frame but ensure dark mode?
     // User said "Blue Bar" which implies Windows default accent color on title bar.
     // Let's try `titleBarStyle: 'hidden'` which integrates the title bar into the content.
-    titleBarStyle: "hidden",
-    titleBarOverlay: {
-      color: "#1a1a1a", // Match sidebar
-      symbolColor: "#ffffff",
-      height: 40,
-    },
+    frame: false, // Custom frame
+    // titleBarStyle: "hidden", // Removed for custom frame
+    // titleBarOverlay: { ... } // Removed for custom frame
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
@@ -336,7 +353,37 @@ const createWindow = () => {
   }
 
   // Hide menu bar for now
-  mainWindow.setMenuBarVisibility(false);
+  // mainWindow.setMenuBarVisibility(false);
+
+  const { Menu } = require("electron");
+  const template = [
+    {
+      label: "File",
+      submenu: [{ role: "quit" }],
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+      ],
+    },
+    {
+      label: "Help",
+      submenu: [
+        {
+          label: "Open API Docs",
+          click: async () => {
+            const { shell } = require("electron");
+            await shell.openExternal("http://localhost:8000/docs");
+          },
+        },
+      ],
+    },
+  ];
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
 };
 
 app.on("ready", createWindow);

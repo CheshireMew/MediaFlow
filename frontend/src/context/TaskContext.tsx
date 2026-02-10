@@ -32,7 +32,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const ws = new WebSocket(WS_TASKS_URL);
 
     ws.onopen = () => {
-      console.log("WebSocket connected");
       setConnected(true);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -41,7 +40,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     ws.onclose = () => {
-      console.log("WebSocket disconnected");
       setConnected(false);
       wsRef.current = null;
       // Reconnect after 3s

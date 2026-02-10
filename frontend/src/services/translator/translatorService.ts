@@ -13,6 +13,7 @@ export interface TranslateRequest {
   segments: SubtitleSegment[];
   target_language: string;
   mode: "standard" | "intelligent";
+  context_path?: string | null;
 }
 
 export interface TranslateResponse {

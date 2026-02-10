@@ -68,16 +68,14 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         const savedOpacity = localStorage.getItem('wm_opacity');
         const savedPos = localStorage.getItem('wm_pos');
 
-        console.log("[Synthesis] Restoring settings from localStorage:", {
-            savedScale, savedOpacity, savedPos
-        });
+
 
         if (savedScale) setWmScale(parseFloat(savedScale));
         if (savedOpacity) setWmOpacity(parseFloat(savedOpacity));
         if (savedPos) {
             try {
                 const pos = JSON.parse(savedPos);
-                console.log("[Synthesis] Setting wmPos to:", pos);
+
                 setWmPos(pos);
             } catch (e) { console.error("Invalid saved position", e); }
         }
@@ -92,7 +90,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         
         // Mark as initialized AFTER loading settings
         isInitialized.current = true;
-        console.log("[Synthesis] Initialization complete, save effects now active");
+
     }, [isOpen]); // Only depend on isOpen, runs every time dialog opens
 
     // Effect 2: Load Persisted Watermark Image (only if not already loaded)
@@ -100,18 +98,18 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         if (!isOpen) return;
         if (watermarkPreviewUrl) return; // Already have a watermark loaded
         
-        console.log("[Synthesis] Attempting to restore persisted watermark image...");
+
         apiClient.getLatestWatermark().then(res => {
             if (res && res.data_url) {
-                console.log("[Synthesis] Restored persisted watermark image");
+
                 setWatermarkPreviewUrl(res.data_url);
                 setWatermarkPath(res.png_path);
                 setWatermarkSize({ w: res.width, h: res.height });
             } else {
-                console.log("[Synthesis] No persisted watermark found (empty response)");
+
             }
-        }).catch(err => {
-            console.log("[Synthesis] No persisted watermark found or backend error:", err);
+        }).catch(() => {
+
         });
     }, [isOpen, watermarkPreviewUrl]);
 
@@ -126,7 +124,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     }, [wmOpacity]);
     useEffect(() => { 
         if (!isInitialized.current) return;
-        console.log("[Synthesis] Saving wmPos to localStorage:", wmPos);
+
         localStorage.setItem('wm_pos', JSON.stringify(wmPos)); 
     }, [wmPos]);
     // Save Subtitle Pos
@@ -155,9 +153,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
 
     // DEBUG: Log watermark state on every change
     useEffect(() => {
-        console.log("[Synthesis DEBUG] watermarkPreviewUrl changed:", watermarkPreviewUrl ? watermarkPreviewUrl.substring(0,80)+"..." : null);
-        console.log("[Synthesis DEBUG] watermarkPath:", watermarkPath);
-        console.log("[Synthesis DEBUG] watermarkSize:", watermarkSize);
+
     }, [watermarkPreviewUrl, watermarkPath, watermarkSize]);
 
     // Initialize Output Path
@@ -179,10 +175,10 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         const currentDir = videoPath.substring(0, Math.max(videoPath.lastIndexOf('\\'), videoPath.lastIndexOf('/')));
         
         if (lastDir) {
-            console.log("[Synthesis] Using last output dir:", lastDir);
+
             setOutputDir(lastDir);
         } else {
-            console.log("[Synthesis] Using source dir:", currentDir);
+
             setOutputDir(currentDir);
         }
 
@@ -205,11 +201,11 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     const handleWatermarkSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            console.log("[Synthesis] File selected:", file.name);
+
             
             try {
                 // Upload to backend for processing (Trimming transparency & Conversion)
-                console.log("[Synthesis] Uploading to backend for trimming...");
+
                 const res = await apiClient.uploadWatermark(file);
                 
                 // Set Preview & Path
@@ -219,7 +215,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                 // Set Dimensions from Backend (Trimmed)
                 const w = res.width;
                 const h = res.height;
-                console.log(`[Synthesis] Trimmed Watermark Dimensions: ${w}x${h}`);
+
                 setWatermarkSize({ w, h });
                 
                 // --- Smart Default Position (Top-Right) ---
@@ -248,7 +244,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                 const x = 1 - margin - (normW / 2);
                 const y = margin + (normH / 2);
                 
-                console.log(`[Synthesis] Default Position (TR): x=${x.toFixed(3)}, y=${y.toFixed(3)}`);
+
                 setWmPos({ x, y }); 
 
             } catch (err) {
@@ -321,7 +317,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
             let backendScale = wmScale; // Default fallback
             if (videoSize.w > 0 && watermarkSize.w > 0) {
                  backendScale = (videoSize.w * wmScale) / watermarkSize.w;
-                 console.log(`[Synthesis] Calculated Backend Scale: ${backendScale} (Target Width: ${videoSize.w * wmScale}px)`);
+
             }
 
             // Calculate Font Size Scaling (WYSIWYG)
@@ -333,7 +329,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                 if (previewHeight > 0) {
                     const ratio = videoSize.h / previewHeight;
                     outcomeFontSize = Math.round(fontSize * ratio);
-                    console.log(`[Synthesis] Font Scaling: PreviewH=${previewHeight}, RealH=${videoSize.h}, Ratio=${ratio.toFixed(2)}, FinalSize=${outcomeFontSize}`);
+
                 }
             }
 

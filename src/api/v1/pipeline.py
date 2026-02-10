@@ -55,9 +55,14 @@ async def run_pipeline(req: PipelineRequest, background_tasks: BackgroundTasks):
 
         # 2. Create New Task
         # Store params for potential resume
-        logger.info(f"Pipeline Request: task_name={req.task_name}, steps={len(req.steps)}")
+        # Determine Task Type
+        task_type = "pipeline"
+        if len(req.steps) == 1 and req.steps[0].step_name == "download":
+            task_type = "download"
+
+        logger.info(f"Pipeline Request: task_name={req.task_name}, steps={len(req.steps)}, type={task_type}")
         task_id = await tm.create_task(
-            "pipeline", 
+            task_type, 
             "Queued", 
             request_params=req.dict(), 
             task_name=req.task_name

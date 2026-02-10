@@ -12,16 +12,16 @@ import { EditorHeader } from "../components/editor/EditorHeader";
 import { VideoPreview } from "../components/editor/VideoPreview";
 
 // Custom Hooks
-import { useEditorState } from "../hooks/editor/useEditorState";
+// Custom Hooks
 import { useEditorIO } from "../hooks/editor/useEditorIO";
 import { useEditorShortcuts } from "../hooks/editor/useEditorShortcuts";
+import { useEditorStore } from "../stores/editorStore";
 
 export function EditorPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   
   // --- UI State ---
   const [autoScroll, setAutoScroll] = useState(true);
-  // playingSegmentId 已移除 - 该功能导致性能问题
   const [peaks, setPeaks] = useState<any>(null);
   const [contextMenu, setContextMenu] = useState<{
       position: { x: number; y: number };
@@ -29,23 +29,20 @@ export function EditorPage() {
       targetId?: string;
   } | null>(null);
 
-  // --- Domain Logic Hooks ---
-  
-  const {
-      regions,
-      setRegions, // Needed for IO
-      activeSegmentId,
-      selectedIds,
-      undo,   // implicitly used by shortcuts? No, passed explicitly
-      redo,
-      deleteSegments,
-      mergeSegments,
-      splitSegment,
-      updateRegion,
-      updateRegionText,
-      snapshot,
-      selectSegment
-  } = useEditorState([]);
+  // --- Domain Logic (Zustand Store) ---
+  const regions = useEditorStore(state => state.regions);
+  const setRegions = useEditorStore(state => state.setRegions);
+  const activeSegmentId = useEditorStore(state => state.activeSegmentId);
+  const selectedIds = useEditorStore(state => state.selectedIds);
+  const undo = useEditorStore(state => state.undo);
+  const redo = useEditorStore(state => state.redo);
+  const deleteSegments = useEditorStore(state => state.deleteSegments);
+  const mergeSegments = useEditorStore(state => state.mergeSegments);
+  const splitSegment = useEditorStore(state => state.splitSegment);
+  const updateRegion = useEditorStore(state => state.updateRegion);
+  const updateRegionText = useEditorStore(state => state.updateRegionText);
+  const snapshot = useEditorStore(state => state.snapshot);
+  const selectSegment = useEditorStore(state => state.selectSegment);
 
   const {
       mediaUrl,
@@ -54,8 +51,8 @@ export function EditorPage() {
       saveSubtitleFile,
       detectSilence,
       isReady,
-      currentFilePath // <--- Need this for synthesis real path
-  } = useEditorIO(setRegions, setPeaks);
+      currentFilePath 
+  } = useEditorIO(setPeaks);
 
   // --- Persistence & Safety ---
 
@@ -379,7 +376,7 @@ export function EditorPage() {
             onSynthesize={async (options, videoPath, watermarkPath) => {
                 // 1. Force Save FIRST to ensure SRT file on disk matches Editor content
                 try {
-                    console.log("[EditorPage] Saving subtitles before synthesis...");
+
                     await saveSubtitleFile(regions); // This saves to video.srt
                 } catch (e) {
                     console.error("[EditorPage] Failed to save subtitles before synthesis", e);
@@ -393,7 +390,7 @@ export function EditorPage() {
                 // So we derive srtPath same way
                 const srtPath = videoPath.replace(/\.[^.]+$/, '.srt');
                 const { output_path, ...restOptions } = options;
-                console.log("[EditorPage] Starting synthesis with:", { videoPath, srtPath, output_path });
+                // console.log("[EditorPage] Starting synthesis with:", { videoPath, srtPath, output_path });
                 
                 await apiClient.synthesizeVideo({
                     video_path: videoPath,

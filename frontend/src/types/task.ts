@@ -7,7 +7,7 @@ export interface SubtitleSegment {
 
 export interface Task {
   id: string;
-  type: "download" | "transcribe" | "translate" | "pipeline";
+  type: "download" | "transcribe" | "translate" | "pipeline" | "synthesis";
   status:
     | "pending"
     | "running"
@@ -20,5 +20,6 @@ export interface Task {
   message?: string;
   error?: string;
   result?: any;
+  request_params?: any;
   created_at: number;
 }

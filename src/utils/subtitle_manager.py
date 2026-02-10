@@ -329,58 +329,95 @@ class SubtitleManager:
         """
         if not segments:
             return []
+
+        logger.info(f"DEBUG MERGE: Type={type(segments)}, Len={len(segments)}")
+        if len(segments) > 0:
+             logger.info(f"DEBUG MERGE: First item={type(segments[0])}, content={segments[0]}")
             
-        merged = [segments[0]]
-        
-        for i in range(1, len(segments)):
-            prev = merged[-1]
-            curr = segments[i]
+        if not segments:
+            return []
+
+        try:
+            merged = [segments[0]]
             
-            # --- Merge Condition Checks ---
-            
-            # 1. Time Gap: Must be close enough
-            # Relaxed from 0.5 to 1.0s because V2 sometimes leaves larger gaps between fragments
-            time_gap = curr.start - prev.end
-            is_close = time_gap < gap_threshold
-            
-            # 2. Length: Combined shouldn't be too long
-            # Simple space concatenation for checking length
-            temp_text = prev.text + " " + curr.text
-            can_fit = len(temp_text) <= max_chars
-            
-            # 3. Fragment Detection
-            # A fragment is very short (< 15 chars or < 3 words)
-            curr_is_fragment = len(curr.text) < 15 or len(curr.text.split()) < 3
-            
-            # 4. Punctuation Check
-            # If prev ends with strong punctuation, we are reluctant to merge unless curr is a tiny fragment
-            prev_ends_sentence = prev.text.strip()[-1] in {'.', '!', '?', '。', '！', '？'} if prev.text else False
-            
-            # --- Decision Logic ---
-            should_merge = False
-            
-            if is_close and can_fit:
-                if curr_is_fragment:
-                    # Always merge fragments if they fit and are close
-                    should_merge = True
-                elif not prev_ends_sentence:
-                    # Merge normal segments if they flow (no period)
-                    should_merge = True
-            
-            if should_merge:
-                # Execute Merge
-                # Handle CJK spacing
-                is_prev_cjk = SubtitleManager._is_mainly_cjk(prev.text)
-                separator = "" if is_prev_cjk else " "
+            for i in range(1, len(segments)):
+                prev = merged[-1]
+                curr = segments[i]
                 
-                prev.text = prev.text + separator + curr.text
-                prev.end = curr.end
-            else:
-                merged.append(curr)
+                # --- Merge Condition Checks ---
                 
-        # Re-index IDs
-        for i, seg in enumerate(merged):
-            seg.id = str(i + 1)
+                # 1. Time Gap: Must be close enough
+                # Relaxed from 0.5 to 1.0s because V2 sometimes leaves larger gaps between fragments
+                time_gap = curr.start - prev.end
+                is_close = time_gap < gap_threshold
+                
+                # 2. Length: Combined shouldn't be too long
+                # Simple space concatenation for checking length
+                temp_text = prev.text + " " + curr.text
+                can_fit = len(temp_text) <= max_chars
+                
+                # 3. Fragment Detection
+                # A fragment is very short (< 15 chars or < 3 words)
+                curr_is_fragment = len(curr.text) < 15 or len(curr.text.split()) < 3
+                
+                # 4. Punctuation Check
+                # If prev ends with strong punctuation, we are reluctant to merge unless curr is a tiny fragment
+                prev_ends_sentence = prev.text.strip()[-1] in {'.', '!', '?', '。', '！', '？'} if prev.text else False
+                
+                # --- Decision Logic ---
+                should_merge = False
+                
+                if is_close and can_fit:
+                    if curr_is_fragment:
+                        # Always merge fragments if they fit and are close
+                        should_merge = True
+                    elif not prev_ends_sentence:
+                        # Merge normal segments if they flow (no period)
+                        should_merge = True
+                
+                if should_merge:
+                    # Execute Merge
+                    # Handle CJK spacing
+                    is_prev_cjk = SubtitleManager._is_mainly_cjk(prev.text)
+                    separator = "" if is_prev_cjk else " "
+                    
+                    prev.text = prev.text + separator + curr.text
+                    prev.end = curr.end
+                else:
+                    merged.append(curr)
+                    
+            # Re-index IDs
+            for i, seg in enumerate(merged):
+                seg.id = str(i + 1)
+            
+            return merged
+
+        except Exception as e:
+            import traceback
+            import time
+            from pathlib import Path
+            
+            # Log to console
+            logger.error(f"Smart merge failed: {e}. generating crash dump...")
+            
+            # Create crash dump for root cause analysis
+            try:
+                dump_file = Path("crash_dump_subtitle_merge.txt")
+                with open(dump_file, "w", encoding="utf-8") as f:
+                    f.write(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"Error: {e}\n")
+                    f.write(f"Segments Type: {type(segments)}\n")
+                    if isinstance(segments, list):
+                        f.write(f"Segments Len: {len(segments)}\n")
+                        for idx, s in enumerate(segments):
+                            f.write(f"Item {idx}: {s}\n")
+                    f.write("\nTraceback:\n")
+                    f.write(traceback.format_exc())
+                logger.info(f"Crash dump saved to {dump_file.absolute()}")
+            except Exception as dump_err:
+                logger.error(f"Failed to write crash dump: {dump_err}")
+
+            return segments
             
 
     @staticmethod

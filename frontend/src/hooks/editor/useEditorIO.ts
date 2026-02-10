@@ -1,27 +1,25 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { parseSRT } from "../../utils/subtitleParser";
 import type { SubtitleSegment } from "../../types/task";
 import { apiClient } from "../../api/client";
+import { useEditorStore } from "../../stores/editorStore";
 
 const STORAGE_KEY_LAST_MEDIA = "editor_last_media_path";
-const STORAGE_KEY_LAST_SUBS = "editor_last_subtitles";
 
-export function useEditorIO(
-  setRegions: (regions: SubtitleSegment[]) => void,
-  setPeaks: (peaks: any) => void,
-) {
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-  const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
+export function useEditorIO(setPeaks: (peaks: any) => void) {
+  // Access Store
+  const mediaUrl = useEditorStore((state) => state.mediaUrl);
+  const currentFilePath = useEditorStore((state) => state.currentFilePath);
+  const setRegions = useEditorStore((state) => state.setRegions);
+  const setMediaUrl = useEditorStore((state) => state.setMediaUrl);
+  const setCurrentFilePath = useEditorStore(
+    (state) => state.setCurrentFilePath,
+  );
 
   // --- Private Helpers ---
 
-  // Enhanced to try Priority Suffixes first: _CN, _EN, etc., then base .srt
   const tryLoadRelatedSubtitle = async (videoPath: string) => {
-    // Priority order for auto-loading subtitles
     const priorities = ["_CN", "_EN", "_JP", "_ES", "_FR", "_DE", "_RU", ""]; // "" = base .srt
-
-    // Strip extension to get base name (e.g., "video.mp4" -> "video")
     const basePath = videoPath.replace(/\.[^.]+$/, "");
 
     for (const suffix of priorities) {
@@ -32,16 +30,8 @@ export function useEditorIO(
           if (content) {
             const parsed = parseSRT(content);
             if (parsed.length > 0) {
-              console.log(
-                `[EditorIO] Loaded priority subtitle (${suffix || "base"}):`,
-                srtPath,
-              );
               setRegions(parsed);
-              localStorage.setItem(
-                STORAGE_KEY_LAST_SUBS,
-                JSON.stringify(parsed),
-              );
-              return; // Found and loaded, stop searching
+              return;
             }
           }
         }
@@ -49,7 +39,6 @@ export function useEditorIO(
         // Ignore missing files
       }
     }
-    console.log("[EditorIO] No matching subtitle file found.");
   };
 
   const tryLoadPeaks = async (videoPath: string) => {
@@ -64,9 +53,7 @@ export function useEditorIO(
           }
         }
       }
-    } catch (e) {
-      console.log("[EditorIO] No cached peaks found", e);
-    }
+    } catch (e) {}
   };
 
   const loadMediaAndResources = useCallback(
@@ -77,15 +64,13 @@ export function useEditorIO(
       const url = `file:///${encodeURI(normalizedPath)}`;
 
       setPeaks(null);
-      localStorage.setItem(STORAGE_KEY_LAST_MEDIA, path);
-      setCurrentFilePath(path);
+      setCurrentFilePath(path); // Update Store
+      setMediaUrl(url); // Update Store
 
       await tryLoadPeaks(path);
-
-      setMediaUrl(url);
       await tryLoadRelatedSubtitle(path);
     },
-    [setRegions, setPeaks],
+    [setRegions, setPeaks, setCurrentFilePath, setMediaUrl],
   );
 
   // --- Actions ---
@@ -113,28 +98,31 @@ export function useEditorIO(
         if (file) {
           setMediaUrl(URL.createObjectURL(file));
           setPeaks(null);
-          // Cannot load related files in browser mode easily
         }
       };
       input.click();
     }
-  }, [loadMediaAndResources, setPeaks]);
+  }, [loadMediaAndResources, setPeaks, setMediaUrl]);
 
-  const handlePeaksExport = useCallback(async (generatedPeaks: any) => {
-    const lastMedia = localStorage.getItem(STORAGE_KEY_LAST_MEDIA);
-    if (lastMedia && window.electronAPI?.writeFile) {
-      try {
-        await window.electronAPI.writeFile(
-          lastMedia + ".peaks.json",
-          JSON.stringify(generatedPeaks),
-        );
-      } catch (e) {
-        console.error("[EditorIO] Failed to save peaks", e);
+  const handlePeaksExport = useCallback(
+    async (generatedPeaks: any) => {
+      // Use store's currentFilePath instead of localStorage if available, or fallback
+      const lastMedia =
+        currentFilePath || localStorage.getItem(STORAGE_KEY_LAST_MEDIA);
+
+      if (lastMedia && window.electronAPI?.writeFile) {
+        try {
+          await window.electronAPI.writeFile(
+            lastMedia + ".peaks.json",
+            JSON.stringify(generatedPeaks),
+          );
+        } catch (e) {
+          console.error("[EditorIO] Failed to save peaks", e);
+        }
       }
-    }
-  }, []);
-
-  // --- Restoration Effect ---
+    },
+    [currentFilePath],
+  );
 
   // --- Restoration Effect ---
 
@@ -145,23 +133,13 @@ export function useEditorIO(
       if (pendingFile) {
         try {
           const data = JSON.parse(pendingFile);
-          // Only process if it's meant for editor (or generic from TaskMonitor which might not have target yet,
-          // but we should probably process it if it has video_path)
-          // TaskMonitor sends { video_path, subtitle_path } without target sometimes?
-          // We should probably check if it HAS video_path.
-
           const isValidTarget = !data.target || data.target === "editor";
 
           if (isValidTarget && data.video_path) {
-            console.log("[EditorIO] Found pending navigation:", data);
-
             // Load it
             const normalizedPath = data.video_path.replace(/\\/g, "/");
             setMediaUrl(`file:///${normalizedPath}`);
             setCurrentFilePath(data.video_path);
-
-            // Store as last media immediately
-            localStorage.setItem(STORAGE_KEY_LAST_MEDIA, data.video_path);
 
             // Load peaks
             await tryLoadPeaks(data.video_path);
@@ -176,14 +154,6 @@ export function useEditorIO(
                   if (content) {
                     const parsed = parseSRT(content);
                     setRegions(parsed);
-                    localStorage.setItem(
-                      STORAGE_KEY_LAST_SUBS,
-                      JSON.stringify(parsed),
-                    );
-                    console.log(
-                      "[EditorIO] Loaded pending subtitle:",
-                      data.subtitle_path,
-                    );
                   }
                 }
               } catch (e) {
@@ -194,51 +164,33 @@ export function useEditorIO(
             }
 
             sessionStorage.removeItem("mediaflow:pending_file");
-            setIsReady(true);
-            return; // Skip local storage restoration
+            return;
           }
         } catch (e) {
           console.error("Failed to parse pending file for editor", e);
         }
       }
 
-      // 2. Fallback to LocalStorage (Last Session)
-      const lastMedia = localStorage.getItem(STORAGE_KEY_LAST_MEDIA);
-      const lastSubs = localStorage.getItem(STORAGE_KEY_LAST_SUBS);
+      // 2. Fallback to Store Persistence has already happened via Zustand!
+      // But we might need to load peaks for the persisted media path?
+      // Zustand rehydrates synchronously or asynchronously?
+      // Usually async. We need to watch for hydration?
+      // For now, let's assume if currentFilePath exists in store, we load peaks.
 
-      if (lastMedia) {
-        // Load peaks FIRST to avoid WaveformPlayer causing a full decode
-        await tryLoadPeaks(lastMedia);
+      // Wait, we can just trigger loadPeaks if currentFilePath is present on mount?
+      // But we don't want to re-load if we just navigated away and back?
+      // Actually, peaks might need to be re-fetched into the `peaks` state (which is still local to EditorPage/useEditorIO).
 
-        const normalizedPath = lastMedia.replace(/\\/g, "/");
-        setMediaUrl(`file:///${normalizedPath}`);
-        setCurrentFilePath(lastMedia); // Restore path state
+      if (currentFilePath) {
+        await tryLoadPeaks(currentFilePath);
       }
-
-      if (lastSubs) {
-        try {
-          const parsed = JSON.parse(lastSubs);
-          setRegions(parsed);
-        } catch (e) {
-          console.warn("Failed to parse saved subtitles", e);
-        }
-      }
-
-      // If we have media but no subs, maybe try reloading?
-      // The original logic only loaded related if !lastSubs.
-      if (lastMedia && !lastSubs) {
-        await tryLoadRelatedSubtitle(lastMedia);
-      }
-      setIsReady(true);
     };
     restoreSession();
   }, []); // Run once
 
   const detectSilence = useCallback(
     async (threshold = "-30dB", minDuration = 0.5) => {
-      // Use currentFilePath or fallback to localStorage
-      const path =
-        currentFilePath || localStorage.getItem(STORAGE_KEY_LAST_MEDIA);
+      const path = currentFilePath;
       if (!path) throw new Error("No file loaded");
 
       try {
@@ -260,9 +212,7 @@ export function useEditorIO(
 
   const saveSubtitleFile = useCallback(
     async (regionsToSave: SubtitleSegment[]) => {
-      // Use currentFilePath or fallback to localStorage path
-      const path =
-        currentFilePath || localStorage.getItem(STORAGE_KEY_LAST_MEDIA);
+      const path = currentFilePath;
       if (!path) {
         alert("No file path found to save to.");
         return;
@@ -285,7 +235,6 @@ export function useEditorIO(
       if (window.electronAPI?.writeFile) {
         try {
           await window.electronAPI.writeFile(srtPath, srtContent);
-          console.log("[EditorIO] Saved subtitles to", srtPath);
           return true; // value to indicate success
         } catch (e) {
           console.error("[EditorIO] Failed to save subtitle file", e);
@@ -302,10 +251,10 @@ export function useEditorIO(
   return {
     mediaUrl,
     currentFilePath,
-    isReady,
+    isReady: true, // Always ready as store is source of truth? Or wait for hydration?
     openFile: handleOpenFile,
     savePeaks: handlePeaksExport,
-    saveSubtitleFile, // New action
+    saveSubtitleFile,
     detectSilence,
   };
 }

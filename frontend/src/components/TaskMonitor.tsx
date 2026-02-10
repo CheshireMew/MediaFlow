@@ -1,20 +1,9 @@
 import React, { useState } from 'react';
 import { useTaskContext } from '../context/TaskContext';
-import { CheckCircle, AlertCircle, Loader, Clock, Pause, Play, Trash2, FolderOpen, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader, Clock, Pause, Play, Trash2, FolderOpen, ChevronDown, ChevronUp, Activity, Download, FileAudio, Languages, Video } from 'lucide-react';
 import { TaskTraceView } from './TaskTraceView';
 
-const ProgressBar: React.FC<{ progress: number }> = ({ progress }) => (
-  <div style={{ width: '100%', height: 6, background: '#333', borderRadius: 3, marginTop: 8, overflow: 'hidden' }}>
-    <div 
-      style={{ 
-        width: `${Math.max(0, Math.min(100, progress))}%`, 
-        height: '100%', 
-        background: '#4F46E5',
-        transition: 'width 0.3s ease'
-      }} 
-    />
-  </div>
-);
+
 
 export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes }) => {
     const { tasks, cancelTask, connected } = useTaskContext();
@@ -34,9 +23,9 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
         });
     };
 
-    if (filteredTasks.length === 0) {
-        return null; // Or show empty state?
-    }
+    // if (filteredTasks.length === 0) {
+    //     return null; // Or show empty state?
+    // }
 
     const getStatusIcon = (status: string) => {
         switch (status) {
@@ -49,259 +38,352 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
         }
     };
 
+    const getTaskTypeInfo = (task: any) => {
+        const { type, name, request_params } = task;
+        
+        // Fix: "pipeline" tasks can be downloads. Check name if type is generic.
+        // Also check request_params.steps for a "download" step
+        const isDownloadPipeline = type === 'pipeline' && (
+            name?.toLowerCase().includes('download') || 
+            request_params?.steps?.some((s: any) => s.step_name === 'download' || s.action === 'download')
+        );
+
+        if (type === 'download' || isDownloadPipeline) {
+             return { icon: <Download size={16} />, label: 'Download', color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' };
+        }
+        
+        switch (type) {
+            case 'transcribe': return { icon: <FileAudio size={16} />, label: 'Transcribe', color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20' };
+            case 'translate': return { icon: <Languages size={16} />, label: 'Translate', color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20' };
+            case 'pipeline':
+            case 'synthesize': 
+            case 'synthesis': return { icon: <Video size={16} />, label: 'Synthesize', color: 'text-pink-400', bg: 'bg-pink-400/10', border: 'border-pink-400/20' };
+            default: return { icon: <Activity size={16} />, label: 'Task', color: 'text-slate-400', bg: 'bg-slate-400/10', border: 'border-slate-400/20' };
+        }
+    };
+
     return (
-        <div className="card" style={{ 
-            background: '#1e1e1e', 
-            borderRadius: 12, 
-            border: '1px solid #333',
-            marginTop: 30,
-            overflow: 'hidden'
-        }}>
-            <div style={{ padding: '15px 20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0 }}>Task Monitor</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: '0.8em', color: connected ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: connected ? '#10b981' : '#ef4444' }} />
+        <div className="bg-[#1a1a1a] border border-white/5 rounded-xl shadow-2xl overflow-hidden mt-2 h-full flex flex-col">
+            {/* ... Header ... */}
+            <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02] flex-none">
+                 {/* ... header content ... */}
+                 {/* Re-implementing Header for context match, but simplified since I use ReplaceFileContent with strict blocks */}
+                 <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-indigo-400" />
+                    Task Monitor
+                </h3>
+                {/* ... existing header controls ... */}
+                 <div className="flex items-center gap-4">
+                    <span className={`text-[10px] font-medium flex items-center gap-1.5 ${connected ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <span className={`relative flex h-2 w-2`}>
+                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${connected ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                          <span className={`relative inline-flex rounded-full h-2 w-2 ${connected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                        </span>
                         {connected ? 'Connected' : 'Disconnected'}
                     </span>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                    {/* Pause All */}
-                    <button 
-                        onClick={() => {
-                            if (confirm('Pause all running tasks?')) {
-                                import('../api/client').then(({ apiClient }) => {
-                                    apiClient.cancelAllTasks().catch(err => console.error(err));
-                                });
-                            }
-                        }}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            background: '#333',
-                            border: '1px solid #555',
-                            color: '#ccc',
-                            padding: '6px 12px',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                            fontSize: '0.9em'
-                        }}
-                        title="Pause all active downloads (Can be resumed)"
-                    >
-                        <Pause size={14} />
-                        Pause All
-                    </button>
+                    
+                    <div className="flex gap-2">
+                        {/* Pause All */}
+                        <button 
+                            onClick={() => {
+                                if (confirm('Pause all running tasks?')) {
+                                    import('../api/client').then(({ apiClient }) => {
+                                        apiClient.cancelAllTasks().catch(err => console.error(err));
+                                    });
+                                }
+                            }}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-[10px] transition-all hover:text-white"
+                            title="Pause all active tasks"
+                        >
+                            <Pause size={12} />
+                            Pause All
+                        </button>
 
-                    {/* Clear All (Delete All) */}
-                    <button 
-                        onClick={() => {
-                            if (confirm('Delete ALL tasks? This cannot be undone.')) {
-                                import('../api/client').then(({ apiClient }) => {
-                                    apiClient.deleteAllTasks().catch(err => console.error(err));
-                                });
-                            }
-                        }}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            background: '#333',
-                            border: '1px solid #555',
-                            color: '#ef4444', // Red color for danger
-                            padding: '6px 12px',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                            fontSize: '0.9em'
-                        }}
-                        title="Delete and clear all tasks"
-                    >
-                        <Trash2 size={14} />
-                        Clear All
-                    </button>
-                </div>
+                        {/* Clear All */}
+                        <button 
+                            onClick={() => {
+                                if (confirm('Delete ALL tasks? This cannot be undone.')) {
+                                    import('../api/client').then(({ apiClient }) => {
+                                        apiClient.deleteAllTasks().catch(err => console.error(err));
+                                    });
+                                }
+                            }}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-[10px] transition-all hover:text-rose-300"
+                            title="Delete all tasks"
+                        >
+                            <Trash2 size={12} />
+                            Clear All
+                        </button>
+                    </div>
                 </div>
             </div>
             
-            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                {filteredTasks.map(task => (
-                    <div key={task.id} style={{ padding: '15px 20px', borderBottom: '1px solid #333' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                {getStatusIcon(task.status)}
-                                <span style={{ fontWeight: 500 }}>
-                                    {task.name || (task.type === 'download' ? 'Downloading' : 'Task')} 
-                                </span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                {task.status === 'running' || task.status === 'pending' ? (
-                                    <button 
-                                        onClick={() => cancelTask(task.id)}
-                                        title="Pause task (Resumable)"
-                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4 }}
-                                    >
-                                        <Pause size={16} color="#6b7280" />
-                                    </button>
-                                ) : null}
+            {/* Task List */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                {filteredTasks.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-600 p-8">
+                        <FolderOpen className="w-8 h-8 mb-2 opacity-20" />
+                        <p className="text-sm">No active tasks</p>
+                    </div>
+                ) : (
+                    filteredTasks.map(task => (
+                        <div key={task.id} className="p-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors group relative">
+                            <div className="flex items-start gap-4">
+                                {/* Status Icon - Top aligned with slight offset */}
+                                <div className="bg-white/5 p-2 rounded-lg shrink-0 mt-0.5">
+                                    {getStatusIcon(task.status)}
+                                </div>
 
-                                {(task.status === 'cancelled' || task.status === 'failed' || task.status === 'paused') && (
-                                    <button 
-                                         onClick={() => {
-                                            import('../api/client').then(({ apiClient }) => {
-                                                apiClient.resumeTask(task.id).catch(err => console.error(err));
-                                            });
-                                        }}
-                                        title="Resume download"
-                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4 }}
-                                    >
-                                        <Play size={16} color="#10b981" />
-                                    </button>
-                                )}
+                                {/* Main Content */}
+                                <div className="flex-1 min-w-0">
+                                    {/* Row 1: Badge + ID + Actions Spacer */}
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-3">
+                                            {(() => {
+                                                const typeInfo = getTaskTypeInfo(task);
+                                                return (
+                                                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium border ${typeInfo.bg} ${typeInfo.color} ${typeInfo.border}`}>
+                                                        {typeInfo.icon}
+                                                        <span className="uppercase tracking-wider">{typeInfo.label}</span>
+                                                    </div>
+                                                );
+                                            })()}
+                                            <span className="text-[10px] text-slate-600 font-mono tracking-wide">
+                                                #{task.id.slice(0, 8)}
+                                            </span>
+                                        </div>
+                                        
+                                        {/* Action Buttons - Visible on Hover (Absolute positioning handled by flex justify-between if space allows, usually safe here) */}
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {task.status === 'running' || task.status === 'pending' ? (
+                                                <button 
+                                                    onClick={() => cancelTask(task.id)}
+                                                    className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                                                    title="Pause task"
+                                                >
+                                                    <Pause size={14} />
+                                                </button>
+                                            ) : null}
 
-                                 {/* Delete Button - Always visible or for finished/stopped tasks? */}
-                                 {/* User wants "Cancel" (Delete). So we show it always. */}
-                                 {/* For running tasks, it cancels then deletes (backend handles this). */}
-                                 <button
-                                    onClick={() => {
-                                        if (confirm("Delete this task? This will remove it from the list.")) {
-                                            import('../api/client').then(({ apiClient }) => {
-                                                apiClient.deleteTask(task.id).catch(err => console.error(err));
-                                            });
-                                        }
-                                    }}
-                                    title="Delete task (Remove from list)"
-                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4 }}
-                                >
-                                    <Trash2 size={16} color="#6b7280" />
-                                </button>
-                                
-                                {/* Open Folder Button for Completed Downloads */}
-                                {task.status === 'completed' && task.result?.video_path && (
-                                    <button
-                                        onClick={() => {
-                                             const path = task.result.video_path;
-                                             if ((window as any).electronAPI) {
-                                                 (window as any).electronAPI.showInExplorer(path);
-                                             } else {
-                                                 alert(`File path: ${path}`);
-                                             }
-                                        }}
-                                        title="Show file in folder"
-                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, marginLeft: 4 }}
-                                    >
-                                        <FolderOpen size={16} color="#3b82f6" />
-                                    </button>
-                                )}
+                                            {(task.status === 'cancelled' || task.status === 'failed' || task.status === 'paused') && (
+                                                <button 
+                                                     onClick={() => {
+                                                        import('../api/client').then(({ apiClient }) => {
+                                                            apiClient.resumeTask(task.id).catch(err => console.error(err));
+                                                        });
+                                                    }}
+                                                    className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-500 transition-colors"
+                                                    title="Resume task"
+                                                >
+                                                    <Play size={14} />
+                                                </button>
+                                            )}
 
-                                {/* Smart Navigation: Next Step Buttons */}
-                                {task.status === 'completed' && (task.result?.video_path || task.result?.path) && (
-                                    <div style={{ display: 'flex', gap: 6, marginLeft: 6 }}>
-                                        {/* Transcribe Button */}
-                                        <button
-                                            onClick={() => {
-                                                const subPath = task.result?.subtitle_path || task.result?.srt_path;
-                                                sessionStorage.setItem('mediaflow:pending_file', JSON.stringify({
-                                                    video_path: task.result?.video_path || task.result?.path,
-                                                    subtitle_path: subPath // Pass it if exists, Transcriber can ignore or use it
-                                                }));
-                                                window.dispatchEvent(new CustomEvent('mediaflow:navigate', { detail: 'transcriber' }));
-                                            }}
-                                            title="Open in Transcriber"
-                                            style={{ 
-                                                display: 'flex', 
-                                                alignItems: 'center', 
-                                                gap: 4,
-                                                background: '#4F46E5', // Indigo
-                                                border: 'none', 
-                                                cursor: 'pointer', 
-                                                padding: '4px 8px',
-                                                borderRadius: 4,
-                                                color: '#fff',
-                                                fontSize: '0.75em'
-                                            }}
-                                        >
-                                            Transcribe
-                                            <ArrowRight size={12} />
-                                        </button>
+                                             <button
+                                                onClick={() => {
+                                                    if (confirm("Delete this task?")) {
+                                                        import('../api/client').then(({ apiClient }) => {
+                                                            apiClient.deleteTask(task.id).catch(err => console.error(err));
+                                                        });
+                                                    }
+                                                }}
+                                                className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-500 transition-colors"
+                                                title="Delete task"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                            
+                                            {/* Unified Actions based on available data */}
+                                            {task.status === 'completed' && (() => {
+                                                const result = task.result || {};
+                                                const params = task.request_params || {};
+                                                
+                                                // Resolve paths from Result (output) or Params (input)
+                                                // Priority: Output > Input
+                                                // Download: result.path / result.video_path
+                                                // Transcribe: params.audio_path (Input Video) / result.srt_path (Output)
+                                                // Translate: params.segments (No path) -> But maybe params.request_params has valid path if passed?
+                                                // Synthesis: result.video_path (Output) / params.video_path (Input)
+                                                
+                                                const videoPath = result.video_path || result.path || params.video_path || params.audio_path || params.file_path || params.context_path || (task.type === 'download' ? result.file_path : null);
+                                                
+                                                // Special handling for Translate task output which might rely on params.source_file_path if result is empty
+                                                // And check if result has 'srt_path' (which it should if successful)
+                                                let srtPath = result.srt_path || result.subtitle_path || params.srt_path || params.subtitle_path;
+                                                
+                                                // Detailed fallback for Translate: scan params for .srt if srtPath is missing
+                                                if (!srtPath && task.type === 'translate') {
+                                                     // Try to find any param that looks like an SRT file path
+                                                     const candidates = Object.values(params).filter(v => typeof v === 'string' && v.endsWith('.srt'));
+                                                     if (candidates.length > 0) srtPath = candidates[0] as string;
+                                                }
+                                                
+                                                // For 'Show in Folder', we prefer the output (e.g. download result), then any valid path
+                                                const contextPath = result.video_path || result.path || result.srt_path || result.file_path || videoPath || srtPath || params.output_path;
 
-                                        {/* Translate Button */}
-                                        <button
-                                            onClick={() => {
-                                                const subPath = task.result?.subtitle_path || task.result?.srt_path;
-                                                if (!subPath) return;
+                                                return (
+                                                    <div className="flex items-center gap-1 ml-2">
+                                                        <div className="w-px h-3 bg-white/10 mx-1" />
+                                                        
+                                                        {/* Show in Folder */}
+                                                        {contextPath && (
+                                                            <button
+                                                                onClick={() => {
+                                                                     if ((window as any).electronAPI) {
+                                                                         (window as any).electronAPI.showInExplorer(contextPath);
+                                                                     }
+                                                                }}
+                                                                className="p-1.5 rounded-lg hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-colors"
+                                                                title="Show in folder"
+                                                            >
+                                                                <FolderOpen size={14} />
+                                                            </button>
+                                                        )}
 
-                                                sessionStorage.setItem('mediaflow:pending_file', JSON.stringify({
-                                                    video_path: task.result?.video_path || task.result?.path,
-                                                    subtitle_path: subPath
-                                                }));
-                                                window.dispatchEvent(new CustomEvent('mediaflow:navigate', { detail: 'translator' }));
-                                            }}
-                                            disabled={!task.result?.subtitle_path && !task.result?.srt_path}
-                                            title={task.result?.subtitle_path || task.result?.srt_path ? 'Open in Translator' : 'No subtitle found'}
-                                            style={{ 
-                                                display: 'flex', 
-                                                alignItems: 'center', 
-                                                gap: 4,
-                                                background: (task.result?.subtitle_path || task.result?.srt_path) ? '#10b981' : '#374151', // Emerald or Gray-700
-                                                border: 'none', 
-                                                cursor: (task.result?.subtitle_path || task.result?.srt_path) ? 'pointer' : 'not-allowed',
-                                                padding: '4px 8px',
-                                                borderRadius: 4,
-                                                color: (task.result?.subtitle_path || task.result?.srt_path) ? '#fff' : '#9ca3af', // White or Gray-400
-                                                fontSize: '0.75em',
-                                                opacity: (task.result?.subtitle_path || task.result?.srt_path) ? 1 : 0.8
-                                            }}
-                                        >
-                                            Translate
-                                            <ArrowRight size={12} />
-                                        </button>
+                                                        {/* Send to Transcribe (Needs Video/Audio) */}
+                                                        {videoPath && task.type !== 'transcribe' && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    sessionStorage.setItem('mediaflow:pending_file', JSON.stringify({
+                                                                        video_path: videoPath,
+                                                                        subtitle_path: srtPath
+                                                                    }));
+                                                                    window.dispatchEvent(new CustomEvent('mediaflow:navigate', { detail: 'transcriber' }));
+                                                                }}
+                                                                className="p-1.5 rounded-lg hover:bg-purple-500/20 text-slate-400 hover:text-purple-400 transition-colors"
+                                                                title="Transcribe"
+                                                            >
+                                                                <FileAudio size={14} />
+                                                            </button>
+                                                        )}
+
+                                                        {/* Send to Translate (Needs SRT) */}
+                                                        {srtPath && task.type !== 'translate' && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    sessionStorage.setItem('mediaflow:pending_file', JSON.stringify({
+                                                                        video_path: videoPath,
+                                                                        subtitle_path: srtPath
+                                                                    }));
+                                                                    window.dispatchEvent(new CustomEvent('mediaflow:navigate', { detail: 'translator' }));
+                                                                }}
+                                                                className="p-1.5 rounded-lg hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 transition-colors"
+                                                                title="Translate"
+                                                            >
+                                                                <Languages size={14} />
+                                                            </button>
+                                                        )}
+                                                        
+                                                        {/* Send to Editor (Edit Video) - Needs Video */}
+                                                        {videoPath && (
+                                                             <button
+                                                                onClick={() => {
+                                                                    sessionStorage.setItem('mediaflow:pending_file', JSON.stringify({
+                                                                        video_path: videoPath,
+                                                                        subtitle_path: srtPath
+                                                                    }));
+                                                                    window.dispatchEvent(new CustomEvent('mediaflow:navigate', { detail: 'editor' }));
+                                                                }}
+                                                                className="p-1.5 rounded-lg hover:bg-pink-500/20 text-slate-400 hover:text-pink-400 transition-colors"
+                                                                title="Edit Video"
+                                                            >
+                                                                <Video size={14} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            {task.result?.execution_trace && (
+                                                <button 
+                                                    onClick={() => toggleExpand(task.id)}
+                                                    className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 transition-colors ml-1"
+                                                >
+                                                    {expandedTasks.has(task.id) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
-                                )}
-
-                                {/* Expand/Collapse Trace */}
-                                {task.result?.execution_trace && (
-                                    <button 
-                                        onClick={() => toggleExpand(task.id)}
-                                        title={expandedTasks.has(task.id) ? "Hide Details" : "Show Details"}
-                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4 }}
+                                    
+                                    {/* Row 2: Title */}
+                                    <div 
+                                        className="font-medium text-slate-200 text-sm leading-relaxed truncate pr-8"
+                                        title={task.name || task.type}
                                     >
-                                        {expandedTasks.has(task.id) ? <ChevronUp size={16} color="#aaa" /> : <ChevronDown size={16} color="#aaa" />}
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                        
-                        <div style={{ fontSize: '0.85em', color: '#888', marginBottom: 5, paddingLeft: 28 }}>
-                            {task.message || 'Initializing...'}
-                        </div>
-                        
-                        {(task.status === 'running' || task.progress > 0) && (
-                            <div style={{ paddingLeft: 28 }}>
-                                <ProgressBar progress={task.progress} />
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '0.75em', color: '#666', marginTop: 4 }}>
-                                    {task.progress.toFixed(1)}%
+                                        {task.name || (task.type === 'download' ? 'Downloading' : 'Task')} 
+                                    </div>
+
+                                    {/* Row 3: Message & Progress (Inline) */}
+                                    <div className="mt-3 flex items-center justify-between gap-6">
+                                        {/* Left: Message */}
+                                         <div className="flex-1 min-w-0">
+                                            <p className="text-xs text-slate-400 truncate flex items-center gap-2">
+                                                {task.error ? (
+                                                    <span className="text-rose-400 flex items-center gap-1.5">
+                                                        <AlertCircle size={12} />
+                                                        {task.error}
+                                                    </span>
+                                                ) : (
+                                                    task.message || 'Initializing...'
+                                                )}
+                                            </p>
+                                        </div>
+
+                                        {/* Right: Progress Bar & Percent */}
+                                        {(task.status === 'running' || task.progress > 0) && (
+                                            <div className="w-48 flex items-center gap-3 shrink-0">
+                                                <div className="h-1.5 flex-1 bg-slate-800 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300 ease-out"
+                                                        style={{ width: `${Math.max(0, Math.min(100, task.progress))}%` }}
+                                                    />
+                                                </div>
+                                                <div className="text-[10px] font-mono text-slate-400 w-8 text-right">
+                                                    {task.progress.toFixed(0)}%
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Debug Info (Only in Dev) */}
+                                    {import.meta.env.DEV && (
+                                        <details className="mt-2 text-[10px] text-slate-600 cursor-pointer">
+                                            <summary className="hover:text-slate-400">Debug Info</summary>
+                                            <pre className="mt-1 p-2 bg-black/50 rounded overflow-auto max-h-40 whitespace-pre-wrap">
+                                                {JSON.stringify({ 
+                                                    type: task.type, 
+                                                    status: task.status, 
+                                                    params_keys: Object.keys(task.request_params || {}),
+                                                    result_keys: Object.keys(task.result || {}),
+                                                    videoPath: task.result?.video_path || task.request_params?.video_path,
+                                                    srtPath: task.result?.srt_path || task.request_params?.srt_path
+                                                }, null, 2)}
+                                            </pre>
+                                        </details>
+                                    )}
                                 </div>
                             </div>
-                        )}
-                        
-                        {task.error && (
-                            <div style={{ fontSize: '0.85em', color: '#ef4444', marginTop: 5, paddingLeft: 28 }}>
-                                {task.error}
-                            </div>
-                        )}
 
-                        {/* Execution Trace View */}
-                        {expandedTasks.has(task.id) && task.result?.execution_trace && (
-                            <div style={{ paddingLeft: 28 }}>
-                                <TaskTraceView trace={task.result.execution_trace} />
-                            </div>
-                        )}
-                    </div>
-                ))}
+                            {/* Execution Trace View */}
+                            {expandedTasks.has(task.id) && task.result?.execution_trace && (
+                                <div className="mt-3 pl-[52px]">
+                                    <div className="bg-black/30 rounded-lg overflow-hidden border border-white/5">
+                                        <TaskTraceView trace={task.result.execution_trace} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))
+                )}
             </div>
             
             <style>{`
                 .spin { animation: spin 1s linear infinite; }
                 @keyframes spin { 100% { transform: rotate(360deg); } }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { bg: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #444; }
             `}</style>
         </div>
     );

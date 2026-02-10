@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   selectDirectory: () => ipcRenderer.invoke("dialog:selectDirectory"),
   showInExplorer: (filePath: string) =>
     ipcRenderer.invoke("shell:showInExplorer", filePath),
+  // Window Controls
+  minimize: () => ipcRenderer.send("window:minimize"),
+  maximize: () => ipcRenderer.send("window:maximize"),
+  close: () => ipcRenderer.send("window:close"),
   // Cookie management
   fetchCookies: (targetUrl: string) =>
     ipcRenderer.invoke("cookies:fetch", targetUrl),
@@ -25,4 +29,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("fs:writeFile", filePath, content),
   getFileSize: (filePath: string) =>
     ipcRenderer.invoke("fs:getFileSize", filePath),
+  saveFile: (filePath: string, content: string) =>
+    ipcRenderer.invoke("fs:writeFile", filePath, content),
 });
