@@ -50,3 +50,15 @@ Calculated srt_path: E:\Work\Code\Mediaflow\temp\Kevin Carpenter - Warren Buffet
 SubtitleManager.save_srt called
 Input audio_path: E:\Work\Code\Mediaflow\temp\Kevin Carpenter - Warren Buffett： ＂I don't think I can drop dollar bills from the sky a... [2020889300687073280]_CN
 Calculated srt_path: E:\Work\Code\Mediaflow\temp\Kevin Carpenter - Warren Buffett： ＂I don't think I can drop dollar bills from the sky a...srt
+SubtitleManager.save_srt called
+Input audio_path: E:\Work\Code\Mediaflow\temp\Bark - Ex-Google insider warns us：  Big Tech is building “God” to control th... [2020345698257133568].mp4
+Calculated srt_path: E:\Work\Code\Mediaflow\temp\Bark - Ex-Google insider warns us：  Big Tech is building “God” to control th... [2020345698257133568].srt
+SubtitleManager.save_srt called
+Input audio_path: E:\Work\Code\Mediaflow\temp\Bark - Ex-Google insider warns us：  Big Tech is building “God” to control th... [2020345698257133568]_CN
+Calculated srt_path: E:\Work\Code\Mediaflow\temp\Bark - Ex-Google insider warns us：  Big Tech is building “God” to control th...srt
+SubtitleManager.save_srt called
+Input audio_path: E:\Work\Code\Mediaflow\temp\ₕₐₘₚₜₒₙ - Legendary Quant, and former head of Quant at SIG explains a corporate... [1961495842520797187].mp4
+Calculated srt_path: E:\Work\Code\Mediaflow\temp\ₕₐₘₚₜₒₙ - Legendary Quant, and former head of Quant at SIG explains a corporate... [1961495842520797187].srt
+SubtitleManager.save_srt called
+Input audio_path: E:\Work\Code\Mediaflow\temp\ₕₐₘₚₜₒₙ - Legendary Quant, and former head of Quant at SIG explains a corporate... [1961495842520797187]_CN
+Calculated srt_path: E:\Work\Code\Mediaflow\temp\ₕₐₘₚₜₒₙ - Legendary Quant, and former head of Quant at SIG explains a corporate...srt

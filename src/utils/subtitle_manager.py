@@ -448,16 +448,20 @@ class SubtitleManager:
             font_color = style_options.get('font_color', '&H00FFFFFF')
             margin_v = style_options.get('margin_v', 20)
             
+            # Dynamic Resolution (True Res)
+            play_res_x = style_options.get('video_width', 1920)
+            play_res_y = style_options.get('video_height', 1080)
+            
             # ASS Colors are &HAABBGGRR.
             # Convert incoming format if needed?
             # Assuming font_color is already &HAABBGGRR format from SynthesisDialog.
             
             # Header with PlayRes which defines the coordinate system for MarginV
-            # Using 1920x1080 as base resolution for consistent margins
+            # Using actual video resolution for consistent margins and font size logic
             header = f"""[Script Info]
 ScriptType: v4.00+
-PlayResX: 1920
-PlayResY: 1080
+PlayResX: {play_res_x}
+PlayResY: {play_res_y}
 WrapStyle: 0
 ScaledBorderAndShadow: yes
 

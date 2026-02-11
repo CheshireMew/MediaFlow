@@ -98,19 +98,25 @@ export function VideoDownloadOptions({
           }
         `}
       >
-        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 pointer-events-none" />
-        
-        {/* Loading Spinner */}
-        {(loading || analyzing) && (
-             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-20 backdrop-blur-sm">
-                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-             </div>
+        {/* Hover Effect (Only when active) */}
+        {!loading && !analyzing && url && (
+            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 pointer-events-none" />
         )}
-
-        <span className="relative z-10">
-          {analyzing ? "Analyzing Stream..." : loading ? "Downloading Media..." : "Download Media"}
-        </span>
-        {!loading && !analyzing && <Download size={20} className="relative z-10 stroke-[2.5]" />}
+        
+        {/* Content */}
+        {loading || analyzing ? (
+             <>
+                <div className="w-5 h-5 border-2 border-slate-500 border-t-white rounded-full animate-spin" />
+                <span>
+                   {analyzing ? "Analyzing Stream..." : "Downloading Media..."}
+                </span>
+             </>
+        ) : (
+             <>
+                <span>Download Media</span>
+                <Download size={20} className="stroke-[2.5]" />
+             </>
+        )}
       </button>
 
     </div>

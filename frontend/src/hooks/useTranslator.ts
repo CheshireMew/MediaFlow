@@ -1,17 +1,14 @@
-import { useEffect, useCallback } from "react";
-import type { SubtitleSegment } from "../types/task";
-import {
-  type GlossaryTerm,
-  translatorService,
-} from "../services/translator/translatorService";
-import { parseSRT } from "../utils/subtitleParser";
 import {
   useTranslatorStore,
   type TranslatorMode,
 } from "../stores/translatorStore";
+import { useTranslationTask } from "./useTranslationTask";
+import { useGlossary } from "./useGlossary";
+import { useFileIO } from "./useFileIO";
+import type { SubtitleSegment } from "../types/task";
+import type { GlossaryTerm } from "../services/translator/translatorService";
 
 // --- Types ---
-// Re-exporting for compatibility, though ideally should be imported from store
 export type { TranslatorMode };
 
 interface UseTranslatorReturn {
@@ -38,329 +35,49 @@ interface UseTranslatorReturn {
   refreshGlossary: () => Promise<void>;
   startTranslation: () => Promise<void>;
   exportSRT: () => Promise<void>;
+  handleOpenInEditor: () => Promise<void>;
 }
 
 export const useTranslator = (): UseTranslatorReturn => {
-  // --- Store ---
+  // 1. Core State (Direct Store Access for simple updates)
   const {
     sourceSegments,
     targetSegments,
-    glossary,
-    sourceFilePath,
-    targetLang,
-    mode,
-    taskId,
-    progress,
-    // Fix: isTranslating is a function in store, we need to call it to get the boolean
-    // But destructuring a function doesn't make it reactive if it depends on state.
-    // Better way: use selector or just use taskStatus directly in hook
-    taskStatus,
-
     setSourceSegments,
-    setTargetSegments,
     updateTargetSegment,
-    setGlossary,
-    setSourceFilePath,
-    setTargetLang,
-    setMode,
-    setTaskId,
-    setTaskStatus,
-    setProgress,
   } = useTranslatorStore();
 
-  // --- Init ---
-  useEffect(() => {
-    refreshGlossary();
-    checkPendingNavigation();
+  // 2. Sub-hooks
+  const task = useTranslationTask();
+  const glo = useGlossary();
+  const io = useFileIO();
 
-    const handleNavigate = (e: CustomEvent) => {
-      if (e.detail === "translator") {
-        checkPendingNavigation();
-      }
-    };
-    window.addEventListener(
-      "mediaflow:navigate",
-      handleNavigate as EventListener,
-    );
-    return () =>
-      window.removeEventListener(
-        "mediaflow:navigate",
-        handleNavigate as EventListener,
-      );
-  }, []);
-
-  // --- Actions ---
-
-  const checkPendingNavigation = useCallback(() => {
-    const pendingFile = sessionStorage.getItem("mediaflow:pending_file");
-    if (pendingFile) {
-      try {
-        const data = JSON.parse(pendingFile);
-        // We prioritize subtitle path, but if only video path is present, we might want to try finding subtitles
-        if (data.subtitle_path) {
-          handleFileUpload(data.subtitle_path);
-        } else if (data.video_path) {
-          // Try to find srt based on video path logic if needed,
-          // but handleFileUpload expects an SRT path.
-          // For now, let's try to load if it looks like a subtitle
-          if (/\.(srt|vtt|ass)$/i.test(data.video_path)) {
-            handleFileUpload(data.video_path);
-          } else {
-            // Try to guess subtitle path from video path?
-            // Or just do nothing and let user import.
-          }
-        }
-        sessionStorage.removeItem("mediaflow:pending_file");
-      } catch (e) {
-        console.error("[Translator] Failed to parse pending file:", e);
-      }
-    }
-  }, []);
-
-  // --- Actions ---
-
-  const refreshGlossary = async () => {
-    try {
-      const terms = await translatorService.listTerms();
-      setGlossary(terms);
-    } catch (e) {
-      console.error("Failed to load glossary");
-    }
-  };
-
-  const handleFileUpload = async (path: string) => {
-    if (!window.electronAPI) return;
-    setSourceFilePath(path);
-
-    try {
-      const content = await window.electronAPI.readFile(path);
-      if (!content) {
-        throw new Error("File content is empty or could not be read");
-      }
-      const parsed = parseSRT(content);
-      if (parsed.length === 0) {
-        alert("Warning: No subtitles found in this file.");
-      }
-      setSourceSegments(parsed);
-
-      setTargetSegments(parsed.map((s) => ({ ...s, text: "" })));
-
-      // Try load existing translation
-      await tryLoadExistingTarget(path);
-    } catch (e) {
-      console.error("File load error:", e);
-      alert(`Failed to load file: ${path}\nCheck console for details.`);
-    }
-  };
-
-  const tryLoadExistingTarget = async (sourcePath: string) => {
-    if (!window.electronAPI) return;
-    const priorities = ["_CN", "_EN", "_JP", "_ES", "_FR", "_DE", "_RU"];
-    const LANG_SUFFIX_MAP: Record<string, string> = {
-      Chinese: "_CN",
-      English: "_EN",
-      Japanese: "_JP",
-      Spanish: "_ES",
-      French: "_FR",
-      German: "_DE",
-      Russian: "_RU",
-    };
-
-    for (const suffix of priorities) {
-      const targetPath = sourcePath.replace(/(\.[^.]+)$/, `${suffix}.srt`);
-      try {
-        const content = await window.electronAPI.readFile(targetPath);
-        if (content) {
-          const foundLang = Object.keys(LANG_SUFFIX_MAP).find(
-            (key) => LANG_SUFFIX_MAP[key] === suffix,
-          );
-          if (foundLang) setTargetLang(foundLang);
-
-          const parsed = parseSRT(content);
-          setTargetSegments(parsed);
-          break;
-        }
-      } catch (e) {
-        /* Ignore */
-      }
-    }
-  };
-
-  const startTranslation = async () => {
-    if (sourceSegments.length === 0) return;
-
-    setTaskStatus("starting");
-    setProgress(0);
-
-    try {
-      const res = await translatorService.startTranslation({
-        segments: sourceSegments,
-        target_language: targetLang,
-        mode: mode,
-        context_path: sourceFilePath,
-      });
-      setTaskId(res.task_id);
-      setTaskStatus("translating");
-
-      // Start Polling
-      pollTask(res.task_id);
-    } catch (e) {
-      console.error(e);
-      setTaskStatus("failed");
-      alert("Failed to start translation");
-    }
-  };
-
-  const pollTask = async (tid: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const statusRes = await translatorService.getTaskStatus(tid);
-
-        if (statusRes.progress) setProgress(statusRes.progress);
-
-        if (statusRes.status === "completed") {
-          clearInterval(interval);
-
-          // Fix: Segments are inside result.meta, not result root
-          // Also handle legacy structure if present
-          const segments =
-            statusRes.result?.meta?.segments || statusRes.result?.segments;
-
-          // Buffer rendering: show spinner until data is populated
-          setTaskStatus("processing_result");
-
-          if (segments && segments.length > 0) {
-            setTargetSegments(segments);
-          } else {
-            console.warn(
-              "Translation completed but no segments found:",
-              statusRes,
-            );
-            alert("Translation finished but returned no segments.");
-          }
-
-          // Small delay to ensure React renders the list before stopping spinner
-          setTimeout(() => {
-            setTaskStatus("completed");
-          }, 600);
-
-          if (
-            statusRes.result &&
-            // Check correct path: files list or meta
-            (statusRes.result.files?.length > 0 ||
-              statusRes.result.meta?.srt_path) &&
-            window.electronAPI
-          ) {
-            // Auto-open logic (commented out in original)
-          }
-        } else if (statusRes.status === "failed") {
-          clearInterval(interval);
-          setTaskStatus("failed");
-          alert("Translation failed: " + statusRes.error);
-        } else {
-          // Only update status if running/pending
-          setTaskStatus(statusRes.status);
-        }
-      } catch (e) {
-        console.error("Polling error (will keep retrying):", e);
-        // Do NOT stop polling on transient errors!
-        // clearInterval(interval);
-      }
-    }, 1000);
-  };
-
-  const exportSRT = async () => {
-    if (!sourceFilePath || !window.electronAPI) return;
-
-    const LANG_SUFFIX_MAP: Record<string, string> = {
-      Chinese: "_CN",
-      English: "_EN",
-      Japanese: "_JP",
-      Spanish: "_ES",
-      French: "_FR",
-      German: "_DE",
-      Russian: "_RU",
-    };
-    const suffix = LANG_SUFFIX_MAP[targetLang] || "_CN";
-
-    let defaultPath = sourceFilePath;
-    const lastDotIndex = defaultPath.lastIndexOf(".");
-    const lastSepIndex = Math.max(
-      defaultPath.lastIndexOf("/"),
-      defaultPath.lastIndexOf("\\"),
-    );
-
-    // Only strip if dot is part of the filename (after the last separator)
-    if (lastDotIndex > lastSepIndex) {
-      defaultPath = defaultPath.substring(0, lastDotIndex);
-    }
-
-    defaultPath += `${suffix}.srt`;
-
-    try {
-      const savePath = await window.electronAPI.showSaveDialog({
-        defaultPath: defaultPath,
-        filters: [
-          { name: "Subtitles", extensions: ["srt"] },
-          { name: "Text", extensions: ["txt"] },
-        ],
-      });
-
-      if (!savePath) return; // User canceled
-
-      let content = "";
-      if (savePath.toLowerCase().endsWith(".txt")) {
-        // Plain text format
-        content = targetSegments.map((seg) => seg.text).join("\n");
-      } else {
-        // SRT format (Default)
-        targetSegments.forEach((seg, index) => {
-          const startStr = formatTimestamp(seg.start);
-          const endStr = formatTimestamp(seg.end);
-          content += `${index + 1}\n${startStr} --> ${endStr}\n${seg.text}\n\n`;
-        });
-      }
-
-      await window.electronAPI.saveFile(savePath, content);
-      // alert(`Saved to ${savePath}`); // Feedback is good but maybe toast? Alert is fine for now.
-    } catch (e) {
-      console.error(e);
-      alert("Failed to save file: " + e);
-    }
-  };
-
-  // Helper
-  const formatTimestamp = (seconds: number) => {
-    const date = new Date(0);
-    date.setMilliseconds(Math.round(seconds * 1000));
-    const iso = date.toISOString();
-    // 1970-01-01T00:00:00.000Z -> 00:00:00,000
-    return iso.substring(11, 23).replace(".", ",");
-  };
-
+  // 3. Aggregation
+  // We explicitly map to the interface to ensure compatibility
   return {
-    // Ensure arrays are never undefined even if local storage is corrupt
-    sourceSegments: sourceSegments || [],
-    targetSegments: targetSegments || [],
-    glossary,
-    sourceFilePath,
-    targetLang,
-    mode,
-    taskId,
-    taskStatus,
-    progress,
-    isTranslating:
-      taskStatus === "translating" ||
-      taskStatus === "starting" ||
-      taskStatus === "processing_result" ||
-      taskStatus === "running",
+    // Data
+    sourceSegments,
+    targetSegments,
+    glossary: glo.glossary,
+    sourceFilePath: io.sourceFilePath,
+
+    // UI State
+    targetLang: task.targetLang,
+    mode: task.mode,
+    taskId: task.taskId,
+    taskStatus: task.taskStatus,
+    progress: task.progress,
+    isTranslating: task.isTranslating,
+
+    // Actions
     setSourceSegments,
     updateTargetSegment,
-    setTargetLang,
-    setMode,
-    handleFileUpload,
-    refreshGlossary,
-    startTranslation,
-    exportSRT,
+    setTargetLang: task.setTargetLang,
+    setMode: task.setMode,
+    handleFileUpload: io.handleFileUpload,
+    refreshGlossary: glo.refreshGlossary,
+    startTranslation: task.startTranslation,
+    exportSRT: io.exportSRT,
+    handleOpenInEditor: io.handleOpenInEditor,
   };
 };

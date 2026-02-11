@@ -322,15 +322,18 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
             }
 
             // Calculate Font Size Scaling (WYSIWYG)
-            // The preview shows fontSize (px) on a shrunken video.
-            // We need to scale it up to match the real video resolution.
+            // Backend now uses dynamic PlayResY (True Resolution).
+            // So we send the font size relative to the ACTUAL video height.
+            // Preview renders at 'fontSize' px.
+            // visual_proportion = fontSize / previewHeight
+            // desired_backend_size / videoHeight = visual_proportion
+            // desired_backend_size = fontSize * (videoHeight / previewHeight)
             let outcomeFontSize = fontSize;
             if (videoRef.current && videoSize.h > 0) {
                 const previewHeight = videoRef.current.clientHeight;
                 if (previewHeight > 0) {
                     const ratio = videoSize.h / previewHeight;
                     outcomeFontSize = Math.round(fontSize * ratio);
-
                 }
             }
 
@@ -347,7 +350,10 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                 wm_x: wmXExpr,
                 wm_y: wmYExpr,
                 wm_scale: backendScale, // Send calculated factor
-                wm_opacity: wmOpacity
+                wm_opacity: wmOpacity,
+                // Pass Explicit Resolution to avoid Backend Probe failures (e.g. filename issues)
+                video_width: videoSize.w || 1920,
+                video_height: videoSize.h || 1080
             };
 
             // Delegate to parent (EditorPage) which handles Saving First

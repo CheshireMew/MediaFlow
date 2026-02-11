@@ -144,12 +144,39 @@ class VideoSynthesizer:
             # 3. Escape special filter characters: [ ] ' , ;
             
             # 3. Subtitle Filter - Apply LAST
-            # Workaround for FFmpeg Windows path escaping hell:
-            # Copy to a local file in the Current Working Directory to avoid drive letters completely.
+            # Get video dimensions for dynamic PlayRes (True Resolution)
+            # This ensures font size is proportionally correct regardless of resolution (720p vs 4K)
+            
+            width = options.get('video_width')
+            height = options.get('video_height')
+            
+            if not width or not height:
+                try:
+                    probe = ffmpeg.probe(video_path)
+                    video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
+                    width = int(video_info['width'])
+                    height = int(video_info['height'])
+                    
+                    # Handle rotation tag (iPhone videos)
+                    tags = video_info.get('tags', {})
+                    rotate = int(tags.get('rotate', 0))
+                    if rotate in [90, 270, -90, -270]:
+                        width, height = height, width
+                        
+                    self.logger.info(f"Probed video resolution for subtitles: {width}x{height}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to probe video resolution: {e}. Defaulting to 1920x1080 for subtitles.")
+                    width = 1920
+                    height = 1080
+            else:
+                self.logger.info(f"Using provided video resolution: {width}x{height}")
+
+            options['video_width'] = width
+            options['video_height'] = height
+
             import shutil
             import uuid
             
-            # Use a unique name in CWD
             # Use a unique name in CWD
             temp_ass_filename = f"temp_sub_{uuid.uuid4().hex[:8]}.ass"
             temp_ass_path = os.path.abspath(temp_ass_filename)

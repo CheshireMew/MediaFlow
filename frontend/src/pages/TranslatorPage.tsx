@@ -1,14 +1,12 @@
-import { useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { 
-    Wand2, FolderOpen, Loader2, Book, Globe, Download, Settings2, FileEdit 
+    Wand2, FolderOpen, Loader2, Book, Globe, Download, FileEdit 
 } from 'lucide-react';
 
 import { useTranslator } from '../hooks/useTranslator';
 import { translatorService } from '../services/translator/translatorService';
 import { SegmentsTable } from '../components/translator/SegmentsTable';
 import { Sidebar } from '../components/translator/Sidebar';
-import { useState } from 'react';
-import { useEditorStore } from '../stores/editorStore';
 
 export const TranslatorPage = () => {
     const {
@@ -18,18 +16,17 @@ export const TranslatorPage = () => {
         sourceFilePath,
         targetLang,
         mode,
-        taskId,
         taskStatus,
         progress,
         isTranslating,
-        setSourceSegments,
         updateTargetSegment,
         setTargetLang,
         setMode,
         handleFileUpload,
         refreshGlossary,
         startTranslation,
-        exportSRT
+        exportSRT,
+        handleOpenInEditor
     } = useTranslator();
     
     // UI Local State for Sidebar
@@ -55,33 +52,6 @@ export const TranslatorPage = () => {
     const handleDeleteTerm = async (id: string) => {
         await translatorService.deleteTerm(id);
         refreshGlossary();
-    };
-
-    // --- Editor Link ---
-    const handleOpenInEditor = async () => {
-        if (!sourceFilePath || targetSegments.length === 0) return;
-
-        // 1. Prepare Data
-        // Assumes source path is a video or has a related video.
-        // Ideally we should verify if sourceFilePath is video or subtitle.
-        // If it's a subtitle, we might need to look for a video.
-        // For now, we trust the user context or just load the subtitle.
-
-        const videoPath = sourceFilePath.replace(/\.(srt|ass|vtt)$/i, ".mp4"); // Naive guess if source is srt
-        // Better: usage of store
-        
-        // Dynamic import to avoid cycles? No, top level is fine.
-        const { setRegions, setCurrentFilePath, setMediaUrl } = useEditorStore.getState();
-        
-        // 2. Set Store State
-        setRegions(targetSegments);
-        setCurrentFilePath(videoPath);
-        // Normalized URL for video player
-        const normalizedPath = videoPath.replace(/\\/g, "/");
-        setMediaUrl(`file:///${normalizedPath}`);
-
-        // 3. Navigate
-        window.dispatchEvent(new CustomEvent('mediaflow:navigate', { detail: 'editor' }));
     };
 
     return (
