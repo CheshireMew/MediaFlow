@@ -13,10 +13,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fontsource/lxgw-wenkai": "^5.2.5",
+    "@fontsource/noto-sans-sc": "^5.2.9",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/react-virtualized-auto-sizer": "^1.0.4",
     "@types/react-window": "^1.8.8",
     "lucide-react": "^0.563.0",
+    "lxgw-wenkai-webfont": "^1.7.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.0",

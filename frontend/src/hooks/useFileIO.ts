@@ -181,20 +181,31 @@ export const useFileIO = () => {
   const handleOpenInEditor = async () => {
     if (!sourceFilePath || targetSegments.length === 0) return;
 
-    // 1. Prepare Data
-    // Assumes source has a related video.
-    // Logic: Replace srt extension with mp4.
-    const videoPath = sourceFilePath.replace(/\.(srt|ass|vtt)$/i, ".mp4");
+    // 1. Resolve video path (try multiple extensions)
+    const basePath = sourceFilePath.replace(/\.(srt|ass|vtt)$/i, "");
+    let videoPath: string | null = null;
+    for (const ext of [".mp4", ".mkv", ".avi", ".mov", ".webm"]) {
+      try {
+        const size = await window.electronAPI?.getFileSize(basePath + ext);
+        if (size && size > 0) {
+          videoPath = basePath + ext;
+          break;
+        }
+      } catch {}
+    }
 
     // 2. Set Editor Store
     const { setRegions, setCurrentFilePath, setMediaUrl } =
       useEditorStore.getState();
 
     setRegions(targetSegments);
-    setCurrentFilePath(videoPath);
 
-    const normalizedPath = videoPath.replace(/\\/g, "/");
-    setMediaUrl(`file:///${normalizedPath}`);
+    if (videoPath) {
+      setCurrentFilePath(videoPath);
+      const normalizedPath = videoPath.replace(/\\/g, "/");
+      setMediaUrl(`file:///${normalizedPath}`);
+    }
+    // else: no matching video found, keep editor's current video (or empty)
 
     // 3. Navigate
     NavigationService.navigate("editor");

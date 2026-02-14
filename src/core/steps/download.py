@@ -51,7 +51,8 @@ class DownloadStep(PipelineStep):
             resolution=params.get("resolution", "best"),
             task_id=task_id,
             cookie_file=params.get("cookie_file"),
-            filename=params.get("filename")
+            filename=params.get("filename"),
+            codec=params.get("codec", "best")
         )
         
         if not result.success:

@@ -64,6 +64,17 @@ class TranscribeStep(PipelineStep):
 
         ctx.set("transcript", text)
         ctx.set("segments", segments)
+        
+        # Extract SRT path
+        srt_file = next((f for f in result.files if f.type == "subtitle"), None)
+        if srt_file:
+            ctx.set("srt_path", srt_file.path)
+            
+        # Ensure video_path is set for downstream steps (like Synthesize)
+        # If we started here (not from download), video_path might be empty.
+        if not ctx.get("video_path") and audio_path:
+             ctx.set("video_path", audio_path)
+             
         logger.success(f"Step Transcribe finished. Text len: {len(text)}")
 
 

@@ -2,9 +2,43 @@ import { API_BASE_URL } from "../config/api";
 
 export const API_BASE = API_BASE_URL;
 
+// ─── Shared / Generic Response Types ─────────────────────────────
+
+/** Common message-only response from mutation endpoints. */
+export interface MessageResponse {
+  message: string;
+}
+
+/** Endpoints that return a message + affected count (cancel-all, delete-all). */
+export interface CountResponse extends MessageResponse {
+  count: number;
+}
+
+/** Endpoints that return a message + status (resume, etc.). */
+export interface StatusMessageResponse extends MessageResponse {
+  status: string;
+}
+
+/** Task creation / pipeline submission response. */
+export interface TaskResponse {
+  task_id: string;
+  status: string;
+  message?: string;
+}
+
+// ─── Health ──────────────────────────────────────────────────────
+
+export interface HealthResponse {
+  status: string;
+  service: string;
+  version: string;
+}
+
+// ─── Pipeline ────────────────────────────────────────────────────
+
 export interface PipelineStep {
   step_name: string;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
 }
 
 export interface PipelineRequest {
@@ -12,6 +46,8 @@ export interface PipelineRequest {
   task_name?: string;
   steps: PipelineStep[];
 }
+
+// ─── Analyze ─────────────────────────────────────────────────────
 
 export interface PlaylistItem {
   index: number;
@@ -31,20 +67,108 @@ export interface AnalyzeResult {
   count?: number;
   uploader?: string;
   items?: PlaylistItem[];
-  extra_info?: Record<string, any>; // Flexible field for cookies etc
+  extra_info?: Record<string, unknown>; // Flexible field for cookies etc
 }
 
-// Internal Generic Request Wrapper
+// ─── Cookies ─────────────────────────────────────────────────────
+
+export interface ElectronCookie {
+  name: string;
+  value: string;
+  domain: string;
+  path?: string;
+  expirationDate?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+}
+
+export interface CookieStatusResponse {
+  domain: string;
+  has_valid_cookies: boolean;
+  cookie_path: string | null;
+}
+
+// ─── Settings ────────────────────────────────────────────────────
+
+export interface LLMProvider {
+  id: string;
+  name: string;
+  base_url: string;
+  api_key: string;
+  model: string;
+  is_active: boolean;
+}
+
+export interface UserSettings {
+  llm_providers: LLMProvider[];
+  default_download_path: string | null;
+  language: string;
+  auto_execute_flow: boolean;
+}
+
+export interface ActiveProviderResponse {
+  status: string;
+  active_provider_id: string;
+}
+
+// ─── Audio ───────────────────────────────────────────────────────
+
+export interface DetectSilenceResponse {
+  silence_intervals: [number, number][];
+}
+
+// ─── Editor ──────────────────────────────────────────────────────
+
+export interface ImagePreviewResponse {
+  png_path: string;
+  data_url: string;
+  width: number;
+  height: number;
+}
+
+export interface SynthesizeOptions {
+  // Subtitle style
+  font_name?: string;
+  font_size?: number;
+  font_color?: string; // ASS &HAABBGGRR format
+  bold?: boolean;
+  italic?: boolean;
+  outline?: number; // 0-4
+  shadow?: number; // 0-4
+  outline_color?: string; // ASS &HAABBGGRR format
+  back_color?: string; // ASS &HAABBGGRR format
+  border_style?: number; // 1=outline+shadow, 3=opaque box
+  alignment?: number; // ASS numpad: 1=left, 2=center, 3=right (bottom row)
+  margin_v?: number;
+  // Encoding
+  crf?: number;
+  [key: string]: unknown; // extensible (wm_*, video_*, output_path, preset)
+}
+
+export interface SynthesizeRequest {
+  video_path: string;
+  srt_path: string;
+  watermark_path: string | null;
+  output_path?: string | null;
+  options: SynthesizeOptions;
+}
+
+// ─── Internal Generic Request Wrapper ────────────────────────────
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
   const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
 
-  const headers = {
-    "Content-Type": "application/json",
-    ...options.headers,
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
   };
+
+  // Only set JSON content-type if body is not FormData
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
 
   try {
     const res = await fetch(url, { ...options, headers });
@@ -62,7 +186,7 @@ async function request<T>(
         } catch {
           if (errorText) errorMessage = errorText;
         }
-      } catch (e) {
+      } catch {
         // Ignore body parsing error
       }
       throw new Error(errorMessage);
@@ -73,26 +197,27 @@ async function request<T>(
     if (contentType && contentType.indexOf("application/json") !== -1) {
       return (await res.json()) as T;
     }
-    // For non-JSON responses (like void actions), return generic success if needed or null
-    // If the caller expects T, this might be an issue if T isn't void-compatible.
-    // Assuming mostly JSON APIs here.
+    // For non-JSON responses (like void actions), return generic success if needed
     return {} as T;
-    return {} as T;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg =
+      error instanceof Error ? error.message : "An unexpected error occurred";
     console.error(`Status: Error requesting ${endpoint}`, error);
     // Generic Error Toast via Event
     import("../utils/toast").then(({ toast }) => {
-      toast.error(error.message || "An unexpected error occurred");
+      toast.error(errorMsg);
     });
     throw error;
   }
 }
 
+// ─── API Client ──────────────────────────────────────────────────
+
 export const apiClient = {
   checkHealth: () => {
     // Health check might be on root URL, not /api/v1
     const baseUrl = API_BASE.replace("/api/v1", "");
-    return request<any>(`${baseUrl}/health`);
+    return request<HealthResponse>(`${baseUrl}/health`);
   },
 
   analyzeUrl: (url: string) => {
@@ -103,54 +228,58 @@ export const apiClient = {
   },
 
   runPipeline: (req: PipelineRequest) => {
-    return request<any>("/pipeline/run", {
+    return request<TaskResponse>("/pipeline/run", {
       method: "POST",
       body: JSON.stringify(req),
     });
   },
 
   cancelAllTasks: () => {
-    return request<any>("/tasks/cancel-all", { method: "POST" });
+    return request<CountResponse>("/tasks/cancel-all", { method: "POST" });
   },
 
   resumeTask: (taskId: string) => {
-    return request<any>(`/tasks/${taskId}/resume`, { method: "POST" });
+    return request<StatusMessageResponse>(`/tasks/${taskId}/resume`, {
+      method: "POST",
+    });
   },
 
   deleteTask: (taskId: string) => {
-    return request<any>(`/tasks/${taskId}`, { method: "DELETE" });
+    return request<MessageResponse & { task_id: string }>(`/tasks/${taskId}`, {
+      method: "DELETE",
+    });
   },
 
   deleteAllTasks: () => {
-    return request<any>("/tasks/", { method: "DELETE" });
+    return request<CountResponse>("/tasks/", { method: "DELETE" });
   },
 
   // Cookie management
-  saveCookies: (domain: string, cookies: any[]) => {
-    return request<any>("/cookies/save", {
+  saveCookies: (domain: string, cookies: ElectronCookie[]) => {
+    return request<CookieStatusResponse>("/cookies/save", {
       method: "POST",
       body: JSON.stringify({ domain, cookies }),
     });
   },
 
   checkCookieStatus: (domain: string) => {
-    return request<any>(`/cookies/status/${domain}`);
+    return request<CookieStatusResponse>(`/cookies/status/${domain}`);
   },
 
   // Settings API
   getSettings: () => {
-    return request<any>("/settings/");
+    return request<UserSettings>("/settings/");
   },
 
-  updateSettings: (settings: any) => {
-    return request<any>("/settings/", {
+  updateSettings: (settings: UserSettings) => {
+    return request<UserSettings>("/settings/", {
       method: "POST",
       body: JSON.stringify(settings),
     });
   },
 
   setActiveProvider: (providerId: string) => {
-    return request<any>("/settings/active-provider", {
+    return request<ActiveProviderResponse>("/settings/active-provider", {
       method: "POST",
       body: JSON.stringify({ provider_id: providerId }),
     });
@@ -161,14 +290,14 @@ export const apiClient = {
     threshold: string;
     min_duration: number;
   }) => {
-    return request<any>("/audio/detect-silence", {
+    return request<DetectSilenceResponse>("/audio/detect-silence", {
       method: "POST",
       body: JSON.stringify(payload),
     });
   },
 
   previewPsd: (payload: { file_path: string }) => {
-    return request<any>("/editor/preview/psd-to-png", {
+    return request<ImagePreviewResponse>("/editor/preview/psd-to-png", {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -177,34 +306,14 @@ export const apiClient = {
   uploadPsd: (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-
-    // We can't use the generic request wrapper easily for FormData because it forces Content-Type: application/json
-    // So we assume the generic request wrapper handles it or we manually fetch.
-    // The generic `request` function in this file sets Content-Type: application/json if options.headers doesn't have it?
-    // Actually line 45 forces "Content-Type": "application/json". This is bad for FormData.
-    // We need to bypass the default header.
-
-    const url = `${API_BASE}/editor/preview/upload-psd`;
-    return fetch(url, {
+    return request<ImagePreviewResponse>("/editor/preview/upload-psd", {
       method: "POST",
       body: formData,
-    }).then(async (res) => {
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || res.statusText);
-      }
-      return res.json();
     });
   },
 
-  synthesizeVideo: (payload: {
-    video_path: string;
-    srt_path: string;
-    watermark_path: string | null;
-    output_path?: string | null;
-    options: any;
-  }) => {
-    return request<any>("/editor/synthesize", {
+  synthesizeVideo: (payload: SynthesizeRequest) => {
+    return request<TaskResponse>("/editor/synthesize", {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -213,17 +322,15 @@ export const apiClient = {
   uploadWatermark: (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    const url = `${API_BASE}/editor/preview/upload-watermark`;
-    return fetch(url, { method: "POST", body: formData }).then(async (res) => {
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || res.statusText);
-      }
-      return res.json(); // Returns { png_path, data_url, width, height }
+    return request<ImagePreviewResponse>("/editor/preview/upload-watermark", {
+      method: "POST",
+      body: formData,
     });
   },
 
   getLatestWatermark: () => {
-    return request<any>("/editor/preview/watermark/latest");
+    return request<ImagePreviewResponse | null>(
+      "/editor/preview/watermark/latest",
+    );
   },
 };

@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
     from src.services.translator.llm_translator import LLMTranslator
     from src.services.translator.glossary_service import GlossaryService
     from src.core.pipeline import PipelineRunner
+    from src.services.video_synthesizer import VideoSynthesizer
     
     container.register(Services.TASK_MANAGER, TaskManager)
     container.register(Services.ASR, ASRService)
@@ -34,11 +35,27 @@ async def lifespan(app: FastAPI):
     container.register(Services.LLM_TRANSLATOR, LLMTranslator)
     container.register(Services.GLOSSARY, GlossaryService)
     container.register(Services.PIPELINE, PipelineRunner)
+    container.register(Services.VIDEO_SYNTHESIZER, VideoSynthesizer)
     
     # === Startup Logic ===
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     settings.init_dirs()
+    
+    # Configure File Logging
+    log_file = settings.USER_DATA_DIR / "logs" / "mediaflow.log"
+    logger.add(
+        log_file,
+        rotation="10 MB",
+        retention="7 days",
+        level="DEBUG",
+        encoding="utf-8",
+        enqueue=True,
+        backtrace=True,
+        diagnose=True
+    )
+    
     logger.info(f"Directories initialized at {settings.BASE_DIR}")
+    logger.info(f"Log file configured at {log_file}")
     logger.info(f"Registered {len(container._factories)} services")
     
     # Initialize Database & Load Tasks

@@ -11,7 +11,18 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
 
     const filteredTasks = React.useMemo(() => {
         if (!filterTypes || filterTypes.length === 0) return tasks;
-        return tasks.filter(t => filterTypes.includes(t.type));
+        return tasks.filter(t => {
+            if (filterTypes.includes(t.type)) return true;
+            
+            // Special handling for pipelines: check if they contain relevant steps
+            if (t.type === 'pipeline' && filterTypes.includes('download')) {
+                const isDownloadPipeline = t.name?.toLowerCase().includes('download') || 
+                    t.request_params?.steps?.some((s: any) => s.step_name === 'download' || s.action === 'download');
+                if (isDownloadPipeline) return true;
+            }
+            
+            return false;
+        });
     }, [tasks, filterTypes]);
 
     const toggleExpand = (taskId: string) => {

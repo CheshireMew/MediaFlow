@@ -10,6 +10,8 @@ export interface ElectronAPI {
   extractDouyinData: (url: string) => Promise<any>;
   getPathForFile: (file: File) => string;
   writeFile: (filePath: string, content: string) => Promise<void>;
+  readBinaryFile: (filePath: string) => Promise<ArrayBuffer | null>;
+  writeBinaryFile: (filePath: string, data: ArrayBuffer) => Promise<void>;
   getFileSize: (filePath: string) => Promise<number>;
   saveFile: (filePath: string, content: string) => Promise<void>;
   minimize: () => void;

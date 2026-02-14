@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     require("electron").webUtils.getPathForFile(file),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke("fs:writeFile", filePath, content),
+  readBinaryFile: (filePath: string) =>
+    ipcRenderer.invoke("fs:readBinaryFile", filePath),
+  writeBinaryFile: (filePath: string, data: ArrayBuffer) =>
+    ipcRenderer.invoke("fs:writeBinaryFile", filePath, data),
   getFileSize: (filePath: string) =>
     ipcRenderer.invoke("fs:getFileSize", filePath),
   saveFile: (filePath: string, content: string) =>

@@ -19,6 +19,7 @@ class UserSettings(BaseModel):
     llm_providers: List[LLMProvider] = []
     default_download_path: Optional[str] = None
     language: str = "zh"
+    auto_execute_flow: bool = False
 
 class SettingsManager:
     _instance = None

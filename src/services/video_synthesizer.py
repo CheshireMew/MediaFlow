@@ -1,16 +1,45 @@
 import os
-import logging
+import subprocess
+import time
+from loguru import logger
 import ffmpeg
+from PIL import Image
 from psd_tools import PSDImage
 
-# Configure logging
-logger = logging.getLogger(__name__)
 
 class VideoSynthesizer:
-    def __init__(self):
-        self.logger = logger  # Use module logger
+    _nvenc_available: bool | None = None  # Cached detection result
 
-    from PIL import Image
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def _detect_nvenc() -> bool:
+        """Detect if h264_nvenc encoder is available in ffmpeg."""
+        if VideoSynthesizer._nvenc_available is not None:
+            return VideoSynthesizer._nvenc_available
+        try:
+            from src.config import settings
+            result = subprocess.run(
+                [settings.FFMPEG_PATH, "-hide_banner", "-encoders"],
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10
+            )
+            VideoSynthesizer._nvenc_available = "h264_nvenc" in result.stdout
+            logger.info(f"NVENC detection: {'available' if VideoSynthesizer._nvenc_available else 'not available'}")
+        except Exception as e:
+            logger.warning(f"NVENC detection failed: {e}")
+            VideoSynthesizer._nvenc_available = False
+        return VideoSynthesizer._nvenc_available
+
+    @staticmethod
+    def _get_video_duration(video_path: str) -> float:
+        """Get video duration in seconds using ffprobe."""
+        try:
+            from src.config import settings
+            probe = ffmpeg.probe(video_path, cmd=settings.FFPROBE_PATH)
+            return float(probe['format']['duration'])
+        except Exception:
+            return 0.0
 
     def process_watermark(self, input_path: str, output_path: str = None) -> str:
         """
@@ -19,7 +48,7 @@ class VideoSynthesizer:
         2. Trim transparent areas (Smart Crop).
         3. Save to output_path.
         """
-        self.logger.info(f"Processing watermark: {input_path}")
+        logger.info(f"Processing watermark: {input_path}")
         try:
             if not os.path.exists(input_path):
                 raise FileNotFoundError(f"File not found: {input_path}")
@@ -32,32 +61,32 @@ class VideoSynthesizer:
             
             # 1. Load Image
             if input_path.lower().endswith('.psd'):
-                self.logger.debug("Opening PSD...")
+                logger.debug("Opening PSD...")
                 psd = PSDImage.open(input_path)
                 img = psd.composite()
             else:
-                self.logger.debug("Opening Image...")
+                logger.debug("Opening Image...")
                 with Image.open(input_path) as source_img:
                     img = source_img.convert("RGBA")
 
             # 2. Smart Trim
-            self.logger.debug("Calculating bounding box for trim...")
+            logger.debug("Calculating bounding box for trim...")
             bbox = img.getbbox()
             if bbox:
-                self.logger.debug(f"Trimming transparent areas: {bbox}")
+                logger.debug(f"Trimming transparent areas: {bbox}")
                 img = img.crop(bbox)
             else:
-                self.logger.warning("Image appears fully transparent.")
+                logger.warning("Image appears fully transparent.")
 
             # 3. Save
-            self.logger.debug(f"Saving trimmed watermark to {output_path}...")
+            logger.debug(f"Saving trimmed watermark to {output_path}...")
             img.save(output_path, format="PNG")
             
-            self.logger.info(f"Watermark processed: {output_path}")
+            logger.info(f"Watermark processed: {output_path}")
             return output_path
 
         except Exception as e:
-            self.logger.error(f"Failed to process watermark: {e}")
+            logger.error(f"Failed to process watermark: {e}")
             raise
 
     def burn_in_subtitles(self, 
@@ -65,7 +94,8 @@ class VideoSynthesizer:
                           srt_path: str, 
                           output_path: str, 
                           watermark_path: str = None, 
-                          options: dict = None):
+                          options: dict = None,
+                          progress_callback=None):
         """
         Burn subtitles and optional watermark into video using FFmpeg.
         
@@ -88,33 +118,40 @@ class VideoSynthesizer:
         font_size = options.get('font_size', 24)
         margin_v = options.get('margin_v', 20)
         
-        # Force style string for libass
-        # Note: Colors in ASS are &HAABBGGRR. White is &H00FFFFFF.
-        # DEBUG: Force Top Alignment and Huge Font to verify control
-        # force_style = (
-        #     f"Fontname=Arial,FontSize={font_size},"
-        #     f"PrimaryColour={options.get('font_color', '&H00FFFFFF')},"
-        #     f"BorderStyle=1,Outline=1,Shadow=1,"
-        #     f"Alignment=2,MarginL=10,MarginR=10,MarginV={margin_v}"
-        # )
-        
-        # TEMPORARY DEBUG STYLE
-        logger.warning("USING DEBUG SUBTITLE STYLE: TOP ALIGNMENT, SIZE 100")
-        force_style = (
-            f"Fontname=Arial,FontSize=100,"
-            f"PrimaryColour={options.get('font_color', '&H00FFFFFF')},"
-            f"BorderStyle=1,Outline=1,Shadow=1,"
-            f"Alignment=6,MarginL=10,MarginR=10,MarginV={margin_v}"
-        )
+        # Note: Subtitle styling is now handled via ASS file (convert_srt_to_ass)
+        # The old force_style approach has been removed.
             
         try:
-            # 1. Input Streams
-            input_video = ffmpeg.input(video_path)
-            audio = input_video.audio
+            # 1. Input Streams (with Trimming)
+            trim_start = float(options.get('trim_start', 0))
+            trim_end = float(options.get('trim_end', 0))
             
-            # 2. Watermark Filter (if exists) - Apply FIRST so subtitles are on top
+            input_kwargs = {}
+            if trim_start > 0:
+                input_kwargs['ss'] = trim_start
+            if trim_end > 0:
+                input_kwargs['to'] = trim_end
+                
+            logger.info(f"Input Args: {input_kwargs}")
+            
+            input_video = ffmpeg.input(video_path, **input_kwargs)
+            audio = input_video.audio
             video_stream = input_video.video
             
+            # 1.5 Crop Filter (Apply BEFORE Scaling/Watermarks/Subtitles)
+            crop_x = options.get('crop_x')
+            crop_y = options.get('crop_y')
+            crop_w = options.get('crop_w')
+            crop_h = options.get('crop_h')
+            
+            if all(v is not None for v in [crop_w, crop_h]):
+                logger.info(f"Applying Crop: {crop_w}x{crop_h} at ({crop_x},{crop_y})")
+                video_stream = video_stream.filter('crop', w=crop_w, h=crop_h, x=crop_x, y=crop_y)
+
+            
+            # ... (Watermark logic remains the same) ...
+
+            # 2. Watermark Filter (if exists) - Apply FIRST so subtitles are on top
             if watermark_path and os.path.exists(watermark_path):
                 wm_input = ffmpeg.input(watermark_path)
                 
@@ -152,7 +189,9 @@ class VideoSynthesizer:
             
             if not width or not height:
                 try:
-                    probe = ffmpeg.probe(video_path)
+                    # Use configured ffprobe path
+                    from src.config import settings
+                    probe = ffmpeg.probe(video_path, cmd=settings.FFPROBE_PATH)
                     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
                     width = int(video_info['width'])
                     height = int(video_info['height'])
@@ -163,13 +202,19 @@ class VideoSynthesizer:
                     if rotate in [90, 270, -90, -270]:
                         width, height = height, width
                         
-                    self.logger.info(f"Probed video resolution for subtitles: {width}x{height}")
+                    logger.info(f"Probed video resolution for subtitles: {width}x{height}")
                 except Exception as e:
-                    self.logger.warning(f"Failed to probe video resolution: {e}. Defaulting to 1920x1080 for subtitles.")
+                    logger.warning(f"Failed to probe video resolution: {e}. Defaulting to 1920x1080 for subtitles.")
                     width = 1920
                     height = 1080
             else:
-                self.logger.info(f"Using provided video resolution: {width}x{height}")
+                logger.info(f"Using provided video resolution: {width}x{height}")
+
+            # Override resolution if cropped
+            if all(v is not None for v in [crop_w, crop_h]):
+                 width = int(crop_w)
+                 height = int(crop_h)
+                 logger.info(f"Resolution updated to cropped size: {width}x{height}")
 
             options['video_width'] = width
             options['video_height'] = height
@@ -183,97 +228,157 @@ class VideoSynthesizer:
             
             from src.utils.subtitle_manager import SubtitleManager
             
-            self.logger.info(f"Converting SRT to ASS with styles: {temp_ass_path}")
-            # Convert and bake styles
-            SubtitleManager.convert_srt_to_ass(srt_path, temp_ass_path, options)
+            logger.info(f"Converting SRT to ASS with styles: {temp_ass_path}")
+            
+            # Calculate subtitle offset (negative of trim_start)
+            # If we trim start by 10s, subtitles must be shifted back by 10s.
+            sub_offset = -trim_start if trim_start > 0 else 0.0
+            
+            # Convert and bake styles with time offset
+            SubtitleManager.convert_srt_to_ass(srt_path, temp_ass_path, options, time_offset=sub_offset)
             
             # Pass RELATIVE path to FFmpeg filter
-            # No force_style needed as ASS has it embedded
+            # Why relative? Because FFmpeg filter escaping for absolute paths on Windows is hell.
+            # We assume temp_ass_filename is in CWD.
             video_stream = video_stream.filter('subtitles', temp_ass_filename)
             
             # 4. Output
             from src.config import settings
             
-            # Determine x264 advanced parameters
-            # Based on user feedback (Maru Tool / Dark Shikari recommendations)
-            x264_params = []
+            use_gpu = options.get('use_gpu', True)
+            nvenc_ok = use_gpu and self._detect_nvenc()
             
-            # --- Global Style Optimization (Applied to High & Balanced & Small if reasonable) ---
-            # These affect visual "style" and don't massively cost performance compared to Ref/Analysis.
-            
-            # 1. AQ Mode 2 (Auto-Variance AQ) - Critical for anime/flat areas
-            if crf <= 28:
-                x264_params.append("aq-mode=2")
-                x264_params.append("deblock=1:1")       # User recomm: 1:1 (Deblocking)
-                x264_params.append("psy-rd=0.3:0.0")    # User recomm: 0.3:0 (Psy-RD)
-                x264_params.append("qcomp=0.5")         # User recomm: 0.5 (MB-Tree)
-                x264_params.append("aq-strength=0.8")   # User recomm: 0.8
-                x264_params.append("scenecut=60")
-
-            # --- Performance/Efficiency Tiering ---
-            
-            # Tier A: High Quality (CRF <= 20 or Slow Preset)
-            if crf <= 20 or preset in ['slow', 'veryslow']:
-                x264_params.append("bframes=6")         # Max efficiency
-                x264_params.append("ref=6")             # Max reference
-                x264_params.append("rc-lookahead=60")
-                x264_params.append("min-keyint=1") 
-
-            # Tier B: Balanced (CRF <= 24)
-            elif crf <= 24:
-                 x264_params.append("bframes=4")        # Good efficiency
-                 x264_params.append("ref=4")            # Balanced ref
-                 x264_params.append("rc-lookahead=40")
-                 x264_params.append("min-keyint=1")
-
-            # Tier C: Fast/Small (Standard Defaults)
+            if nvenc_ok:
+                # --- GPU Path: NVENC ---
+                # Map quality tiers to NVENC presets (p1=fastest, p7=best)
+                nvenc_preset_map = {
+                    'slow': 'p6', 'medium': 'p4', 'fast': 'p2',
+                    'veryslow': 'p7', 'ultrafast': 'p1',
+                }
+                output_kwargs = {
+                    'vcodec': 'h264_nvenc',
+                    'acodec': 'aac',
+                    'rc': 'vbr',
+                    'cq': crf,
+                    'b:v': '0',
+                    'preset': nvenc_preset_map.get(preset, 'p4'),
+                    'tune': 'hq',
+                    'movflags': 'faststart',
+                }
+                logger.info(f"Using GPU (NVENC): cq={crf}, preset={output_kwargs['preset']}")
             else:
-                 x264_params.append("bframes=3")
+                # --- CPU Path: libx264 ---
+                x264_params = []
+                if crf <= 28:
+                    x264_params.extend([
+                        "aq-mode=2", "deblock=1:1", "psy-rd=0.3:0.0",
+                        "qcomp=0.5", "aq-strength=0.8", "scenecut=60"
+                    ])
+                if crf <= 20 or preset in ['slow', 'veryslow']:
+                    x264_params.extend(["bframes=6", "ref=6", "rc-lookahead=60", "min-keyint=1"])
+                elif crf <= 24:
+                    x264_params.extend(["bframes=4", "ref=4", "rc-lookahead=40", "min-keyint=1"])
+                else:
+                    x264_params.append("bframes=3")
+                
+                output_kwargs = {
+                    'vcodec': 'libx264',
+                    'acodec': 'aac',
+                    'crf': crf,
+                    'preset': preset,
+                    'movflags': 'faststart',
+                }
+                if x264_params:
+                    x264_params_str = ":".join(x264_params)
+                    output_kwargs['x264-params'] = x264_params_str
+                    logger.info(f"Using CPU (libx264): crf={crf}, preset={preset}, x264-params={x264_params_str}")
+                else:
+                    logger.info(f"Using CPU (libx264): crf={crf}, preset={preset}")
             
-            x264_params_str = ":".join(x264_params)
-            
-            output_kwargs = {
-                'vcodec': 'libx264',
-                'acodec': 'aac',
-                'crf': crf,
-                'preset': preset,
-                'movflags': 'faststart'
-            }
-            
-            if x264_params_str:
-                self.logger.info(f"Using advanced x264 params: {x264_params_str}")
-                output_kwargs['x264-params'] = x264_params_str
-
+            # Build ffmpeg command via ffmpeg-python, then run with subprocess for progress
             out = ffmpeg.output(
                 video_stream, 
                 audio, 
                 output_path, 
                 **output_kwargs
-            ).global_args('-hide_banner', '-loglevel', 'error')
+            ).global_args('-hide_banner', '-progress', 'pipe:1').overwrite_output()
             
-            self.logger.info(f"Starting FFmpeg synthesis: {output_path}")
-            # Ensure overwrite
-            # Use 'cmd' to specify the executable path
+            cmd_args = out.compile(cmd=settings.FFMPEG_PATH)
+            
+            # Get total duration for progress calculation
+            duration = self._get_video_duration(video_path)
+            if trim_end > 0 and trim_start >= 0:
+                duration = trim_end - trim_start
+            elif trim_start > 0 and duration > 0:
+                duration = duration - trim_start
+            
+            logger.info(f"Starting FFmpeg synthesis: {output_path} (duration={duration:.1f}s, encoder={'nvenc' if nvenc_ok else 'x264'})")
+            
             try:
-                out.run(cmd=settings.FFMPEG_PATH, overwrite_output=True, capture_stdout=True, capture_stderr=True)
-                self.logger.info("FFmpeg synthesis completed.")
+                process = subprocess.Popen(
+                    cmd_args,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, # Merge stderr into stdout to avoid pipe deadlock
+                    universal_newlines=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
+                
+                last_report_time = 0.0
+                current_pct = 0
+                current_speed = ""
+                
+                # Parse progress from stdout (-progress pipe:1)
+                # Format: key=value pairs, one per line, blocks separated by "progress=continue"
+                for line in process.stdout:
+                    line = line.strip()
+                    
+                    if line.startswith("out_time_us=") and duration > 0:
+                        try:
+                            current_us = int(line.split("=", 1)[1])
+                            current_sec = current_us / 1_000_000
+                            current_pct = min(int((current_sec / duration) * 100), 99)
+                        except ValueError:
+                            pass
+                    
+                    elif line.startswith("speed="):
+                        raw = line.split("=", 1)[1].strip()
+                        if raw and raw != "N/A":
+                            current_speed = f" ({raw})"
+                    
+                    elif line == "progress=end":
+                        break
+                    
+                    elif line == "progress=continue" and progress_callback and current_pct > 0:
+                        # End of a progress block — report if throttle allows
+                        now = time.monotonic()
+                        if now - last_report_time >= 3.0:
+                            progress_callback(current_pct, f"Encoding{current_speed}... {current_pct}%")
+                            last_report_time = now
+                
+                process.wait()
+                
+                if process.returncode != 0:
+                    # stderr is already merged into stdout, so we can't read it separately.
+                    # We rely on the log file or the fact that we processed the output.
+                    # But since we consumed stdout in the loop, we might not have the error message handy 
+                    # unless we saved the last few lines.
+                    raise RuntimeError(f"FFmpeg failed (code {process.returncode})")
+                
+                logger.info("FFmpeg synthesis completed.")
                 return output_path
+                
             finally:
-                # Cleanup temp subtitle file (temp_ass_path is absolute)
+                # Cleanup temp subtitle file
                 if os.path.exists(temp_ass_path):
                     try:
                         os.remove(temp_ass_path)
-                        self.logger.debug(f"Deleted temp subtitle file: {temp_ass_path}")
+                        logger.debug(f"Deleted temp subtitle file: {temp_ass_path}")
                     except Exception as e:
-                        self.logger.warning(f"Failed to delete temp subtitle: {e}")
+                        logger.warning(f"Failed to delete temp subtitle: {e}")
 
-        except ffmpeg.Error as e:
-            # Capture stderr for debugging
-            error_msg = e.stderr.decode('utf8') if e.stderr else str(e)
-            self.logger.error(f"FFmpeg error: {error_msg}")
-            raise RuntimeError(f"FFmpeg encoding failed: {error_msg}")
         except Exception as e:
-            self.logger.error(f"Synthesis failed: {e}")
+            logger.error(f"Synthesis failed: {e}")
             raise
 
-video_synthesizer = VideoSynthesizer()
+

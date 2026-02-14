@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { API_BASE } from "../api/client";
+import { apiClient } from "../api/client";
 import { useTaskContext } from "../context/TaskContext";
 import type { TranscribeResult } from "../types/transcriber";
 
@@ -205,23 +205,56 @@ export function useTranscriber() {
         return;
       }
 
-      const response = await fetch(`${API_BASE}/transcribe/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          audio_path: filePath,
-          model: model,
-          device: device,
-          vad_filter: true,
-        }),
-      });
+      const pipelineReq = {
+        pipeline_id: "transcriber_tool",
+        task_name: `Transcribe ${file.name}`,
+        steps: [
+          {
+            step_name: "transcribe",
+            params: {
+              audio_path: filePath,
+              model: model,
+              device: device,
+              vad_filter: true,
+            },
+          },
+        ] as any[], // Cast to allow diverse step params
+      };
 
-      if (!response.ok) throw new Error("Failed to start transcription");
+      // Auto-Execute Flow
+      try {
+        const settings = await apiClient.getSettings();
+        if (settings.auto_execute_flow) {
+          pipelineReq.steps.push(
+            {
+              step_name: "translate",
+              params: {
+                target_language: settings.language || "zh",
+                mode: "standard",
+              },
+            },
+            {
+              step_name: "synthesize",
+              params: {
+                options: {},
+              },
+            },
+          );
+        }
+      } catch (e) {
+        console.warn("[Auto-Execute] Failed to check settings", e);
+      }
 
-      const data = await response.json();
-      setActiveTaskId(data.task_id);
+      const response = await apiClient.runPipeline(pipelineReq);
+
+      // const data = await response.json(); // Old fetch
+      // runPipeline returns the task object directly
+      setActiveTaskId(response.task_id);
+
+      // if (!response.ok) throw new Error("Failed to start transcription");
+      // const data = await response.json();
+      // setActiveTaskId(data.task_id);
+      // handled above
     } catch (err: any) {
       console.error("[Transcriber] Error submitting task:", err);
       const msg = err.message || JSON.stringify(err);

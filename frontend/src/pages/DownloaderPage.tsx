@@ -8,9 +8,9 @@ import { PlaylistDialog } from "../components/downloader/PlaylistDialog";
 export function DownloaderPage() {
   const {
     // State
-    url, loading, analyzing, error, playlistInfo, showPlaylistDialog, selectedItems, downloadSubs, resolution,
+    url, loading, analyzing, error, playlistInfo, showPlaylistDialog, selectedItems, downloadSubs, resolution, codec,
     // Actions
-    setUrl, setResolution, setDownloadSubs, setShowPlaylistDialog, setSelectedItems,
+    setUrl, setResolution, setCodec, setDownloadSubs, setShowPlaylistDialog, setSelectedItems,
     analyzeAndDownload, downloadPlaylist, toggleItemSelection
   } = useDownloaderController();
 
@@ -62,6 +62,8 @@ export function DownloaderPage() {
                 <VideoDownloadOptions 
                   resolution={resolution}
                   setResolution={setResolution}
+                  codec={codec}
+                  setCodec={setCodec}
                   downloadSubs={downloadSubs}
                   setDownloadSubs={setDownloadSubs}
                   loading={loading}
@@ -93,7 +95,7 @@ export function DownloaderPage() {
 
         {/* Right Column: Task Monitor */}
         <div className="flex-1 min-w-0 h-full flex flex-col">
-            <TaskMonitor filterTypes={['pipeline', 'download']} />
+            <TaskMonitor filterTypes={['download']} />
         </div>
       </div>
 

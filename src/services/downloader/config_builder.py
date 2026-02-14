@@ -2,6 +2,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from src.config import settings
 from .progress import ProgressHook
+from src.services.cookie_manager import CookieManager
+from urllib.parse import urlparse
+from loguru import logger
 
 class YtDlpConfigBuilder:
     def __init__(self, output_dir: Path):
@@ -15,6 +18,7 @@ class YtDlpConfigBuilder:
         playlist_title: Optional[str] = None,
         download_subs: bool = False,
         resolution: str = "best",
+        codec: str = "best", # "best" (default) or "avc" (h264)
         cookie_file: Optional[str] = None,
         filename: Optional[str] = None,
         progress_hook: Optional[ProgressHook] = None
@@ -24,12 +28,43 @@ class YtDlpConfigBuilder:
         ffmpeg_exe = settings.BIN_DIR / "ffmpeg.exe"
         ffmpeg_location = str(ffmpeg_exe) if ffmpeg_exe.exists() else settings.FFMPEG_PATH
         
+        # 1.5 Auto-detect Cookies if not provided
+        if not cookie_file:
+            try:
+                domain = urlparse(url).netloc
+                cm = CookieManager()
+                detected_cookie = None
+                
+                # Special handling for X/Twitter domain sharing
+                if "x.com" in domain or "twitter.com" in domain:
+                    if cm.has_valid_cookies("x.com"):
+                        detected_cookie = cm.get_cookie_path("x.com")
+                    elif cm.has_valid_cookies("twitter.com"):
+                        detected_cookie = cm.get_cookie_path("twitter.com")
+                # Generic handling
+                elif cm.has_valid_cookies(domain):
+                     detected_cookie = cm.get_cookie_path(domain)
+                
+                if detected_cookie:
+                    cookie_file = str(detected_cookie)
+                    logger.info(f"Auto-detected cookies for download: {cookie_file}")
+            except Exception as e:
+                logger.warning(f"Failed to auto-detect cookies: {e}")
+
+        
         # 2. Construct Output Template
         output_template = self._get_output_template(playlist_title, filename)
 
-        # 3. Map Resolution
+        # 3. Map Resolution & Codec
         format_map = settings.DOWNLOADER_FORMATS
         selected_format = format_map.get(resolution, format_map["best"])
+        
+        # Inject H.264 preference if requested
+        if codec == "avc":
+            # Replace 'bestvideo' with 'bestvideo[vcodec^=avc]' to prioritize H.264
+            # This works for both standalone and combined formats
+            selected_format = selected_format.replace("bestvideo", "bestvideo[vcodec^=avc]")
+            logger.info(f"Targeting H.264 (AVC) codec for resolution: {resolution}")
         
         # 4. Build Options
         opts = {
@@ -39,6 +74,7 @@ class YtDlpConfigBuilder:
             'no_warnings': True,
             'proxy': proxy or settings.DOWNLOADER_PROXY,
             'ffmpeg_location': ffmpeg_location,
+            # 'restrictfilenames': True, # User prefers natural filenames; 403 was likely the real issue
             'cookiefile': cookie_file,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'writesubtitles': download_subs,
@@ -46,7 +82,7 @@ class YtDlpConfigBuilder:
             'subtitleslangs': ['en', 'zh'] if download_subs else [],
             'nooverwrites': True,
             'continuedl': True,
-            'ignoreerrors': True,
+            'ignoreerrors': False, # Fail on error (e.g. 403) so we know why download failed
             'referer': 'https://www.douyin.com/' if 'douyin' in str(start_url or url) else None,
         }
 

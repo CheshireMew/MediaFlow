@@ -14,6 +14,7 @@ interface DownloaderState {
   // Persistent Settings
   url: string;
   resolution: string;
+  codec: string; // "best" | "avc"
   downloadSubs: boolean;
 
   // History
@@ -22,6 +23,7 @@ interface DownloaderState {
   // Actions
   setUrl: (url: string) => void;
   setResolution: (res: string) => void;
+  setCodec: (codec: string) => void;
   setDownloadSubs: (enabled: boolean) => void;
   addToHistory: (item: DownloadHistoryItem) => void;
   updateHistoryStatus: (
@@ -37,11 +39,13 @@ export const useDownloaderStore = create<DownloaderState>()(
     (set) => ({
       url: "",
       resolution: "best",
+      codec: "avc", // Default to AVC for compatibility
       downloadSubs: false,
       history: [],
 
       setUrl: (url) => set({ url }),
       setResolution: (resolution) => set({ resolution }),
+      setCodec: (codec) => set({ codec }),
       setDownloadSubs: (downloadSubs) => set({ downloadSubs }),
 
       addToHistory: (item) =>
@@ -63,6 +67,7 @@ export const useDownloaderStore = create<DownloaderState>()(
       partialize: (state) => ({
         url: state.url,
         resolution: state.resolution,
+        codec: state.codec,
         downloadSubs: state.downloadSubs,
         history: state.history,
       }),

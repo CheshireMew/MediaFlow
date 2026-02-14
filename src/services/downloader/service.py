@@ -34,7 +34,8 @@ class DownloaderService:
         task_id: Optional[str] = None,
         cookie_file: Optional[str] = None,
         filename: Optional[str] = None,
-        local_source: Optional[str] = None
+        local_source: Optional[str] = None,
+        codec: str = "best"
     ) -> TaskResult:
         """
         Async download entry point.
@@ -77,7 +78,8 @@ class DownloaderService:
                 task_id=task_id,
                 cookie_file=cookie_file,
                 filename=final_title,
-                local_source=local_source
+                local_source=local_source,
+                codec=codec
             )
         )
 
@@ -94,7 +96,8 @@ class DownloaderService:
         task_id: Optional[str] = None,
         cookie_file: Optional[str] = None,
         filename: Optional[str] = None,
-        local_source: Optional[str] = None
+        local_source: Optional[str] = None,
+        codec: str = "best"
     ) -> TaskResult:
         
         # 1. Handle Local Source (Direct Download)
@@ -114,7 +117,8 @@ class DownloaderService:
             resolution=resolution,
             cookie_file=cookie_file,
             filename=filename,
-            progress_hook=progress_hook
+            progress_hook=progress_hook,
+            codec=codec
         )
         
         # 3. Execute Download

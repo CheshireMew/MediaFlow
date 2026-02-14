@@ -42,10 +42,54 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
   };
 
   const tryLoadPeaks = async (videoPath: string) => {
-    const peaksPath = videoPath + ".peaks.json";
+    // Progressive Loading Strategy:
+    // 1. Try low-res binary (instant render, tiny file)
+    // 2. Async upgrade to high-res binary
+    // 3. Fallback to legacy JSON format
+
+    const readBinary = async (path: string): Promise<Float32Array | null> => {
+      try {
+        if (window.electronAPI?.readBinaryFile) {
+          const buffer = await window.electronAPI.readBinaryFile(path);
+          if (buffer && buffer.byteLength > 0) {
+            return new Float32Array(buffer);
+          }
+        }
+      } catch (e) {
+        // File not found or read error
+      }
+      return null;
+    };
+
+    // Step 1: Try low-res peaks (smallest file, fastest load)
+    const lowBinPath = videoPath + ".peaks.low.bin";
+    const lowPeaks = await readBinary(lowBinPath);
+    if (lowPeaks) {
+      setPeaks([lowPeaks]); // Render immediately with low-res
+
+      // Step 2: Async upgrade to high-res (non-blocking)
+      const hiBinPath = videoPath + ".peaks.bin";
+      readBinary(hiBinPath).then((hiPeaks) => {
+        if (hiPeaks) {
+          setPeaks([hiPeaks]); // Seamless upgrade
+        }
+      });
+      return;
+    }
+
+    // Step 2 (fallback): Try high-res binary directly
+    const hiBinPath = videoPath + ".peaks.bin";
+    const hiPeaks = await readBinary(hiBinPath);
+    if (hiPeaks) {
+      setPeaks([hiPeaks]);
+      return;
+    }
+
+    // Step 3: Legacy JSON format (backward compatible)
+    const jsonPath = videoPath + ".peaks.json";
     try {
       if (window.electronAPI?.readFile) {
-        const content = await window.electronAPI.readFile(peaksPath);
+        const content = await window.electronAPI.readFile(jsonPath);
         if (content) {
           const data = JSON.parse(content);
           if (Array.isArray(data) || Array.isArray(data[0])) {
@@ -54,6 +98,32 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
         }
       }
     } catch (e) {}
+  };
+
+  const tryLoadRelatedVideo = async (
+    subtitlePath: string,
+  ): Promise<string | null> => {
+    const VIDEO_EXTS = [".mp4", ".mkv", ".avi", ".mov", ".webm"];
+    const LANG_SUFFIXES = ["_CN", "_EN", "_JP", "_ES", "_FR", "_DE", "_RU"];
+
+    let basePath = subtitlePath.replace(/\.[^.]+$/, ""); // Remove .srt
+
+    // Strip language suffix (e.g., video_CN → video)
+    for (const suffix of LANG_SUFFIXES) {
+      if (basePath.endsWith(suffix)) {
+        basePath = basePath.slice(0, -suffix.length);
+        break;
+      }
+    }
+
+    // Try each video extension
+    for (const ext of VIDEO_EXTS) {
+      try {
+        const size = await window.electronAPI?.getFileSize(basePath + ext);
+        if (size && size > 0) return basePath + ext;
+      } catch {}
+    }
+    return null;
   };
 
   const loadMediaAndResources = useCallback(
@@ -71,6 +141,37 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
       await tryLoadRelatedSubtitle(path);
     },
     [setRegions, setPeaks, setCurrentFilePath, setMediaUrl],
+  );
+
+  const loadSubtitleFromPath = useCallback(
+    async (path: string) => {
+      // 1. Reverse lookup: find associated video
+      const videoPath = await tryLoadRelatedVideo(path);
+      if (videoPath) {
+        // Found matching video → switch to it
+        const normalizedPath = videoPath.replace(/\\/g, "/");
+        setMediaUrl(`file:///${encodeURI(normalizedPath)}`);
+        setCurrentFilePath(videoPath);
+        setPeaks(null);
+        await tryLoadPeaks(videoPath);
+      }
+      // else: preserve current video (don't clear)
+
+      // 2. Load subtitle content
+      if (window.electronAPI?.readFile) {
+        try {
+          const content = await window.electronAPI.readFile(path);
+          if (content) {
+            const parsed = parseSRT(content);
+            setRegions(parsed);
+          }
+        } catch (e) {
+          console.error("[EditorIO] Failed to load subtitle:", e);
+          alert("Failed to load subtitle file.");
+        }
+      }
+    },
+    [setRegions, setMediaUrl, setCurrentFilePath, setPeaks],
   );
 
   // --- Actions ---
@@ -106,15 +207,20 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
 
   const handlePeaksExport = useCallback(
     async (generatedPeaks: any) => {
-      // Use store's currentFilePath instead of localStorage if available, or fallback
       const lastMedia =
         currentFilePath || localStorage.getItem(STORAGE_KEY_LAST_MEDIA);
 
-      if (lastMedia && window.electronAPI?.writeFile) {
+      if (lastMedia && window.electronAPI?.writeBinaryFile) {
         try {
-          await window.electronAPI.writeFile(
-            lastMedia + ".peaks.json",
-            JSON.stringify(generatedPeaks),
+          // Flatten peaks to a single Float32Array
+          const channelData = generatedPeaks[0]; // First channel
+          const float32 =
+            channelData instanceof Float32Array
+              ? channelData
+              : new Float32Array(channelData);
+          await window.electronAPI.writeBinaryFile(
+            lastMedia + ".peaks.bin",
+            float32.buffer,
           );
         } catch (e) {
           console.error("[EditorIO] Failed to save peaks", e);
@@ -253,6 +359,8 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
     currentFilePath,
     isReady: true, // Always ready as store is source of truth? Or wait for hydration?
     openFile: handleOpenFile,
+    loadVideo: loadMediaAndResources, // Exposed for Drag-and-Drop
+    loadSubtitleFromPath, // Exposed for Drag-and-Drop
     savePeaks: handlePeaksExport,
     saveSubtitleFile,
     detectSilence,

@@ -1,3 +1,4 @@
+import time
 from typing import Any, Dict, List
 
 class PipelineContext:
@@ -19,5 +20,5 @@ class PipelineContext:
             "duration": round(duration, 3),
             "status": status,
             "error": error,
-            "timestamp": __import__("time").time()
+            "timestamp": time.time()
         })

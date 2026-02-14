@@ -79,6 +79,7 @@ class LLMTranslator:
         relevant_terms = glossary_service.get_relevant_terms(input_text)
         
         system_prompt = f"You are a professional subtitle translator translating to {target_language}."
+        system_prompt += "\nThe source text is transcribed from audio and may contain errors. Please use context to correct valid errors during translation."
         
         if relevant_terms:
             glossary_block = "\nGLOSSARY (Strictly follow these translations):\n"
@@ -95,6 +96,9 @@ Rules:
 1. You MUST return exactly the same number of segments as input.
 2. You MUST preserve the exact 'id' from input.
 3. Only translate the 'text' field.
+4. STRICTLY FORBIDDEN: Merging lines. even if the sentence is incomplete.
+5. STRICTLY FORBIDDEN: Splitting lines.
+6. If a line is a fragment, translate it as a fragment.
 """
             try:
                 resp = client.chat.completions.create(
@@ -106,13 +110,48 @@ Rules:
                     ],
                     temperature=0.3
                 )
+
+                logger.info(f"[LLM IO] Input Standard:\n{input_text}")
+                logger.info(f"[LLM IO] Output Standard:\n{resp.model_dump_json(indent=2)}")
                 
                 # Map results back to original segments to preserve exact timestamps
                 id_to_text = {s.id: s.text for s in resp.segments}
                 
+                # Validation: Check for missing IDs
+                missing_ids = [str(s.id) for s in segments if str(s.id) not in id_to_text]
+                if missing_ids:
+                    # Relaxed Matching: If strict ID matching fails but count matches, use positional mapping
+                    if len(resp.segments) == len(segments):
+                        logger.warning(f"Strict ID matching failed ({len(missing_ids)} missing), but count matches ({len(segments)}). Using positional mapping.")
+                        
+                        translated_batch = []
+                        for i, original in enumerate(segments):
+                            new_seg = original.model_copy()
+                            new_seg.text = resp.segments[i].text
+                            translated_batch.append(new_seg)
+                        return translated_batch
+                    else:
+                        # Partial Success Strategy (User Requested):
+                        # Use what we have, fill the rest with source text.
+                        # This avoids the "all-or-nothing" retry failure.
+                        error_msg = f"LLM response mismatched: Expected {len(segments)} segments, got {len(resp.segments)}. Missing IDs: {missing_ids}. Filling missing with source text."
+                        logger.warning(error_msg)
+                        
+                        translated_batch = []
+                        for original in segments:
+                            new_seg = original.model_copy()
+                            if str(original.id) in id_to_text:
+                                new_seg.text = id_to_text[str(original.id)]
+                            else:
+                                new_seg.text = original.text # Fallback to source
+                            translated_batch.append(new_seg)
+                        
+                        return translated_batch
+
                 translated_batch = []
                 for original in segments:
                     new_seg = original.model_copy()
+                    # We validated above, so this should be safe, but keep fallback just in case logic changes
                     if str(original.id) in id_to_text:
                         new_seg.text = id_to_text[str(original.id)]
                     translated_batch.append(new_seg)
@@ -143,6 +182,9 @@ Rules:
                     ],
                     temperature=0.7
                 )
+
+                logger.info(f"[LLM IO] Input Intelligent:\n{input_text}")
+                logger.info(f"[LLM IO] Output Intelligent:\n{resp.model_dump_json(indent=2)}")
                 
                 # Re-calculate timecodes
                 total_start = segments[0].start
@@ -192,7 +234,7 @@ Rules:
         segments: List[SubtitleSegment], 
         target_language: str, 
         mode: str = "standard", 
-        batch_size: int = 10, 
+        batch_size: int = 50, 
         progress_callback=None
     ) -> List[SubtitleSegment]:
         """
@@ -218,7 +260,7 @@ Rules:
                     f"Translating batch {current_batch_index + 1}/{total_batches} ({mode})..."
                 )
             
-            try:
+
                 # Map 'reflect' to 'intelligent'? Or keep 'reflect' as legacy Standard?
                 # Using 'reflect' from UI usually maps to Standard with reflection in old code. 
                 # Here, let's map:
@@ -227,20 +269,29 @@ Rules:
                 # 'reflect' -> let's treat as standard for now, or map to intelligent?
                 # Let's assume user explicitly chooses 'intelligent'.
                 
-                effective_mode = mode if mode in ["standard", "intelligent"] else "standard"
-                
-                result_batch = self._translate_batch_struct(
-                    batch, target_language, effective_mode
-                )
-                
-                # Fix ID continuity for intelligent mode if needed? 
-                # If we produce N segments from M input, IDs might clash if we naively number them.
-                # But for now let's append.
-                translated_segments.extend(result_batch)
-                
-            except Exception as e:
-                logger.error(f"[Translate] Failed batch {current_batch_index + 1}: {e}")
-                translated_segments.extend(batch) # Fallback
+            effective_mode = mode if mode in ["standard", "intelligent"] else "standard"
+            
+            # Retry Logic
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    result_batch = self._translate_batch_struct(
+                        batch, target_language, effective_mode
+                    )
+                    translated_segments.extend(result_batch)
+                    break # Success, exit retry loop
+                    
+                except Exception as e:
+                    is_last_attempt = (attempt == max_retries - 1)
+                    log_level = "error" if is_last_attempt else "warning"
+                    getattr(logger, log_level)(f"[Translate] Batch {current_batch_index + 1} failed (Attempt {attempt+1}/{max_retries}): {e}")
+                    
+                    if is_last_attempt:
+                        translated_segments.extend(batch) # Final fallback
+                        # We could optionally raise here to stop the whole process, 
+                        # but partial translation is usually better than crash.
+                    else:
+                        time.sleep(1) # Brief pause before retry
                 
         # Re-index IDs if intelligent mode mixed things up (optional cleanup)
         if mode == "intelligent":

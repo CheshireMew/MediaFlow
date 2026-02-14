@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
-import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay } from "lucide-react";
 
 interface LLMProvider {
     id: string;
@@ -15,6 +15,8 @@ interface LLMProvider {
 interface UserSettings {
     llm_providers: LLMProvider[];
     language: string;
+    auto_execute_flow: boolean;
+    default_download_path: string | null;
 }
 
 interface Notification {
@@ -232,15 +234,43 @@ const SettingsPage: React.FC = () => {
                             </div>
                         </div>
                     ) : (
-                        <div className="p-8 flex flex-col items-center justify-center text-slate-500 h-[400px]">
-                             {/* General Settings Placeholder */}
-                             <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 shadow-inner mb-4">
-                                <Settings size={48} className="opacity-20 animate-spin-slow" style={{ animationDuration: '10s' }} />
+                        <div className="p-8">
+                            <h3 className="text-lg font-medium text-slate-200 mb-6">General Settings</h3>
+                            
+                            <div className="space-y-6 max-w-2xl">
+                                {/* Auto-Execute Flow Toggle */}
+                                <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors">
+                                    <div className="space-y-1">
+                                        <h4 className="text-base font-medium text-white flex items-center gap-2">
+                                            <MonitorPlay size={18} className="text-indigo-400" />
+                                            Auto-Execute Flow
+                                        </h4>
+                                        <p className="text-sm text-slate-500">
+                                            Automatically trigger subsequent steps after a task completes (Download → Transcribe → Translate → Synthesize).
+                                        </p>
+                                    </div>
+                                    <button 
+                                        onClick={async () => {
+                                            if (!settings) return;
+                                            const newVal = !settings.auto_execute_flow;
+                                            try {
+                                                const res = await apiClient.updateSettings({ ...settings, auto_execute_flow: newVal });
+                                                setSettings(res);
+                                                showNotification(newVal ? "Auto-Execute Enabled" : "Auto-Execute Disabled");
+                                            } catch (e) {
+                                                showNotification("Failed to update settings", "error");
+                                            }
+                                        }}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-[#1a1a1a] ${
+                                            settings?.auto_execute_flow ? 'bg-indigo-600' : 'bg-white/10'
+                                        }`}
+                                    >
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                            settings?.auto_execute_flow ? 'translate-x-6' : 'translate-x-1'
+                                        }`} />
+                                    </button>
+                                </div>
                             </div>
-                            <h3 className="text-lg font-medium text-slate-400 mb-2">General Settings</h3>
-                            <p className="text-sm max-w-md text-center opacity-60">
-                                System configuration, storage paths, and update management will be available here in future updates.
-                            </p>
                         </div>
                     )}
                 </div>

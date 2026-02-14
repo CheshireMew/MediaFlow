@@ -1,5 +1,5 @@
 
-import { Clapperboard, Save, Wand2, Download, FolderOpen } from "lucide-react";
+import { Clapperboard, Save, Wand2, Download, FolderOpen, Languages } from "lucide-react";
 import React from "react";
 
 interface EditorHeaderProps {
@@ -9,6 +9,7 @@ interface EditorHeaderProps {
     onSave: () => void;
     onSmartSplit: () => Promise<void>;
     onSynthesize: () => void;
+    onTranslate: () => void;
 }
 
 export function EditorHeader({
@@ -17,7 +18,8 @@ export function EditorHeader({
     onOpenFile,
     onSave,
     onSmartSplit,
-    onSynthesize
+    onSynthesize,
+    onTranslate
 }: EditorHeaderProps) {
     return (
         <header 
@@ -72,6 +74,15 @@ export function EditorHeader({
                      >
                          <Wand2 size={16} className="group-hover:text-indigo-200 transition-colors" /> 
                          <span className="hidden xl:inline">Smart Split</span>
+                     </button>
+
+                     <button 
+                        onClick={onTranslate}
+                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-purple-300 px-4 py-2 rounded-lg text-xs font-medium transition-all shadow-sm active:scale-95 group"
+                        title="Send to AI Translator"
+                     >
+                         <Languages size={16} className="group-hover:text-purple-200 transition-colors" /> 
+                         <span className="hidden xl:inline">Translate</span>
                      </button>
 
                      <button 

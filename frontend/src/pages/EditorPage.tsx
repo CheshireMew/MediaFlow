@@ -43,6 +43,7 @@ export function EditorPage() {
   const updateRegionText = useEditorStore(state => state.updateRegionText);
   const snapshot = useEditorStore(state => state.snapshot);
   const selectSegment = useEditorStore(state => state.selectSegment);
+  const addSegment = useEditorStore(state => state.addSegment);
 
   const {
       mediaUrl,
@@ -51,7 +52,9 @@ export function EditorPage() {
       saveSubtitleFile,
       detectSilence,
       isReady,
-      currentFilePath 
+      currentFilePath,
+      loadVideo,
+      loadSubtitleFromPath
   } = useEditorIO(setPeaks);
 
   // --- Persistence & Safety ---
@@ -88,6 +91,28 @@ export function EditorPage() {
       } catch (e) {
           alert("Failed to save file. See console.");
       }
+  };
+
+  const handleTranslate = async () => {
+      if (!currentFilePath) return;
+
+      // 1. Force Save FIRST
+      try {
+          await saveSubtitleFile(regions);
+      } catch (e) {
+          console.error("Failed to save before translate", e);
+          if(!confirm("Failed to save subtitles. Continue with unsaved file?")) return;
+      }
+
+      // 2. Set Session Storage & Navigate
+      const srtPath = currentFilePath.replace(/\.[^.]+$/, '.srt');
+      
+      sessionStorage.setItem('mediaflow:pending_file', JSON.stringify({
+          video_path: currentFilePath,
+          subtitle_path: srtPath
+      }));
+      
+      window.dispatchEvent(new CustomEvent('mediaflow:navigate', { detail: 'translator' }));
   };
 
   const handleSmartSplit = async () => {
@@ -166,15 +191,43 @@ export function EditorPage() {
   }, [selectSegment]); // regionsRef is stable
 
 
-  const handleContextMenu = useCallback((e: any, id: string) => {
+  const handleContextMenu = useCallback((e: any, id: string, regionData?: {start: number, end: number}) => {
+      // 1. Check if ID exists (Is it a real segment?)
+      const existing = regionsRef.current.find(r => r.id === id);
+
+      if (!existing && regionData) {
+           // Temporary region created by drag
+           setContextMenu({
+               position: { x: e.clientX, y: e.clientY },
+               targetId: id,
+               items: [
+                   {
+                       label: "在此处插入空白字幕",
+                       onClick: () => {
+                           const newId = String(Date.now());
+                           addSegment({
+                               id: newId,
+                               start: regionData.start,
+                               end: regionData.end,
+                               text: "" 
+                           });
+                           // Select it immediately
+                           setTimeout(() => selectSegment(newId, false, false), 50);
+                       }
+                   },
+                   { separator: true, label: "", onClick: () => {} },
+                   { label: "取消", onClick: () => {} }
+               ]
+           });
+           return;
+      }
+
       // Logic: If right click on unselected, select it.
       if (!selectedIds.includes(id)) {
           selectSegment(id, false, false);
       }
       
-      // Determine selection (current state might not update immediately if we just called selectSegment? 
-      // Actually setState is async. So we should use the 'id' processing logic here implies we trust the event target is now "active" contextually)
-      // Ideally we use a 'target' derived list.
+      // Determine selection
       const isSelected = selectedIds.includes(id);
       const targetSelectedIds = isSelected ? selectedIds : [id];
 
@@ -235,11 +288,11 @@ export function EditorPage() {
               return menu;
           })()
       });
-  }, [selectedIds, selectSegment, mergeSegments, splitSegment, deleteSegments]); // regionsRef stable
+  }, [selectedIds, selectSegment, mergeSegments, splitSegment, deleteSegments, addSegment]); // regionsRef stable
 
   // Detail Editor Helper
   const activeSegment = regions.find(r => r.id === activeSegmentId);
-  const displaySegment = activeSegment || (regions.length > 0 ? regions[0] : null);
+  const displaySegment = activeSegment; // Removed fallback to regions[0]
   const handleDetailUpdate = (field: 'start' | 'end' | 'text', value: string | number) => {
       if (!displaySegment) return;
       const id = String(displaySegment.id);
@@ -251,12 +304,98 @@ export function EditorPage() {
           // For start/end manual edits, we want to save a snapshot first
           // because updateRegion implies "drag/continuous update" and doesn't save history by itself
           snapshot();
+          snapshot();
           updateRegion(id, { [field]: value });
       }
   };
+
   const handleRegionUpdateCallback = useCallback((id: string, start: number, end: number) => {
       updateRegion(id, { start, end });
   }, [updateRegion]);
+
+  // --- Drag and Drop Handlers ---
+  const handleVideoDrop = useCallback(async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const file = e.dataTransfer.files[0];
+      if (file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.name.endsWith('.mkv'))) {
+          // Get path via Electron if available
+          let path = (file as any).path; 
+          if (!path && window.electronAPI?.getPathForFile) {
+               path = window.electronAPI.getPathForFile(file);
+          }
+          if (path) {
+              await loadVideo(path);
+          }
+      }
+  }, [loadVideo]);
+
+  const handleSubtitleDrop = useCallback(async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const file = e.dataTransfer.files[0];
+      if (file && (file.name.endsWith('.srt') || file.name.endsWith('.vtt') || file.name.endsWith('.ass'))) {
+          // Get path
+           let path = (file as any).path; 
+          if (!path && window.electronAPI?.getPathForFile) {
+               path = window.electronAPI.getPathForFile(file);
+          }
+          if (path) {
+              await loadSubtitleFromPath(path);
+          }
+      }
+  }, [loadSubtitleFromPath]);
+
+
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+  };
+
+  // --- Playback Persistence ---
+  
+  // 1. Save on updates (Debounced or on Pause/Unload)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !currentFilePath) return;
+
+    const saveTime = () => {
+        const time = video.currentTime;
+        if (time > 0) {
+            localStorage.setItem(`playback_pos_${currentFilePath}`, String(time));
+        }
+    };
+
+    const handlePause = () => saveTime();
+    
+    // Save every 5s just in case of crash
+    const interval = setInterval(saveTime, 5000);
+
+    video.addEventListener('pause', handlePause);
+    
+    return () => {
+        saveTime(); // Save on unmount
+        clearInterval(interval);
+        video.removeEventListener('pause', handlePause);
+    };
+  }, [currentFilePath]);
+
+  // 2. Restore on Load
+  const handleLoadedMetadata = useCallback(() => {
+      // Restore previous position
+      if (currentFilePath && videoRef.current) {
+          const saved = localStorage.getItem(`playback_pos_${currentFilePath}`);
+          if (saved) {
+              const time = parseFloat(saved);
+              if (!isNaN(time) && time > 0 && time < videoRef.current.duration) {
+                  videoRef.current.currentTime = time;
+                  // Optional: Toast notification "Resumed from ..."
+              }
+          }
+      }
+  }, [currentFilePath]);
+
 
   return (
     <div className="h-screen w-full flex flex-col text-slate-100 overflow-hidden">
@@ -268,12 +407,17 @@ export function EditorPage() {
             onSave={handleSave}
             onSmartSplit={handleSmartSplit}
             onSynthesize={() => setShowSynthesis(true)}
+            onTranslate={handleTranslate}
         />
 
         {/* Main Workspace: Top Split */}
         <div className="flex-1 flex min-h-0 bg-[#0a0a0a] gap-[1px]">
              {/* Left: Subtitle List */}
-             <div className="w-1/3 min-w-[320px] max-w-[480px] flex flex-col bg-[#1a1a1a]">
+             <div 
+                className="w-1/3 min-w-[320px] max-w-[480px] flex flex-col bg-[#1a1a1a]"
+                onDrop={handleSubtitleDrop}
+                onDragOver={handleDragOver}
+             >
                  <div className="flex-1 min-h-0">
                      <SubtitleList 
                         segments={regions}
@@ -295,7 +439,7 @@ export function EditorPage() {
                  </div>
                  
                  {/* Simplified Detail Editor (Below List) */}
-                 {displaySegment && (
+                 {displaySegment ? (
                     <div className="h-28 bg-[#1a1a1a] p-2 flex flex-col gap-1 border-t border-white/5 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.5)] z-20">
                          <div className="flex justify-between items-center text-[10px] px-1 select-none">
                              <div className="flex items-center gap-2">
@@ -311,23 +455,28 @@ export function EditorPage() {
                          <textarea 
                             value={displaySegment.text}
                             onChange={(e) => handleDetailUpdate('text', e.target.value)}
-                            // Auto-select on focus if not selected?
-                            onFocus={() => {
-                                if (!activeSegmentId) selectSegment(String(displaySegment.id), false, false);
-                            }}
                             className="flex-1 w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm resize-none focus:outline-none focus:border-indigo-500/50 focus:bg-black/40 transition-all font-medium leading-normal text-slate-200 placeholder-slate-600/50"
                             placeholder="Type subtitle text here..."
                          />
+                    </div>
+                 ) : (
+                    <div className="h-28 bg-[#1a1a1a] p-2 flex flex-col items-center justify-center border-t border-white/5 z-20 text-slate-700/50 text-xs italic pointer-events-none select-none">
+                        No subtitle selected
                     </div>
                  )}
              </div>
              
              {/* Right: Video Preview */}
-             <div className="flex-1 min-w-0 bg-[#1a1a1a] relative flex flex-col justify-center">
+             <div 
+                className="flex-1 min-w-0 bg-[#1a1a1a] relative flex flex-col justify-center"
+                onDrop={handleVideoDrop}
+                onDragOver={handleDragOver}
+             >
                 <VideoPreview 
                     mediaUrl={mediaUrl}
                     videoRef={videoRef}
                     regions={regions}
+                    onLoadedMetadata={handleLoadedMetadata}
                 />
              </div>
         </div>

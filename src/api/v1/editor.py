@@ -2,9 +2,14 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile
 from pydantic import BaseModel
 from typing import Optional
 import os
-from src.services.video_synthesizer import video_synthesizer
+from src.services.video_synthesizer import VideoSynthesizer
 from src.core.container import container, Services
 import uuid
+
+
+def _get_synthesizer() -> VideoSynthesizer:
+    """Get VideoSynthesizer from DI container."""
+    return container.get(Services.VIDEO_SYNTHESIZER)
 
 router = APIRouter(prefix="/editor", tags=["Editor"])
 
@@ -44,7 +49,7 @@ async def upload_watermark_for_preview(file: UploadFile):
             shutil.copyfileobj(file.file, buffer)
             
         # Process (Trim & Convert) -> Returns path to trimmed PNG
-        png_path = video_synthesizer.process_watermark(str(temp_input_path))
+        png_path = _get_synthesizer().process_watermark(str(temp_input_path))
         
         # Move to Persistent 'latest.png'
         persistent_path = watermarks_dir / "latest.png"
@@ -116,40 +121,27 @@ async def get_current_watermark():
 
 async def run_synthesis_task(task_id: str, req: SynthesisRequest):
     """
-    Standalone function to execute synthesis task.
-    Can be called by start_synthesis_task or resume_task.
+    Execute synthesis task using BackgroundTaskRunner for real-time progress.
     """
-    task_manager = container.get(Services.TASK_MANAGER)
+    from src.core.task_runner import BackgroundTaskRunner
+    from loguru import logger
+    import json
+    logger.info(f"Synthesis Options: {json.dumps(req.options, indent=2)}")
     
-    try:
-        # Update to running
-        await task_manager.update_task(task_id, status="running", progress=0, message="Starting synthesis...")
-        
-        # Using asyncio.to_thread to not block the event loop with FFmpeg call
-        import asyncio
-        
-        await task_manager.update_task(task_id, status="running", progress=10, message="Rendering video...")
-        
-        # Run synthesis in thread pool
-        # Check if output exists and overwrite? FFmpeg has -y so it's fine.
-        
-        import json
-        from loguru import logger
-        logger.info(f"Synthesis Options: {json.dumps(req.options, indent=2)}")
-
-        await asyncio.to_thread(
-            video_synthesizer.burn_in_subtitles,
-            req.video_path, 
-            req.srt_path, 
-            req.output_path, 
-            req.watermark_path, 
-            req.options
-        )
-        
-        await task_manager.update_task(task_id, status="completed", progress=100, result={"video_path": req.output_path})
-        
-    except Exception as e:
-        await task_manager.update_task(task_id, status="failed", error=str(e))
+    await BackgroundTaskRunner.run(
+        task_id=task_id,
+        worker_fn=_get_synthesizer().burn_in_subtitles,
+        worker_kwargs={
+            "video_path": req.video_path,
+            "srt_path": req.srt_path,
+            "output_path": req.output_path,
+            "watermark_path": req.watermark_path,
+            "options": req.options,
+        },
+        start_message="Preparing synthesis...",
+        success_message="Synthesis completed!",
+        result_transformer=lambda path: {"video_path": path},
+    )
 
 
 @router.post("/synthesize")

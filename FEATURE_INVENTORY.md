@@ -10,6 +10,7 @@
 | **Transcriber** | 独立语音识别/转录工具            | 🚧 开发中 | Faster-Whisper + VAD       |
 | **Translator**  | 字幕翻译/大模型润色              | 📅 计划中 | LLM (DeepSeek/OpenAI)      |
 | **Editor**      | 视频预览 + 波形时间轴 + 字幕编辑 | 🚧 强化中 | WaveSurfer.js + Video Sync |
+| **VideoTool**   | 视频剪辑工具 (裁剪/去黑边)       | 📅 计划中 | FFmpeg Filter              |
 | **Dashboard**   | 任务队列监控                     | 📅 计划中 | WebSocket                  |
 
 ## 2. 基础设施 (Infrastructure)

@@ -34,6 +34,7 @@ interface EditorState {
   deleteSegments: (ids: string[]) => void;
   mergeSegments: (ids: string[]) => void;
   splitSegment: (currentTime: number, targetId?: string) => void;
+  addSegment: (segment: SubtitleSegment) => void;
   updateRegion: (id: string, updates: Partial<SubtitleSegment>) => void;
   updateRegionText: (id: string, text: string) => void;
   selectSegment: (id: string, multi: boolean, range: boolean) => void;
@@ -232,6 +233,20 @@ export const useEditorStore = create<EditorState>()(
             regions: newRegions,
             activeSegmentId: String(part2.id),
             selectedIds: [String(part2.id)],
+          };
+        });
+      },
+
+      addSegment: (segment) => {
+        get().snapshot();
+        set((state) => {
+          const newRegions = [...state.regions, segment].sort(
+            (a, b) => a.start - b.start,
+          );
+          return {
+            regions: newRegions,
+            activeSegmentId: String(segment.id),
+            selectedIds: [String(segment.id)],
           };
         });
       },

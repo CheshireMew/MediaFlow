@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface ContextMenuItem {
@@ -18,6 +18,29 @@ interface ContextMenuProps {
 
 export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [adjustedPosition, setAdjustedPosition] = useState<{x: number, y: number} | null>(null);
+
+  useLayoutEffect(() => {
+    if (position && menuRef.current) {
+        const menu = menuRef.current;
+        const rect = menu.getBoundingClientRect();
+        
+        let x = position.x;
+        let y = position.y;
+
+        // Check right edge
+        if (x + rect.width > window.innerWidth) {
+            x = window.innerWidth - rect.width - 10;
+        }
+
+        // Check bottom edge
+        if (y + rect.height > window.innerHeight) {
+            y = window.innerHeight - rect.height - 10;
+        }
+
+        setAdjustedPosition({ x, y });
+    }
+  }, [position]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -44,11 +67,14 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
 
   if (!position) return null;
 
+  // Use adjustedPosition if available, otherwise hide initially to prevent flash
+  const finalPos = adjustedPosition || { x: -9999, y: -9999 };
+
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-50 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-75"
-      style={{ top: position.y, left: position.x }}
+      className={`fixed z-50 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-75 text-slate-100 select-none`}
+      style={{ top: finalPos.y, left: finalPos.x, opacity: adjustedPosition ? 1 : 0 }}
     >
       {items.map((item, index) => (
         item.separator ? (

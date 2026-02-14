@@ -8,9 +8,11 @@ export function useDownloaderController() {
   const {
     url,
     resolution,
+    codec,
     downloadSubs,
     setUrl,
     setResolution,
+    setCodec,
     setDownloadSubs,
     addToHistory,
   } = useDownloaderStore();
@@ -75,8 +77,8 @@ export function useDownloaderController() {
             directUrl = finalExtraInfo.direct_src;
           }
 
-          // Execute Pipeline
-          const apiResult = await apiClient.runPipeline({
+          // Construct base pipeline
+          const basePipeline = {
             pipeline_id: "downloader_tool",
             task_name: customFilename,
             steps: [
@@ -87,12 +89,54 @@ export function useDownloaderController() {
                   playlist_title: playlistTitle,
                   download_subs: downloadSubs,
                   resolution: resolution,
+                  codec: codec,
                   ...finalExtraInfo,
                   filename: customFilename,
                 },
               },
             ],
-          });
+          };
+
+          // Auto-Execute Flow Logic
+          try {
+            const settings = await apiClient.getSettings();
+            if (settings.auto_execute_flow) {
+              // Read preferred model from localStorage or default
+              const preferredModel =
+                localStorage.getItem("transcriber_model") || "base";
+
+              basePipeline.steps.push(
+                {
+                  step_name: "transcribe",
+                  params: {
+                    model: preferredModel,
+                    language: "auto", // Auto-detect source
+                  },
+                },
+                {
+                  step_name: "translate",
+                  params: {
+                    target_language: settings.language || "zh",
+                    mode: "standard",
+                  },
+                },
+                {
+                  step_name: "synthesize",
+                  params: {
+                    options: {}, // Use defaults
+                  },
+                },
+              );
+            }
+          } catch (e) {
+            console.warn(
+              "[Auto-Execute] Failed to load settings, skipping auto-flow",
+              e,
+            );
+          }
+
+          // Execute Pipeline
+          const apiResult = await apiClient.runPipeline(basePipeline);
 
           successCount++;
 
@@ -127,7 +171,7 @@ export function useDownloaderController() {
       }
       setLoading(false);
     },
-    [downloadSubs, resolution, playlistInfo, lastAnalysis, addToHistory],
+    [downloadSubs, resolution, codec, playlistInfo, lastAnalysis, addToHistory],
   );
 
   const handleAnalyzeAndDownload = async () => {
@@ -254,11 +298,13 @@ export function useDownloaderController() {
     selectedItems,
     downloadSubs,
     resolution,
+    codec,
 
     // Actions
     setUrl,
     setDownloadSubs,
     setResolution,
+    setCodec,
     setShowPlaylistDialog,
     setSelectedItems,
     analyzeAndDownload: handleAnalyzeAndDownload,

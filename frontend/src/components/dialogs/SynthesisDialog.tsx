@@ -1,7 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, MonitorPlay, Image as ImageIcon, Type, Download, Settings2, ChevronDown } from 'lucide-react';
+// ── SynthesisDialog — Slim Orchestration Shell ──
+// All state logic lives in hooks, all UI sections live in subcomponents.
+// This component only handles: hook wiring, handleSynthesize, and dialog layout.
+
+import React, { useState, useRef } from 'react';
+import { MonitorPlay } from 'lucide-react';
 import type { SubtitleSegment } from '../../types/task';
-import { apiClient } from '../../api/client';
+import { hexToAss } from './synthesis/types';
+import { useSubtitleStyle } from './synthesis/hooks/useSubtitleStyle';
+import { useWatermark } from './synthesis/hooks/useWatermark';
+import { useOutputSettings } from './synthesis/hooks/useOutputSettings';
+import { useCrop } from './synthesis/hooks/useCrop';
+import { SubtitleStylePanel } from './synthesis/components/SubtitleStylePanel';
+import { WatermarkPanel } from './synthesis/components/WatermarkPanel';
+import { OutputSettingsPanel } from './synthesis/components/OutputSettingsPanel';
+import { VideoPreview } from './synthesis/components/VideoPreview';
 
 interface SynthesisDialogProps {
     isOpen: boolean;
@@ -15,378 +27,107 @@ interface SynthesisDialogProps {
 export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({ 
     isOpen, onClose, regions, videoPath, mediaUrl, onSynthesize 
 }) => {
-    // --- State ---
-    // Subtitle Settings
-    const [fontSize, setFontSize] = useState(24);
-    const [fontColor, setFontColor] = useState('#FFFFFF');
-    // Normalized position (0-1)
-    const [subPos, setSubPos] = useState({ x: 0.5, y: 0.90 }); 
-    
-    // Watermark Settings
-    // const [watermarkFile, setWatermarkFile] = useState<File | null>(null); // Removed unused
-    const [watermarkPath, setWatermarkPath] = useState<string | null>(null); // Local path for backend
-    const [watermarkPreviewUrl, setWatermarkPreviewUrl] = useState<string | null>(null); // Blob URL for frontend preview
-    const [wmScale, setWmScale] = useState(0.2);
-    const [wmOpacity, setWmOpacity] = useState(0.8);
-    // Normalized position (0-1)
-    const [wmPos, setWmPos] = useState({ x: 0.5, y: 0.5 }); // Default Center
-    
-    // Export Settings
-    const [quality, setQuality] = useState<'high'|'balanced'|'small'>('balanced');
-    const [isQualityMenuOpen, setIsQualityMenuOpen] = useState(false);
-    const [isSynthesizing, setIsSynthesizing] = useState(false);
-    
-    // Preview State
+    // --- Shared refs ---
     const videoRef = useRef<HTMLVideoElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const isInitialized = useRef(false); // Prevents save effects from overwriting on mount
+    const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
     const [currentTime, setCurrentTime] = useState(0);
-    const [currentSubtitle, setCurrentSubtitle] = useState("");
-    
-    // Video Metadata for Aspect Ratio
-    const [videoSize, setVideoSize] = useState({ w: 0, h: 0 }); // 0 means unknown/hidden
-    const [watermarkSize, setWatermarkSize] = useState({ w: 0, h: 0 }); // Original dimensions of watermark
+    const [isSynthesizing, setIsSynthesizing] = useState(false);
 
+    // --- Hooks ---
+    const style = useSubtitleStyle(isOpen, regions, currentTime);
+    const watermark = useWatermark(isOpen, style.isInitialized, videoSize);
+    const output = useOutputSettings(isOpen, videoPath, style.isInitialized);
+    const crop = useCrop(isOpen);
 
-    // --- Interaction State ---
-    const [dragging, setDragging] = useState<'wm' | 'sub' | null>(null);
-
-    // --- Effects ---
-    
-    // Update subtitle based on current time
-    useEffect(() => {
-        const seg = regions.find(r => currentTime >= r.start && currentTime < r.end);
-        setCurrentSubtitle(seg ? seg.text : "");
-    }, [currentTime, regions]);
-
-    // --- Persistence & Initialization ---
-    
-    // Effect 1: Restore Settings from LocalStorage (ALWAYS on dialog open)
-    useEffect(() => {
-        if (!isOpen) return;
-        
-        const savedScale = localStorage.getItem('wm_scale');
-        const savedOpacity = localStorage.getItem('wm_opacity');
-        const savedPos = localStorage.getItem('wm_pos');
-
-
-
-        if (savedScale) setWmScale(parseFloat(savedScale));
-        if (savedOpacity) setWmOpacity(parseFloat(savedOpacity));
-        if (savedPos) {
-            try {
-                const pos = JSON.parse(savedPos);
-
-                setWmPos(pos);
-            } catch (e) { console.error("Invalid saved position", e); }
-        }
-        
-        const savedSubPos = localStorage.getItem('sub_pos');
-        if (savedSubPos) {
-            try {
-                const pos = JSON.parse(savedSubPos);
-                setSubPos(pos);
-            } catch (e) { console.error("Invalid saved sub position", e); }
-        }
-        
-        // Mark as initialized AFTER loading settings
-        isInitialized.current = true;
-
-    }, [isOpen]); // Only depend on isOpen, runs every time dialog opens
-
-    // Effect 2: Load Persisted Watermark Image (only if not already loaded)
-    useEffect(() => {
-        if (!isOpen) return;
-        if (watermarkPreviewUrl) return; // Already have a watermark loaded
-        
-
-        apiClient.getLatestWatermark().then(res => {
-            if (res && res.data_url) {
-
-                setWatermarkPreviewUrl(res.data_url);
-                setWatermarkPath(res.png_path);
-                setWatermarkSize({ w: res.width, h: res.height });
-            } else {
-
-            }
-        }).catch(() => {
-
-        });
-    }, [isOpen, watermarkPreviewUrl]);
-
-    // Save Settings on Change (only after initialization to avoid overwriting)
-    useEffect(() => { 
-        if (!isInitialized.current) return;
-        localStorage.setItem('wm_scale', wmScale.toString()); 
-    }, [wmScale]);
-    useEffect(() => { 
-        if (!isInitialized.current) return;
-        localStorage.setItem('wm_opacity', wmOpacity.toString()); 
-    }, [wmOpacity]);
-    useEffect(() => { 
-        if (!isInitialized.current) return;
-
-        localStorage.setItem('wm_pos', JSON.stringify(wmPos)); 
-    }, [wmPos]);
-    // Save Subtitle Pos
-    useEffect(() => { 
-        if (!isInitialized.current) return;
-        localStorage.setItem('sub_pos', JSON.stringify(subPos)); 
-    }, [subPos]);
-
-    // Persist Quality
-    useEffect(() => {
-        if (!isOpen) return;
-        const savedQuality = localStorage.getItem('synthesis_quality');
-        if (savedQuality) {
-            setQuality(savedQuality as any);
-        }
-    }, [isOpen]);
-
-    useEffect(() => {
-        if (!isInitialized.current) return;
-        localStorage.setItem('synthesis_quality', quality);
-    }, [quality]);
-
-    // Output Settings State
-    const [outputFilename, setOutputFilename] = useState("");
-    const [outputDir, setOutputDir] = useState<string | null>(null);
-
-    // DEBUG: Log watermark state on every change
-    useEffect(() => {
-
-    }, [watermarkPreviewUrl, watermarkPath, watermarkSize]);
-
-    // Initialize Output Path
-    useEffect(() => {
-        if (!isOpen || !videoPath) return;
-
-        // 1. Filename: Default to current filename + _synthesized
-        // Clean paths: Windows uses `\`, JS uses `/` or mixed.
-        const name = videoPath.split(/[\\/]/).pop() || "video.mp4";
-        const baseName = name.substring(0, name.lastIndexOf('.')) || name;
-        const ext = name.substring(name.lastIndexOf('.'));
-        const defaultName = `${baseName}_synthesized${ext}`;
-        setOutputFilename(defaultName);
-
-        // 2. Directory: Last used OR Current Video Directory
-        const lastDir = localStorage.getItem('last_synthesis_dir');
-        
-        // Helper to extract dir
-        const currentDir = videoPath.substring(0, Math.max(videoPath.lastIndexOf('\\'), videoPath.lastIndexOf('/')));
-        
-        if (lastDir) {
-
-            setOutputDir(lastDir);
-        } else {
-
-            setOutputDir(currentDir);
-        }
-
-    }, [isOpen, videoPath]);
-
-    const handleSelectOutputFolder = async () => {
-        if (window.electronAPI?.selectDirectory) {
-            const path = await window.electronAPI.selectDirectory();
-            if (path) {
-                setOutputDir(path);
-                localStorage.setItem('last_synthesis_dir', path); // Remember immediately
-            }
-        } else {
-            alert("Folder selection not supported in this environment.");
-        }
-    };
-
-
-    // Handle Watermark Upload
-    const handleWatermarkSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-
-            
-            try {
-                // Upload to backend for processing (Trimming transparency & Conversion)
-
-                const res = await apiClient.uploadWatermark(file);
-                
-                // Set Preview & Path
-                setWatermarkPreviewUrl(res.data_url);
-                setWatermarkPath(res.png_path);
-                
-                // Set Dimensions from Backend (Trimmed)
-                const w = res.width;
-                const h = res.height;
-
-                setWatermarkSize({ w, h });
-                
-                // --- Smart Default Position (Top-Right) ---
-                // Calculate position based on TRIMMED dimensions
-                
-                // Use ref if available for most up-to-date dimensions
-                const vidRef = videoRef.current;
-                const vidW = (vidRef?.videoWidth) || videoSize.w || 1920;
-                const vidH = (vidRef?.videoHeight) || videoSize.h || 1080;
-                
-                // Target Scale: 20% width (of the trimmed image)
-                const scale = 0.20;
-                setWmScale(scale);
-                
-                // Calculate Target Dimensions in Pixels
-                const targetW = vidW * scale;
-                const targetH = targetW * (h / w); // Maintain aspect ratio
-                
-                // Normalized Dimensions (0-1)
-                const normW = targetW / vidW;
-                const normH = targetH / vidH;
-                
-                const margin = 0.05; // Increased to 5% margin per user request
-                
-                // Top Right Position (Center coordinates)
-                const x = 1 - margin - (normW / 2);
-                const y = margin + (normH / 2);
-                
-
-                setWmPos({ x, y }); 
-
-            } catch (err) {
-                console.error("[Synthesis] Watermark Upload Failed", err);
-                alert("Failed to process watermark. Check console.");
-            }
-        }
-    };
-
-
-    // --- Smart Positioning Logic ---
-    const applyPreset = (pos: 'TL'|'TC'|'TR'|'BL'|'BC'|'BR'|'C'|'LC'|'RC') => {
-        if (!videoSize.w || !watermarkSize.w) {
-            // Fallback for missing metadata
-            const map: any = {
-                'TL': {x:0.1, y:0.1}, 'TC': {x:0.5, y:0.1}, 'TR': {x:0.9, y:0.1},
-                'BL': {x:0.1, y:0.9}, 'BC': {x:0.5, y:0.9}, 'BR': {x:0.9, y:0.9},
-                'C': {x:0.5, y:0.5}
-            };
-            if(map[pos]) setWmPos(map[pos]);
-            return;
-        }
-
-        // 1. Calculate Watermark Target Dimensions (in pixels)
-        // wmScale is now "Target Width as % of Video Width"
-        const targetW = videoSize.w * wmScale;
-        const targetH = targetW * (watermarkSize.h / watermarkSize.w);
-        
-        // 2. Normalized Dimensions
-        const normW = targetW / videoSize.w;
-        const normH = targetH / videoSize.h;
-        
-        // 3. Margin (5%)
-        // Actually, just 5% of respective axis is fine for specific "edge" feel.
-        const marginX = 0.03;
-        const marginY = 0.05; // Increased to 5% per user request
-
-        let x = 0.5;
-        let y = 0.5;
-
-        // Note: wmPos is the CENTER of the watermark
-        
-        // Horizontal
-        if (pos.includes('L')) x = marginX + normW / 2;
-        else if (pos.includes('R')) x = 1 - marginX - normW / 2;
-        else x = 0.5;
-
-        // Vertical
-        if (pos.includes('T')) y = marginY + normH / 2;
-        else if (pos.includes('B')) y = 1 - marginY - normH / 2;
-        else y = 0.5;
-
-        setWmPos({ x, y });
-    };
-
-    // Synthesize Action
+    // --- Synthesize Action (cross-cutting: reads from all 3 hooks) ---
     const handleSynthesize = async () => {
         if (!videoPath) return;
         
         setIsSynthesizing(true);
         try {
-            const marginV = Math.max(0, Math.round((1 - subPos.y) * videoSize.h));
+            const marginV = Math.max(0, Math.round((1 - style.subPos.y) * videoSize.h));
 
-            // Let's standardise: wmPos is CENTER of the watermark.
-            // FFmpeg overlay filter: x = main_w * pos_x - overlay_w / 2
-            const wmXExpr = `main_w*${wmPos.x}-w/2`;
-            const wmYExpr = `main_h*${wmPos.y}-h/2`;
+            // FFmpeg overlay expressions for watermark position
+            const wmXExpr = `main_w*${watermark.wmPos.x}-w/2`;
+            const wmYExpr = `main_h*${watermark.wmPos.y}-h/2`;
             
             // Calculate Backend Scale Factor for Watermark
-            let backendScale = wmScale; // Default fallback
-            if (videoSize.w > 0 && watermarkSize.w > 0) {
-                 backendScale = (videoSize.w * wmScale) / watermarkSize.w;
-
+            let backendScale = watermark.wmScale;
+            if (videoSize.w > 0 && watermark.watermarkSize.w > 0) {
+                backendScale = (videoSize.w * watermark.wmScale) / watermark.watermarkSize.w;
             }
 
             // Calculate Font Size Scaling (WYSIWYG)
-            // Backend now uses dynamic PlayResY (True Resolution).
-            // So we send the font size relative to the ACTUAL video height.
-            // Preview renders at 'fontSize' px.
-            // visual_proportion = fontSize / previewHeight
-            // desired_backend_size / videoHeight = visual_proportion
-            // desired_backend_size = fontSize * (videoHeight / previewHeight)
-            let outcomeFontSize = fontSize;
+            let outcomeFontSize = style.fontSize;
             if (videoRef.current && videoSize.h > 0) {
                 const previewHeight = videoRef.current.clientHeight;
                 if (previewHeight > 0) {
                     const ratio = videoSize.h / previewHeight;
-                    outcomeFontSize = Math.round(fontSize * ratio);
+                    // FIX: FFmpeg (libass) renders fonts slightly smaller than HTML canvas at the same pixel size.
+                    // We add a compensation factor (approx 1.2x) to match WYSIWYG.
+                    const COMPENSATION_FACTOR = 1.25; 
+                    outcomeFontSize = Math.round(style.fontSize * ratio * COMPENSATION_FACTOR);
                 }
             }
 
-            // Quality mapping: Improved defaults for better clarity
-            // High: 17 (Visually Lossless)
-            // Balanced: 20 (High Quality) - Previously 23
-            // Small: 26 (Good Compression) - Previously 28
+            // ASS alpha: 00 = fully opaque, FF = fully transparent
+            const bgAlphaHex = Math.round((1 - style.bgOpacity) * 255).toString(16).padStart(2, '0').toUpperCase();
+
             const options = {
-                crf: quality === 'high' ? 17 : quality === 'balanced' ? 20 : 26,
-                preset: quality === 'high' ? 'slow' : quality === 'balanced' ? 'medium' : 'fast',
+                crf: output.quality === 'high' ? 17 : output.quality === 'balanced' ? 20 : 26,
+                preset: output.quality === 'high' ? 'slow' : output.quality === 'balanced' ? 'medium' : 'fast',
+                use_gpu: output.useGpu,
+                font_name: style.fontName,
                 font_size: outcomeFontSize,
-                font_color: '&H' + fontColor.replace('#', '00') + '&',
+                font_color: hexToAss(style.fontColor),
+                bold: style.isBold,
+                italic: style.isItalic,
+                outline: style.bgEnabled ? style.bgPadding : style.outlineSize,
+                shadow: style.shadowSize,
+                // Final decided styles:
+                outline_color: style.bgEnabled ? hexToAss(style.bgColor, bgAlphaHex) : hexToAss(style.outlineColor),
+                back_color: style.bgEnabled ? "&H80000000" : hexToAss(style.bgColor, bgAlphaHex), // Shadow
+                border_style: style.bgEnabled ? 3 : 1,
+                alignment: style.alignment,
                 margin_v: marginV,
                 wm_x: wmXExpr,
                 wm_y: wmYExpr,
-                wm_scale: backendScale, // Send calculated factor
-                wm_opacity: wmOpacity,
-                // Pass Explicit Resolution to avoid Backend Probe failures (e.g. filename issues)
+                wm_scale: backendScale,
+                wm_opacity: watermark.wmOpacity,
+                trim_start: output.trimStart > 0 ? output.trimStart : undefined,
+                trim_end: output.trimEnd > 0 ? output.trimEnd : undefined,
                 video_width: videoSize.w || 1920,
-                video_height: videoSize.h || 1080
+                video_height: videoSize.h || 1080,
             };
 
-            // Delegate to parent (EditorPage) which handles Saving First
+            // Mix in Crop Params if enabled
+            if (crop.isEnabled) {
+                // Convert normalized (0-1) to pixels
+                const w = videoSize.w || 1920;
+                const h = videoSize.h || 1080;
+                
+                Object.assign(options, {
+                    crop_x: Math.round(crop.crop.x * w),
+                    crop_y: Math.round(crop.crop.y * h),
+                    crop_w: Math.round(crop.crop.w * w),
+                    crop_h: Math.round(crop.crop.h * h),
+                });
+            }
+
             if (onSynthesize) {
-                // Construct parameters
-                // If outputDir and outputFilename are set, construct the comprehensive path.
-                // NOTE: 'videoPath' arg in onSynthesize usually means INPUT path in original code.
-                // But wait, the original logic was: onSynthesize(options, videoPath, watermarkPath)
-                // The EditorPage logic constructs output path based on input videoPath inside `synthesizeVideo`.
-                // We need to change this contract OR pass the target path in options.
-                
-                // Let's pass the TARGET path as the videoPath? No, that confuses input.
-                // Let's pass it inside 'options' because EditorPage just passes 'options' to apiClient.
-                // AND updated apiClient to handle explicit output path.
-                
                 let targetPath = null;
-                if (outputDir && outputFilename) {
-                   // Ensure separator
-                   const sep = outputDir.includes('\\') ? '\\' : '/';
-                   // Remove trailing slash if exists
-                   const cleanDir = outputDir.endsWith(sep) ? outputDir.slice(0, -1) : outputDir;
-                   targetPath = `${cleanDir}${sep}${outputFilename}`;
+                if (output.outputDir && output.outputFilename) {
+                    const sep = output.outputDir.includes('\\') ? '\\' : '/';
+                    const cleanDir = output.outputDir.endsWith(sep) ? output.outputDir.slice(0, -1) : output.outputDir;
+                    targetPath = `${cleanDir}${sep}${output.outputFilename}`;
                 }
                 
                 const finalOptions = {
                     ...options,
-                    output_path: targetPath // Pass explicitly
+                    output_path: targetPath,
                 };
 
-                await onSynthesize(finalOptions, videoPath, watermarkPath);
-            } else {
-                 // Fallback (should not happen if parent implements it)
-                 // ... omitted for brevity/legacy
+                await onSynthesize(finalOptions, videoPath, watermark.watermarkPath);
             }
             
             alert("Synthesis Task Started! Check Task Monitor.");
@@ -398,48 +139,16 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
             setIsSynthesizing(false);
         }
     };
-    
-    // --- Drag Logic ---
-    const handleDragStart = (e: React.MouseEvent, type: 'wm' | 'sub') => {
-        e.preventDefault();
-        setDragging(type);
-    };
-    
-    const handleMouseMove = (e: React.MouseEvent) => {
-        if (!dragging || !containerRef.current) return;
-        
-        const rect = containerRef.current.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / rect.width;
-        const y = (e.clientY - rect.top) / rect.height;
-        
-        // Clamp 0-1
-        const cx = Math.max(0, Math.min(1, x));
-        const cy = Math.max(0, Math.min(1, y));
-        
-        if (dragging === 'wm') {
-            setWmPos({ x: cx, y: cy });
-        } else if (dragging === 'sub') {
-            setSubPos({ x: 0.5, y: cy }); 
-        }
-    };
-    
-    const handleMouseUp = () => {
-        setDragging(null);
-    };
+
 
     if (!isOpen) return null;
 
     return (
-        <div 
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-            onMouseUp={handleMouseUp}
-            onMouseMove={handleMouseMove}
-        >
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <div 
                 className="bg-[#0a0a0a] w-[95vw] h-[90vh] rounded-2xl border border-white/10 shadow-2xl flex overflow-hidden ring-1 ring-white/5"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
             >
-                
                 {/* Left: Settings Panel */}
                 <div className="w-[340px] bg-[#161616] flex flex-col border-r border-white/5 z-10 shrink-0">
                     <div className="p-6 pb-4">
@@ -452,371 +161,28 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-0 flex flex-col gap-6">
-                        
-                        {/* Subtitle Settings */}
-                        <div className="space-y-3">
-                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                <Type size={12}/> Subtitles
-                            </h3>
-                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-4 hover:border-white/10 transition-colors">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Size (px)</label>
-                                        <input 
-                                            type="number" 
-                                            value={fontSize} 
-                                            onChange={e => setFontSize(Number(e.target.value))}
-                                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Color</label>
-                                        <div className="flex gap-2 items-center h-[38px]">
-                                            <div className="relative overflow-hidden w-full h-full rounded-lg border border-white/10 cursor-pointer group">
-                                                <input 
-                                                    type="color" 
-                                                    value={fontColor}
-                                                    onChange={e => setFontColor(e.target.value)}
-                                                    className="absolute inset-0 w-[150%] h-[150%] -top-1/4 -left-1/4 cursor-pointer p-0 border-0"
-                                                />
-                                            </div>
-                                            <span className="text-xs font-mono text-slate-400">{fontColor}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <p className="text-[10px] text-slate-600 flex items-center gap-1.5 bg-indigo-500/5 p-2 rounded-lg border border-indigo-500/10">
-                                    <MonitorPlay size={10} className="text-indigo-400"/>
-                                    Drag text in preview to adjust position.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Output Settings */}
-                        <div className="space-y-3">
-                             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                <MonitorPlay size={12}/> Output
-                            </h3>
-                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-4 hover:border-white/10 transition-colors">
-                                {/* Filename Input */}
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Filename</label>
-                                    <input 
-                                        type="text"
-                                        value={outputFilename}
-                                        onChange={e => setOutputFilename(e.target.value)}
-                                        className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all"
-                                        placeholder="video_synthesized.mp4"
-                                    />
-                                </div>
-
-                                {/* Folder Selection */}
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Save to Folder</label>
-                                    <div className="flex gap-2">
-                                        <input 
-                                            type="text" 
-                                            readOnly
-                                            value={outputDir || ""}
-                                            className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-400 cursor-not-allowed truncate"
-                                        />
-                                        <button 
-                                            onClick={handleSelectOutputFolder}
-                                            className="bg-white/5 hover:bg-white/10 hover:text-white text-slate-400 px-3 py-2 rounded-lg text-xs font-medium border border-white/5 transition-all"
-                                        >
-                                            Change
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        {/* Watermark Settings */}
-                        <div className="space-y-3">
-                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                <ImageIcon size={12}/> Watermark
-                            </h3>
-                            
-                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-4 hover:border-white/10 transition-colors">
-                                <label className="flex flex-col items-center justify-center w-full h-16 border-2 border-dashed border-white/10 rounded-lg cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all group">
-                                    <div className="flex flex-col items-center justify-center pt-2 pb-3">
-                                        <p className="text-xs text-slate-400 group-hover:text-indigo-300">
-                                            {watermarkPreviewUrl ? "Replace watermark" : "Upload image"}
-                                        </p>
-                                    </div>
-                                    <input 
-                                        type="file" 
-                                        accept="image/png,image/jpeg,.psd"
-                                        onChange={handleWatermarkSelect}
-                                        className="hidden"
-                                    />
-                                </label>
-
-                                {watermarkPreviewUrl && (
-                                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                        <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
-                                            <span className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px]">✓</span>
-                                            Active
-                                        </div>
-                                        
-                                        {/* Position Grid */}
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Position Preset</label>
-                                            <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-black/20 rounded-lg border border-white/5">
-                                                {['TL', 'TC', 'TR', 'LC', 'C', 'RC', 'BL', 'BC', 'BR'].map(p => (
-                                                    <button 
-                                                        key={p}
-                                                        onClick={() => applyPreset(p as any)}
-                                                        className="p-2 rounded hover:bg-white/10 flex justify-center items-center bg-white/5 aspect-square transition-all active:scale-95 group"
-                                                        title={p}
-                                                    >
-                                                        <div className={`w-1.5 h-1.5 bg-slate-500 group-hover:bg-white rounded-sm transition-colors ${
-                                                            p.includes('C') && p.length===1 ? 'scale-150' : ''
-                                                        }`} />
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <div className="space-y-1.5">
-                                                <div className="flex justify-between">
-                                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Scale</label>
-                                                    <span className="text-[10px] font-mono text-indigo-400">{Math.round(wmScale * 100)}%</span>
-                                                </div>
-                                                <input 
-                                                    type="range" min="0.05" max="1.0" step="0.05"
-                                                    value={wmScale}
-                                                    onChange={e => setWmScale(parseFloat(e.target.value))}
-                                                    className="w-full accent-indigo-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                                                />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <div className="flex justify-between">
-                                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Opacity</label>
-                                                    <span className="text-[10px] font-mono text-indigo-400">{Math.round(wmOpacity * 100)}%</span>
-                                                </div>
-                                                <input 
-                                                    type="range" min="0.1" max="1.0" step="0.1"
-                                                    value={wmOpacity}
-                                                    onChange={e => setWmOpacity(parseFloat(e.target.value))}
-                                                    className="w-full accent-indigo-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        <SubtitleStylePanel style={style} />
+                        <OutputSettingsPanel output={output} />
+                        <WatermarkPanel watermark={watermark} />
                     </div>
                 </div>
 
                 {/* Right: Preview Area */}
-                <div className="flex-1 flex flex-col bg-[#050505] relative min-w-0">
-                    {/* Toolbar */}
-                    <div className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-[#1a1a1a] shrink-0">
-                        <div className="flex items-center gap-4">
-                            <span className="text-slate-400 text-xs font-medium bg-white/5 px-2 py-1 rounded border border-white/5">
-                                Preview Mode
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            {/* Custom Quality Selector */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => setIsQualityMenuOpen(!isQualityMenuOpen)}
-                                    className="flex items-center gap-2 bg-black/20 hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-lg pl-3 pr-2 py-1.5 transition-all outline-none focus:ring-1 focus:ring-indigo-500/50 group"
-                                >
-                                    <div className="flex flex-col items-start gap-0.5">
-                                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none">Quality</span>
-                                        <span className="text-xs text-slate-200 font-medium leading-none group-hover:text-white transition-colors">
-                                            {quality === 'high' ? 'High Quality' : quality === 'balanced' ? 'Balanced' : 'Low Size'}
-                                        </span>
-                                    </div>
-                                    <ChevronDown size={14} className={`text-slate-500 transition-transform duration-200 ${isQualityMenuOpen ? 'rotate-180' : ''}`} />
-                                </button>
-
-                                {isQualityMenuOpen && (
-                                    <>
-                                        <div className="fixed inset-0 z-40" onClick={() => setIsQualityMenuOpen(false)} />
-                                        <div className="absolute top-full mt-2 right-0 w-56 bg-[#161616] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 py-1 ring-1 ring-black/50 animate-in fade-in zoom-in-95 duration-100">
-                                            {[
-                                                { id: 'high', label: 'High Quality', desc: 'CRF 17 (Visually Lossless)' },
-                                                { id: 'balanced', label: 'Balanced', desc: 'CRF 20 (Recommended)' },
-                                                { id: 'small', label: 'Small Size', desc: 'CRF 26 (Compressed)' }
-                                            ].map(opt => (
-                                                <button
-                                                    key={opt.id}
-                                                    onClick={() => {
-                                                        setQuality(opt.id as any);
-                                                        setIsQualityMenuOpen(false);
-                                                    }}
-                                                    className={`w-full text-left px-4 py-2.5 flex items-start gap-3 hover:bg-white/5 transition-colors ${quality === opt.id ? 'bg-indigo-500/10' : ''}`}
-                                                >
-                                                    <div className={`mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
-                                                        quality === opt.id ? 'border-indigo-500 bg-indigo-500' : 'border-slate-600'
-                                                    }`}>
-                                                        {quality === opt.id && <div className="w-1 h-1 bg-white rounded-full" />}
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className={`text-xs font-medium ${quality === opt.id ? 'text-indigo-300' : 'text-slate-200'}`}>
-                                                            {opt.label}
-                                                        </span>
-                                                        <span className="text-[10px] text-slate-500">
-                                                            {opt.desc}
-                                                        </span>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-
-                            <div className="h-4 w-[1px] bg-white/10" />
-                            <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-all">
-                                <X size={18} />
-                            </button>
-                        </div>
-                    </div>
-                    
-                    {/* Output Preview Container */}
-                    <div className="flex-1 relative flex items-center justify-center bg-[url('/grid.svg')] bg-repeat opacity-100 overflow-hidden p-8">
-                        {/* The Video Container that matches aspect ratio */}
-                        <div 
-                            ref={containerRef}
-                            className="relative shadow-2xl shadow-black/50 border border-white/10 bg-black rounded-lg overflow-hidden ring-1 ring-white/5"
-                            style={{
-                                width: videoSize.w ? undefined : '100%',
-                                height: videoSize.w ? undefined : '100%',
-                                aspectRatio: videoSize.w ? `${videoSize.w}/${videoSize.h}` : undefined,
-                                maxWidth: '100%',
-                                maxHeight: '100%'
-                            }}
-                        >
-                            {mediaUrl ? (
-                                <video 
-                                    ref={videoRef}
-                                    src={mediaUrl}
-                                    className="w-full h-full object-contain block"
-                                    onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                                    // Fix: onTimeUpdate runs frequently, we use wrapper handler
-                                    onLoadedMetadata={(e) => {
-                                        const t = e.currentTarget;
-                                        setVideoSize({ w: t.videoWidth, h: t.videoHeight });
-                                    }}
-                                />
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full w-full text-slate-600 bg-white/[0.02]">
-                                    <Play size={48} className="opacity-20 mb-4"/>
-                                    <span className="text-sm font-medium">No Media Loaded</span>
-                                </div>
-                            )}
-
-                            {/* --- Overlays Layer --- */}
-                            
-                            {/* Watermark Overlay */}
-                            {watermarkPreviewUrl && (
-                                <div
-                                    className="absolute cursor-move select-none group"
-                                    style={{
-                                        left: `${wmPos.x * 100}%`,
-                                        top: `${wmPos.y * 100}%`,
-                                        width: `${wmScale * 100}%`,
-                                        opacity: wmOpacity,
-                                        zIndex: 20,
-                                        transform: 'translate(-50%, -50%)', // Center anchor
-                                        border: dragging === 'wm' ? '1px dashed #6366f1' : '1px dashed transparent',
-                                        boxShadow: dragging === 'wm' ? '0 0 0 1000px rgba(0,0,0,0.5)' : 'none' // Focus effect
-                                    }}
-                                    onMouseDown={(e) => handleDragStart(e, 'wm')}
-                                >
-                                    <img 
-                                        src={watermarkPreviewUrl} 
-                                        className="w-full h-auto pointer-events-none drop-shadow-lg"
-                                        alt="Watermark"
-                                    />
-                                    {/* Hover Guide */}
-                                    <div className="absolute inset-0 border border-indigo-500/50 opacity-0 group-hover:opacity-100 pointer-events-none rounded transition-opacity"></div>
-                                </div>
-                            )}
-                            
-                            {/* Subtitle Overlay */}
-                            <div 
-                                className="absolute left-0 right-0 text-center cursor-move select-none group transition-colors px-6"
-                                style={{ 
-                                    top: `${subPos.y * 100}%`,
-                                    transform: 'translateY(-50%)',
-                                    zIndex: 30,
-                                }}
-                                onMouseDown={(e) => handleDragStart(e, 'sub')}
-                            >
-                                {(currentSubtitle || dragging === 'sub') && (
-                                    <span 
-                                        className={`
-                                            inline-block bg-black/60 text-white/95 px-6 py-3 rounded-xl text-lg md:text-xl font-medium shadow-lg backdrop-blur-md border border-white/10 leading-relaxed max-w-full break-words
-                                            transition-all duration-75
-                                            ${dragging === 'sub' ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-black/50' : 'group-hover:ring-1 group-hover:ring-white/30'}
-                                        `}
-                                        style={{ 
-                                            fontSize: `${fontSize}px`, 
-                                            color: fontColor,
-                                            fontFamily: 'sans-serif'
-                                        }}
-                                    >
-                                        {currentSubtitle || "(Subtitle Position)"}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    {/* Time Seeker & Action Bar */}
-                    <div className="h-16 bg-[#1a1a1a] border-t border-white/5 px-6 flex items-center gap-6 shrink-0 relative z-20">
-                        <button 
-                            onClick={() => {
-                                if (videoRef.current?.paused) videoRef.current.play();
-                                else videoRef.current?.pause();
-                            }}
-                            className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full text-slate-200 border border-white/5 hover:border-white/20 transition-all active:scale-95"
-                        >
-                            <Play size={18} fill="currentColor" className="ml-0.5"/>
-                        </button>
-                        
-                        <div className="flex-1 flex flex-col justify-center gap-1.5 pt-1">
-                             <input 
-                                type="range"
-                                min="0"
-                                max={videoRef.current?.duration || 100}
-                                value={currentTime}
-                                onChange={(e) => {
-                                    const t = Number(e.target.value);
-                                    setCurrentTime(t);
-                                    if (videoRef.current) videoRef.current.currentTime = t;
-                                }}
-                                className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400"
-                            />
-                            <div className="flex justify-between px-0.5">
-                                <span className="text-[10px] text-slate-500 font-mono">
-                                    {currentTime.toFixed(1)}s
-                                </span>
-                                <span className="text-[10px] text-slate-600 font-mono">
-                                    {videoRef.current?.duration?.toFixed(1) || '--'}s
-                                </span>
-                            </div>
-                        </div>
-                        
-                        <div className="h-8 w-[1px] bg-white/5 mx-2" />
-                        
-                        <button 
-                            onClick={handleSynthesize}
-                            disabled={isSynthesizing}
-                            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all active:scale-95"
-                        >
-                            {isSynthesizing ? <Settings2 className="animate-spin" size={18}/> : <Download size={18}/>}
-                            <span>Start Render</span>
-                        </button>
-                    </div>
-                </div>
+                <VideoPreview
+                    mediaUrl={mediaUrl}
+                    style={style}
+                    watermark={watermark}
+                    output={output}
+                    crop={crop}
+                    onClose={onClose}
+                    onSynthesizeClick={handleSynthesize}
+                    isSynthesizing={isSynthesizing}
+                    videoRef={videoRef}
+                    videoSize={videoSize}
+                    setVideoSize={setVideoSize}
+                    currentTime={currentTime}
+                    onTimeUpdate={setCurrentTime}
+                />
             </div>
         </div>
     );

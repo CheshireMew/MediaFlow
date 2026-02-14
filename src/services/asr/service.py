@@ -13,6 +13,7 @@ from src.core.adapters.faster_whisper import FasterWhisperAdapter, FasterWhisper
 
 from .model_manager import ModelManager
 from .core_strategies import CoreStrategies
+from src.utils.peaks_generator import generate_multi_resolution_peaks
 from .post_processor import PostProcessor
 
 class ASRService:
@@ -135,6 +136,14 @@ class ASRService:
         # 5. Save SRT file
         srt_path = SubtitleManager.save_srt(final_segments, audio_path)
         logger.success(f"SRT file saved to: {srt_path}")
+
+        # 6. Pre-generate waveform peaks for the editor (non-blocking best-effort)
+        try:
+            hi_path, lo_path = generate_multi_resolution_peaks(audio_path)
+            if hi_path:
+                logger.success(f"Waveform peaks generated: {hi_path}")
+        except Exception as e:
+            logger.warning(f"Peaks generation failed (non-critical): {e}")
         
         files = [
             FileRef(type="subtitle", path=str(srt_path), label="transcription")

@@ -14,7 +14,7 @@ def main():
         uvicorn.run(
             "src.main:app", 
             host=settings.HOST, 
-            port=8000, 
+            port=settings.PORT, 
             reload=False # Disable reload to ensure Policy sticks in the main process
         )
     except (KeyboardInterrupt, SystemExit):

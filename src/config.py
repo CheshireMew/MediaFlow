@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     FFPROBE_PATH: str = "ffprobe"
     
     # Faster Whisper CLI
-    FASTER_WHISPER_CLI_PATH: str = r"D:\Software\Video\Faster-Whisper-XXL\faster-whisper-xxl.exe"
+    FASTER_WHISPER_CLI_PATH: str = ""  # Set via .env: FASTER_WHISPER_CLI_PATH=D:\path\to\faster-whisper-xxl.exe
 
     # ASR Settings
     ASR_MAX_WORKERS: int = 2

@@ -1,0 +1,46 @@
+﻿[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Microsoft YaHei,63,&H00FFFFFF,&H00000000,&H00000000,&H66000000,-1,0,0,0,100,100,0,0,3,5,2,2,10,10,169,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.50,0:00:03.30,Default,,0,0,0,,嗯，我认为人们正在投资个股。
+Dialogue: 0,0:00:03.62,0:00:07.36,Default,,0,0,0,,这很可悲。他们买冰箱或订机票时都很谨慎。
+Dialogue: 0,0:00:08.04,0:00:11.20,Default,,0,0,0,,他们对自己的钱很小心，但会在公交车上听到某只股票的消息，
+Dialogue: 0,0:00:11.20,0:00:13.84,Default,,0,0,0,,然后就把五千或一万美元投进去。
+Dialogue: 0,0:00:14.12,0:00:15.04,Default,,0,0,0,,他们根本不知道自己在做什么。
+Dialogue: 0,0:00:15.18,0:00:16.66,Default,,0,0,0,,所以你真的要非常小心。
+Dialogue: 0,0:00:17.36,0:00:18.86,Default,,0,0,0,,看看这家公司。看看资产负债表。
+Dialogue: 0,0:00:19.28,0:00:21.56,Default,,0,0,0,,股票应该上涨的理由是什么？
+Dialogue: 0,0:00:22.12,0:00:23.86,Default,,0,0,0,,股价在上涨。这不是一个好理由。
+Dialogue: 0,0:00:24.88,0:00:29.54,Default,,0,0,0,,不过，你是否觉得你开创的这种投资风格
+Dialogue: 0,0:00:30.00,0:00:32.82,Default,,0,0,0,,在今天仍然可行且能赢吗？
+Dialogue: 0,0:00:34.16,0:00:36.22,Default,,0,0,0,,嗯，我认为要寻找一些不同的东西，
+Dialogue: 0,0:00:36.64,0:00:38.58,Default,,0,0,0,,寻找那些有精彩故事的公司。
+Dialogue: 0,0:00:38.70,0:00:41.54,Default,,0,0,0,,我的意思是，谁能想到TJX，一家本地公司，
+Dialogue: 0,0:00:41.74,0:00:44.52,Default,,0,0,0,,会上涨50倍，或者Stop and Shop
+Dialogue: 0,0:00:44.52,0:00:49.00,Default,,0,0,0,,会上涨10倍，或者Analog Devices或NVIDIA。
+Dialogue: 0,0:00:49.10,0:00:50.06,Default,,0,0,0,,我甚至不会念NVIDIA这个名字。
+Dialogue: 0,0:00:50.32,0:00:52.86,Default,,0,0,0,,所以你必须找到一家要么是转型的公司，
+Dialogue: 0,0:00:52.86,0:00:55.44,Default,,0,0,0,,要么是像Panera那样会增长的公司，
+Dialogue: 0,0:00:55.68,0:00:57.94,Default,,0,0,0,,或者，你知道的，Family Dollar Stores。
+Dialogue: 0,0:00:57.94,0:01:00.20,Default,,0,0,0,,我不是说现在买入，但这就是造就我们公司的原因，
+Dialogue: 0,0:01:00.74,0:01:02.20,Default,,0,0,0,,你知道，西尔斯已经倒下了。
+Dialogue: 0,0:01:02.94,0:01:05.76,Default,,0,0,0,,所以，你知道，凯马特倒下了，IBM也放缓了。
+Dialogue: 0,0:01:06.42,0:01:07.70,Default,,0,0,0,,但我们有新的公司出现。
+Dialogue: 0,0:01:08.06,0:01:09.14,Default,,0,0,0,,我的意思是，这就是市场的本质。
+Dialogue: 0,0:01:09.50,0:01:13.52,Default,,0,0,0,,你必须寻找新的公司，并审视资产负债表。
+Dialogue: 0,0:01:14.16,0:01:16.74,Default,,0,0,0,,如果你能把五加五算得差不多等于十，
+Dialogue: 0,0:01:17.20,0:01:18.46,Default,,0,0,0,,你就应该能够看懂资产负债表并说，
+Dialogue: 0,0:01:18.88,0:01:20.04,Default,,0,0,0,,这里有两家陷入困境的公司。
+Dialogue: 0,0:01:20.38,0:01:21.64,Default,,0,0,0,,它们从50跌到了3。
+Dialogue: 0,0:01:22.32,0:01:25.02,Default,,0,0,0,,一家公司有三笔剩余现金，没有债务。
+Dialogue: 0,0:01:25.26,0:01:27.06,Default,,0,0,0,,另一家有三笔剩余债务，没有现金。
+Dialogue: 0,0:01:27.96,0:01:31.18,Default,,0,0,0,,你会买哪一家？我是说，这并不难决定。

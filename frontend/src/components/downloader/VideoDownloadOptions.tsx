@@ -4,6 +4,8 @@ import { Download, ChevronDown, Check } from "lucide-react";
 interface VideoDownloadOptionsProps {
   resolution: string;
   setResolution: (res: string) => void;
+  codec: string;
+  setCodec: (codec: string) => void;
   downloadSubs: boolean;
   setDownloadSubs: (subs: boolean) => void;
   loading: boolean;
@@ -15,6 +17,8 @@ interface VideoDownloadOptionsProps {
 export function VideoDownloadOptions({
   resolution,
   setResolution,
+  codec,
+  setCodec,
   downloadSubs,
   setDownloadSubs,
   loading,
@@ -85,6 +89,34 @@ export function VideoDownloadOptions({
                 className="hidden"
               />
           </label>
+      </div>
+
+      {/* Codec Strategy */}
+      <div className="bg-black/20 backdrop-blur-md rounded-xl p-1 border border-white/5 flex relative">
+        <div 
+          className="absolute inset-y-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 transition-all duration-300"
+          style={{ 
+            left: codec === 'avc' ? '4px' : '50%',
+            width: 'calc(50% - 4px)',
+          }} 
+        />
+        
+        <button
+          onClick={() => setCodec('avc')}
+          className={`flex-1 relative z-10 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors rounded-lg ${
+            codec === 'avc' ? 'text-indigo-300' : 'text-slate-500 hover:text-slate-400'
+          }`}
+        >
+          Compatible (H.264)
+        </button>
+        <button
+          onClick={() => setCodec('best')}
+          className={`flex-1 relative z-10 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors rounded-lg ${
+            codec === 'best' ? 'text-indigo-300' : 'text-slate-500 hover:text-slate-400'
+          }`}
+        >
+          Efficient (Best/AV1)
+        </button>
       </div>
 
       {/* Download Button */}

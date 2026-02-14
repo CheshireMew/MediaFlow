@@ -9,6 +9,17 @@ interface SegmentsTableProps {
     onFileSelect: (path: string) => void;
 }
 
+const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    
+    if (h > 0) {
+        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
+
 export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, onFileSelect }: SegmentsTableProps) => {
     return (
         <div className="flex-1 overflow-y-auto min-h-0 relative scroll-smooth custom-scrollbar bg-black/20">
@@ -32,7 +43,7 @@ export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, 
                                         <span className="opacity-50">#{srcSeg.id}</span>
                                         <div className="flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded text-slate-400">
                                             <Clock size={10} />
-                                            {srcSeg.start.toFixed(2)} - {srcSeg.end.toFixed(2)}s
+                                            {formatTime(srcSeg.start)} - {formatTime(srcSeg.end)}
                                         </div>
                                     </div>
                                     <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap break-words">

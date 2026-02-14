@@ -106,3 +106,51 @@ Context Path: E:\Work\Code\Mediaflow\temp\ₕₐₘₚₜₒₙ - Legendary Quan
 Stem: ₕₐₘₚₜₒₙ - Legendary Quant, and former head of Quant at SIG explains a corporate... [1961495842520797187]
 Suffix: _CN
 Proposed Save Path: E:\Work\Code\Mediaflow\temp\ₕₐₘₚₜₒₙ - Legendary Quant, and former head of Quant at SIG explains a corporate... [1961495842520797187]_CN
+
+--- New Task ---
+Context Path: E:\Work\Code\Mediaflow\temp\Kevin Carpenter - Warren Buffett： ＂I always thought we would be rich by general standar... [2021243540861296640].srt
+Stem: Kevin Carpenter - Warren Buffett： ＂I always thought we would be rich by general standar... [2021243540861296640]
+Suffix: _CN
+Proposed Save Path: E:\Work\Code\Mediaflow\temp\Kevin Carpenter - Warren Buffett： ＂I always thought we would be rich by general standar... [2021243540861296640]_CN
+
+--- New Task ---
+Context Path: E:\Work\Code\Mediaflow\temp\Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600].srt
+Stem: Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600]
+Suffix: _CN
+Proposed Save Path: E:\Work\Code\Mediaflow\temp\Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600]_CN
+
+--- New Task ---
+Context Path: E:\Work\Code\Mediaflow\temp\Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600].srt
+Stem: Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600]
+Suffix: _CN
+Proposed Save Path: E:\Work\Code\Mediaflow\temp\Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600]_CN
+
+--- New Task ---
+Context Path: E:\Work\Code\Mediaflow\temp\Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600].srt
+Stem: Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600]
+Suffix: _CN
+Proposed Save Path: E:\Work\Code\Mediaflow\temp\Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600]_CN
+
+--- New Task ---
+Context Path: E:\Work\Code\Mediaflow\temp\Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600].srt
+Stem: Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600]
+Suffix: _CN
+Proposed Save Path: E:\Work\Code\Mediaflow\temp\Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600]_CN
+
+--- New Task ---
+Context Path: E:\Work\Code\Mediaflow\temp\Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600].srt
+Stem: Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600]
+Suffix: _CN
+Proposed Save Path: E:\Work\Code\Mediaflow\temp\Steve Burns - Peter Lynch on FOMO：  ＂People are careful when they buy a refrigerato... [2019722845203353600]_CN
+
+--- New Task ---
+Context Path: E:\Work\Code\Mediaflow\temp\Outliers： Why Some People Succeed and Some Don't [EcMKLwVlpJk].srt
+Stem: Outliers： Why Some People Succeed and Some Don't [EcMKLwVlpJk]
+Suffix: _CN
+Proposed Save Path: E:\Work\Code\Mediaflow\temp\Outliers： Why Some People Succeed and Some Don't [EcMKLwVlpJk]_CN
+
+--- New Task ---
+Context Path: E:\Work\Code\Mediaflow\temp\Rohan Paul - Marc Andreessen's new interview, on the future of AI.  ＂There's like ... [2021732245653139457].srt
+Stem: Rohan Paul - Marc Andreessen's new interview, on the future of AI.  ＂There's like ... [2021732245653139457]
+Suffix: _CN
+Proposed Save Path: E:\Work\Code\Mediaflow\temp\Rohan Paul - Marc Andreessen's new interview, on the future of AI.  ＂There's like ... [2021732245653139457]_CN
