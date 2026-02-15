@@ -162,6 +162,70 @@ Rules:
                 logger.error(f"Standard translation error: {e}")
                 raise e
 
+        elif mode == "proofread":
+            system_prompt += """
+MODE: PROOFREAD (Grammar & Correction)
+Rules:
+1. The source text is a transcription. It may contain typos, wrong words, or lack punctuation.
+2. Your task is to CORRECT the text (fix grammar, spelling, punctuation) while keeping the MEANING and LANGUAGE exactly the same.
+3. You MUST return exactly the same number of segments as input.
+4. You MUST preserve the exact 'id' from input.
+5. Do NOT translate. Keep the original language.
+"""
+            try:
+                resp = client.chat.completions.create(
+                    model=model_name,
+                    response_model=TranslationResponse,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"Input Subtitles:\n{input_text}"}
+                    ],
+                    temperature=0.3
+                )
+
+                logger.info(f"[LLM IO] Input Proofread:\n{input_text}")
+                logger.info(f"[LLM IO] Output Proofread:\n{resp.model_dump_json(indent=2)}")
+                
+                # Map and validate (same as standard)
+                id_to_text = {s.id: s.text for s in resp.segments}
+                
+                # Validation: Check for missing IDs
+                missing_ids = [str(s.id) for s in segments if str(s.id) not in id_to_text]
+                if missing_ids:
+                     # Relaxed Matching logic (Reuse from Standard if possible, or duplicate code for now to be safe)
+                    if len(resp.segments) == len(segments):
+                        logger.warning(f"[Proofread] Strict ID matching failed, using positional.")
+                        translated_batch = []
+                        for i, original in enumerate(segments):
+                            new_seg = original.model_copy()
+                            new_seg.text = resp.segments[i].text
+                            translated_batch.append(new_seg)
+                        return translated_batch
+                    else:
+                        logger.warning(f"[Proofread] Mismatch. Filling missing with source.")
+                        translated_batch = []
+                        for original in segments:
+                             new_seg = original.model_copy()
+                             if str(original.id) in id_to_text:
+                                 new_seg.text = id_to_text[str(original.id)]
+                             else:
+                                 new_seg.text = original.text
+                             translated_batch.append(new_seg)
+                        return translated_batch
+
+                translated_batch = []
+                for original in segments:
+                    new_seg = original.model_copy()
+                    if str(original.id) in id_to_text:
+                        new_seg.text = id_to_text[str(original.id)]
+                    translated_batch.append(new_seg)
+                    
+                return translated_batch
+
+            except Exception as e:
+                logger.error(f"Proofread error: {e}")
+                raise e
+
         elif mode == "intelligent":
             system_prompt += """
 MODE: INTELLIGENT (Semantic Resegmentation)

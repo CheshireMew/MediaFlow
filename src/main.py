@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     container.register(Services.ANALYZER, AnalyzerService)
     container.register(Services.LLM_TRANSLATOR, LLMTranslator)
     container.register(Services.GLOSSARY, GlossaryService)
-    container.register(Services.PIPELINE, PipelineRunner)
+    container.register(Services.PIPELINE, lambda: PipelineRunner(container.get(Services.TASK_MANAGER)))
     container.register(Services.VIDEO_SYNTHESIZER, VideoSynthesizer)
     
     # === Startup Logic ===
@@ -62,6 +62,21 @@ async def lifespan(app: FastAPI):
     if container.has(Services.TASK_MANAGER):
         tm = container.get(Services.TASK_MANAGER)
         await tm.init_async()
+
+    # Write server.json for frontend discovery
+    import json
+    server_config = {
+        "base_url": f"http://{settings.HOST}:{settings.PORT}/api/v1",
+        "ws_url": f"ws://{settings.HOST}:{settings.PORT}/api/v1",
+        "port": settings.PORT
+    }
+    config_path = settings.USER_DATA_DIR / "server.json"
+    try:
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(server_config, f, indent=2)
+        logger.info(f"Wrote server config to {config_path}")
+    except Exception as e:
+        logger.error(f"Failed to write server config: {e}")
 
     yield
     
@@ -94,8 +109,10 @@ app.include_router(audio.router, prefix="/api/v1")
 app.include_router(glossary.router, prefix="/api/v1")
 
 # Late import to avoid circular dependency if any
-from src.api.v1 import editor
+from src.api.v1 import editor, ocr, preprocessing
 app.include_router(editor.router, prefix="/api/v1")
+app.include_router(ocr.router, prefix="/api/v1/ocr")
+app.include_router(preprocessing.router, prefix="/api/v1/preprocessing")
 
 # CORS (Restricted to local Electron and Vite dev server)
 app.add_middleware(

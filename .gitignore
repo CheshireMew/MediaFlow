@@ -23,5 +23,8 @@ dist/
 dist-electron/
 .vscode/
 
+# User Data (DB, local config)
+user_data/
+
 # Logs
 *.log

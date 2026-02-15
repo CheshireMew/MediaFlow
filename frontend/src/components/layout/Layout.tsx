@@ -26,6 +26,8 @@ export function Layout({ children }: LayoutProps) {
           } as any}
         />
 
+        {children}
+
         {/* Window Controls (Occupies the reserved space) */}
         <div 
           className="titlebar-controls"
@@ -45,16 +47,6 @@ export function Layout({ children }: LayoutProps) {
         >
              <WindowControls />
         </div>
-        
-        {/* Main Content - Add top padding to avoid overlap if necessary, but user wants overlay style? 
-            Actually, user said "buttons... integrated into interface".
-            If we float them on top, they cover content. 
-            Ideally, header components should yield space.
-            Let's keep it floating for now as requested "Custom Title Bar" usually implies overlay or dedicated space.
-            Current headers are h-16 (64px). Our controls are ~40px.
-            So it fits IN the header space.
-        */}
-        {children}
       </div>
     </div>
   );

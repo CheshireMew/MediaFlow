@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import type { Task } from '../types/task';
-import { WS_TASKS_URL } from '../config/api';
+import { getWsUrl } from '../api/client';
 
 interface TaskContextType {
   tasks: Task[];
@@ -29,7 +29,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     // Use centralized config for WebSocket URL
-    const ws = new WebSocket(WS_TASKS_URL);
+    const ws = new WebSocket(getWsUrl());
 
     ws.onopen = () => {
       setConnected(true);

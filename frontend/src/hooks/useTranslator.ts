@@ -34,6 +34,7 @@ interface UseTranslatorReturn {
   handleFileUpload: (path: string) => Promise<void>;
   refreshGlossary: () => Promise<void>;
   startTranslation: () => Promise<void>;
+  proofreadSubtitle: () => Promise<void>;
   exportSRT: () => Promise<void>;
   handleOpenInEditor: () => Promise<void>;
 }
@@ -77,6 +78,7 @@ export const useTranslator = (): UseTranslatorReturn => {
     handleFileUpload: io.handleFileUpload,
     refreshGlossary: glo.refreshGlossary,
     startTranslation: task.startTranslation,
+    proofreadSubtitle: task.proofreadSubtitle,
     exportSRT: io.exportSRT,
     handleOpenInEditor: io.handleOpenInEditor,
   };

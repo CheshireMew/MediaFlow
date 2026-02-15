@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import type { SubtitleSegment } from "../types/task";
 import type { GlossaryTerm } from "../services/translator/translatorService";
 
-export type TranslatorMode = "standard" | "intelligent";
+export type TranslatorMode = "standard" | "intelligent" | "proofread";
 
 interface TranslatorState {
   // Data

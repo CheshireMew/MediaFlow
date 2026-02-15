@@ -17,17 +17,12 @@ from src.utils.peaks_generator import generate_multi_resolution_peaks
 from .post_processor import PostProcessor
 
 class ASRService:
-    _instance = None
-
-    def __new__(cls):
-        """Singleton pattern ensuring only one service instance exists."""
-        if cls._instance is None:
-            cls._instance = super(ASRService, cls).__new__(cls)
-            cls._instance.executor = ThreadPoolExecutor(max_workers=settings.ASR_MAX_WORKERS)
-            cls._instance.model_manager = ModelManager()
-            cls._instance.adapter = FasterWhisperAdapter()
-            cls._instance.core_strategies = CoreStrategies(cls._instance.executor)
-        return cls._instance
+    def __init__(self):
+        """Initialized via Container."""
+        self.executor = ThreadPoolExecutor(max_workers=settings.ASR_MAX_WORKERS)
+        self.model_manager = ModelManager()
+        self.adapter = FasterWhisperAdapter()
+        self.core_strategies = CoreStrategies(self.executor)
 
     def transcribe(self, audio_path: str, model_name: str = "base", device: str = "cpu", language: str = None, task_id: str = None, initial_prompt: str = None, progress_callback=None, generate_peaks: bool = True) -> TaskResult:
         """

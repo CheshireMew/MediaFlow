@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { 
-    Wand2, FolderOpen, Loader2, Book, Globe, Download, FileEdit 
+    Wand2, FolderOpen, Loader2, Book, Globe, Download, FileEdit, Sparkles 
 } from 'lucide-react';
 
 import { useTranslator } from '../hooks/useTranslator';
@@ -25,6 +25,7 @@ export const TranslatorPage = () => {
         handleFileUpload,
         refreshGlossary,
         startTranslation,
+        proofreadSubtitle,
         exportSRT,
         handleOpenInEditor
     } = useTranslator();
@@ -105,11 +106,21 @@ export const TranslatorPage = () => {
                          </button>
                          
                          <button 
+                             onClick={proofreadSubtitle}
+                             disabled={isTranslating || sourceSegments.length === 0}
+                             className="h-10 px-5 bg-[#1a1a1a] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                             title="AI Grammar & Typos Correction (No Translation)"
+                         >
+                             {isTranslating && mode === 'proofread' ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                             <span className="hidden lg:inline">Proofread</span>
+                         </button>
+
+                         <button 
                              onClick={startTranslation}
                              disabled={isTranslating || sourceSegments.length === 0}
                              className="h-10 px-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:shadow-lg hover:shadow-indigo-500/20 text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-indigo-500/10"
                          >
-                             {isTranslating ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
+                             {isTranslating && mode !== 'proofread' ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
                              <span className="hidden lg:inline">Translate</span>
                          </button>
                      </div>

@@ -104,6 +104,34 @@ export const useTranslationTask = () => {
     }
   };
 
+  const proofreadSubtitle = async () => {
+    if (sourceSegments.length === 0) return;
+
+    setTaskStatus("starting");
+    setProgress(0);
+
+    try {
+      // Force Proofread Mode, Keep same target language (it's ignored by prompt anyway)
+      const res = await translatorService.startTranslation({
+        segments: sourceSegments,
+        target_language: targetLang,
+        mode: "proofread",
+        context_path: sourceFilePath,
+      });
+      setTaskId(res.task_id);
+      setTaskStatus("translating");
+
+      // Update UI mode to reflect what's happening
+      setMode("proofread");
+
+      pollTask(res.task_id);
+    } catch (e) {
+      console.error(e);
+      setTaskStatus("failed");
+      alert("Failed to start proofreading");
+    }
+  };
+
   // Cleanup on unmount
   // useEffect(() => {
   //     return () => {

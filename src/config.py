@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     # ASR Settings
     ASR_MAX_WORKERS: int = 2
     ASR_MODEL_DIR: Path = BASE_DIR / "models" / "faster-whisper"
+    OCR_MODEL_DIR: Path = BASE_DIR / "models" / "ocr"
+
     
     # Model Map (Can be overridden by env var ASR_MODELS='{"tiny":"..."}')
     # Default uses ModelScope mirror for China accessibility
@@ -73,10 +75,15 @@ class Settings(BaseSettings):
             self.FFPROBE_PATH = str(local_ffprobe)
             
         self.init_dirs()
+        
+        # Validation
+        if not self.LLM_API_KEY and self.LLM_BASE_URL:
+            # Non-blocking warning
+            print(f"WARNING: LLM_API_KEY is not set. Translator features may fail.")
 
     def init_dirs(self):
         """Ensure critical directories exist."""
-        for path in [self.TEMP_DIR, self.MODEL_DIR, self.OUTPUT_DIR, self.USER_DATA_DIR, self.BIN_DIR]:
+        for path in [self.TEMP_DIR, self.MODEL_DIR, self.OUTPUT_DIR, self.USER_DATA_DIR, self.BIN_DIR, self.OCR_MODEL_DIR]:
             path.mkdir(parents=True, exist_ok=True)
         
         # Create subdirs in user_data

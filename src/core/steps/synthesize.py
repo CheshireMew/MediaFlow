@@ -68,6 +68,9 @@ class SynthesizeStep(PipelineStep):
         
         # 4. Context Update
         ctx.set("output_video_path", output_file)
+        # Update "video_path" to point to the synthesized one for downstream steps and final result
+        ctx.set("video_path", output_file)
+        
         logger.success(f"Step Synthesize finished. Output: {output_file}")
 
 # Register

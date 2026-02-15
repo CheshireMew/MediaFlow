@@ -9,13 +9,18 @@ const path = require("path");
 import { registerDialogHandlers } from "./ipc/dialog-handlers";
 import { registerWindowHandlers } from "./ipc/window-handlers";
 import { registerCookieHandlers } from "./ipc/cookie-handlers";
+import { registerConfigHandlers } from "./ipc/config-handlers";
 
 registerDialogHandlers();
 registerWindowHandlers();
 registerCookieHandlers();
+registerConfigHandlers();
 
 // ─── Main Window ────────────────────────────────────────────────
-const createWindow = () => {
+function createWindow() {
+  // Check if we are in dev mode
+  const isDev = process.env.IS_DEV === "true";
+
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -24,12 +29,9 @@ const createWindow = () => {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false, // Fix CORS for local dev
+      webSecurity: !isDev, // Disable only in Dev for localhost CORS
     },
   });
-
-  // Check if we are in dev mode
-  const isDev = process.env.IS_DEV === "true";
 
   if (isDev) {
     mainWindow.loadURL("http://localhost:5173");
@@ -68,7 +70,7 @@ const createWindow = () => {
   ];
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
-};
+}
 
 // ─── App Lifecycle ──────────────────────────────────────────────
 app.on("ready", createWindow);

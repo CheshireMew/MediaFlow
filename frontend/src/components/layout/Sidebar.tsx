@@ -7,7 +7,7 @@ import {
   Settings, 
   Pencil,
   type LucideIcon,
-  LogOut
+  Wand2
 } from 'lucide-react';
 import { useTaskContext } from '../../context/TaskContext';
 
@@ -66,6 +66,7 @@ export function Sidebar() {
   const menuItems = [
     { id: 'dashboard', label: 'Monitor', icon: LayoutDashboard, badge: activeTaskCount},
     { id: 'editor', label: 'Editor', icon: Pencil },
+    { id: 'preprocessing', label: 'Preprocess', icon: Wand2 },
     { id: 'downloader', label: 'Download', icon: Download },
     { id: 'transcriber', label: 'Transcribe', icon: FileAudio },
     { id: 'translator', label: 'Translate', icon: Languages },
@@ -94,15 +95,9 @@ export function Sidebar() {
             ))}
         </div>
 
-         {/* Bottom Actions */}
+         {/* Bottom Actions - Exit Button Removed */}
          <div className="mt-auto px-2 w-full pt-4 border-t border-white/5 space-y-2">
-            <div 
-                className="w-full p-2 rounded-xl cursor-pointer text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 flex flex-col items-center gap-1 transition-all group"
-                title="Exit"
-                onClick={() => window.close()}
-            >
-                <LogOut size={20} />
-            </div>
+            
          </div>
     </div>
   );

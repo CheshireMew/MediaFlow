@@ -2,20 +2,56 @@ import { useState, useCallback, useEffect } from "react";
 import { apiClient } from "../api/client";
 import type { AnalyzeResult } from "../api/client";
 import { useDownloaderStore } from "../stores/downloaderStore";
+import { useTaskContext } from "../context/TaskContext";
 
 export function useDownloaderController() {
+  const { tasks } = useTaskContext();
+
   // Global Persistent State
   const {
     url,
     resolution,
     codec,
     downloadSubs,
+    history,
     setUrl,
     setResolution,
     setCodec,
     setDownloadSubs,
     addToHistory,
+    updateHistoryStatus,
   } = useDownloaderStore();
+
+  // Sync Task Status to History
+  useEffect(() => {
+    tasks.forEach((task) => {
+      if (task.status === "completed" || task.status === "failed") {
+        const historyItem = history.find((h) => h.id === task.id);
+
+        if (historyItem) {
+          const newStatus = task.status as "completed" | "failed";
+          let newPath = historyItem.path;
+
+          if (task.status === "completed" && task.result?.files) {
+            const videoFile = task.result.files.find(
+              (f: any) => f.type === "video",
+            );
+            if (videoFile?.path) {
+              newPath = videoFile.path;
+            }
+          }
+
+          // Only update if changed to avoid infinite loops
+          if (
+            historyItem.status !== newStatus ||
+            (newStatus === "completed" && historyItem.path !== newPath)
+          ) {
+            updateHistoryStatus(task.id, newStatus, newPath);
+          }
+        }
+      }
+    });
+  }, [tasks, history, updateHistoryStatus]);
 
   // Ephemeral UI State
   const [loading, setLoading] = useState(false);

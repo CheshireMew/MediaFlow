@@ -10,10 +10,16 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
   // Access Store
   const mediaUrl = useEditorStore((state) => state.mediaUrl);
   const currentFilePath = useEditorStore((state) => state.currentFilePath);
+  const currentSubtitlePath = useEditorStore(
+    (state) => state.currentSubtitlePath,
+  );
   const setRegions = useEditorStore((state) => state.setRegions);
   const setMediaUrl = useEditorStore((state) => state.setMediaUrl);
   const setCurrentFilePath = useEditorStore(
     (state) => state.setCurrentFilePath,
+  );
+  const setCurrentSubtitlePath = useEditorStore(
+    (state) => state.setCurrentSubtitlePath,
   );
 
   // --- Private Helpers ---
@@ -31,6 +37,7 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
             const parsed = parseSRT(content);
             if (parsed.length > 0) {
               setRegions(parsed);
+              setCurrentSubtitlePath(srtPath); // Track loaded path
               return;
             }
           }
@@ -135,12 +142,19 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
 
       setPeaks(null);
       setCurrentFilePath(path); // Update Store
+      setCurrentSubtitlePath(null); // Reset subtitle path on new video
       setMediaUrl(url); // Update Store
 
       await tryLoadPeaks(path);
       await tryLoadRelatedSubtitle(path);
     },
-    [setRegions, setPeaks, setCurrentFilePath, setMediaUrl],
+    [
+      setRegions,
+      setPeaks,
+      setCurrentFilePath,
+      setMediaUrl,
+      setCurrentSubtitlePath,
+    ],
   );
 
   const loadSubtitleFromPath = useCallback(
@@ -164,6 +178,7 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
           if (content) {
             const parsed = parseSRT(content);
             setRegions(parsed);
+            setCurrentSubtitlePath(path); // Track loaded path
           }
         } catch (e) {
           console.error("[EditorIO] Failed to load subtitle:", e);
@@ -171,7 +186,13 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
         }
       }
     },
-    [setRegions, setMediaUrl, setCurrentFilePath, setPeaks],
+    [
+      setRegions,
+      setMediaUrl,
+      setCurrentFilePath,
+      setPeaks,
+      setCurrentSubtitlePath,
+    ],
   );
 
   // --- Actions ---
@@ -260,6 +281,7 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
                   if (content) {
                     const parsed = parseSRT(content);
                     setRegions(parsed);
+                    setCurrentSubtitlePath(data.subtitle_path); // Track path
                   }
                 }
               } catch (e) {
@@ -324,7 +346,9 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
         return;
       }
 
-      const srtPath = path.replace(/\.[^.]+$/, ".srt");
+      // Use the explicitly loaded subtitle path if available,
+      // otherwise fallback to replacing the video extension
+      const srtPath = currentSubtitlePath || path.replace(/\.[^.]+$/, ".srt");
 
       // Generate SRT content
       const srtContent = regionsToSave
@@ -341,6 +365,10 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
       if (window.electronAPI?.writeFile) {
         try {
           await window.electronAPI.writeFile(srtPath, srtContent);
+          // If we just saved to a new path (e.g. was null before), update it
+          if (!currentSubtitlePath) {
+            setCurrentSubtitlePath(srtPath);
+          }
           return true; // value to indicate success
         } catch (e) {
           console.error("[EditorIO] Failed to save subtitle file", e);
@@ -350,7 +378,7 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
         console.warn("Saving not supported in browser mode (yet)");
       }
     },
-    [currentFilePath],
+    [currentFilePath, currentSubtitlePath, setCurrentSubtitlePath],
   );
 
   // Expose Actions

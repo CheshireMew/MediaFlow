@@ -14,7 +14,6 @@ class TaskManager:
     def __init__(self):
         self.tasks: Dict[str, Task] = {}
         self.active_connections: List[WebSocket] = []
-        # No more data_file
         
     async def init_async(self):
         """Initialize DB and load tasks."""
@@ -29,20 +28,20 @@ class TaskManager:
                 result = await session.execute(statement)
                 tasks = result.scalars().all()
                 
+                self.tasks.clear()
                 for task in tasks:
                     # Mark any 'running' tasks as 'paused' since service restarted
                     if task.status in ["running", "pending"]:
                         task.status = "paused"
                         task.message = "Interrupted by restart"
-                        task.cancelled = True # Ensure loop doesn't pick it up
-                        
-                        # We need to update this status in DB too
+                        task.cancelled = True 
                         session.add(task)
                     
                     self.tasks[task.id] = task
                 
                 if tasks:
                     await session.commit()
+                    # Refresh all to ensure we have clean state if needed, though they are detached now
                     
             logger.info(f"Loaded {len(self.tasks)} tasks from SQLite.")
         except Exception as e:
@@ -52,7 +51,6 @@ class TaskManager:
         await websocket.accept()
         self.active_connections.append(websocket)
         logger.info(f"WebSocket connected. Total: {len(self.active_connections)}")
-        # Send current tasks snapshot
         await self.send_tasks_snapshot(websocket)
 
     def disconnect(self, websocket: WebSocket):
@@ -75,7 +73,6 @@ class TaskManager:
 
     async def send_tasks_snapshot(self, websocket: WebSocket):
         """Send all current tasks to a specific client."""
-        # Use model_dump to ensure serialization
         tasks_list = [task.model_dump(mode='json') for task in self.tasks.values()]
         try:
             await websocket.send_json({
@@ -91,22 +88,16 @@ class TaskManager:
         task_id = str(uuid.uuid4())[:8]
         final_name = task_name or f"{task_type.capitalize()} {task_id}"
 
-        # Ensure request_params are JSON serializable (handle HttpUrl, etc.)
         if request_params:
             try:
-                # If request_params is a Pydantic model, dump it
                 if hasattr(request_params, "model_dump"):
                     request_params = request_params.model_dump(mode="json")
-                # If it's a dict containing Pydantic models or types, we might need more robust handling
-                # For now, let's assume the caller passes a dict. 
-                # The error "Object of type HttpUrl is not JSON serializable" suggests we have raw Pydantic types.
-                # Let's use json.loads(json.dumps(..., default=str)) as a brute-force sanitizer for now
                 request_params = json.loads(json.dumps(request_params, default=str))
             except Exception as e:
                 logger.warning(f"Failed to serialize request_params: {e}")
                 request_params = {}
 
-        task = Task(
+        new_task = Task(
             id=task_id,
             name=final_name,
             type=task_type,
@@ -116,87 +107,82 @@ class TaskManager:
             request_params=request_params
         )
         
-        # 1. Update In-Memory
-        self.tasks[task_id] = task
-        
-        # 2. Persist to DB
+        # DB First
         async with get_session_context() as session:
-            session.add(task)
+            session.add(new_task)
             await session.commit()
+            await session.refresh(new_task)
+            
+            # Update Cache
+            self.tasks[task_id] = new_task
         
-        # 3. Broadcast
+        # Broadcast
         await self.broadcast({
             "type": "update",
-            "task": task.model_dump(mode='json')
+            "task": new_task.model_dump(mode='json')
         })
         
         return task_id
 
     async def update_task(self, task_id: str, **kwargs):
-        if task_id not in self.tasks:
-            return
-        
-        task = self.tasks[task_id]
-        
-        # 1. Update In-Memory Object
-        for key, value in kwargs.items():
-            if hasattr(task, key):
-                setattr(task, key, value)
-        
-        # 2. Persist to DB
-        # Since we modified the object in self.tasks, we need to merge it 
-        # or load clean one and update. Merging is safer if session is transient.
+        # 1. DB Read-Modify-Write
+        updated_task = None
         async with get_session_context() as session:
-            # We can use update statement for efficiency, or add the modified object
-            # BUT: task object in memory is detached. verify if merging works with SQLModel
-            # Simplest: Update specific fields via statement
-            # session.add(task) might raise error if detached.
-            # Safe way: fetch and update
             db_task = await session.get(Task, task_id)
             if db_task:
                 for key, value in kwargs.items():
                     if hasattr(db_task, key):
                         setattr(db_task, key, value)
+                
                 session.add(db_task)
                 await session.commit()
-        
-        # 3. Broadcast
-        await self.broadcast({
-            "type": "update",
-            "task": task.model_dump(mode='json')
-        })
+                await session.refresh(db_task)
+                updated_task = db_task
+            else:
+                logger.warning(f"Task {task_id} not found in DB during update.")
+                return
+
+        # 2. Update Cache
+        if updated_task:
+            self.tasks[task_id] = updated_task
+            
+            # 3. Broadcast
+            await self.broadcast({
+                "type": "update",
+                "task": updated_task.model_dump(mode='json')
+            })
 
     async def cancel_task(self, task_id: str):
-        if task_id in self.tasks:
-            task = self.tasks[task_id]
-            task.cancelled = True
-            task.status = "cancelled"
-            
-            # DB Update
-            async with get_session_context() as session:
-                db_task = await session.get(Task, task_id)
-                if db_task:
-                    db_task.cancelled = True
-                    db_task.status = "cancelled"
-                    session.add(db_task)
-                    await session.commit()
+        updated_task = None
+        async with get_session_context() as session:
+            db_task = await session.get(Task, task_id)
+            if db_task:
+                db_task.cancelled = True
+                db_task.status = "cancelled"
+                session.add(db_task)
+                await session.commit()
+                await session.refresh(db_task)
+                updated_task = db_task
 
+        if updated_task:
+            self.tasks[task_id] = updated_task
             logger.info(f"Task {task_id} marked for cancellation")
-            await self.broadcast({"type": "update", "task": task.model_dump(mode='json')})
+            await self.broadcast({"type": "update", "task": updated_task.model_dump(mode='json')})
 
     async def delete_task(self, task_id: str) -> bool:
-        if task_id in self.tasks:
-            if self.tasks[task_id].status == "running":
-                await self.cancel_task(task_id)
-            
-            # Remove from Memory
-            del self.tasks[task_id]
-            
-            # Remove from DB
-            async with get_session_context() as session:
-                statement = delete(Task).where(Task.id == task_id)
-                await session.execute(statement)
+        task_exists = False
+        async with get_session_context() as session:
+            db_task = await session.get(Task, task_id)
+            if db_task:
+                task_exists = True
+                # If running, we should ideally cancel first, but this is delete
+                await session.delete(db_task)
                 await session.commit()
+
+        if task_exists:
+            # Remove from Memory
+            if task_id in self.tasks:
+                del self.tasks[task_id]
             
             await self.broadcast({
                 "type": "delete",
@@ -207,16 +193,20 @@ class TaskManager:
         return False
     
     async def delete_all_tasks(self) -> int:
-        count = len(self.tasks)
-        if count == 0:
-            return 0
-            
-        self.tasks.clear()
-        
+        count = 0
         async with get_session_context() as session:
-            statement = delete(Task)
-            await session.execute(statement)
-            await session.commit()
+            # Count first
+            statement = select(Task)
+            result = await session.execute(statement)
+            tasks = result.scalars().all()
+            count = len(tasks)
+            
+            if count > 0:
+                delete_statement = delete(Task)
+                await session.execute(delete_statement)
+                await session.commit()
+
+        self.tasks.clear()
         
         await self.broadcast({
              "type": "snapshot", 
@@ -228,30 +218,31 @@ class TaskManager:
     async def cancel_all_tasks(self):
         cancelled_count = 0
         async with get_session_context() as session:
-            # We need to iterate to update both memory and DB
-            # Or bulk update DB and reload memory?
-            # Iterating is safer for now to keep them in sync
-            for task_id, task in self.tasks.items():
-                if task.status in ["pending", "running"] and not task.cancelled:
-                    task.cancelled = True
-                    task.status = "cancelled"
-                    cancelled_count += 1
-                    
-                    # Update DB (Batching this would be better but keeping it simple)
-                    db_task = await session.get(Task, task_id)
-                    if db_task:
-                        db_task.cancelled = True
-                        db_task.status = "cancelled"
-                        session.add(db_task)
+            statement = select(Task).where(Task.status.in_(["pending", "running"])).where(Task.cancelled == False)
+            result = await session.execute(statement)
+            tasks_to_cancel = result.scalars().all()
+            
+            for task in tasks_to_cancel:
+                task.cancelled = True
+                task.status = "cancelled"
+                session.add(task)
+                cancelled_count += 1
             
             if cancelled_count > 0:
                 await session.commit()
+                # Refresh cache for all modified tasks
+                # Re-fetch or iterate
+                for task in tasks_to_cancel:
+                     # Since we still have the object attached to session or refreshed
+                     # We can update cache
+                     self.tasks[task.id] = task
 
-        logger.info(f"Marked {cancelled_count} tasks for cancellation")
-        await self.broadcast({
-             "type": "snapshot", 
-             "tasks": [t.model_dump(mode='json') for t in self.tasks.values()]
-        })
+        if cancelled_count > 0:
+            logger.info(f"Marked {cancelled_count} tasks for cancellation")
+            await self.broadcast({
+                 "type": "snapshot", 
+                 "tasks": [t.model_dump(mode='json') for t in self.tasks.values()]
+            })
         return cancelled_count
 
     def get_task(self, task_id: str) -> Optional[Task]:
@@ -290,36 +281,28 @@ class TaskManager:
         return None
 
     async def reset_task(self, task_id: str):
-        if task_id not in self.tasks:
-            return
-            
-        task = self.tasks[task_id]
-        task.status = "pending"
-        task.progress = 0.0
-        task.message = "Resuming..."
-        task.created_at = time.time()
-        task.result = None
-        task.error = None
-        task.cancelled = False
-        
-        # DB Update
+        updated_task = None
         async with get_session_context() as session:
             db_task = await session.get(Task, task_id)
             if db_task:
                 db_task.status = "pending"
                 db_task.progress = 0.0
                 db_task.message = "Resuming..."
-                db_task.created_at = task.created_at
+                db_task.created_at = time.time()
                 db_task.result = None
                 db_task.error = None
                 db_task.cancelled = False
                 session.add(db_task)
                 await session.commit()
-        
-        await self.broadcast({
-            "type": "update",
-            "task": task.model_dump(mode='json')
-        })
-        logger.info(f"Task {task_id} reset for reuse")
+                await session.refresh(db_task)
+                updated_task = db_task
+
+        if updated_task:
+            self.tasks[task_id] = updated_task
+            await self.broadcast({
+                "type": "update",
+                "task": updated_task.model_dump(mode='json')
+            })
+            logger.info(f"Task {task_id} reset for reuse")
 
 

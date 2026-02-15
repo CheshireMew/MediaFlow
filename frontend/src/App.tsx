@@ -9,6 +9,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { DownloaderPage } from "./pages/DownloaderPage";
 import { TranscriberPage } from "./pages/TranscriberPage";
 import { TranslatorPage } from "./pages/TranslatorPage";
+import { PreprocessingPage } from "./pages/PreprocessingPage";
 import SettingsPage from "./pages/SettingsPage";
 
 import { TaskProvider } from "./context/TaskContext";
@@ -41,6 +42,7 @@ function App() {
                 <Route path="/downloader" element={<DownloaderPage />} />
                 <Route path="/transcriber" element={<TranscriberPage />} />
                 <Route path="/translator" element={<TranslatorPage />} />
+                <Route path="/preprocessing" element={<PreprocessingPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<EditorPage />} />
              </Routes>

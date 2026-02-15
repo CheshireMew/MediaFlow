@@ -9,14 +9,13 @@ from src.core.steps import StepRegistry
 from src.core.container import container, Services
 
 
-def _get_task_manager():
-    return container.get(Services.TASK_MANAGER)
-
-
 class PipelineRunner:
+    def __init__(self, task_manager):
+        self.task_manager = task_manager
+
     async def run(self, steps: List[PipelineStepRequest], task_id: str = None) -> Dict[str, Any]:
         ctx = PipelineContext()
-        tm = _get_task_manager()
+        tm = self.task_manager
         logger.info(f"Starting pipeline with {len(steps)} steps. TaskID: {task_id}")
 
         if task_id:

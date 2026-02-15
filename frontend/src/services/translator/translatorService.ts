@@ -12,7 +12,7 @@ export interface GlossaryTerm {
 export interface TranslateRequest {
   segments: SubtitleSegment[];
   target_language: string;
-  mode: "standard" | "intelligent";
+  mode: "standard" | "intelligent" | "proofread";
   context_path?: string | null;
 }
 

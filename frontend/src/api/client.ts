@@ -1,6 +1,23 @@
 import { API_BASE_URL } from "../config/api";
 
-export const API_BASE = API_BASE_URL;
+// Backend API base URL (HTTP)
+// Mutable to allow dynamic configuration
+export let API_BASE = API_BASE_URL;
+
+export const initializeApi = (config: {
+  base_url: string;
+  ws_url?: string;
+}) => {
+  if (config?.base_url) {
+    API_BASE = config.base_url;
+  }
+  console.log(`[API] Initialized with Base URL: ${API_BASE}`);
+};
+
+export const getWsUrl = () => {
+  // Naive replacement, can be improved if config has explicit ws_url
+  return API_BASE.replace(/^http/, "ws") + "/ws/tasks";
+};
 
 // ─── Shared / Generic Response Types ─────────────────────────────
 
@@ -18,6 +35,12 @@ export interface CountResponse extends MessageResponse {
 export interface StatusMessageResponse extends MessageResponse {
   status: string;
 }
+
+// ─── API Client Setup ─────────────────────────────────────────────
+// (Assuming you have an axios instance somewhere, or code handling fetch using API_BASE)
+// Since this file seems to define types and exports API_BASE,
+// let's create a minimal axios wrapper or ensure existing code uses the exported API_BASE variable.
+// But `API_BASE` is a const in original file. We changed it to let.
 
 /** Task creation / pipeline submission response. */
 export interface TaskResponse {
@@ -188,6 +211,26 @@ export interface TranslateResponse {
   segments?: any[]; // SubtitleSegment[]
 }
 
+// ─── OCR ───────────────────────────────────────────────────────────
+
+export interface TextEvent {
+  start: number;
+  end: number;
+  text: string;
+  box: number[][]; // [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+}
+
+export interface OCRExtractRequest {
+  video_path: string;
+  roi?: number[]; // [x, y, w, h]
+  engine: "rapid" | "paddle";
+  sample_rate?: number;
+}
+
+export interface OCRExtractResponse {
+  events: TextEvent[];
+}
+
 // ─── Internal Generic Request Wrapper ────────────────────────────
 
 async function request<T>(
@@ -261,6 +304,13 @@ export const apiClient = {
 
   translateSegments: (payload: TranslateRequest) => {
     return request<TranslateResponse>("/translate/segment", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  extractText: (payload: OCRExtractRequest) => {
+    return request<TaskResponse>("/ocr/extract", {
       method: "POST",
       body: JSON.stringify(payload),
     });

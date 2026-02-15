@@ -133,11 +133,27 @@ async def transcribe_segment(req: TranscribeSegmentRequest, background_tasks: Ba
         return TaskResponse(task_id=task_id, status="pending", message="Segment too long, processing in background")
 
     else:
-        # SYNC PATH
+        # SYNC PATH (Non-blocking wrapper)
         try:
-            result = _get_asr_service().transcribe_segment(
-                req.audio_path, req.start, req.end, req.model, req.device, req.language
+            import asyncio
+            from functools import partial
+            
+            loop = asyncio.get_running_loop()
+            service = _get_asr_service()
+            
+            # Create partial function to pass arguments
+            func = partial(
+                service.transcribe_segment,
+                req.audio_path, 
+                req.start, 
+                req.end, 
+                req.model, 
+                req.device, 
+                req.language
             )
+            
+            # Run blocking call in default executor (thread pool)
+            result = await loop.run_in_executor(None, func)
             
             if not result.success:
                 raise HTTPException(status_code=500, detail=result.error)
@@ -146,6 +162,8 @@ async def transcribe_segment(req: TranscribeSegmentRequest, background_tasks: Ba
                 "status": "completed",
                 "data": result.meta # Contains "text" and "segments"
             }
+        except HTTPException:
+            raise
         except Exception as e:
              logger.error(f"Sync segment transcription failed: {e}")
              raise HTTPException(status_code=500, detail=str(e))
