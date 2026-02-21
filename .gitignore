@@ -14,12 +14,14 @@ temp/
 .temp/
 .benchmarks/
 .pytest_cache/
-models/
-example/
-output/
+# models/
+backend/example/
+backend/output/
 bin/
 data/
 workspace/
+
+# /models/  ← 只忽略根目录的 models
 
 # Node
 node_modules/

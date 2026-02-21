@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from loguru import logger
 
-from backend.models.schemas import TranscribeRequest, TaskResponse
+from backend.models.schemas import TranscribeRequest, TaskResponse, SubtitleSegment
 from backend.core.task_runner import BackgroundTaskRunner
 from backend.core.container import container, Services
 
@@ -88,7 +88,7 @@ async def transcribe_segment(req: TranscribeSegmentRequest, background_tasks: Ba
 
     # HYBRID STRATEGY
     if duration > 30:
-        # ASYNC PATH â€” offload long segments to background task
+        # ASYNC PATH â€?offload long segments to background task
         task_id = await _get_task_manager().create_task(
             task_type="transcribe_segment",
             initial_message="Queued (Long Segment)",
