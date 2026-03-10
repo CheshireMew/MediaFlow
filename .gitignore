@@ -32,3 +32,7 @@ user_data/
 
 # Logs
 *.log
+
+# User Specific
+/.claude/
+/ffmpeg/
