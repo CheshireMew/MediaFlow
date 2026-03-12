@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
     Wand2, FolderOpen, Loader2, Book, Globe, Download, FileEdit, Sparkles 
 } from 'lucide-react';
@@ -29,6 +30,8 @@ export const TranslatorPage = () => {
         exportSRT,
         handleOpenInEditor
     } = useTranslator();
+
+    const { t } = useTranslation('translator');
     
     // UI Local State for Sidebar
     const [showGlossary, setShowGlossary] = useState(false);
@@ -64,7 +67,7 @@ export const TranslatorPage = () => {
                         <Globe className="w-5 h-5 text-indigo-400" />
                      </div>
                      <div>
-                        <h1 className="text-2xl font-bold text-white tracking-tight">AI Translator</h1>
+                        <h1 className="text-2xl font-bold text-white tracking-tight">{t('title')}</h1>
                         <p className="text-xs font-medium text-slate-400 mt-0.5 flex items-center gap-2">
                             {sourceFilePath ? (
                                 <>
@@ -73,7 +76,7 @@ export const TranslatorPage = () => {
                                     </span>
                                 </>
                             ) : (
-                                "Context-Aware • Glossary-Enforced"
+                                t('subtitle')
                             )}
                         </p>
                      </div>
@@ -87,10 +90,10 @@ export const TranslatorPage = () => {
                                 ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-500/20' 
                                 : 'bg-[#1a1a1a] text-slate-400 border-white/10 hover:text-white hover:border-white/20'
                             }`}
-                        title="Glossary Manager"
+                        title={t('glossary.tooltip')}
                      >
                          <Book size={16} />
-                         <span className="hidden lg:inline">Glossary</span>
+                         <span className="hidden lg:inline">{t('glossary.button')}</span>
                      </button>
                      
                      <div className="h-6 w-[1px] bg-white/10 mx-2"></div>
@@ -100,19 +103,19 @@ export const TranslatorPage = () => {
                          <button 
                              onClick={handleOpenFile}
                              className="h-10 px-4 bg-[#1a1a1a] hover:bg-white/5 border border-white/10 hover:border-white/20 rounded-xl text-slate-300 hover:text-white text-sm font-medium transition-all flex items-center gap-2"
-                             title="Import Subtitle"
+                             title={t('buttons.import.tooltip')}
                          >
-                             <FolderOpen size={16} /> <span className="hidden xl:inline">Import</span>
+                             <FolderOpen size={16} /> <span className="hidden xl:inline">{t('buttons.import.label')}</span>
                          </button>
                          
                          <button 
                              onClick={proofreadSubtitle}
                              disabled={isTranslating || sourceSegments.length === 0}
                              className="h-10 px-5 bg-[#1a1a1a] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                             title="AI Grammar & Typos Correction (No Translation)"
+                             title={t('buttons.proofread.tooltip')}
                          >
                              {isTranslating && mode === 'proofread' ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                             <span className="hidden lg:inline">Proofread</span>
+                             <span className="hidden lg:inline">{t('buttons.proofread.label')}</span>
                          </button>
 
                          <button 
@@ -121,7 +124,7 @@ export const TranslatorPage = () => {
                              className="h-10 px-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:shadow-lg hover:shadow-indigo-500/20 text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-indigo-500/10"
                          >
                              {isTranslating && mode !== 'proofread' ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
-                             <span className="hidden lg:inline">Translate</span>
+                             <span className="hidden lg:inline">{t('buttons.translate.label')}</span>
                          </button>
                      </div>
                      
@@ -133,17 +136,17 @@ export const TranslatorPage = () => {
                                 <button 
                                     onClick={exportSRT}
                                     className="h-10 px-4 bg-[#1a1a1a] hover:bg-green-500/10 border border-green-500/20 text-green-400 hover:text-green-300 rounded-xl text-sm font-medium transition-all flex items-center gap-2"
-                                    title="Save SRT to disk"
+                                    title={t('buttons.export.tooltip')}
                                 >
-                                    <Download size={16} /> <span className="hidden xl:inline">Export</span>
+                                    <Download size={16} /> <span className="hidden xl:inline">{t('buttons.export.label')}</span>
                                 </button>
 
                                 <button 
                                     onClick={handleOpenInEditor}
                                     className="h-10 px-4 bg-[#1a1a1a] hover:bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:text-indigo-300 rounded-xl text-sm font-medium transition-all flex items-center gap-2"
-                                    title="Open in Subtitle Editor"
+                                    title={t('buttons.editor.tooltip')}
                                 >
-                                    <FileEdit size={16} /> <span className="hidden xl:inline">Editor</span>
+                                    <FileEdit size={16} /> <span className="hidden xl:inline">{t('buttons.editor.label')}</span>
                                 </button>
                             </div>
                          </>
@@ -163,36 +166,36 @@ export const TranslatorPage = () => {
                  {/* Table Header Controls */}
                  <div className="flex-none p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                      <div className="flex items-center gap-4">
-                         <span className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-2 border-l-2 border-slate-700">Source ({sourceSegments.length})</span>
+                         <span className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-2 border-l-2 border-slate-700">{t('table.sourceHeader')} ({sourceSegments.length})</span>
                      </div>
                      <div className="flex items-center gap-6">
                          <div className="flex items-center gap-3">
-                             <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Target Lang</label>
+                             <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{t('table.targetLangLabel')}</label>
                              <div className="relative group">
                                 <select 
                                     value={targetLang} 
                                     onChange={e => setTargetLang(e.target.value)}
                                     className="bg-black/40 border border-white/10 text-xs px-3 py-1.5 rounded-lg outline-none text-slate-300 hover:text-white focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all appearance-none pr-8 cursor-pointer font-medium"
                                 >
-                                    <option value="Chinese">Chinese (中文)</option>
-                                    <option value="English">English</option>
-                                    <option value="Japanese">Japanese</option>
-                                    <option value="Spanish">Spanish</option>
-                                    <option value="French">French</option>
+                                    <option value="Chinese">{t('languages.Chinese')}</option>
+                                    <option value="English">{t('languages.English')}</option>
+                                    <option value="Japanese">{t('languages.Japanese')}</option>
+                                    <option value="Spanish">{t('languages.Spanish')}</option>
+                                    <option value="French">{t('languages.French')}</option>
                                 </select>
                              </div>
                          </div>
 
                          <div className="flex items-center gap-3">
-                             <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Mode</label>
+                             <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{t('table.modeLabel')}</label>
                              <div className="relative group">
                                 <select 
                                     value={mode} 
                                     onChange={e => setMode(e.target.value as any)}
                                     className="bg-black/40 border border-white/10 text-xs px-3 py-1.5 rounded-lg outline-none text-slate-300 hover:text-white focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all appearance-none pr-8 cursor-pointer font-medium"
                                 >
-                                    <option value="standard">Standard</option>
-                                    <option value="intelligent">Smart Split</option>
+                                    <option value="standard">{t('modes.standard')}</option>
+                                    <option value="intelligent">{t('modes.intelligent')}</option>
                                 </select>
                              </div>
                          </div>
@@ -214,7 +217,7 @@ export const TranslatorPage = () => {
                              <Loader2 className="animate-spin text-indigo-400 relative z-10" size={48} />
                          </div>
                          <div className="text-center">
-                             <p className="text-lg font-bold text-white mb-1">Translating...</p>
+                             <p className="text-lg font-bold text-white mb-1">{t('loading.message')}</p>
                              <p className="text-sm text-indigo-300 font-mono">{taskStatus}</p>
                          </div>
                      </div>

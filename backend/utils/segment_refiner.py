@@ -13,7 +13,10 @@ class SegmentRefiner:
     MAX_WORD_COUNT_CJK = 25      # CJK文本单行最大字数
     MAX_WORD_COUNT_ENGLISH = 18  # 英文文本单行最大单词数
     MIN_WORD_COUNT = 5           # 最小字数阈值（才考虑分割）
-    TIME_GAP_THRESHOLD = 0.5     # 时间间隔阈值（秒）
+    # 分割软阈值（到达此字数后开始寻找标点/连接词分割点）
+    SPLIT_SOFT_CJK = 18        # CJK: 从18字开始找分割点
+    SPLIT_SOFT_ENGLISH = 12    # EN: 从12词开始找分割点
+    SPLIT_SCAN_WINDOW = 8      # 向后最多扫描N个词寻找分割点
     
     # 前缀分割词（在这些词前面分割）
     PREFIX_SPLIT_WORDS = {
@@ -95,17 +98,38 @@ class SegmentRefiner:
                 ))
                 continue
             
-            # 使用 word 时间戳精确拆分超长 segment
+            # 使用 word 时间戳，在标点/连接词处智能拆分超长 segment
             current_words = []
             current_start = seg.words[0].start
-            
+            is_cjk_text = is_cjk
+            soft_limit = SegmentRefiner.SPLIT_SOFT_CJK if is_cjk_text else SegmentRefiner.SPLIT_SOFT_ENGLISH
+
             for i, word in enumerate(seg.words):
                 current_words.append(word)
                 current_text = "".join(w.word for w in current_words)
                 current_word_count = SegmentRefiner._count_words(current_text)
-                
-                # 达到上限时分割
+
+                # 还没到软阈值，继续积累
+                if current_word_count < soft_limit:
+                    continue
+
+                # 到达软阈值后，检查是否在合适的分割点
+                word_text = word.word.strip()
+                should_split = False
+
                 if current_word_count >= max_words:
+                    # 硬上限：必须分割
+                    should_split = True
+                elif word_text and word_text[-1] in SegmentRefiner.SUFFIX_SPLIT_WORDS:
+                    # 当前词以标点/语气词结尾 → 好的分割点
+                    should_split = True
+                elif i + 1 < len(seg.words):
+                    next_word = seg.words[i + 1].word.strip().lower()
+                    if next_word in SegmentRefiner.PREFIX_SPLIT_WORDS:
+                        # 下一个词是连接词 → 好的分割点
+                        should_split = True
+
+                if should_split:
                     refined.append(SubtitleSegment(
                         id="0",
                         start=current_start,
@@ -113,7 +137,6 @@ class SegmentRefiner:
                         text=current_text.strip()
                     ))
                     current_words = []
-                    # 下一个词的开始时间
                     if i + 1 < len(seg.words):
                         current_start = seg.words[i + 1].start
             
@@ -236,3 +259,25 @@ class SegmentRefiner:
         except Exception as e:
             logger.error(f"Smart merge failed: {e}", exc_info=True)
             return segments
+
+    @staticmethod
+    def optimize_timing(segments: List[SubtitleSegment], threshold_s: float = 1.0) -> List[SubtitleSegment]:
+        """
+        Smooth adjacent subtitle boundaries to reduce flicker.
+        If gap between consecutive segments < threshold, adjust boundary to 3/4 point.
+        (Reference: VideoCaptioner asr_data.py:472-499)
+        """
+        if len(segments) < 2:
+            return segments
+
+        for i in range(len(segments) - 1):
+            curr = segments[i]
+            nxt = segments[i + 1]
+            gap = nxt.start - curr.end
+
+            if 0 < gap < threshold_s:
+                mid = curr.end + gap * 0.75
+                curr.end = round(mid, 3)
+                nxt.start = round(mid, 3)
+
+        return segments

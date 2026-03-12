@@ -36,3 +36,15 @@ user_data/
 # User Specific
 /.claude/
 /ffmpeg/
+
+# Build Artifacts (PyInstaller)
+/build-backend/
+/dist-backend/
+*.spec
+
+# Large binaries / temp test files
+ffmpeg.zip
+cpu_generated*.txt
+generated*.txt
+original*.txt
+test_ffmpeg.py

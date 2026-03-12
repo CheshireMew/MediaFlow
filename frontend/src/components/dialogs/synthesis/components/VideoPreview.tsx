@@ -1,5 +1,6 @@
 // ── Video Preview + Overlays + Drag + Toolbar ──
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Play, X, ChevronDown, Settings2, Download, Scissors } from 'lucide-react';
 import type { SubtitleStyleState } from '../hooks/useSubtitleStyle';
 import type { WatermarkState } from '../hooks/useWatermark';
@@ -30,6 +31,7 @@ export const VideoPreview: React.FC<Props> = ({
     currentTime, onTimeUpdate,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const { t } = useTranslation('synthesis');
     const [dragging, setDragging] = useState<'wm' | 'sub' | null>(null);
     const [isTrimOpen, setIsTrimOpen] = useState(false);
 
@@ -101,7 +103,7 @@ export const VideoPreview: React.FC<Props> = ({
             <div className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-[#1a1a1a] shrink-0">
                 <div className="flex items-center gap-4">
                     <span className="text-slate-400 text-xs font-medium bg-white/5 px-2 py-1 rounded border border-white/5">
-                        Preview Mode
+                        {t('preview.previewMode')}
                     </span>
                 </div>
                 <div className="flex items-center gap-4">
@@ -112,9 +114,9 @@ export const VideoPreview: React.FC<Props> = ({
                             className="flex items-center gap-2 bg-black/20 hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-lg pl-3 pr-2 py-1.5 transition-all outline-none focus:ring-1 focus:ring-indigo-500/50 group"
                         >
                             <div className="flex flex-col items-start gap-0.5">
-                                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none">Quality</span>
+                                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none">{t('preview.quality')}</span>
                                 <span className="text-xs text-slate-200 font-medium leading-none group-hover:text-white transition-colors">
-                                    {quality === 'high' ? 'High Quality' : quality === 'balanced' ? 'Balanced' : 'Low Size'}
+                                    {quality === 'high' ? t('preview.qualityHigh') : quality === 'balanced' ? t('preview.qualityBalanced') : t('preview.qualitySmall')}
                                 </span>
                             </div>
                             <ChevronDown size={14} className={`text-slate-500 transition-transform duration-200 ${isQualityMenuOpen ? 'rotate-180' : ''}`} />
@@ -125,9 +127,9 @@ export const VideoPreview: React.FC<Props> = ({
                                 <div className="fixed inset-0 z-40" onClick={() => setIsQualityMenuOpen(false)} />
                                 <div className="absolute top-full mt-2 right-0 w-56 bg-[#161616] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 py-1 ring-1 ring-black/50 animate-in fade-in zoom-in-95 duration-100">
                                     {[
-                                        { id: 'high', label: 'High Quality', desc: 'CRF 17 (Visually Lossless)' },
-                                        { id: 'balanced', label: 'Balanced', desc: 'CRF 20 (Recommended)' },
-                                        { id: 'small', label: 'Small Size', desc: 'CRF 26 (Compressed)' }
+                                        { id: 'high', label: t('preview.qualityHigh'), desc: t('preview.qualityHighDesc') },
+                                        { id: 'balanced', label: t('preview.qualityBalanced'), desc: t('preview.qualityBalancedDesc') },
+                                        { id: 'small', label: t('preview.qualitySmall'), desc: t('preview.qualitySmallDesc') }
                                     ].map(opt => (
                                         <button
                                             key={opt.id}
@@ -163,7 +165,7 @@ export const VideoPreview: React.FC<Props> = ({
                     <button
                         onClick={() => setIsTrimOpen(!isTrimOpen)}
                         className={`p-1.5 rounded-lg transition-all ${isTrimOpen ? 'bg-indigo-500/20 text-indigo-400' : 'hover:bg-white/10 text-slate-400 hover:text-white'}`}
-                        title="Trim Video"
+                        title={t('preview.trimVideo')}
                     >
                         <Scissors size={18} />
                     </button>
@@ -172,7 +174,7 @@ export const VideoPreview: React.FC<Props> = ({
                     <button
                         onClick={() => crop.setIsEnabled(!crop.isEnabled)}
                         className={`p-1.5 rounded-lg transition-all ${crop.isEnabled ? 'bg-indigo-500/20 text-indigo-400' : 'hover:bg-white/10 text-slate-400 hover:text-white'}`}
-                        title="Crop Video"
+                        title={t('preview.cropVideo')}
                     >
                         <div className="relative">
                             <div className="absolute inset-0 border-2 border-current opacity-50 rounded-sm"></div>
@@ -193,7 +195,7 @@ export const VideoPreview: React.FC<Props> = ({
             {isTrimOpen && (
                 <div className="bg-[#1a1a1a] border-b border-white/5 px-6 py-3 flex items-center gap-6 animate-in slide-in-from-top-2 duration-200">
                     <div className="flex items-center gap-3 text-xs">
-                        <span className="text-slate-400 font-medium w-8">Start:</span>
+                        <span className="text-slate-400 font-medium w-8">{t('preview.trimStart')}</span>
                         <div className="flex items-center gap-1">
                             <input
                                 type="number"
@@ -204,12 +206,12 @@ export const VideoPreview: React.FC<Props> = ({
                                 onChange={(e) => setTrimStart(Number(e.target.value))}
                                 className="bg-black/20 border border-white/10 rounded px-2 py-1 w-16 text-slate-200 focus:border-indigo-500 outline-none"
                             />
-                            <span className="text-slate-500">s</span>
-                            <button 
+                            <span className="text-slate-500">{t('preview.seconds')}</span>
+                            <button
                                 onClick={() => setTrimStart(Number(currentTime.toFixed(1)))}
                                 className="ml-2 px-2 py-1 bg-white/5 hover:bg-white/10 rounded border border-white/5 text-slate-300 hover:text-white transition-colors"
                             >
-                                Set Current
+                                {t('preview.setCurrent')}
                             </button>
                         </div>
                     </div>
@@ -217,7 +219,7 @@ export const VideoPreview: React.FC<Props> = ({
                     <div className="h-4 w-[1px] bg-white/5" />
 
                     <div className="flex items-center gap-3 text-xs">
-                        <span className="text-slate-400 font-medium w-8">End:</span>
+                        <span className="text-slate-400 font-medium w-8">{t('preview.trimEnd')}</span>
                         <div className="flex items-center gap-1">
                             <input
                                 type="number"
@@ -228,12 +230,12 @@ export const VideoPreview: React.FC<Props> = ({
                                 onChange={(e) => setTrimEnd(Number(e.target.value))}
                                 className="bg-black/20 border border-white/10 rounded px-2 py-1 w-16 text-slate-200 focus:border-indigo-500 outline-none"
                             />
-                            <span className="text-slate-500">s</span>
-                            <button 
+                            <span className="text-slate-500">{t('preview.seconds')}</span>
+                            <button
                                 onClick={() => setTrimEnd(Number(currentTime.toFixed(1)))}
                                 className="ml-2 px-2 py-1 bg-white/5 hover:bg-white/10 rounded border border-white/5 text-slate-300 hover:text-white transition-colors"
                             >
-                                Set Current
+                                {t('preview.setCurrent')}
                             </button>
                         </div>
                     </div>
@@ -242,7 +244,7 @@ export const VideoPreview: React.FC<Props> = ({
                         onClick={() => { setTrimStart(0); setTrimEnd(0); }}
                         className="text-xs text-slate-500 hover:text-red-400 underline decoration-slate-700 hover:decoration-red-400/50 underline-offset-2 transition-colors"
                     >
-                        Reset
+                        {t('preview.reset')}
                     </button>
                 </div>
             )}
@@ -275,7 +277,7 @@ export const VideoPreview: React.FC<Props> = ({
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full w-full text-slate-600 bg-white/[0.02]">
                             <Play size={48} className="opacity-20 mb-4"/>
-                            <span className="text-sm font-medium">No Media Loaded</span>
+                            <span className="text-sm font-medium">{t('preview.noMediaLoaded')}</span>
                         </div>
                     )}
 
@@ -353,7 +355,7 @@ export const VideoPreview: React.FC<Props> = ({
                                         : '8px 16px',
                                 }}
                             >
-                                {currentSubtitle || "(Subtitle Position)"}
+                                {currentSubtitle || t('preview.subtitlePosition')}
                             </span>
                         )}
                     </div>
@@ -403,7 +405,7 @@ export const VideoPreview: React.FC<Props> = ({
                     className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all active:scale-95"
                 >
                     {isSynthesizing ? <Settings2 className="animate-spin" size={18}/> : <Download size={18}/>}
-                    <span>Start Render</span>
+                    <span>{t('preview.startRender')}</span>
                 </button>
             </div>
         </div>

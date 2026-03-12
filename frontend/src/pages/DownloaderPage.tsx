@@ -1,4 +1,5 @@
 import { Download } from "lucide-react";
+import { useTranslation } from 'react-i18next';
 import { TaskMonitor } from "../components/TaskMonitor";
 import { useDownloaderController } from "../hooks/useDownloaderController";
 import { DownloaderInput } from "../components/downloader/DownloaderInput";
@@ -6,6 +7,7 @@ import { VideoDownloadOptions } from "../components/downloader/VideoDownloadOpti
 import { PlaylistDialog } from "../components/downloader/PlaylistDialog";
 
 export function DownloaderPage() {
+  const { t } = useTranslation('downloader');
   const {
     // State
     url, loading, analyzing, error, playlistInfo, showPlaylistDialog, selectedItems, downloadSubs, resolution, codec,
@@ -34,8 +36,8 @@ export function DownloaderPage() {
           <Download className="w-6 h-6 text-indigo-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Video Downloader</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Download high-quality video & audio from supported platforms</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">{t('title')}</h1>
+          <p className="text-slate-400 text-sm mt-0.5">{t('subtitle')}</p>
         </div>
       </header>
 
@@ -47,7 +49,7 @@ export function DownloaderPage() {
                  <div className="flex items-center justify-center w-4 h-4 rounded-full bg-indigo-500/20">
                     <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
                  </div>
-                 New Task
+                 {t('taskPanel.title')}
               </h3>
            </div>
            
@@ -81,7 +83,7 @@ export function DownloaderPage() {
               )}
 
               <div className="mt-auto pt-6 border-t border-white/5">
-                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Supported Platforms</h3>
+                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t('supportedPlatforms')}</h3>
                  <div className="flex flex-wrap gap-2">
                     {['YouTube', 'Bilibili', 'Douyin', 'TikTok', 'Twitter', 'Instagram'].map(p => (
                       <span key={p} className="px-2.5 py-1 rounded-md bg-white/5 text-slate-400 text-xs border border-white/5">

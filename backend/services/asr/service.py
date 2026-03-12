@@ -8,13 +8,13 @@ from loguru import logger
 from backend.config import settings
 from backend.models.schemas import SubtitleSegment, TranscribeResponse, TaskResult, FileRef
 from backend.utils.audio_processor import AudioProcessor
-from backend.utils.subtitle_manager import SubtitleManager
+from backend.utils.subtitle_writer import SubtitleWriter
+from backend.utils.segment_refiner import SegmentRefiner
 from backend.core.adapters.faster_whisper import FasterWhisperAdapter, FasterWhisperConfig
 
 from .model_manager import ModelManager
 from .core_strategies import CoreStrategies
 from backend.utils.peaks_generator import generate_multi_resolution_peaks
-from .post_processor import PostProcessor
 
 class ASRService:
     def __init__(self):
@@ -96,13 +96,12 @@ class ASRService:
         if not use_cli:
             # 1. Load Model
             model = self.model_manager.load_model(model_name, device, progress_callback)
-            
+
             # 2. Analyze Audio
-            # Duration already calculated at start
             logger.info(f"Audio Duration: {duration:.2f}s")
-            
+
             # 3. Strategy Decision
-            if duration > 900: 
+            if duration > 900:
                 all_segments = self.core_strategies.transcribe_smart_split(
                     audio_path, duration, model, language, initial_prompt, progress_callback
                 )
@@ -110,15 +109,17 @@ class ASRService:
                 all_segments = self.core_strategies.transcribe_direct(
                     audio_path, duration, model, language, initial_prompt, progress_callback
                 )
-            
-            # 4. Final Processing
-            if progress_callback: progress_callback(95, "Finalizing segments...")
-            final_segments, _ = PostProcessor.merge_segments(all_segments)
 
-        # Apply Smart Merge (Fix V2 over-segmentation)
+            # 4. Sort and assign to final_segments
+            if progress_callback: progress_callback(95, "Finalizing segments...")
+            all_segments.sort(key=lambda x: x.start)
+            final_segments = all_segments
+
+        # Unified post-processing for both CLI and Python API paths
         logger.info("Applying smart segment merging...")
         if final_segments:
-            final_segments = SubtitleManager.merge_segments(final_segments)
+            final_segments = SegmentRefiner.merge_segments(final_segments)
+            final_segments = SegmentRefiner.optimize_timing(final_segments)
         else:
             final_segments = []
 
@@ -129,7 +130,7 @@ class ASRService:
         if progress_callback: progress_callback(100, "Completed")
         
         # 5. Save SRT file
-        srt_path = SubtitleManager.save_srt(final_segments, audio_path)
+        srt_path = SubtitleWriter.save_srt(final_segments, audio_path)
         logger.success(f"SRT file saved to: {srt_path}")
 
         if generate_peaks:

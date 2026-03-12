@@ -1,0 +1,36 @@
+{
+  "title": "AI翻訳",
+  "subtitle": "コンテキスト対応 • 用語集強制",
+  "glossary": { "button": "用語集", "tooltip": "用語集マネージャー" },
+  "buttons": {
+    "import": { "tooltip": "字幕をインポート", "label": "インポート" },
+    "proofread": { "tooltip": "AI文法・タイポ校正（翻訳なし）", "label": "校正" },
+    "translate": { "label": "翻訳" },
+    "export": { "tooltip": "SRTをディスクに保存", "label": "エクスポート" },
+    "editor": { "tooltip": "字幕エディタで開く", "label": "エディタ" }
+  },
+  "table": {
+    "sourceHeader": "ソース",
+    "targetLabel": "ターゲット",
+    "targetLangLabel": "ターゲット言語",
+    "modeLabel": "モード"
+  },
+  "languages": {
+    "Chinese": "中国語",
+    "English": "英語",
+    "Japanese": "日本語",
+    "Spanish": "スペイン語",
+    "French": "フランス語"
+  },
+  "modes": {
+    "standard": "標準",
+    "intelligent": "スマート分割"
+  },
+  "loading": { "message": "翻訳中..." },
+  "uploader": {
+    "dragText": "動画または字幕をドラッグ＆ドロップ",
+    "supportedFormats": ".srt, .mp4, .mp3, .wav 対応",
+    "readyStatus": "翻訳準備完了",
+    "replaceButton": "ファイルを置換"
+  }
+}

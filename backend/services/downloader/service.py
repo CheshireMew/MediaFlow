@@ -123,51 +123,55 @@ class DownloaderService:
         
         # 3. Execute Download
         logger.info(f"Starting download: {url}")
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if not info:
-                return TaskResult(success=False, error="Download failed: No info returned")
-            
-            downloaded_path = ydl.prepare_filename(info)
-            duration = info.get('duration', 0)
-            title = info.get('title', "Unknown Title")
-            
-            # Robustness: Check if file exists vs what yt-dlp predicted (e.g. .NA extension issue)
-            dpath = Path(downloaded_path)
-            if not dpath.exists():
-                logger.warning(f"File not found at expected path: {dpath}. Searching for alternatives...")
-                # Search in same dir for files with same name but different extension
-                candidates = list(dpath.parent.glob(f"{dpath.stem}.*"))
-                if candidates:
-                    # Prefer video/audio extensions
-                    candidates.sort(key=lambda p: p.suffix in ['.mp4', '.mkv', '.webm', '.m4a', '.mp3'], reverse=True)
-                    downloaded_path = str(candidates[0])
-                    logger.info(f"Found actual file at: {downloaded_path}")
-                else:
-                    return TaskResult(success=False, error=f"File not found: {dpath}")
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if not info:
+                    return TaskResult(success=False, error="Download failed: No info returned")
+                downloaded_path = ydl.prepare_filename(info)
+        except Exception as e:
+            logger.error(f"yt-dlp download failed: {e}")
+            return TaskResult(success=False, error=f"Download failed: {e}")
 
-            # 4. Post Processing
-            subtitle_path = self.post_processor.process_subtitles(Path(downloaded_path), download_subs)
-            
-            logger.success(f"Download complete: {downloaded_path}")
-            
-            files = [
-                FileRef(type="video", path=str(downloaded_path), label="source")
-            ]
-            if subtitle_path:
-                files.append(FileRef(type="subtitle", path=str(subtitle_path), label="downloaded"))
+        duration = info.get('duration', 0)
+        title = info.get('title', "Unknown Title")
 
-            return TaskResult(
-                success=True,
-                files=files,
-                meta={
-                    "id": task_id or str(uuid.uuid4()),
-                    "title": title,
-                    "duration": duration,
-                    "filename": Path(downloaded_path).name,
-                    "source_url": url
-                }
-            )
+        # Robustness: Check if file exists vs what yt-dlp predicted (e.g. .NA extension issue)
+        dpath = Path(downloaded_path)
+        if not dpath.exists():
+            logger.warning(f"File not found at expected path: {dpath}. Searching for alternatives...")
+            # Search in same dir for files with same name but different extension
+            candidates = list(dpath.parent.glob(f"{dpath.stem}.*"))
+            if candidates:
+                # Prefer video/audio extensions
+                candidates.sort(key=lambda p: p.suffix in ['.mp4', '.mkv', '.webm', '.m4a', '.mp3'], reverse=True)
+                downloaded_path = str(candidates[0])
+                logger.info(f"Found actual file at: {downloaded_path}")
+            else:
+                return TaskResult(success=False, error=f"File not found: {dpath}")
+
+        # 4. Post Processing
+        subtitle_path = self.post_processor.process_subtitles(Path(downloaded_path), download_subs)
+
+        logger.success(f"Download complete: {downloaded_path}")
+
+        files = [
+            FileRef(type="video", path=str(downloaded_path), label="source")
+        ]
+        if subtitle_path:
+            files.append(FileRef(type="subtitle", path=str(subtitle_path), label="downloaded"))
+
+        return TaskResult(
+            success=True,
+            files=files,
+            meta={
+                "id": task_id or str(uuid.uuid4()),
+                "title": title,
+                "duration": duration,
+                "filename": Path(downloaded_path).name,
+                "source_url": url
+            }
+        )
 
     def _handle_local_source(self, local_source: str, url: str, filename: Optional[str], playlist_title: Optional[str], task_id: Optional[str]) -> TaskResult:
         local_path = Path(local_source)

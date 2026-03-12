@@ -1,5 +1,6 @@
 // ── Watermark Settings Panel (Left sidebar section) ──
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Image as ImageIcon } from 'lucide-react';
 import type { WatermarkState } from '../hooks/useWatermark';
 
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export const WatermarkPanel: React.FC<Props> = ({ watermark }) => {
+    const { t } = useTranslation('synthesis');
     const {
         watermarkPreviewUrl,
         wmScale, wmOpacity,
@@ -19,14 +21,14 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark }) => {
     return (
         <div className="space-y-3">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                <ImageIcon size={12}/> Watermark
+                <ImageIcon size={12}/> {t('watermark.sectionTitle')}
             </h3>
             
             <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-4 hover:border-white/10 transition-colors">
                 <label className="flex flex-col items-center justify-center w-full h-16 border-2 border-dashed border-white/10 rounded-lg cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all group">
                     <div className="flex flex-col items-center justify-center pt-2 pb-3">
                         <p className="text-xs text-slate-400 group-hover:text-indigo-300">
-                            {watermarkPreviewUrl ? "Replace watermark" : "Upload image"}
+                            {watermarkPreviewUrl ? t('watermark.replaceWatermark') : t('watermark.uploadImage')}
                         </p>
                     </div>
                     <input 
@@ -41,12 +43,12 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark }) => {
                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                         <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
                             <span className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px]">✓</span>
-                            Active
+                            {t('watermark.active')}
                         </div>
                         
                         {/* Position Grid */}
                         <div className="space-y-2">
-                            <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Position Preset</label>
+                            <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('watermark.positionPreset')}</label>
                             <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-black/20 rounded-lg border border-white/5">
                                 {['TL', 'TC', 'TR', 'LC', 'C', 'RC', 'BL', 'BC', 'BR'].map(p => (
                                     <button 
@@ -66,7 +68,7 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark }) => {
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <div className="flex justify-between">
-                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Scale</label>
+                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('watermark.scale')}</label>
                                     <span className="text-[10px] font-mono text-indigo-400">{Math.round(wmScale * 100)}%</span>
                                 </div>
                                 <input 
@@ -78,7 +80,7 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark }) => {
                             </div>
                             <div className="space-y-1.5">
                                 <div className="flex justify-between">
-                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Opacity</label>
+                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('watermark.opacity')}</label>
                                     <span className="text-[10px] font-mono text-indigo-400">{Math.round(wmOpacity * 100)}%</span>
                                 </div>
                                 <input 

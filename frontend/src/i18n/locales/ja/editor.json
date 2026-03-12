@@ -1,0 +1,50 @@
+{
+  "header": {
+    "title": "エディタワークスペース",
+    "subtitle": "タイムライン & 字幕",
+    "openFileTooltip": "メディアファイルを開く (Ctrl+O)",
+    "openButton": "メディアを開く",
+    "autoScrollLabel": "自動スクロール",
+    "smartSplitTooltip": "無音で自動分割",
+    "smartSplitButton": "スマート分割",
+    "translateTooltip": "AI翻訳に送信",
+    "translateButton": "翻訳",
+    "synthesizeTooltip": "字幕付き動画をエクスポート",
+    "synthesizeButton": "合成",
+    "saveButton": "保存",
+    "saveAsTooltip": "名前を付けて保存..."
+  },
+  "detailEditor": {
+    "editingSelection": "選択項目を編集中",
+    "editingDefault": "デフォルトを編集中",
+    "placeholder": "字幕テキストを入力...",
+    "noSelection": "字幕が選択されていません"
+  },
+  "subtitleList": {
+    "mergeAdjacentError": "隣接するセグメントのみ結合できます",
+    "mergeTooltip": "選択した字幕を結合",
+    "mergeButton": "選択を結合",
+    "autoFixTooltip": "重なった字幕を自動修正",
+    "autoFixButton": "重複を自動修正",
+    "columnStart": "開始",
+    "columnText": "字幕テキスト",
+    "deleteTooltip": "セグメントを削除",
+    "emptySegmentLabel": "空のセグメント",
+    "emptyState": "字幕がありません",
+    "validationOverlap": "重複あり"
+  },
+  "findReplace": {
+    "title": "検索と置換",
+    "findPlaceholder": "検索...",
+    "previousTooltip": "前へ (Shift+Enter)",
+    "nextTooltip": "次へ (Enter)",
+    "replacePlaceholder": "置換...",
+    "matchCaseLabel": "大文字小文字を区別",
+    "replaceButton": "置換",
+    "replaceAllButton": "全て"
+  },
+  "synthesis": {
+    "confirmUnsavedMessage": "字幕の保存に失敗しました。合成は古いファイルを使用する可能性があります。続行しますか？",
+    "missingFilesError": "合成できません：動画または字幕ファイルがありません。"
+  }
+}

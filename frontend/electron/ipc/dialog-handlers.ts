@@ -87,15 +87,14 @@ export function registerDialogHandlers() {
           {
             name: "Media Files",
             extensions: [
-              "mp4",
-              "mkv",
-              "avi",
-              "mov",
-              "jpg",
-              "jpeg",
-              "png",
-              "webp",
+              "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "ts", "mts",
+              "mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "opus",
+              "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif",
             ],
+          },
+          {
+            name: "All Files",
+            extensions: ["*"],
           },
         ],
       });
@@ -135,7 +134,11 @@ export function registerDialogHandlers() {
       filters: [
         {
           name: "Subtitle Files",
-          extensions: ["srt", "vtt", "ass", "ssa", "txt"],
+          extensions: ["srt", "vtt", "ass", "ssa", "txt", "sub", "sbv", "lrc"],
+        },
+        {
+          name: "All Files",
+          extensions: ["*"],
         },
       ],
     });

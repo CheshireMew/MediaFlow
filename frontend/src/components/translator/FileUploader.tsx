@@ -1,5 +1,6 @@
 import { Upload, FileVideo, FileText } from 'lucide-react';
 import { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface FileUploaderProps {
     onFileSelect: (path: string) => void;
@@ -7,6 +8,7 @@ interface FileUploaderProps {
 }
 
 export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) => {
+    const { t } = useTranslation('translator');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleDrop = (e: React.DragEvent) => {
@@ -54,7 +56,7 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
                 type="file" 
                 ref={fileInputRef} 
                 className="hidden" 
-                accept=".srt,.vtt,.mp4,.mp3,.wav,.mkv" 
+                accept=".srt,.vtt,.ass,.ssa,.txt,.sub,.lrc,.mp4,.mkv,.avi,.mov,.webm,.mp3,.wav,.flac,.aac,.ogg,.m4a,.opus"
                 onChange={handleInput}
             />
             
@@ -70,14 +72,14 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
                     <div className="text-center z-10">
                         <p className="font-semibold text-white mb-1.5 truncate max-w-md">{currentFile.split(/[/\\]/).pop()}</p>
                         <div className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                            Ready to Translate
+                            {t('uploader.readyStatus')}
                         </div>
                     </div>
-                    <button 
+                    <button
                         onClick={(e) => { e.stopPropagation(); handleClick(); }}
                         className="px-4 py-2 text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-slate-300 hover:text-white transition-all z-10"
                     >
-                        Replace File
+                        {t('uploader.replaceButton')}
                     </button>
                 </>
             ) : (
@@ -86,8 +88,8 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
                         <Upload className="w-8 h-8 text-slate-500 group-hover:text-indigo-400 transition-colors duration-300" />
                     </div>
                     <div className="text-center z-10">
-                        <p className="text-slate-300 font-medium mb-1 group-hover:text-white transition-colors">Drag & drop Video or Subtitle</p>
-                        <p className="text-xs text-slate-500">Supports .srt, .mp4, .mp3, .wav</p>
+                        <p className="text-slate-300 font-medium mb-1 group-hover:text-white transition-colors">{t('uploader.dragText')}</p>
+                        <p className="text-xs text-slate-500">{t('uploader.supportedFormats')}</p>
                     </div>
                 </>
             )}

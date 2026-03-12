@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
 import { Trash2, Wand2 } from 'lucide-react';
 import { validateSegment, fixOverlaps } from '../../utils/validation';
@@ -44,9 +45,12 @@ interface SubtitleListProps {
     onSegmentDoubleClick: (id: string) => void;
     onContextMenu: (e: React.MouseEvent, id: string) => void;
     onAutoFix?: (newSegments: SubtitleSegment[]) => void;
+    searchTerm?: string;
+    matchCase?: boolean;
 }
 
 const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
+    const { t } = useTranslation('editor');
     const {
         segments,
         activeSegmentId,
@@ -57,7 +61,9 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
         onSegmentMerge,
         onSegmentDoubleClick,
         onContextMenu,
-        onAutoFix
+        onAutoFix,
+        searchTerm,
+        matchCase
     } = props;
 
     const [scrollTop, setScrollTop] = React.useState(0);
@@ -124,7 +130,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
             if (seg.start < prev.end - 0.05) { // 0.05s tolerance
                 issues.push({
                     type: "error",
-                    message: `Overlap with #${prev.id} (${(prev.end - seg.start).toFixed(2)}s)`,
+                    message: `${t('subtitleList.validationOverlap')} #${prev.id} (${(prev.end - seg.start).toFixed(2)}s)`,
                     code: "overlap"
                 });
             }
@@ -168,8 +174,28 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                 
                 {/* Text */}
                 <div className="flex-1 py-1 px-3 select-none min-w-0 flex items-center h-full">
-                    <div className={`text-sm truncate w-full ${!seg.text ? 'text-slate-600 italic' : isActive ? 'text-white font-medium' : 'text-slate-300'}`}>
-                        {seg.text || "Empty segment"}
+                    <div className={`text-sm w-full font-medium ${!seg.text ? 'text-slate-600 italic' : isActive ? 'text-white' : 'text-slate-300'} leading-relaxed`}>
+                        {!seg.text ? t('subtitleList.emptySegmentLabel') : (
+                            searchTerm ? (
+                                (() => {
+                                    try {
+                                        const flags = matchCase ? 'g' : 'gi';
+                                        const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                        const regex = new RegExp(`(${escapedTerm})`, flags);
+                                        const parts = seg.text.split(regex);
+                                        return parts.map((part, i) => 
+                                            regex.test(part) ? (
+                                                <mark key={i} className="bg-yellow-500/50 text-white rounded-sm px-0.5">{part}</mark>
+                                            ) : (
+                                                <span key={i}>{part}</span>
+                                            )
+                                        );
+                                    } catch (e) {
+                                        return seg.text;
+                                    }
+                                })()
+                            ) : seg.text
+                        )}
                     </div>
                 </div>
                 
@@ -178,7 +204,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                     <button 
                         onClick={(e) => { e.stopPropagation(); onSegmentDelete(idStr); }}
                         className="p-1 hover:bg-red-500/10 rounded-md text-slate-600 hover:text-red-400 transition-colors"
-                        title="Delete Segment"
+                        title={t('subtitleList.deleteTooltip')}
                     >
                         <Trash2 size={12} />
                     </button>
@@ -208,29 +234,29 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
              <div className="p-2 border-b border-white/5 flex gap-2 bg-[#1a1a1a] shrink-0 z-20">
                 <button 
                   disabled={selectedIds.length < 2 || !isContinuous}
-                  title={!isContinuous && selectedIds.length >= 2 ? "Can only merge adjacent segments" : "Merge selected subtitles"}
+                  title={!isContinuous && selectedIds.length >= 2 ? t('subtitleList.mergeAdjacentError') : t('subtitleList.mergeTooltip')}
                   onClick={handleMerge}
                   className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-300 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5"
                 >
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                    Merge Selected ({selectedIds.length})
+                    {t('subtitleList.mergeButton')} ({selectedIds.length})
                 </button>
                 
                 {onAutoFix && hasOverlaps && (
                     <button
                         onClick={handleAutoFix}
                         className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 animate-pulse"
-                        title="Auto-fix overlapping subtitles"
+                        title={t('subtitleList.autoFixTooltip')}
                     >
-                        <Wand2 size={12} /> Auto-fix Overlaps
+                        <Wand2 size={12} /> {t('subtitleList.autoFixButton')}
                     </button>
                 )}
              </div>
 
              {/* Header */}
              <div className="flex bg-[#161616] border-b border-white/5 text-[10px] uppercase tracking-wider text-slate-500 font-bold shadow-sm shrink-0 sticky top-0 z-10">
-                  <div className="w-14 text-center py-1.5 border-r border-white/5">Start</div>
-                  <div className="flex-1 py-1.5 px-3">Subtitle Text</div>
+                  <div className="w-14 text-center py-1.5 border-r border-white/5">{t('subtitleList.columnStart')}</div>
+                  <div className="flex-1 py-1.5 px-3">{t('subtitleList.columnText')}</div>
                   <div className="w-8 py-1.5"></div>
              </div>
 
@@ -241,7 +267,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
                             <span className="text-2xl opacity-20">T</span>
                          </div>
-                        <p>No subtitles</p>
+                        <p>{t('subtitleList.emptyState')}</p>
                     </div>
                 ) : (
                     <div className="w-full h-full relative">

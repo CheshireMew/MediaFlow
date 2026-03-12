@@ -9,7 +9,7 @@ interface EditorShortcutsProps {
   deleteSegments: (ids: string[]) => void;
   splitSegment: (currentTime: number) => void;
   onSave?: () => void; // Ctrl+S
-  onToggleFindReplace?: () => void; // Ctrl+F
+  onToggleFindReplace?: (mode: "find" | "replace") => void; // Ctrl+F, Ctrl+H
 }
 
 export function useEditorShortcuts({
@@ -37,10 +37,16 @@ export function useEditorShortcuts({
           onSave();
           return;
         }
-        // Ctrl+F: Toggle Find & Replace
+        // Ctrl+F: Toggle Find & Replace in Find Mode
         if (e.key === "f" && onToggleFindReplace) {
           e.preventDefault();
-          onToggleFindReplace();
+          onToggleFindReplace("find");
+          return;
+        }
+        // Ctrl+H: Toggle Find & Replace in Replace Mode
+        if (e.key === "h" && onToggleFindReplace) {
+          e.preventDefault();
+          onToggleFindReplace("replace");
           return;
         }
         if (e.code === "KeyZ") {

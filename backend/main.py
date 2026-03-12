@@ -101,8 +101,8 @@ app.add_middleware(
     allow_origins=[
         "http://127.0.0.1:5173",   # Vite Dev Server
         "http://localhost:5173",
-        "http://127.0.0.1:8000",   # FastAPI (self)
-        "http://localhost:8000",
+        f"http://127.0.0.1:{settings.PORT}",   # FastAPI (self)
+        f"http://localhost:{settings.PORT}",
         "file://",                  # Electron Production
         "app://.",                  # Electron custom protocol
     ],

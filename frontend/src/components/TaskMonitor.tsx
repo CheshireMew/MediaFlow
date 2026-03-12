@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTaskContext } from '../context/TaskContext';
 import { CheckCircle, AlertCircle, Loader, Clock, Pause, Play, Trash2, FolderOpen, ChevronDown, ChevronUp, Activity, Download, FileAudio, Languages, Video } from 'lucide-react';
 import { TaskTraceView } from './TaskTraceView';
@@ -6,6 +7,7 @@ import { TaskTraceView } from './TaskTraceView';
 
 
 export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes }) => {
+    const { t } = useTranslation('taskmonitor');
     const { tasks, cancelTask, connected } = useTaskContext();
     const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
@@ -60,16 +62,16 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
         );
 
         if (type === 'download' || isDownloadPipeline) {
-             return { icon: <Download size={16} />, label: 'Download', color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' };
+             return { icon: <Download size={16} />, label: t('taskTypes.download'), color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' };
         }
-        
+
         switch (type) {
-            case 'transcribe': return { icon: <FileAudio size={16} />, label: 'Transcribe', color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20' };
-            case 'translate': return { icon: <Languages size={16} />, label: 'Translate', color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20' };
+            case 'transcribe': return { icon: <FileAudio size={16} />, label: t('taskTypes.transcribe'), color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20' };
+            case 'translate': return { icon: <Languages size={16} />, label: t('taskTypes.translate'), color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20' };
             case 'pipeline':
-            case 'synthesize': 
-            case 'synthesis': return { icon: <Video size={16} />, label: 'Synthesize', color: 'text-pink-400', bg: 'bg-pink-400/10', border: 'border-pink-400/20' };
-            default: return { icon: <Activity size={16} />, label: 'Task', color: 'text-slate-400', bg: 'bg-slate-400/10', border: 'border-slate-400/20' };
+            case 'synthesize':
+            case 'synthesis': return { icon: <Video size={16} />, label: t('taskTypes.synthesize'), color: 'text-pink-400', bg: 'bg-pink-400/10', border: 'border-pink-400/20' };
+            default: return { icon: <Activity size={16} />, label: t('taskTypes.generic'), color: 'text-slate-400', bg: 'bg-slate-400/10', border: 'border-slate-400/20' };
         }
     };
 
@@ -81,7 +83,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                  {/* Re-implementing Header for context match, but simplified since I use ReplaceFileContent with strict blocks */}
                  <h3 className="text-base font-semibold text-white flex items-center gap-2">
                     <Activity className="w-4 h-4 text-indigo-400" />
-                    Task Monitor
+                    {t('title')}
                 </h3>
                 {/* ... existing header controls ... */}
                  <div className="flex items-center gap-4">
@@ -90,24 +92,24 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                           <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${connected ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
                           <span className={`relative inline-flex rounded-full h-2 w-2 ${connected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
                         </span>
-                        {connected ? 'Connected' : 'Disconnected'}
+                        {connected ? t('status.connected') : t('status.disconnected')}
                     </span>
                     
                     <div className="flex gap-2">
                         {/* Pause All */}
                         <button 
                             onClick={() => {
-                                if (confirm('Pause all running tasks?')) {
+                                if (confirm(t('buttons.pauseAll.tooltip'))) {
                                     import('../api/client').then(({ apiClient }) => {
                                         apiClient.cancelAllTasks().catch(err => console.error(err));
                                     });
                                 }
                             }}
                             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-[10px] transition-all hover:text-white"
-                            title="Pause all active tasks"
+                            title={t('buttons.pauseAll.tooltip')}
                         >
                             <Pause size={12} />
-                            Pause All
+                            {t('buttons.pauseAll.label')}
                         </button>
 
                         {/* Clear All */}

@@ -4,6 +4,13 @@ import type { SubtitleSegment } from "../../types/task";
 import { apiClient } from "../../api/client";
 import { useEditorStore } from "../../stores/editorStore";
 
+/** Convert a local file path to a file:// URL, encoding all special characters including # */
+function pathToFileURL(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, "/");
+  // encodeURI does not encode #, but # is the fragment delimiter in URLs
+  return `file:///${encodeURI(normalized).replace(/#/g, "%23")}`;
+}
+
 export function useEditorIO(setPeaks: (peaks: any) => void) {
   // Access Store
   const mediaUrl = useEditorStore((state) => state.mediaUrl);
@@ -89,8 +96,7 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
     async (path: string) => {
       if (!path || typeof path !== "string") return;
 
-      const normalizedPath = path.replace(/\\/g, "/");
-      const url = `file:///${encodeURI(normalizedPath)}`;
+      const url = pathToFileURL(path);
 
       setPeaks(null);
       setCurrentFilePath(path); // Update Store
@@ -116,7 +122,7 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
       if (videoPath) {
         // Found matching video → switch to it
         const normalizedPath = videoPath.replace(/\\/g, "/");
-        setMediaUrl(`file:///${encodeURI(normalizedPath)}`);
+        setMediaUrl(pathToFileURL(videoPath));
         setCurrentFilePath(videoPath);
         setPeaks(null);
         await tryLoadPeaks(videoPath);
@@ -199,7 +205,7 @@ export function useEditorIO(setPeaks: (peaks: any) => void) {
           if (isValidTarget && data.video_path) {
             // Load it
             const normalizedPath = data.video_path.replace(/\\/g, "/");
-            setMediaUrl(`file:///${normalizedPath}`);
+            setMediaUrl(pathToFileURL(data.video_path));
             setCurrentFilePath(data.video_path);
 
             // Load peaks

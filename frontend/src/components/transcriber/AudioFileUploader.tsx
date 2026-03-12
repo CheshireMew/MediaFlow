@@ -1,5 +1,6 @@
 import React from "react";
 import { Upload, FileAudio } from "lucide-react";
+import { useTranslation } from 'react-i18next';
 
 interface AudioFileUploaderProps {
   file: File | null;
@@ -9,6 +10,7 @@ interface AudioFileUploaderProps {
 }
 
 export function AudioFileUploader({ file, onFileSelect, onFileDrop, className = "" }: AudioFileUploaderProps) {
+  const { t } = useTranslation('transcriber');
   return (
     <div 
       onClick={onFileSelect}
@@ -41,7 +43,7 @@ export function AudioFileUploader({ file, onFileSelect, onFileDrop, className = 
             onClick={(e) => { e.stopPropagation(); onFileSelect(); }}
             className="px-4 py-2 text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-slate-300 hover:text-white transition-all z-10"
           >
-            Replace File
+            {t('uploader.replaceButton')}
           </button>
         </>
       ) : (
@@ -50,8 +52,8 @@ export function AudioFileUploader({ file, onFileSelect, onFileDrop, className = 
              <Upload className="w-8 h-8 text-slate-500 group-hover:text-purple-400 transition-colors duration-300" />
           </div>
           <div className="text-center z-10">
-            <p className="text-slate-300 font-medium mb-1 group-hover:text-white transition-colors">Drag & drop audio/video</p>
-            <p className="text-xs text-slate-500">Supports MP3, WAV, MP4, MKV</p>
+            <p className="text-slate-300 font-medium mb-1 group-hover:text-white transition-colors">{t('uploader.dragText')}</p>
+            <p className="text-xs text-slate-500">{t('uploader.supportedFormats')}</p>
           </div>
         </>
       )}

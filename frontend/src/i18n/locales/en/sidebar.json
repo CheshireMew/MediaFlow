@@ -1,0 +1,9 @@
+{
+  "monitor": "Monitor",
+  "editor": "Editor",
+  "preprocess": "Preprocess",
+  "download": "Download",
+  "transcribe": "Transcribe",
+  "translate": "Translate",
+  "settings": "Settings"
+}

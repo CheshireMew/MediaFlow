@@ -1,0 +1,30 @@
+{
+  "title": "タスクモニター",
+  "status": { "connected": "接続済み", "disconnected": "切断" },
+  "buttons": {
+    "pauseAll": { "tooltip": "すべてのタスクを一時停止", "label": "全て一時停止" },
+    "clearAll": { "tooltip": "すべてのタスクを削除", "label": "全てクリア" }
+  },
+  "confirm": {
+    "deleteAllTasks": "すべてのタスクを削除しますか？元に戻せません。",
+    "deleteTask": "このタスクを削除しますか？"
+  },
+  "emptyState": { "message": "アクティブなタスクはありません" },
+  "actions": {
+    "pause": { "tooltip": "タスクを一時停止" },
+    "resume": { "tooltip": "タスクを再開" },
+    "delete": { "tooltip": "タスクを削除" },
+    "showFolder": { "tooltip": "フォルダーに表示" }
+  },
+  "taskTypes": {
+    "transcribe": "文字起こし",
+    "translate": "翻訳",
+    "synthesize": "合成",
+    "download": "ダウンロード",
+    "generic": "タスク"
+  },
+  "messages": {
+    "initializing": "初期化中...",
+    "downloading": "ダウンロード中"
+  }
+}

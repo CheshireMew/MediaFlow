@@ -1,6 +1,7 @@
 
 import { Clapperboard, Save, Wand2, Download, FolderOpen, Languages } from "lucide-react";
 import React from "react";
+import { useTranslation } from 'react-i18next';
 
 interface EditorHeaderProps {
     autoScroll: boolean;
@@ -23,6 +24,7 @@ export function EditorHeader({
     onSynthesize,
     onTranslate
 }: EditorHeaderProps) {
+    const { t } = useTranslation('editor');
     return (
         <header 
             className="flex-none pt-6 pb-6 pl-6 pr-32 flex items-center justify-between select-none relative z-50 transition-all"
@@ -38,8 +40,8 @@ export function EditorHeader({
                         <Clapperboard className="w-6 h-6 text-indigo-400" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-white tracking-tight leading-none">Editor Workspace</h1>
-                        <p className="text-slate-400 text-sm font-medium tracking-wide mt-1">Timeline & Subtitles</p>
+                        <h1 className="text-2xl font-bold text-white tracking-tight leading-none">{t('header.title')}</h1>
+                        <p className="text-slate-400 text-sm font-medium tracking-wide mt-1">{t('header.subtitle')}</p>
                     </div>
                 </div>
                 
@@ -48,10 +50,10 @@ export function EditorHeader({
                 <button 
                   onClick={onOpenFile} 
                   className="flex items-center gap-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-500/30 text-indigo-300 px-4 py-2 rounded-lg text-xs font-medium transition-all shadow-sm active:scale-95 group"
-                  title="Open Media File (Ctrl+O)"
+                  title={t('header.openFileTooltip')}
                 >
                     <FolderOpen size={16} className="group-hover:text-indigo-200 transition-colors" />
-                    <span>Open Media</span>
+                    <span>{t('header.openButton')}</span>
                 </button>
             </div>
 
@@ -65,35 +67,35 @@ export function EditorHeader({
                         onChange={(e) => setAutoScroll(e.target.checked)}
                         className="w-4 h-4 rounded border-white/10 bg-white/5 text-indigo-500 focus:ring-1 focus:ring-indigo-500/50 cursor-pointer"
                     />
-                    <label htmlFor="autoScroll" className="text-xs text-slate-400 select-none cursor-pointer font-medium hover:text-slate-200 transition-colors whitespace-nowrap">Auto-Scroll</label>
+                    <label htmlFor="autoScroll" className="text-xs text-slate-400 select-none cursor-pointer font-medium hover:text-slate-200 transition-colors whitespace-nowrap">{t('header.autoScrollLabel')}</label>
                  </div>
                  
                  <div className="flex items-center gap-2">
                      <button 
                         onClick={onSmartSplit}
                         className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-indigo-300 px-4 py-2 rounded-lg text-xs font-medium transition-all shadow-sm active:scale-95 group"
-                        title="Auto-split by Silence"
+                        title={t('header.smartSplitTooltip')}
                      >
-                         <Wand2 size={16} className="group-hover:text-indigo-200 transition-colors" /> 
-                         <span className="hidden xl:inline">Smart Split</span>
+                         <Wand2 size={16} className="group-hover:text-indigo-200 transition-colors" />
+                         <span className="hidden xl:inline">{t('header.smartSplitButton')}</span>
                      </button>
 
                      <button 
                         onClick={onTranslate}
                         className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-purple-300 px-4 py-2 rounded-lg text-xs font-medium transition-all shadow-sm active:scale-95 group"
-                        title="Send to AI Translator"
+                        title={t('header.translateTooltip')}
                      >
-                         <Languages size={16} className="group-hover:text-purple-200 transition-colors" /> 
-                         <span className="hidden xl:inline">Translate</span>
+                         <Languages size={16} className="group-hover:text-purple-200 transition-colors" />
+                         <span className="hidden xl:inline">{t('header.translateButton')}</span>
                      </button>
 
                      <button 
                         onClick={onSynthesize}
                         className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-emerald-300 px-4 py-2 rounded-lg text-xs font-medium transition-all shadow-sm active:scale-95 group"
-                        title="Export Video with Subtitles"
+                        title={t('header.synthesizeTooltip')}
                      >
-                         <Download size={16} className="group-hover:text-emerald-200 transition-colors" /> 
-                         <span>Synthesize</span>
+                         <Download size={16} className="group-hover:text-emerald-200 transition-colors" />
+                         <span>{t('header.synthesizeButton')}</span>
                      </button>
                  </div>
 
@@ -103,12 +105,12 @@ export function EditorHeader({
                      onClick={onSave}
                      className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-l-lg text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 active:scale-95 ml-1"
                  >
-                     <Save size={16} /> Save
+                     <Save size={16} /> {t('header.saveButton')}
                  </button>
                  <button 
                      onClick={onSaveAs}
                      className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-r-lg border-l border-indigo-700 text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 active:scale-95"
-                     title="Save As..."
+                     title={t('header.saveAsTooltip')}
                  >
                     <FolderOpen size={14} />
                  </button>

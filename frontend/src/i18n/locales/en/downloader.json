@@ -1,0 +1,36 @@
+{
+  "title": "Video Downloader",
+  "subtitle": "Download high-quality video & audio from supported platforms",
+  "taskPanel": { "title": "New Task" },
+  "supportedPlatforms": "Supported Platforms",
+  "input": {
+    "placeholder": "Paste video URL here (e.g. YouTube, Bilibili...)",
+    "pasteTooltip": "Paste from clipboard"
+  },
+  "options": {
+    "quality": "Quality",
+    "mp4": "MP4",
+    "bestQuality": "Best Quality (Default)",
+    "4k": "4K Ultra HD",
+    "2k": "2K QHD",
+    "1080p": "1080p Full HD",
+    "720p": "720p HD",
+    "480p": "480p SD",
+    "audioOnly": "Audio Only (m4a/mp3)",
+    "subtitles": "Subtitles",
+    "includeCaptions": "Include Captions",
+    "codecCompatible": "Compatible (H.264)",
+    "codecEfficient": "Efficient (Best/AV1)",
+    "analyzingStream": "Analyzing Stream...",
+    "downloadingMedia": "Downloading Media...",
+    "downloadMedia": "Download Media"
+  },
+  "playlist": {
+    "detected": "Playlist Detected",
+    "containsVideos": "contains {{count}} videos.",
+    "selectAll": "Select All",
+    "clearSelection": "Clear Selection",
+    "downloadThisOnly": "Download This Video Only",
+    "downloadSelected": "Download Selected"
+  }
+}

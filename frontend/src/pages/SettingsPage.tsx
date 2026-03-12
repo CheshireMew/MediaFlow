@@ -1,8 +1,11 @@
 
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "i18next";
 import { apiClient } from "../api/client";
 import type { LLMProvider, UserSettings } from "../types/api";
-import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay, Globe } from "lucide-react";
+import { SUPPORTED_LANGUAGES } from "../i18n";
 
 interface Notification {
     message: string;
@@ -10,6 +13,8 @@ interface Notification {
 }
 
 const SettingsPage: React.FC = () => {
+    const { t } = useTranslation('settings');
+    const { t: tc } = useTranslation('common');
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [openModal, setOpenModal] = useState(false);
     const [notification, setNotification] = useState<Notification | null>(null);
@@ -36,7 +41,7 @@ const SettingsPage: React.FC = () => {
             setSettings(data);
         } catch (error) {
             console.error("Failed to load settings:", error);
-            showNotification("Failed to load settings", "error");
+            showNotification(t("loadFailed"), "error");
         }
     };
 
@@ -65,24 +70,24 @@ const SettingsPage: React.FC = () => {
             const res = await apiClient.updateSettings({ ...settings, llm_providers: newProviders });
             setSettings(res);
             setOpenModal(false);
-            showNotification("Provider saved");
+            showNotification(t("llm.providerSaved"));
         } catch (error) {
-            showNotification("Failed to save", "error");
+            showNotification(t("llm.saveFailed"), "error");
             console.error(error);
         }
     };
 
     const handleDelete = async (id: string) => {
         if (!settings) return;
-        if (!confirm("Are you sure?")) return;
+        if (!confirm(t("llm.confirmDelete"))) return;
         
         const newProviders = settings.llm_providers.filter(p => p.id !== id);
         try {
             const res = await apiClient.updateSettings({ ...settings, llm_providers: newProviders });
             setSettings(res);
-            showNotification("Deleted");
+            showNotification(t("llm.providerDeleted"));
         } catch (error) {
-            showNotification("Failed to delete", "error");
+            showNotification(t("llm.deleteFailed"), "error");
         }
     };
     
@@ -90,9 +95,9 @@ const SettingsPage: React.FC = () => {
         try {
             await apiClient.setActiveProvider(id);
             await fetchSettings(); // Reload to see update
-            showNotification("Active provider updated");
+            showNotification(t("llm.activeUpdated"));
         } catch (error) {
-            showNotification("Failed to set active", "error");
+            showNotification(t("llm.activeFailed"), "error");
         }
     };
 
@@ -115,9 +120,9 @@ const SettingsPage: React.FC = () => {
                 <div>
                     <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
                         <Settings className="text-indigo-500" size={28} />
-                        Settings
+                        {t("title")}
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1 ml-10">Manage application configuration and integrations</p>
+                    <p className="text-slate-500 text-sm mt-1 ml-10">{t("description")}</p>
                 </div>
                 
                 {activeTab === 'llm' && (
@@ -126,7 +131,7 @@ const SettingsPage: React.FC = () => {
                         className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
                     >
                         <Plus size={18} /> 
-                        <span>Add Provider</span>
+                        <span>{t("addProvider")}</span>
                     </button>
                 )}
             </div>
@@ -142,7 +147,7 @@ const SettingsPage: React.FC = () => {
                             : 'border-transparent text-slate-400 hover:text-white hover:bg-white/[0.01]'}`}
                     >
                         <Cpu size={18} className={activeTab === 'llm' ? 'text-indigo-400' : ''} />
-                        LLM Providers
+                        {t("tabs.llm")}
                     </button>
                     <button 
                         onClick={() => setActiveTab('general')}
@@ -151,7 +156,7 @@ const SettingsPage: React.FC = () => {
                             : 'border-transparent text-slate-400 hover:text-white hover:bg-white/[0.01]'}`}
                     >
                         <HardDrive size={18} className={activeTab === 'general' ? 'text-indigo-400' : ''} />
-                        General & Storage
+                        {t("tabs.general")}
                     </button>
                 </div>
                 
@@ -160,11 +165,11 @@ const SettingsPage: React.FC = () => {
                     {activeTab === 'llm' ? (
                         <div className="w-full">
                             <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-[#1a1a1a] border-b border-white/5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                <div className="col-span-2">Status</div>
-                                <div className="col-span-3">Name</div>
-                                <div className="col-span-3">Model</div>
-                                <div className="col-span-3">Base URL</div>
-                                <div className="col-span-1 text-right">Actions</div>
+                                <div className="col-span-2">{t("llm.status")}</div>
+                                <div className="col-span-3">{t("llm.name")}</div>
+                                <div className="col-span-3">{t("llm.model")}</div>
+                                <div className="col-span-3">{t("llm.baseUrl")}</div>
+                                <div className="col-span-1 text-right">{t("llm.actions")}</div>
                             </div>
                             
                             <div className="divide-y divide-white/5">
@@ -173,14 +178,14 @@ const SettingsPage: React.FC = () => {
                                         <div className="col-span-2">
                                             {provider.is_active ? (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                                                    <CheckCircle size={12} /> Active
+                                                    <CheckCircle size={12} /> {tc("active")}
                                                 </span>
                                             ) : (
                                                 <button 
                                                     onClick={() => handleSetActive(provider.id)}
                                                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10 hover:text-white hover:border-white/20 transition-all"
                                                 >
-                                                    Set Active
+                                                    {tc("setActive")}
                                                 </button>
                                             )}
                                         </div>
@@ -213,25 +218,57 @@ const SettingsPage: React.FC = () => {
                                 {(!settings?.llm_providers || settings.llm_providers.length === 0) && (
                                     <div className="flex flex-col items-center justify-center py-20 text-slate-500">
                                         <Shield size={48} className="opacity-20 mb-4" />
-                                        <p className="text-sm">No providers configured</p>
+                                        <p className="text-sm">{t("llm.noProviders")}</p>
                                     </div>
                                 )}
                             </div>
                         </div>
                     ) : (
                         <div className="p-8">
-                            <h3 className="text-lg font-medium text-slate-200 mb-6">General Settings</h3>
-                            
+                            <h3 className="text-lg font-medium text-slate-200 mb-6">{t("general.title")}</h3>
+
                             <div className="space-y-6 max-w-2xl">
+                                {/* Language Selector */}
+                                <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors">
+                                    <div className="space-y-1">
+                                        <h4 className="text-base font-medium text-white flex items-center gap-2">
+                                            <Globe size={18} className="text-indigo-400" />
+                                            {t("general.language")}
+                                        </h4>
+                                        <p className="text-sm text-slate-500">
+                                            {t("general.languageDesc")}
+                                        </p>
+                                    </div>
+                                    <select
+                                        value={settings?.language || 'zh'}
+                                        onChange={async (e) => {
+                                            if (!settings) return;
+                                            const lang = e.target.value;
+                                            try {
+                                                const res = await apiClient.updateSettings({ ...settings, language: lang });
+                                                setSettings(res);
+                                                i18n.changeLanguage(lang);
+                                            } catch {
+                                                showNotification(t("general.updateFailed"), "error");
+                                            }
+                                        }}
+                                        className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
+                                    >
+                                        {SUPPORTED_LANGUAGES.map(lang => (
+                                            <option key={lang.code} value={lang.code}>{lang.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 {/* Auto-Execute Flow Toggle */}
                                 <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors">
                                     <div className="space-y-1">
                                         <h4 className="text-base font-medium text-white flex items-center gap-2">
                                             <MonitorPlay size={18} className="text-indigo-400" />
-                                            Auto-Execute Flow
+                                            {t("general.autoExecute")}
                                         </h4>
                                         <p className="text-sm text-slate-500">
-                                            Automatically trigger subsequent steps after a task completes (Download → Transcribe → Translate → Synthesize).
+                                            {t("general.autoExecuteDesc")}
                                         </p>
                                     </div>
                                     <button 
@@ -241,9 +278,9 @@ const SettingsPage: React.FC = () => {
                                             try {
                                                 const res = await apiClient.updateSettings({ ...settings, auto_execute_flow: newVal });
                                                 setSettings(res);
-                                                showNotification(newVal ? "Auto-Execute Enabled" : "Auto-Execute Disabled");
+                                                showNotification(newVal ? t("general.autoExecuteEnabled") : t("general.autoExecuteDisabled"));
                                             } catch (e) {
-                                                showNotification("Failed to update settings", "error");
+                                                showNotification(t("general.updateFailed"), "error");
                                             }
                                         }}
                                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-[#1a1a1a] ${
@@ -267,7 +304,7 @@ const SettingsPage: React.FC = () => {
                     <div className="bg-[#1a1a1a] rounded-2xl border border-white/10 shadow-2xl w-full max-w-md overflow-hidden ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
                         <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                             <h3 className="text-lg font-bold text-white">
-                                {editingProvider ? "Edit Provider" : "Add Provider"}
+                                {editingProvider ? t("llm.editProvider") : t("addProvider")}
                             </h3>
                             <button onClick={() => setOpenModal(false)} className="text-slate-500 hover:text-white transition-colors">
                                 <X size={20} />
@@ -276,7 +313,7 @@ const SettingsPage: React.FC = () => {
                         
                         <div className="p-6 space-y-4">
                             <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Display Name</label>
+                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.displayName")}</label>
                                 <input 
                                     className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all placeholder-slate-600"
                                     value={formData.name}
@@ -286,7 +323,7 @@ const SettingsPage: React.FC = () => {
                             </div>
                             
                             <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Base URL</label>
+                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.baseUrl")}</label>
                                 <input 
                                     className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-600"
                                     value={formData.base_url}
@@ -296,7 +333,7 @@ const SettingsPage: React.FC = () => {
                             </div>
                             
                             <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">API Key</label>
+                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.apiKey")}</label>
                                 <input 
                                     className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-600"
                                     type="password"
@@ -307,7 +344,7 @@ const SettingsPage: React.FC = () => {
                             </div>
                             
                             <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Model Name</label>
+                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.modelName")}</label>
                                 <input 
                                     className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-600"
                                     value={formData.model}
@@ -322,13 +359,13 @@ const SettingsPage: React.FC = () => {
                                 onClick={() => setOpenModal(false)}
                                 className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
                             >
-                                Cancel
+                                {tc("cancel")}
                             </button>
                             <button 
                                 onClick={handleSaveProvider}
                                 className="px-6 py-2 rounded-lg text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
                             >
-                                Save Changes
+                                {t("llm.saveChanges")}
                             </button>
                         </div>
                     </div>

@@ -1,0 +1,15 @@
+{
+  "title": "Dashboard",
+  "subtitle": "System overview and active tasks",
+  "stats": {
+    "systemStatus": "System Status",
+    "backendConnection": "Backend Connection",
+    "online": "Online",
+    "computeResources": "Compute Resources",
+    "autoScaling": "Auto-Scaling"
+  },
+  "placeholder": {
+    "metrics": "Additional Metrics (Coming Soon)",
+    "storage": "Storage Stats (Coming Soon)"
+  }
+}

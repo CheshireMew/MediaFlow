@@ -1,0 +1,36 @@
+{
+  "title": "動画ダウンローダー",
+  "subtitle": "対応プラットフォームから高品質な動画・音声をダウンロード",
+  "taskPanel": { "title": "新しいタスク" },
+  "supportedPlatforms": "対応プラットフォーム",
+  "input": {
+    "placeholder": "動画のURLを貼り付け（例：YouTube、Bilibili...）",
+    "pasteTooltip": "クリップボードから貼り付け"
+  },
+  "options": {
+    "quality": "画質",
+    "mp4": "MP4",
+    "bestQuality": "最高画質（デフォルト）",
+    "4k": "4K ウルトラHD",
+    "2k": "2K QHD",
+    "1080p": "1080p フルHD",
+    "720p": "720p HD",
+    "480p": "480p SD",
+    "audioOnly": "音声のみ (m4a/mp3)",
+    "subtitles": "字幕",
+    "includeCaptions": "字幕を含める",
+    "codecCompatible": "互換性 (H.264)",
+    "codecEfficient": "効率的 (Best/AV1)",
+    "analyzingStream": "分析中...",
+    "downloadingMedia": "ダウンロード中...",
+    "downloadMedia": "メディアをダウンロード"
+  },
+  "playlist": {
+    "detected": "プレイリストを検出",
+    "containsVideos": "{{count}} 本の動画が含まれています。",
+    "selectAll": "すべて選択",
+    "clearSelection": "選択をクリア",
+    "downloadThisOnly": "この動画のみダウンロード",
+    "downloadSelected": "選択をダウンロード"
+  }
+}

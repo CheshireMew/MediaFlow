@@ -1,3 +1,4 @@
+/// <reference path="./types/electron.d.ts" />
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
@@ -12,6 +13,7 @@ import 'lxgw-wenkai-webfont/lxgwwenkai-bold.css'
 import './index.css'
 import App from './App.tsx'
 import { initializeApi, apiClient } from './api/client';
+import { initI18n } from './i18n';
 
 const LoadingScreen = () => (
   <div style={{
@@ -84,6 +86,14 @@ const initApp = async () => {
   };
 
   await pollConfig();
+
+  // Initialize i18n with user's saved language preference
+  try {
+    const settings = await apiClient.getSettings();
+    await initI18n(settings?.language || 'zh');
+  } catch {
+    await initI18n('zh');
+  }
 
   root.render(
     <StrictMode>

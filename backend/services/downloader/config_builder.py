@@ -1,10 +1,15 @@
 from pathlib import Path
 from typing import Optional, Dict, Any
+import re
 from backend.config import settings
 from .progress import ProgressHook
 from backend.services.cookie_manager import CookieManager
 from urllib.parse import urlparse
 from loguru import logger
+
+def _sanitize_filename(name: str) -> str:
+    """Remove characters that are invalid in Windows/Linux filenames, keep Unicode."""
+    return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', name).strip() or "download"
 
 class YtDlpConfigBuilder:
     def __init__(self, output_dir: Path):
@@ -93,18 +98,15 @@ class YtDlpConfigBuilder:
 
     def _get_output_template(self, playlist_title: Optional[str], filename: Optional[str]) -> str:
         if playlist_title:
-             # Sanitize playlist title
-            safe_playlist_title = "".join([c for c in playlist_title if c.isalpha() or c.isdigit() or c in ' -_[]']).rstrip()
+            safe_playlist_title = _sanitize_filename(playlist_title)
             target_dir = self.output_dir / safe_playlist_title
             target_dir.mkdir(parents=True, exist_ok=True)
             if filename:
-                 safe_name = "".join([c for c in filename if c.isalpha() or c.isdigit() or c in ' -_[]().']).rstrip()
-                 return str(target_dir / f"{safe_name}.%(ext)s")
+                return str(target_dir / f"{_sanitize_filename(filename)}.%(ext)s")
             else:
-                 return str(target_dir / "%(title)s [%(id)s].%(ext)s")
+                return str(target_dir / "%(title)s [%(id)s].%(ext)s")
         else:
             if filename:
-                 safe_name = "".join([c for c in filename if c.isalpha() or c.isdigit() or c in ' -_[]().']).rstrip()
-                 return str(self.output_dir / f"{safe_name}.%(ext)s")
+                return str(self.output_dir / f"{_sanitize_filename(filename)}.%(ext)s")
             else:
                 return str(self.output_dir / "%(title)s [%(id)s].%(ext)s")

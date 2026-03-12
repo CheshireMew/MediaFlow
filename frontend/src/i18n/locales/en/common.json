@@ -1,0 +1,14 @@
+{
+  "save": "Save",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "delete": "Delete",
+  "edit": "Edit",
+  "add": "Add",
+  "close": "Close",
+  "loading": "Loading...",
+  "success": "Success",
+  "failed": "Failed",
+  "active": "Active",
+  "setActive": "Set Active"
+}

@@ -327,6 +327,18 @@ class VideoSynthesizer:
         preset = options.get('preset', 'medium')
         use_gpu = options.get('use_gpu', True)
         
+        # Universal compatibility flags for all encoders
+        universal_flags = {
+            'pix_fmt': 'yuv420p',
+            'profile:v': 'high',
+            'color_primaries': 'bt709',
+            'color_trc': 'bt709',
+            'colorspace': 'bt709',
+            'r': '30',              # Force 30fps to avoid bizarre framerate rounding
+            'brand': 'mp42',        # Or 'isom' for compatibility
+            'movflags': 'faststart+write_colr' # write_colr helps Safari/iOS
+        }
+        
         nvenc_ok = use_gpu and MediaProber.detect_nvenc()
         
         if nvenc_ok:
@@ -334,7 +346,7 @@ class VideoSynthesizer:
                 'slow': 'p6', 'medium': 'p4', 'fast': 'p2',
                 'veryslow': 'p7', 'ultrafast': 'p1',
             }
-            return {
+            kwargs = {
                 'vcodec': 'h264_nvenc',
                 'acodec': 'aac',
                 'rc': 'vbr',
@@ -342,8 +354,10 @@ class VideoSynthesizer:
                 'b:v': '0',
                 'preset': nvenc_preset_map.get(preset, 'p4'),
                 'tune': 'hq',
-                'movflags': 'faststart',
+                **universal_flags
             }
+            logger.info(f"Using GPU (h264_nvenc): crf={crf}, preset={preset}")
+            return kwargs
         else:
             x264_params = []
             if crf <= 28:
@@ -364,7 +378,7 @@ class VideoSynthesizer:
                 'acodec': 'aac',
                 'crf': crf,
                 'preset': preset,
-                'movflags': 'faststart',
+                **universal_flags
             }
             if x264_params:
                 output_kwargs['x264-params'] = ":".join(x264_params)
@@ -396,9 +410,13 @@ class VideoSynthesizer:
             last_report = 0.0
             current_pct = 0
             current_speed = ""
+            error_log = []
             
             for line in process.stdout:
                 line = line.strip()
+                if not line:
+                    continue
+                
                 if line.startswith("out_time_us=") and duration > 0:
                     try:
                          us = int(line.split("=", 1)[1])
@@ -421,10 +439,16 @@ class VideoSynthesizer:
                 
                 elif line == "progress=end":
                     break
+                elif not line.startswith(("frame=", "fps=", "stream_0", "bitrate=", "total_size=", "out_time=", "dup_frames=", "drop_frames=")):
+                    # Keep last 20 lines of actual logs
+                    error_log.append(line)
+                    if len(error_log) > 20:
+                        error_log.pop(0)
             
             process.wait()
             if process.returncode != 0:
-                raise RuntimeError(f"FFmpeg failed with code {process.returncode}")
+                err_msg = "\n".join(error_log)
+                raise RuntimeError(f"FFmpeg failed with code {process.returncode}:\n{err_msg}")
 
         except Exception as e:
             logger.error(f"FFmpeg execution failed: {e}")

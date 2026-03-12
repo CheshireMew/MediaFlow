@@ -1,0 +1,15 @@
+{
+  "title": "仪表盘",
+  "subtitle": "系统概览和活动任务",
+  "stats": {
+    "systemStatus": "系统状态",
+    "backendConnection": "后端连接",
+    "online": "在线",
+    "computeResources": "计算资源",
+    "autoScaling": "自动缩放"
+  },
+  "placeholder": {
+    "metrics": "更多指标（即将推出）",
+    "storage": "存储统计（即将推出）"
+  }
+}

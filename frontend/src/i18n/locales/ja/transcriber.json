@@ -1,0 +1,36 @@
+{
+  "title": "音声文字起こし",
+  "subtitle": "Faster-Whisper • VAD分割 • ローカル処理",
+  "taskPanel": { "title": "新しいタスク" },
+  "progressCard": {
+    "systemReady": "システム準備完了",
+    "waitingMessage": "開始を待っています...",
+    "processingMessage": "処理中..."
+  },
+  "uploader": {
+    "replaceButton": "ファイルを置換",
+    "dragText": "音声/動画をドラッグ＆ドロップ",
+    "supportedFormats": "MP3、WAV、MP4、MKV対応"
+  },
+  "config": {
+    "title": "設定",
+    "modelSizeLabel": "モデルサイズ",
+    "models": {
+      "tiny": "Tiny（最速）",
+      "base": "Base（バランス）",
+      "small": "Small（良好）",
+      "medium": "Medium（高品質）",
+      "largev1": "Large-v1",
+      "largev2": "Large-v2",
+      "largev3": "Large-v3（最高品質）",
+      "largev3turbo": "Large-v3-Turbo（新）"
+    },
+    "deviceLabel": "計算デバイス",
+    "devices": {
+      "cpu": "CPU (Int8)",
+      "cuda": "GPU (CUDA/Float16)"
+    },
+    "startButton": "文字起こし開始",
+    "processingButton": "処理中..."
+  }
+}

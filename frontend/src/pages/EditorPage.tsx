@@ -1,5 +1,6 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useTranslation } from 'react-i18next';
 import { WaveformPlayer } from "../components/editor/WaveformPlayer";
 import { SubtitleList } from "../components/editor/SubtitleList";
 import { FindReplaceDialog } from "../components/dialogs/FindReplaceDialog";
@@ -19,12 +20,15 @@ import { useContextMenuBuilder } from "../hooks/editor/useContextMenuBuilder";
 import { useEditorStore } from "../stores/editorStore";
 
 export function EditorPage() {
+  const { t } = useTranslation('editor');
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // ── UI State ────────────────────────────────────────────────
   const [autoScroll, setAutoScroll] = useState(true);
   const [peaks, setPeaks] = useState<any>(null);
-  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [showFindReplace, setShowFindReplace] = useState<{ isOpen: boolean; mode: 'find' | 'replace' }>({ isOpen: false, mode: 'find' });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [matchCase, setMatchCase] = useState(false);
   const [showSynthesis, setShowSynthesis] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
       position: { x: number; y: number };
@@ -59,12 +63,12 @@ export function EditorPage() {
 
   // ── Action Hooks ────────────────────────────────────────────
   const { handleSave, handleTranslate, handleSmartSplit } = useEditorActions({
-      currentFilePath, regions, saveSubtitleFile,
+      currentFilePath, regions: regions as any, saveSubtitleFile,
       detectSilence, setRegions, videoRef,
   });
 
   const { handleContextMenu } = useContextMenuBuilder({
-      regions, selectedIds, currentFilePath, videoRef,
+      regions: regions as any, selectedIds, currentFilePath, videoRef,
       selectSegment, addSegment, addSegments, updateSegments,
       mergeSegments, splitSegment, deleteSegments, setContextMenu,
   });
@@ -74,7 +78,7 @@ export function EditorPage() {
       videoRef, selectedIds, activeSegmentId,
       undo, redo, deleteSegments, splitSegment,
       onSave: handleSave,
-      onToggleFindReplace: () => setShowFindReplace(prev => !prev),
+      onToggleFindReplace: (mode: 'find' | 'replace') => setShowFindReplace(prev => ({ isOpen: !prev.isOpen, mode: !prev.isOpen ? mode : prev.mode })),
   });
 
   // ── Persistence & Safety ────────────────────────────────────
@@ -122,7 +126,7 @@ export function EditorPage() {
   const handleVideoDrop = useCallback(async (e: React.DragEvent) => {
       e.preventDefault(); e.stopPropagation();
       const file = e.dataTransfer.files[0];
-      if (file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.name.endsWith('.mkv'))) {
+      if (file) {
           let path = (file as any).path;
           if (!path && window.electronAPI?.getPathForFile) path = window.electronAPI.getPathForFile(file);
           if (path) await loadVideo(path);
@@ -132,7 +136,8 @@ export function EditorPage() {
   const handleSubtitleDrop = useCallback(async (e: React.DragEvent) => {
       e.preventDefault(); e.stopPropagation();
       const file = e.dataTransfer.files[0];
-      if (file && (file.name.endsWith('.srt') || file.name.endsWith('.vtt') || file.name.endsWith('.ass'))) {
+      const name = file?.name?.toLowerCase() ?? '';
+      if (file && (name.endsWith('.srt') || name.endsWith('.vtt') || name.endsWith('.ass') || name.endsWith('.ssa') || name.endsWith('.sub') || name.endsWith('.txt') || name.endsWith('.lrc'))) {
           let path = (file as any).path;
           if (!path && window.electronAPI?.getPathForFile) path = window.electronAPI.getPathForFile(file);
           if (path) await loadSubtitleFromPath(path);
@@ -194,6 +199,8 @@ export function EditorPage() {
                         }}
                         onContextMenu={handleContextMenu}
                         onAutoFix={(newSegments) => setRegions(newSegments)}
+                        searchTerm={searchTerm}
+                        matchCase={matchCase}
                      />
                  </div>
 
@@ -204,7 +211,7 @@ export function EditorPage() {
                              <div className="flex items-center gap-2">
                                 <span className={`w-1.5 h-1.5 rounded-full ${activeSegmentId ? 'bg-indigo-500 animate-pulse' : 'bg-slate-500'}`} />
                                 <span className="font-bold text-slate-400 tracking-wider uppercase opacity-80">
-                                   {activeSegmentId ? "Editing Selection" : "Editing Default"}
+                                   {activeSegmentId ? t('detailEditor.editingSelection') : t('detailEditor.editingDefault')}
                                 </span>
                              </div>
                              <span className="font-mono text-indigo-400/80 bg-indigo-500/5 px-1 py-0 rounded border border-indigo-500/10 text-[9px]">
@@ -215,12 +222,12 @@ export function EditorPage() {
                             value={displaySegment.text}
                             onChange={(e) => handleDetailUpdate('text', e.target.value)}
                             className="flex-1 w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm resize-none focus:outline-none focus:border-indigo-500/50 focus:bg-black/40 transition-all font-medium leading-normal text-slate-200 placeholder-slate-600/50"
-                            placeholder="Type subtitle text here..."
+                            placeholder={t('detailEditor.placeholder')}
                          />
                     </div>
                  ) : (
                     <div className="h-28 bg-[#1a1a1a] p-2 flex flex-col items-center justify-center border-t border-white/5 z-20 text-slate-700/50 text-xs italic pointer-events-none select-none">
-                        No subtitle selected
+                        {t('detailEditor.noSelection')}
                     </div>
                  )}
              </div>
@@ -263,11 +270,17 @@ export function EditorPage() {
         />
 
         <FindReplaceDialog
-            isOpen={showFindReplace}
-            onClose={() => setShowFindReplace(false)}
+            isOpen={showFindReplace.isOpen}
+            initialMode={showFindReplace.mode}
+            onClose={() => setShowFindReplace({ ...showFindReplace, isOpen: false })}
             regions={regions}
             onSelectSegment={(id) => selectSegment(id, false, false)}
             onUpdateSegment={(id, text) => updateRegion(id, { text })}
+            onUpdateSegments={updateSegments}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            matchCase={matchCase}
+            setMatchCase={setMatchCase}
         />
 
         <SynthesisDialog
@@ -285,7 +298,7 @@ export function EditorPage() {
                 }
 
                 if (!srtPath) {
-                    if(!confirm("Failed to save subtitles. Synthesis might use an outdated file. Continue?")) return;
+                    if(!confirm(t('synthesis.confirmUnsavedMessage'))) return;
                     // Fallback to guessing if save failed but user wants to proceed
                     if (currentFilePath) {
                         srtPath = currentFilePath.replace(/\.[^.]+$/, '.srt');
@@ -293,7 +306,7 @@ export function EditorPage() {
                 }
                 
                 if (!srtPath || !currentFilePath) {
-                    alert("Cannot synthesize: Missing video or subtitle file.");
+                    alert(t('synthesis.missingFilesError'));
                     return;
                 }
 

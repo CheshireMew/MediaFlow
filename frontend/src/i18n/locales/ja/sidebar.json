@@ -1,0 +1,9 @@
+{
+  "monitor": "モニター",
+  "editor": "エディタ",
+  "preprocess": "前処理",
+  "download": "ダウンロード",
+  "transcribe": "文字起こし",
+  "translate": "翻訳",
+  "settings": "設定"
+}

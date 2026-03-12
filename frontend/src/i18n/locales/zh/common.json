@@ -1,0 +1,14 @@
+{
+  "save": "保存",
+  "cancel": "取消",
+  "confirm": "确认",
+  "delete": "删除",
+  "edit": "编辑",
+  "add": "添加",
+  "close": "关闭",
+  "loading": "加载中...",
+  "success": "成功",
+  "failed": "失败",
+  "active": "已激活",
+  "setActive": "设为激活"
+}

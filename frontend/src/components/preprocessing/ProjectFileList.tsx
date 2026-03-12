@@ -1,4 +1,5 @@
 import { Film, Image as ImageIcon, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ──────────────────────────────────────────────────────
 interface PreprocessingFile {
@@ -27,15 +28,16 @@ function formatBytes(bytes: number, decimals = 1): string {
 
 // ─── Component ──────────────────────────────────────────────────
 export function ProjectFileList({ files, selectedPath, onSelect, onRemove }: ProjectFileListProps) {
+    const { t } = useTranslation('preprocessing');
     return (
         <div className="w-64 bg-[#141414] border-r border-white/5 flex flex-col">
             <div className="p-4 border-b border-white/5 pb-2">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Project Files</h3>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t('projectFiles.title')}</h3>
             </div>
             <div className="flex-1 p-2 space-y-2 overflow-y-auto">
                 {files.length === 0 ? (
                     <div className="p-4 text-center text-xs text-slate-600 italic">
-                        No files imported
+                        {t('projectFiles.emptyState')}
                     </div>
                 ) : (
                     files.map((file) => (
@@ -75,7 +77,7 @@ export function ProjectFileList({ files, selectedPath, onSelect, onRemove }: Pro
                                     onRemove(file.path);
                                 }}
                                 className="self-center p-1 rounded-md opacity-0 group-hover/file:opacity-100 hover:bg-rose-500/20 text-slate-600 hover:text-rose-400 transition-all"
-                                title="Remove from list"
+                                title={t('projectFiles.removeTooltip')}
                             >
                                 <X size={14} />
                             </button>

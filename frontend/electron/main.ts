@@ -1,6 +1,46 @@
 /// <reference types="node" />
 import { app, BrowserWindow, Menu, shell } from "electron";
 import path from "path";
+import fs from "fs";
+import { spawn, ChildProcess } from "child_process";
+
+let backendProcess: ChildProcess | null = null;
+
+function startBackend() {
+  const isDev = process.env.IS_DEV === "true";
+  
+  // Only spawn the bundled backend in production
+  if (!isDev && app.isPackaged) {
+    // In production, extraResources are placed in process.resourcesPath
+    const backendExe = path.join(process.resourcesPath, "backend", "mediaflow-backend.exe");
+    
+    if (fs.existsSync(backendExe)) {
+      console.log("Starting bundled backend:", backendExe);
+      backendProcess = spawn(backendExe, [], {
+        cwd: path.dirname(backendExe),
+        detached: false,
+      });
+
+      backendProcess.stdout?.on('data', (data) => console.log(`[Backend] ${data}`));
+      backendProcess.stderr?.on('data', (data) => console.error(`[Backend ERR] ${data}`));
+      backendProcess.on('close', (code) => console.log(`[Backend] exited with code ${code}`));
+    } else {
+      console.error("Bundled backend not found at:", backendExe);
+    }
+  }
+}
+
+function killBackend() {
+  if (backendProcess && backendProcess.pid) {
+    try {
+      console.log(`Killing backend process ${backendProcess.pid}`);
+      process.kill(backendProcess.pid, 'SIGTERM');
+    } catch(e) {
+      console.error("Failed to kill backend:", e);
+    }
+    backendProcess = null;
+  }
+}
 
 // ─── IPC Handler Registration ───────────────────────────────────
 // Each module exports a register function that sets up its IPC handlers.
@@ -59,7 +99,7 @@ function createWindow() {
         {
           label: "Open API Docs",
           click: async () => {
-            await shell.openExternal("http://localhost:8000/docs");
+            await shell.openExternal("http://localhost:8800/docs");
           },
         },
       ],
@@ -70,7 +110,14 @@ function createWindow() {
 }
 
 // ─── App Lifecycle ──────────────────────────────────────────────
-app.on("ready", createWindow);
+app.on("ready", () => {
+  startBackend();
+  createWindow();
+});
+
+app.on("before-quit", () => {
+  killBackend();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

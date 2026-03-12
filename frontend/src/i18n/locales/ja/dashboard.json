@@ -1,0 +1,15 @@
+{
+  "title": "ダッシュボード",
+  "subtitle": "システム概要とアクティブなタスク",
+  "stats": {
+    "systemStatus": "システム状態",
+    "backendConnection": "バックエンド接続",
+    "online": "オンライン",
+    "computeResources": "コンピューティングリソース",
+    "autoScaling": "オートスケーリング"
+  },
+  "placeholder": {
+    "metrics": "追加メトリクス（近日公開）",
+    "storage": "ストレージ統計（近日公開）"
+  }
+}

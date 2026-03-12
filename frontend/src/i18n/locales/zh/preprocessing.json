@@ -1,0 +1,30 @@
+{
+  "title": "预处理实验室",
+  "importButton": "导入媒体",
+  "canvas": {
+    "noVideoMessage": "[ 未选择视频 ]",
+    "dragHelpText": "拖放文件到此处或点击「导入媒体」"
+  },
+  "roi": { "label": "ROI" },
+  "subtitleBar": { "noSubtitle": "当前位置无字幕" },
+  "tabs": {
+    "enhance": "画质",
+    "clean": "清除",
+    "extract": "OCR"
+  },
+  "button": {
+    "processingLabel": "处理中...",
+    "noMediaText": "请先导入媒体",
+    "noROIText": "请框选清除区域",
+    "enhanceText": "开始增强",
+    "cleanText": "开始清除",
+    "ocrROIText": "OCR 提取（区域）",
+    "ocrFullText": "OCR 提取（全屏）",
+    "defaultText": "开始处理"
+  },
+  "projectFiles": {
+    "title": "项目文件",
+    "emptyState": "未导入文件",
+    "removeTooltip": "从列表移除"
+  }
+}

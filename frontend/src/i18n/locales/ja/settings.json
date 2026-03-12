@@ -1,0 +1,40 @@
+{
+  "title": "設定",
+  "description": "アプリケーションの設定と統合を管理",
+  "addProvider": "プロバイダー追加",
+  "tabs": {
+    "llm": "LLM プロバイダー",
+    "general": "一般設定"
+  },
+  "llm": {
+    "status": "ステータス",
+    "name": "名前",
+    "model": "モデル",
+    "baseUrl": "ベース URL",
+    "actions": "操作",
+    "noProviders": "プロバイダーが設定されていません",
+    "editProvider": "プロバイダー編集",
+    "displayName": "表示名",
+    "apiKey": "API キー",
+    "modelName": "モデル名",
+    "saveChanges": "変更を保存",
+    "providerSaved": "プロバイダーを保存しました",
+    "providerDeleted": "削除しました",
+    "activeUpdated": "アクティブプロバイダーを更新しました",
+    "confirmDelete": "本当に削除しますか？",
+    "saveFailed": "保存に失敗しました",
+    "deleteFailed": "削除に失敗しました",
+    "activeFailed": "切り替えに失敗しました"
+  },
+  "general": {
+    "title": "一般設定",
+    "language": "表示言語",
+    "languageDesc": "アプリケーションの表示言語を変更します",
+    "autoExecute": "自動実行フロー",
+    "autoExecuteDesc": "タスク完了後に次のステップを自動的に実行します（ダウンロード → 文字起こし → 翻訳 → 合成）",
+    "autoExecuteEnabled": "自動実行が有効になりました",
+    "autoExecuteDisabled": "自動実行が無効になりました",
+    "updateFailed": "設定の更新に失敗しました"
+  },
+  "loadFailed": "設定の読み込みに失敗しました"
+}

@@ -1,0 +1,50 @@
+{
+  "header": {
+    "title": "Editor Workspace",
+    "subtitle": "Timeline & Subtitles",
+    "openFileTooltip": "Open Media File (Ctrl+O)",
+    "openButton": "Open Media",
+    "autoScrollLabel": "Auto-Scroll",
+    "smartSplitTooltip": "Auto-split by Silence",
+    "smartSplitButton": "Smart Split",
+    "translateTooltip": "Send to AI Translator",
+    "translateButton": "Translate",
+    "synthesizeTooltip": "Export Video with Subtitles",
+    "synthesizeButton": "Synthesize",
+    "saveButton": "Save",
+    "saveAsTooltip": "Save As..."
+  },
+  "detailEditor": {
+    "editingSelection": "Editing Selection",
+    "editingDefault": "Editing Default",
+    "placeholder": "Type subtitle text here...",
+    "noSelection": "No subtitle selected"
+  },
+  "subtitleList": {
+    "mergeAdjacentError": "Can only merge adjacent segments",
+    "mergeTooltip": "Merge selected subtitles",
+    "mergeButton": "Merge Selected",
+    "autoFixTooltip": "Auto-fix overlapping subtitles",
+    "autoFixButton": "Auto-fix Overlaps",
+    "columnStart": "Start",
+    "columnText": "Subtitle Text",
+    "deleteTooltip": "Delete Segment",
+    "emptySegmentLabel": "Empty segment",
+    "emptyState": "No subtitles",
+    "validationOverlap": "Overlap with"
+  },
+  "findReplace": {
+    "title": "Find & Replace",
+    "findPlaceholder": "Find...",
+    "previousTooltip": "Previous (Shift+Enter)",
+    "nextTooltip": "Next (Enter)",
+    "replacePlaceholder": "Replace with...",
+    "matchCaseLabel": "Match Case",
+    "replaceButton": "Replace",
+    "replaceAllButton": "All"
+  },
+  "synthesis": {
+    "confirmUnsavedMessage": "Failed to save subtitles. Synthesis might use an outdated file. Continue?",
+    "missingFilesError": "Cannot synthesize: Missing video or subtitle file."
+  }
+}

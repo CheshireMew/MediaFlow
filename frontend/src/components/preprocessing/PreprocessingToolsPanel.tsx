@@ -1,4 +1,5 @@
 import { MonitorPlay, Eraser, ScanText, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { usePreprocessingStore } from '../../stores/preprocessingStore';
 import { EnhanceTab } from './tools/EnhanceTab';
 import { CleanTab } from './tools/CleanTab';
@@ -20,6 +21,7 @@ export const PreprocessingToolsPanel = ({
     ocrResults,
     onStartProcessing,
 }: PreprocessingToolsPanelProps) => {
+    const { t } = useTranslation('preprocessing');
     const { preprocessingActiveTool, setPreprocessingActiveTool } = usePreprocessingStore();
     const activeTool = preprocessingActiveTool;
     const setActiveTool = setPreprocessingActiveTool;
@@ -29,9 +31,9 @@ export const PreprocessingToolsPanel = ({
             {/* Tool Tabs */}
             <div className="flex p-1 gap-1 border-b border-white/5">
                 {[
-                    { id: 'enhance', icon: MonitorPlay, label: 'Quality' },
-                    { id: 'clean', icon: Eraser, label: 'Cleanup' },
-                    { id: 'extract', icon: ScanText, label: 'OCR' },
+                    { id: 'enhance', icon: MonitorPlay, label: t('tabs.enhance') },
+                    { id: 'clean', icon: Eraser, label: t('tabs.clean') },
+                    { id: 'extract', icon: ScanText, label: t('tabs.extract') },
                 ].map(tab => (
                     <button
                         key={tab.id}
@@ -74,13 +76,13 @@ export const PreprocessingToolsPanel = ({
                         </>
                     )}
                     <span>
-                        {isProcessing ? 'Processing...' : (() => {
-                            if (!videoPath) return 'Import Media to Start';
-                            if (activeTool === 'clean' && !roi) return 'Draw Area to Clean';
-                            if (activeTool === 'enhance') return 'Start Enhancement';
-                            if (activeTool === 'clean') return 'Start Cleanup';
-                            if (activeTool === 'extract') return roi ? 'Run OCR Extraction (ROI)' : 'Run OCR Extraction (Full)';
-                            return 'Start Processing';
+                        {isProcessing ? t('button.processingLabel') : (() => {
+                            if (!videoPath) return t('button.noMediaText');
+                            if (activeTool === 'clean' && !roi) return t('button.noROIText');
+                            if (activeTool === 'enhance') return t('button.enhanceText');
+                            if (activeTool === 'clean') return t('button.cleanText');
+                            if (activeTool === 'extract') return roi ? t('button.ocrROIText') : t('button.ocrFullText');
+                            return t('button.defaultText');
                         })()}
                     </span>
                 </button>

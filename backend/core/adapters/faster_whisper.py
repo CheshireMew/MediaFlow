@@ -19,13 +19,17 @@ class FasterWhisperConfig(BaseModel):
     audio_path: Path
     output_dir: Path
     model_name: str = "base"
-    model_dir: Path 
+    model_dir: Path
     language: Optional[str] = "auto"
     initial_prompt: Optional[str] = None
     vad_filter: bool = True
     max_line_width: int = Field(default=50, ge=10, le=200)
     max_line_count: int = 1
-    device: str = "cpu" # 'cuda' or 'cpu'
+    device: str = "cpu"
+    # Sentence segmentation (faster-whisper-xxl)
+    sentence: bool = True
+    max_comma: int = 20
+    max_comma_cent: int = 50
 
     @validator("audio_path")
     def validate_audio_exists(cls, v):
@@ -71,6 +75,11 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
             "--max_line_count", str(config.max_line_count),
             "--device", config.device
         ]
+
+        if config.sentence:
+            cmd.extend(["--sentence"])
+            cmd.extend(["--max_comma", str(config.max_comma)])
+            cmd.extend(["--max_comma_cent", str(config.max_comma_cent)])
 
         if config.language and config.language != "auto":
             cmd.extend(["--language", config.language])

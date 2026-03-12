@@ -1,4 +1,4 @@
-export interface ElectronAPI {
+interface ElectronAPI {
   sendMessage: (message: any) => void;
   openFile: (
     defaultPath?: string,
@@ -21,8 +21,6 @@ export interface ElectronAPI {
   close: () => void;
 }
 
-declare global {
-  interface Window {
-    electronAPI: ElectronAPI;
-  }
+interface Window {
+  electronAPI: ElectronAPI;
 }

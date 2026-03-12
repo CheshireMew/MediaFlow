@@ -1,0 +1,30 @@
+{
+  "title": "任务监控",
+  "status": { "connected": "已连接", "disconnected": "已断开" },
+  "buttons": {
+    "pauseAll": { "tooltip": "暂停所有活动任务", "label": "全部暂停" },
+    "clearAll": { "tooltip": "删除所有任务", "label": "全部清除" }
+  },
+  "confirm": {
+    "deleteAllTasks": "删除所有任务？此操作不可撤销。",
+    "deleteTask": "确定要删除此任务吗？"
+  },
+  "emptyState": { "message": "暂无活动任务" },
+  "actions": {
+    "pause": { "tooltip": "暂停任务" },
+    "resume": { "tooltip": "恢复任务" },
+    "delete": { "tooltip": "删除任务" },
+    "showFolder": { "tooltip": "在文件夹中显示" }
+  },
+  "taskTypes": {
+    "transcribe": "转录",
+    "translate": "翻译",
+    "synthesize": "合成",
+    "download": "下载",
+    "generic": "任务"
+  },
+  "messages": {
+    "initializing": "初始化中...",
+    "downloading": "下载中"
+  }
+}

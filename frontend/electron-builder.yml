@@ -9,15 +9,86 @@ files:
       - package.json
       - dist-electron/**/*
       - dist/**/*
+
 extraResources:
+  # ── bin/ ──────────────────────────────────────────────────
+  # Contains: ffmpeg, ffprobe, realesrgan-ncnn-vulkan, realcugan,
+  #           python_env (sidecar for BasicVSR/PyTorch .pth models)
   - from: ../bin
     to: bin
     filter:
       - "**/*"
+
+      # ── Exclude demo / sample files from realesrgan ──
+      - "!realesrgan/*.mp4"
+      - "!realesrgan/*.jpg"
+      - "!realesrgan/*.png"
+      - "!realesrgan/README*.md"
+
+      # ── Exclude dev-only scripts from python_env ──
+      - "!python_env/Scripts/__pycache__/**"
+      - "!python_env/Scripts/pip*.exe"
+      - "!python_env/Scripts/wheel.exe"
+      - "!python_env/Scripts/yapf*.exe"
+      - "!python_env/Scripts/tensorboard.exe"
+      - "!python_env/Scripts/torchrun.exe"
+      - "!python_env/Scripts/markdown*.exe"
+      - "!python_env/Scripts/pygmentize.exe"
+      - "!python_env/Scripts/normalizer.exe"
+      - "!python_env/Scripts/futurize.exe"
+      - "!python_env/Scripts/pasteurize.exe"
+      - "!python_env/Scripts/convert-*.exe"
+      - "!python_env/Scripts/isympy.exe"
+      - "!python_env/Scripts/pywin32_testall*"
+      - "!python_env/Scripts/pywin32_postinstall*"
+      - "!python_env/Scripts/imageio_*.exe"
+      - "!python_env/Scripts/tiff*.exe"
+      - "!python_env/Scripts/mi.exe"
+      - "!python_env/Scripts/mim.exe"
+      - "!python_env/Scripts/odl.exe"
+      - "!python_env/Scripts/openxlab.exe"
+      - "!python_env/Scripts/pyav.exe"
+      - "!python_env/Scripts/pyft*.exe"
+      - "!python_env/Scripts/fonttools.exe"
+      - "!python_env/Scripts/ttx.exe"
+      - "!python_env/Scripts/jp.py"
+      - "!python_env/Scripts/numba"
+
+      # ── Exclude pip itself from python_env (not needed at runtime) ──
+      - "!python_env/Lib/site-packages/pip/**"
+      - "!python_env/Lib/site-packages/pip-*/**"
+
+      # ── Exclude __pycache__ everywhere in python_env ──
+      - "!python_env/**/__pycache__/**"
+
+      # ── Exclude misc docs / licenses inside python_env libs ──
+      - "!python_env/get_pip.py"
+      - "!python_env/python.cat"
+      - "!python_env/LICENSE.txt"
+
+      # ── Exclude realcugan docs ──
+      - "!realcugan/README.md"
+      - "!realcugan/LICENSE"
+
+  # ── models/ ───────────────────────────────────────────────
+  # Contains: faster-whisper models, ocr models, weights (propainter)
   - from: ../models
     to: models
     filter:
       - "**/*"
+
+      # ── Exclude temp / lock / cache dirs ──
+      - "!._____temp/**"
+      - "!.lock/**"
+      - "!.locks/**"
+
+  # ── dist-backend/ ─────────────────────────────────────────
+  # PyInstaller-compiled backend (FastAPI + ML inference)
+  - from: ../dist-backend/mediaflow-backend
+    to: backend
+    filter:
+      - "**/*"
+
 win:
   target: nsis
   icon: resources/icon.ico
@@ -26,3 +97,4 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: true
+

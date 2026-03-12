@@ -1,6 +1,7 @@
 import { FileUploader } from './FileUploader';
 import type { SubtitleSegment } from '../../types/task';
 import { Clock } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface SegmentsTableProps {
     sourceSegments: SubtitleSegment[];
@@ -21,6 +22,7 @@ const formatTime = (seconds: number) => {
 };
 
 export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, onFileSelect }: SegmentsTableProps) => {
+    const { t } = useTranslation('translator');
     return (
         <div className="flex-1 overflow-y-auto min-h-0 relative scroll-smooth custom-scrollbar bg-black/20">
             {sourceSegments.length === 0 ? (
@@ -56,7 +58,7 @@ export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, 
                                     {tgtSeg ? (
                                         <>
                                             <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono mb-2 opacity-0 group-hover/edit:opacity-100 transition-opacity select-none absolute top-4 right-4">
-                                                 <span className="bg-indigo-500/10 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/20">Target</span>
+                                                 <span className="bg-indigo-500/10 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/20">{t('table.targetLabel')}</span>
                                             </div>
                                              <textarea 
                                                  className="w-full h-full bg-transparent text-sm text-indigo-100 placeholder-slate-600 focus:outline-none resize-none leading-relaxed whitespace-pre-wrap break-words overflow-hidden min-h-[min-content]"

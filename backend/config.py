@@ -1,6 +1,8 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import sys
+
 class Settings(BaseSettings):
     # App Info
     APP_NAME: str = "MediaFlow Core"
@@ -9,10 +11,16 @@ class Settings(BaseSettings):
     
     # Server
     HOST: str = "127.0.0.1"
-    PORT: int = 8000
+    PORT: int = 8800
     
     # Paths
-    BASE_DIR: Path = Path(__file__).resolve().parent.parent
+    # When deployed via PyInstaller in Electron, sys.executable is inside `resources/backend/`
+    # We want BASE_DIR to be `resources/` so it finds `models/` and `bin/` natively.
+    if getattr(sys, 'frozen', False):
+        BASE_DIR: Path = Path(sys.executable).resolve().parent.parent
+    else:
+        BASE_DIR: Path = Path(__file__).resolve().parent.parent
+        
     WORKSPACE_DIR: Path = BASE_DIR / "workspace"
     TEMP_DIR: Path = BASE_DIR / ".temp"  # Hidden temp dir for internal cache
     MODEL_DIR: Path = BASE_DIR / "models"

@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, Clipboard } from "lucide-react";
+import { useTranslation } from 'react-i18next';
 
 interface DownloaderInputProps {
   url: string;
@@ -8,6 +9,7 @@ interface DownloaderInputProps {
 }
 
 export function DownloaderInput({ url, onChange, onPaste }: DownloaderInputProps) {
+  const { t } = useTranslation('downloader');
   return (
     <div className="relative group">
       {/* Glow Effect */}
@@ -20,7 +22,7 @@ export function DownloaderInput({ url, onChange, onPaste }: DownloaderInputProps
         
         <input
           type="text"
-          placeholder="Paste video URL here (e.g. YouTube, Bilibili...)"
+          placeholder={t('input.placeholder')}
           value={url}
           onChange={(e) => onChange(e.target.value)}
           className="w-full bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl py-5 pl-12 pr-14 text-white placeholder-slate-500/50 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all shadow-inner font-medium text-lg"
@@ -28,7 +30,7 @@ export function DownloaderInput({ url, onChange, onPaste }: DownloaderInputProps
         
         <button
           onClick={onPaste}
-          title="Paste from clipboard"
+          title={t('input.pasteTooltip')}
           className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-slate-400 hover:text-white transition-all z-10 active:scale-95"
         >
           <Clipboard size={18} />

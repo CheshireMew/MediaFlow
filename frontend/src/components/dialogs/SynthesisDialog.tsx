@@ -4,6 +4,7 @@
 
 import React, { useState, useRef } from 'react';
 import { MonitorPlay } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
 import { hexToAss } from './synthesis/types';
 import { useSubtitleStyle } from './synthesis/hooks/useSubtitleStyle';
@@ -25,8 +26,9 @@ interface SynthesisDialogProps {
 }
 
 export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({ 
-    isOpen, onClose, regions, videoPath, mediaUrl, onSynthesize 
+    isOpen, onClose, regions, videoPath, mediaUrl, onSynthesize
 }) => {
+    const { t } = useTranslation('synthesis');
     // --- Shared refs ---
     const videoRef = useRef<HTMLVideoElement>(null);
     const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
@@ -132,11 +134,11 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                 await onSynthesize(finalOptions, videoPath, watermark.watermarkPath);
             }
             
-            alert("Synthesis Task Started! Check Task Monitor.");
+            alert(t('successMessage'));
             onClose();
         } catch (e) {
             console.error(e);
-            alert("Failed to start synthesis.");
+            alert(t('errorMessage'));
         } finally {
             setIsSynthesizing(false);
         }
@@ -158,7 +160,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                             <div className="p-2 bg-indigo-500/20 rounded-lg">
                                 <MonitorPlay size={20} className="text-indigo-400"/>
                             </div>
-                            Video Synthesis
+                            {t('title')}
                         </h2>
                     </div>
 

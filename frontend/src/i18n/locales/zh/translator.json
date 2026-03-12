@@ -1,0 +1,36 @@
+{
+  "title": "AI 翻译",
+  "subtitle": "上下文感知 • 术语表强制",
+  "glossary": { "button": "术语表", "tooltip": "术语表管理" },
+  "buttons": {
+    "import": { "tooltip": "导入字幕", "label": "导入" },
+    "proofread": { "tooltip": "AI 语法和拼写校正（不翻译）", "label": "校对" },
+    "translate": { "label": "翻译" },
+    "export": { "tooltip": "保存 SRT 到磁盘", "label": "导出" },
+    "editor": { "tooltip": "在字幕编辑器中打开", "label": "编辑器" }
+  },
+  "table": {
+    "sourceHeader": "源文本",
+    "targetLabel": "目标",
+    "targetLangLabel": "目标语言",
+    "modeLabel": "模式"
+  },
+  "languages": {
+    "Chinese": "中文",
+    "English": "英语",
+    "Japanese": "日语",
+    "Spanish": "西班牙语",
+    "French": "法语"
+  },
+  "modes": {
+    "standard": "标准",
+    "intelligent": "智能分割"
+  },
+  "loading": { "message": "翻译中..." },
+  "uploader": {
+    "dragText": "拖放视频或字幕文件",
+    "supportedFormats": "支持 .srt, .mp4, .mp3, .wav",
+    "readyStatus": "准备翻译",
+    "replaceButton": "替换文件"
+  }
+}

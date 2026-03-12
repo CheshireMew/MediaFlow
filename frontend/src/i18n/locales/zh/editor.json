@@ -1,0 +1,50 @@
+{
+  "header": {
+    "title": "编辑器工作区",
+    "subtitle": "时间轴 & 字幕",
+    "openFileTooltip": "打开媒体文件 (Ctrl+O)",
+    "openButton": "打开媒体",
+    "autoScrollLabel": "自动滚动",
+    "smartSplitTooltip": "按静音自动分割",
+    "smartSplitButton": "智能分割",
+    "translateTooltip": "发送到 AI 翻译",
+    "translateButton": "翻译",
+    "synthesizeTooltip": "导出带字幕的视频",
+    "synthesizeButton": "合成",
+    "saveButton": "保存",
+    "saveAsTooltip": "另存为..."
+  },
+  "detailEditor": {
+    "editingSelection": "编辑选中项",
+    "editingDefault": "编辑默认值",
+    "placeholder": "在此输入字幕文本...",
+    "noSelection": "未选择字幕"
+  },
+  "subtitleList": {
+    "mergeAdjacentError": "只能合并相邻的段落",
+    "mergeTooltip": "合并选中的字幕",
+    "mergeButton": "合并选中",
+    "autoFixTooltip": "自动修复重叠字幕",
+    "autoFixButton": "自动修复重叠",
+    "columnStart": "开始",
+    "columnText": "字幕文本",
+    "deleteTooltip": "删除段落",
+    "emptySegmentLabel": "空段落",
+    "emptyState": "暂无字幕",
+    "validationOverlap": "与以下项重叠"
+  },
+  "findReplace": {
+    "title": "查找和替换",
+    "findPlaceholder": "查找...",
+    "previousTooltip": "上一个 (Shift+Enter)",
+    "nextTooltip": "下一个 (Enter)",
+    "replacePlaceholder": "替换为...",
+    "matchCaseLabel": "区分大小写",
+    "replaceButton": "替换",
+    "replaceAllButton": "全部"
+  },
+  "synthesis": {
+    "confirmUnsavedMessage": "保存字幕失败。合成可能使用过期文件。继续吗？",
+    "missingFilesError": "无法合成：缺少视频或字幕文件。"
+  }
+}

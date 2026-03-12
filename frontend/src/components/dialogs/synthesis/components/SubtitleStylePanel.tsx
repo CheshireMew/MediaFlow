@@ -1,5 +1,6 @@
 // ── Subtitle Style Settings Panel (Left sidebar section) ──
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Type, Bold, Italic, AlignLeft, AlignCenter, AlignRight, Save, Trash2, X, MonitorPlay, AlignStartVertical, AlignCenterVertical, AlignEndVertical } from 'lucide-react';
 import { FONT_PRESETS, DEFAULT_PRESETS } from '../types';
 import type { SubtitleStyleState } from '../hooks/useSubtitleStyle';
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
+    const { t } = useTranslation('synthesis');
     const {
         fontSize, fontColor, fontName, isBold, isItalic,
         outlineSize, shadowSize, outlineColor,
@@ -23,12 +25,12 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
     return (
         <div className="space-y-3">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                <Type size={12}/> Subtitles
+                <Type size={12}/> {t('style.sectionTitle')}
             </h3>
             <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-4 hover:border-white/10 transition-colors">
                 {/* Style Presets */}
                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Style Preset</label>
+                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.stylePreset')}</label>
                     <div className="flex flex-wrap gap-1.5">
                         {[...DEFAULT_PRESETS, ...customPresets].map(preset => (
                             <button
@@ -44,7 +46,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                                             deletePreset(preset.label);
                                         }}
                                         className="ml-1 inline-flex items-center opacity-0 group-hover/preset:opacity-100 transition-opacity text-slate-500 hover:text-red-400"
-                                        title="Delete preset"
+                                        title={t('style.deletePreset')}
                                     >
                                         <Trash2 size={10} />
                                     </span>
@@ -56,9 +58,9 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                             <button
                                 onClick={() => setPresetNameInput('')}
                                 className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-dashed transition-all border-white/10 text-slate-500 hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300 active:scale-95 flex items-center gap-1"
-                                title="Save current settings as preset"
+                                title={t('style.savePresetTooltip')}
                             >
-                                <Save size={10} /> Save
+                                <Save size={10} /> {t('style.save')}
                             </button>
                         ) : (
                             <div className="flex items-center gap-1 w-full mt-1">
@@ -71,20 +73,20 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                                         if (e.key === 'Escape') { setPresetNameInput(null); return; }
                                         if (e.key === 'Enter') confirmSavePreset();
                                     }}
-                                    placeholder="Preset name..."
+                                    placeholder={t('style.presetNamePlaceholder')}
                                     className="flex-1 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-indigo-500/50"
                                 />
                                 <button
                                     onClick={confirmSavePreset}
                                     className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
-                                    title="Confirm"
+                                    title={t('style.save')}
                                 >
                                     <Save size={12} />
                                 </button>
                                 <button
                                     onClick={() => setPresetNameInput(null)}
                                     className="p-1.5 rounded-lg bg-white/5 text-slate-500 hover:bg-white/10 hover:text-white transition-colors"
-                                    title="Cancel"
+                                    title={t('common:cancel')}
                                 >
                                     <X size={12} />
                                 </button>
@@ -95,7 +97,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
 
                 {/* Font Selection */}
                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Font</label>
+                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.font')}</label>
                     <select
                         value={fontName}
                         onChange={e => setFontName(e.target.value)}
@@ -110,7 +112,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                 {/* Size + Color */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Size (px)</label>
+                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.sizePx')}</label>
                         <input 
                             type="number" 
                             value={fontSize} 
@@ -119,7 +121,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                         />
                     </div>
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Color</label>
+                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.color')}</label>
                         <div className="flex gap-2 items-center h-[38px]">
                             <div className="relative overflow-hidden w-full h-full rounded-lg border border-white/10 cursor-pointer group">
                                 <input 
@@ -141,7 +143,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                         className={`p-2 rounded-lg border transition-all ${
                             isBold ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-black/20 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
                         }`}
-                        title="Bold"
+                        title={t('style.bold')}
                     >
                         <Bold size={14} />
                     </button>
@@ -150,7 +152,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                         className={`p-2 rounded-lg border transition-all ${
                             isItalic ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-black/20 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
                         }`}
-                        title="Italic"
+                        title={t('style.italic')}
                     >
                         <Italic size={14} />
                     </button>
@@ -163,7 +165,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                             className={`p-2 rounded-lg border transition-all ${
                                 alignment === a ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-black/20 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
                             }`}
-                            title={a === 1 ? 'Left' : a === 2 ? 'Center' : 'Right'}
+                            title={a === 1 ? t('style.alignLeft') : a === 2 ? t('style.alignCenter') : t('style.alignRight')}
                         >
                             {a === 1 ? <AlignLeft size={14} /> : a === 2 ? <AlignCenter size={14} /> : <AlignRight size={14} />}
                         </button>
@@ -174,7 +176,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                         <div className="flex justify-between">
-                            <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Outline</label>
+                            <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.outline')}</label>
                             <span className="text-[10px] font-mono text-indigo-400">{outlineSize}</span>
                         </div>
                         <input
@@ -186,7 +188,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                     </div>
                     <div className="space-y-1.5">
                         <div className="flex justify-between">
-                            <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Shadow</label>
+                            <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.shadow')}</label>
                             <span className="text-[10px] font-mono text-indigo-400">{shadowSize}</span>
                         </div>
                         <input
@@ -200,7 +202,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
 
                 {/* Outline Color */}
                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Outline Color</label>
+                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.outlineColor')}</label>
                     <div className="flex gap-2 items-center h-[32px]">
                         <div className="relative overflow-hidden w-12 h-full rounded-lg border border-white/10 cursor-pointer">
                             <input
@@ -219,7 +221,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
             <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-3 hover:border-white/10 transition-colors">
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Background Panel</label>
+                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.backgroundPanel')}</label>
                         <button
                             onClick={() => setBgEnabled(!bgEnabled)}
                             className={`relative w-9 h-5 rounded-full transition-colors ${
@@ -235,7 +237,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                         <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">BG Color</label>
+                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.bgColor')}</label>
                                     <div className="flex gap-2 items-center h-[32px]">
                                         <div className="relative overflow-hidden w-12 h-full rounded-lg border border-white/10 cursor-pointer">
                                             <input
@@ -250,7 +252,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                                 </div>
                                 <div className="space-y-1.5">
                                     <div className="flex justify-between">
-                                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Opacity</label>
+                                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.opacity')}</label>
                                         <span className="text-[10px] font-mono text-indigo-400">{Math.round(bgOpacity * 100)}%</span>
                                     </div>
                                     <input
@@ -264,7 +266,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                             {/* Padding slider — controls ASS Outline in BorderStyle=3 */}
                             <div className="space-y-1.5">
                                 <div className="flex justify-between">
-                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Padding</label>
+                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.padding')}</label>
                                     <span className="text-[10px] font-mono text-indigo-400">{bgPadding}px</span>
                                 </div>
                                 <input
@@ -276,7 +278,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                             </div>
                             {/* Multi-line Vertical Alignment */}
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Line Align</label>
+                                <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.lineAlign')}</label>
                                 <div className="flex gap-1.5">
                                     {(['bottom', 'center', 'top'] as const).map(mode => (
                                         <button
@@ -287,10 +289,10 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                                                     ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
                                                     : 'bg-black/20 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
                                             }`}
-                                            title={mode === 'bottom' ? 'Bottom aligned' : mode === 'center' ? 'Center aligned' : 'Top aligned'}
+                                            title={mode === 'bottom' ? t('style.bottomAligned') : mode === 'center' ? t('style.centerAligned') : t('style.topAligned')}
                                         >
                                             {mode === 'bottom' ? <AlignEndVertical size={12} /> : mode === 'center' ? <AlignCenterVertical size={12} /> : <AlignStartVertical size={12} />}
-                                            {mode === 'bottom' ? 'Bottom' : mode === 'center' ? 'Center' : 'Top'}
+                                            {mode === 'bottom' ? t('style.alignBottom') : mode === 'center' ? t('style.alignCenter') : t('style.alignTop')}
                                         </button>
                                     ))}
                                 </div>
@@ -302,7 +304,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
 
             <p className="text-[10px] text-slate-600 flex items-center gap-1.5 bg-indigo-500/5 p-2 rounded-lg border border-indigo-500/10">
                 <MonitorPlay size={10} className="text-indigo-400"/>
-                Drag text in preview to adjust position.
+                {t('style.dragHint')}
             </p>
         </div>
     );

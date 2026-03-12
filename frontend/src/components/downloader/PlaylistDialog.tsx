@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { List, X, CheckSquare, Square } from "lucide-react";
 import type { AnalyzeResult } from "../../api/client";
 
@@ -23,6 +24,8 @@ export function PlaylistDialog({
   onDownloadSelected,
   onToggleItem,
 }: PlaylistDialogProps) {
+  const { t } = useTranslation('downloader');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <div 
@@ -37,7 +40,7 @@ export function PlaylistDialog({
             <div className="p-2 bg-indigo-500/10 rounded-lg">
               <List size={20} className="text-indigo-400" />
             </div>
-            Playlist Detected
+            {t('playlist.detected')}
           </h2>
           <button
             onClick={onClose}
@@ -51,8 +54,7 @@ export function PlaylistDialog({
         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           <div className="p-5 flex-none">
             <p className="text-slate-400 text-sm mb-4">
-              <strong className="text-white">{playlistInfo.title}</strong> contains{" "}
-              <strong className="text-white">{playlistInfo.count}</strong> videos.
+              <strong className="text-white">{playlistInfo.title}</strong> {t('playlist.containsVideos', { count: playlistInfo.count })}
             </p>
 
             <div className="flex gap-2">
@@ -60,13 +62,13 @@ export function PlaylistDialog({
                 onClick={onSelectAll}
                 className="px-3 py-1.5 bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-colors"
               >
-                Select All
+                {t('playlist.selectAll')}
               </button>
               <button
                 onClick={onClearSelection}
                 className="px-3 py-1.5 bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-colors"
               >
-                Clear Selection
+                {t('playlist.clearSelection')}
               </button>
             </div>
           </div>
@@ -105,14 +107,14 @@ export function PlaylistDialog({
             onClick={onDownloadCurrent}
             className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-sm font-medium text-slate-300 transition-colors"
           >
-            Download This Video Only
+            {t('playlist.downloadThisOnly')}
           </button>
           <button
             onClick={onDownloadSelected}
             disabled={selectedItems.length === 0}
             className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl shadow-lg shadow-indigo-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
           >
-            Download Selected ({selectedItems.length})
+            {t('playlist.downloadSelected')} ({selectedItems.length})
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   LayoutDashboard, 
   Download, 
@@ -58,19 +59,20 @@ function SidebarItem({ icon: Icon, label, isActive, onClick, badge }: SidebarIte
 export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation('sidebar');
   const activeTab = location.pathname.substring(1) || 'editor'; // default to editor if root
 
   const { tasks } = useTaskContext();
   const activeTaskCount = tasks.filter(t => t.status === 'running' || t.status === 'pending').length;
 
   const menuItems = [
-    { id: 'dashboard', label: 'Monitor', icon: LayoutDashboard, badge: activeTaskCount},
-    { id: 'editor', label: 'Editor', icon: Pencil },
-    { id: 'preprocessing', label: 'Preprocess', icon: Wand2 },
-    { id: 'downloader', label: 'Download', icon: Download },
-    { id: 'transcriber', label: 'Transcribe', icon: FileAudio },
-    { id: 'translator', label: 'Translate', icon: Languages },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'dashboard', labelKey: 'monitor', icon: LayoutDashboard, badge: activeTaskCount},
+    { id: 'editor', labelKey: 'editor', icon: Pencil },
+    { id: 'preprocessing', labelKey: 'preprocess', icon: Wand2 },
+    { id: 'downloader', labelKey: 'download', icon: Download },
+    { id: 'transcriber', labelKey: 'transcribe', icon: FileAudio },
+    { id: 'translator', labelKey: 'translate', icon: Languages },
+    { id: 'settings', labelKey: 'settings', icon: Settings },
   ];
 
   return (
@@ -87,7 +89,7 @@ export function Sidebar() {
                 <SidebarItem
                     key={item.id}
                     icon={item.icon}
-                    label={item.label}
+                    label={t(item.labelKey)}
                     isActive={activeTab === item.id}
                     onClick={() => navigate(`/${item.id}`)}
                     badge={item.badge}

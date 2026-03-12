@@ -1,0 +1,36 @@
+{
+  "title": "视频下载",
+  "subtitle": "从支持的平台下载高质量视频和音频",
+  "taskPanel": { "title": "新任务" },
+  "supportedPlatforms": "支持的平台",
+  "input": {
+    "placeholder": "在此粘贴视频链接（如 YouTube、Bilibili...）",
+    "pasteTooltip": "从剪贴板粘贴"
+  },
+  "options": {
+    "quality": "画质",
+    "mp4": "MP4",
+    "bestQuality": "最佳画质（默认）",
+    "4k": "4K 超高清",
+    "2k": "2K QHD",
+    "1080p": "1080p 全高清",
+    "720p": "720p 高清",
+    "480p": "480p 标清",
+    "audioOnly": "仅音频 (m4a/mp3)",
+    "subtitles": "字幕",
+    "includeCaptions": "包含字幕",
+    "codecCompatible": "兼容 (H.264)",
+    "codecEfficient": "高效 (Best/AV1)",
+    "analyzingStream": "正在分析...",
+    "downloadingMedia": "下载中...",
+    "downloadMedia": "下载媒体"
+  },
+  "playlist": {
+    "detected": "检测到播放列表",
+    "containsVideos": "包含 {{count}} 个视频。",
+    "selectAll": "全选",
+    "clearSelection": "清除选择",
+    "downloadThisOnly": "仅下载此视频",
+    "downloadSelected": "下载选中项"
+  }
+}

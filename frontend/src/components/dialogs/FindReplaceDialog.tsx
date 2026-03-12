@@ -1,14 +1,21 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ArrowUp, ArrowDown, X, ChevronDown, ChevronRight, Replace, ReplaceAll } from 'lucide-react';
+import { Search, ArrowUp, ArrowDown, X, Replace } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
 
 interface FindReplaceDialogProps {
     isOpen: boolean;
+    initialMode: 'find' | 'replace';
     onClose: () => void;
     regions: SubtitleSegment[];
     onSelectSegment: (id: string) => void;
     onUpdateSegment: (id: string, text: string) => void;
+    onUpdateSegments: (segments: SubtitleSegment[]) => void;
+    searchTerm: string;
+    setSearchTerm: (term: string) => void;
+    matchCase: boolean;
+    setMatchCase: (matchCase: boolean) => void;
 }
 
 interface Match {
@@ -19,16 +26,37 @@ interface Match {
 
 export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
     isOpen,
+    initialMode,
     onClose,
     regions,
     onSelectSegment,
-    onUpdateSegment
+    onUpdateSegment,
+    onUpdateSegments,
+    searchTerm,
+    setSearchTerm,
+    matchCase,
+    setMatchCase
 }) => {
-    const [searchTerm, setSearchTerm] = useState("");
+    const { t } = useTranslation('editor');
     const [replaceTerm, setReplaceTerm] = useState("");
-    const [matchCase, setMatchCase] = useState(false);
     const [matches, setMatches] = useState<Match[]>([]);
     const [currentIndex, setCurrentIndex] = useState(-1);
+    
+    // Focus management
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const replaceInputRef = useRef<HTMLInputElement>(null);
+    
+    useEffect(() => {
+        if (isOpen) {
+            setTimeout(() => {
+                if (initialMode === 'replace' && replaceInputRef.current) {
+                    replaceInputRef.current.focus();
+                } else if (searchInputRef.current) {
+                    searchInputRef.current.focus();
+                }
+            }, 50);
+        }
+    }, [isOpen, initialMode]);
     
     // Auto-search logic
     useEffect(() => {
@@ -112,6 +140,7 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
         const dirtyRegions = new Set<string>();
         matches.forEach(m => dirtyRegions.add(m.id));
         
+        const updatedSegments: SubtitleSegment[] = [];
         dirtyRegions.forEach(id => {
              const region = regions.find(r => String(r.id) === id);
              if (region && region.text) {
@@ -121,20 +150,27 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
                  const regex = new RegExp(escapedTerm, flag);
                  const newText = region.text.replace(regex, replaceTerm);
                  if (newText !== region.text) {
-                     onUpdateSegment(id, newText);
+                     updatedSegments.push({
+                         ...region,
+                         text: newText
+                     });
                  }
              }
         });
+
+        if (updatedSegments.length > 0) {
+            onUpdateSegments(updatedSegments);
+        }
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="absolute top-16 right-8 w-80 bg-slate-800 border border-slate-700 shadow-xl rounded-lg z-50 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+        <div className="absolute top-16 right-8 w-80 bg-slate-800/95 backdrop-blur-md border border-slate-700 shadow-2xl rounded-lg z-[100] flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto no-drag">
              {/* Header */}
-             <div className="flex items-center justify-between p-2 bg-slate-900 border-b border-slate-700 handle cursor-move">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-2">Find & Replace</span>
-                  <button onClick={onClose} className="text-slate-500 hover:text-slate-300 p-1 rounded">
+             <div className="flex items-center justify-between p-2 bg-slate-900/50 border-b border-slate-700 select-none">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-2">{t('findReplace.title')}</span>
+                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }} className="text-slate-400 hover:text-white hover:bg-slate-700 p-1.5 rounded-md transition-colors z-10 relative">
                       <X size={14} />
                   </button>
              </div>
@@ -145,12 +181,12 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
                  <div className="relative">
                      <Search size={14} className="absolute left-2.5 top-2.5 text-slate-500" />
                      <input 
-                        autoFocus
+                        ref={searchInputRef}
                         type="text" 
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        placeholder="Find..."
-                        className="w-full bg-slate-900 border border-slate-700 rounded pl-8 pr-16 py-1.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        placeholder={t('findReplace.findPlaceholder')}
+                        className="w-full bg-slate-900/80 border border-slate-700 rounded-md pl-8 pr-16 py-2 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-500 relative z-10"
                         onKeyDown={e => {
                             if (e.key === 'Enter') {
                                 if (e.shiftKey) handlePrev();
@@ -158,10 +194,19 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
                             }
                         }}
                      />
-                     <div className="absolute right-1 top-1 flex">
+                     <div className="absolute right-1 top-1 flex items-center gap-1">
                           <span className="text-xs text-slate-500 py-1.5 px-2 font-mono">
                              {matches.length > 0 ? `${currentIndex + 1}/${matches.length}` : '0/0'}
                           </span>
+                          <div className="flex bg-slate-800 rounded border border-slate-700 overflow-hidden z-20">
+                              <button onClick={handlePrev} disabled={matches.length === 0} className="p-1 hover:bg-slate-700 disabled:opacity-50 text-slate-400 hover:text-white transition-colors" title={t('findReplace.previousTooltip', '上一个 (Shift+Enter)')}>
+                                  <ArrowUp size={14} />
+                              </button>
+                              <div className="w-px bg-slate-700" />
+                              <button onClick={handleNext} disabled={matches.length === 0} className="p-1 hover:bg-slate-700 disabled:opacity-50 text-slate-400 hover:text-white transition-colors" title={t('findReplace.nextTooltip', '下一个 (Enter)')}>
+                                  <ArrowDown size={14} />
+                              </button>
+                          </div>
                      </div>
                  </div>
                  
@@ -170,11 +215,12 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
                      <div className="relative flex-1">
                         <Replace size={14} className="absolute left-2.5 top-2.5 text-slate-500" />
                         <input 
+                            ref={replaceInputRef}
                             type="text" 
                             value={replaceTerm}
                             onChange={e => setReplaceTerm(e.target.value)}
-                            placeholder="Replace with..."
-                            className="w-full bg-slate-900 border border-slate-700 rounded pl-8 py-1.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            placeholder={t('findReplace.replacePlaceholder')}
+                            className="w-full bg-slate-900/80 border border-slate-700 rounded-md pl-8 py-2 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-500 relative z-10"
                         />
                      </div>
                  </div>
@@ -188,27 +234,18 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
                             onChange={e => setMatchCase(e.target.checked)}
                             className="rounded border-slate-600 bg-slate-700 text-indigo-500 focus:ring-offset-0 focus:ring-1"
                          />
-                         Match Case
+                         {t('findReplace.matchCaseLabel')}
                      </label>
                  </div>
 
                  {/* Actions */}
-                 <div className="flex gap-2 justify-between mt-1">
-                      <div className="flex gap-1">
-                          <button onClick={handlePrev} disabled={matches.length === 0} className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded disabled:opacity-50" title="Previous (Shift+Enter)">
-                              <ArrowUp size={14} />
-                          </button>
-                          <button onClick={handleNext} disabled={matches.length === 0} className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded disabled:opacity-50" title="Next (Enter)">
-                              <ArrowDown size={14} />
-                          </button>
-                      </div>
-                      
+                 <div className="flex justify-end mt-1">
                       <div className="flex gap-2">
-                          <button onClick={handleReplace} disabled={matches.length === 0} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white disabled:opacity-50">
-                              Replace
+                          <button onClick={handleReplace} disabled={matches.length === 0} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white disabled:opacity-50 transition-colors z-10 relative">
+                              {t('findReplace.replaceButton', '替换')}
                           </button>
-                          <button onClick={handleReplaceAll} disabled={matches.length === 0} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded text-xs text-white disabled:opacity-50">
-                              All
+                          <button onClick={handleReplaceAll} disabled={matches.length === 0} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded text-xs text-white disabled:opacity-50 transition-colors z-10 relative">
+                              {t('findReplace.replaceAllButton', '全部替换')}
                           </button>
                       </div>
                  </div>

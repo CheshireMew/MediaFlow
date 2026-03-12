@@ -1,8 +1,10 @@
 
+import { useTranslation } from 'react-i18next';
 import { TaskMonitor } from '../components/TaskMonitor';
 import { Activity, Server } from 'lucide-react';
 
 export const DashboardPage = () => {
+    const { t } = useTranslation('dashboard');
     return (
         <div className="w-full h-full px-6 pb-6 pt-5 flex flex-col overflow-hidden">
             <header className="flex-none mb-6 flex items-center gap-4">
@@ -10,8 +12,8 @@ export const DashboardPage = () => {
                     <Activity className="w-6 h-6 text-indigo-400" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
-                    <p className="text-slate-400 text-sm mt-0.5">System overview and active tasks</p>
+                    <h1 className="text-2xl font-bold text-white tracking-tight">{t('title')}</h1>
+                    <p className="text-slate-400 text-sm mt-0.5">{t('subtitle')}</p>
                 </div>
             </header>
 
@@ -22,16 +24,16 @@ export const DashboardPage = () => {
                         <div className="p-1.5 bg-emerald-500/10 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
                             <Server className="w-4 h-4 text-emerald-400" />
                         </div>
-                        <h3 className="font-semibold text-slate-200 text-sm">System Status</h3>
+                        <h3 className="font-semibold text-slate-200 text-sm">{t('stats.systemStatus')}</h3>
                     </div>
                     <div className="space-y-2">
                          <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                             <span className="text-xs text-slate-400">Backend Connection</span>
-                             <span className="text-[10px] font-medium px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20">Online</span>
+                             <span className="text-xs text-slate-400">{t('stats.backendConnection')}</span>
+                             <span className="text-[10px] font-medium px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20">{t('stats.online')}</span>
                          </div>
                          <div className="flex justify-between items-center py-1.5">
-                             <span className="text-xs text-slate-400">Compute Resources</span>
-                             <span className="text-xs font-medium text-slate-300">Auto-Scaling</span>
+                             <span className="text-xs text-slate-400">{t('stats.computeResources')}</span>
+                             <span className="text-xs font-medium text-slate-300">{t('stats.autoScaling')}</span>
                          </div>
                     </div>
                 </div>
@@ -39,13 +41,13 @@ export const DashboardPage = () => {
                 {/* Placeholder Widget 1 */}
                 <div className="bg-[#1a1a1a] p-4 rounded-xl border border-white/5 shadow-xl opacity-40 border-dashed">
                      <div className="h-full flex items-center justify-center text-slate-600 text-xs">
-                        Additional Metrics (Coming Soon)
+                        {t('placeholder.metrics')}
                      </div>
                 </div>
                  {/* Placeholder Widget 2 */}
                  <div className="bg-[#1a1a1a] p-4 rounded-xl border border-white/5 shadow-xl opacity-40 border-dashed">
                      <div className="h-full flex items-center justify-center text-slate-600 text-xs">
-                        Storage Stats (Coming Soon)
+                        {t('placeholder.storage')}
                      </div>
                 </div>
             </div>

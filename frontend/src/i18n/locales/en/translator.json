@@ -1,0 +1,36 @@
+{
+  "title": "AI Translator",
+  "subtitle": "Context-Aware • Glossary-Enforced",
+  "glossary": { "button": "Glossary", "tooltip": "Glossary Manager" },
+  "buttons": {
+    "import": { "tooltip": "Import Subtitle", "label": "Import" },
+    "proofread": { "tooltip": "AI Grammar & Typos Correction (No Translation)", "label": "Proofread" },
+    "translate": { "label": "Translate" },
+    "export": { "tooltip": "Save SRT to disk", "label": "Export" },
+    "editor": { "tooltip": "Open in Subtitle Editor", "label": "Editor" }
+  },
+  "table": {
+    "sourceHeader": "Source",
+    "targetLabel": "Target",
+    "targetLangLabel": "Target Lang",
+    "modeLabel": "Mode"
+  },
+  "languages": {
+    "Chinese": "Chinese (中文)",
+    "English": "English",
+    "Japanese": "Japanese",
+    "Spanish": "Spanish",
+    "French": "French"
+  },
+  "modes": {
+    "standard": "Standard",
+    "intelligent": "Smart Split"
+  },
+  "loading": { "message": "Translating..." },
+  "uploader": {
+    "dragText": "Drag & drop Video or Subtitle",
+    "supportedFormats": "Supports .srt, .mp4, .mp3, .wav",
+    "readyStatus": "Ready to Translate",
+    "replaceButton": "Replace File"
+  }
+}

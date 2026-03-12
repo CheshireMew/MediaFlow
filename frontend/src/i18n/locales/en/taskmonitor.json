@@ -1,0 +1,30 @@
+{
+  "title": "Task Monitor",
+  "status": { "connected": "Connected", "disconnected": "Disconnected" },
+  "buttons": {
+    "pauseAll": { "tooltip": "Pause all active tasks", "label": "Pause All" },
+    "clearAll": { "tooltip": "Delete all tasks", "label": "Clear All" }
+  },
+  "confirm": {
+    "deleteAllTasks": "Delete ALL tasks? This cannot be undone.",
+    "deleteTask": "Delete this task?"
+  },
+  "emptyState": { "message": "No active tasks" },
+  "actions": {
+    "pause": { "tooltip": "Pause task" },
+    "resume": { "tooltip": "Resume task" },
+    "delete": { "tooltip": "Delete task" },
+    "showFolder": { "tooltip": "Show in folder" }
+  },
+  "taskTypes": {
+    "transcribe": "Transcribe",
+    "translate": "Translate",
+    "synthesize": "Synthesize",
+    "download": "Download",
+    "generic": "Task"
+  },
+  "messages": {
+    "initializing": "Initializing...",
+    "downloading": "Downloading"
+  }
+}

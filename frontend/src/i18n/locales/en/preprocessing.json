@@ -1,0 +1,30 @@
+{
+  "title": "Preprocessing Lab",
+  "importButton": "Import Media",
+  "canvas": {
+    "noVideoMessage": "[ No Video Selected ]",
+    "dragHelpText": "Drag a file here or click \"Import Media\""
+  },
+  "roi": { "label": "ROI" },
+  "subtitleBar": { "noSubtitle": "No subtitle at current position" },
+  "tabs": {
+    "enhance": "Quality",
+    "clean": "Cleanup",
+    "extract": "OCR"
+  },
+  "button": {
+    "processingLabel": "Processing...",
+    "noMediaText": "Import Media to Start",
+    "noROIText": "Draw Area to Clean",
+    "enhanceText": "Start Enhancement",
+    "cleanText": "Start Cleanup",
+    "ocrROIText": "Run OCR Extraction (ROI)",
+    "ocrFullText": "Run OCR Extraction (Full)",
+    "defaultText": "Start Processing"
+  },
+  "projectFiles": {
+    "title": "Project Files",
+    "emptyState": "No files imported",
+    "removeTooltip": "Remove from list"
+  }
+}

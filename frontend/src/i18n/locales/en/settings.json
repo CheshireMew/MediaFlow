@@ -1,0 +1,40 @@
+{
+  "title": "Settings",
+  "description": "Manage application configuration and integrations",
+  "addProvider": "Add Provider",
+  "tabs": {
+    "llm": "LLM Providers",
+    "general": "General & Storage"
+  },
+  "llm": {
+    "status": "Status",
+    "name": "Name",
+    "model": "Model",
+    "baseUrl": "Base URL",
+    "actions": "Actions",
+    "noProviders": "No providers configured",
+    "editProvider": "Edit Provider",
+    "displayName": "Display Name",
+    "apiKey": "API Key",
+    "modelName": "Model Name",
+    "saveChanges": "Save Changes",
+    "providerSaved": "Provider saved",
+    "providerDeleted": "Deleted",
+    "activeUpdated": "Active provider updated",
+    "confirmDelete": "Are you sure?",
+    "saveFailed": "Failed to save",
+    "deleteFailed": "Failed to delete",
+    "activeFailed": "Failed to set active"
+  },
+  "general": {
+    "title": "General Settings",
+    "language": "Language",
+    "languageDesc": "Change the display language of the application",
+    "autoExecute": "Auto-Execute Flow",
+    "autoExecuteDesc": "Automatically trigger subsequent steps after a task completes (Download → Transcribe → Translate → Synthesize).",
+    "autoExecuteEnabled": "Auto-Execute Enabled",
+    "autoExecuteDisabled": "Auto-Execute Disabled",
+    "updateFailed": "Failed to update settings"
+  },
+  "loadFailed": "Failed to load settings"
+}

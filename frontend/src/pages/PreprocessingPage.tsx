@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePreprocessingStore } from '../stores/preprocessingStore';
 import { useTaskContext } from '../context/TaskContext';
 import {
@@ -16,6 +17,7 @@ import { ProjectFileList } from '../components/preprocessing/ProjectFileList';
 import { VideoControlBar } from '../components/preprocessing/VideoControlBar';
 
 export const PreprocessingPage = () => {
+    const { t } = useTranslation('preprocessing');
     const {
         preprocessingActiveTool,
 
@@ -89,6 +91,29 @@ export const PreprocessingPage = () => {
         }
     }, []);
 
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    }, []);
+
+    const handleDrop = useCallback(async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            let path = (file as any).path;
+            if (!path && (window as any).electronAPI?.getPathForFile) {
+                path = (window as any).electronAPI.getPathForFile(file);
+            }
+            if (path) {
+                addPreprocessingFile({ path, name: file.name, size: file.size });
+                setVideoPath(path);
+                setOcrResults([]);
+                setRoi(null);
+            }
+        }
+    }, [addPreprocessingFile, setVideoPath, setOcrResults, setRoi]);
+
     const handleImportMedia = async () => {
         try {
             const fileData = await (window as any).electronAPI.openFile();
@@ -122,14 +147,14 @@ export const PreprocessingPage = () => {
                     <div className="p-2 bg-indigo-500/10 rounded-lg">
                         <Wand2 size={18} className="text-indigo-400" />
                     </div>
-                    <span className="font-bold tracking-tight">Preprocessing Lab</span>
+                    <span className="font-bold tracking-tight">{t('title')}</span>
                 </div>
                 <div className="flex items-center gap-2 no-drag">
                     <button
                         onClick={handleImportMedia}
                         className="px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 rounded-lg border border-white/5 flex items-center gap-2 transition-all"
                     >
-                        <Upload size={14} /> Import Media
+                        <Upload size={14} /> {t('importButton')}
                     </button>
                 </div>
             </header>
@@ -166,18 +191,20 @@ export const PreprocessingPage = () => {
                             onMouseMove={handleMouseMove}
                             onMouseUp={handleMouseUp}
                             onDoubleClick={handleDoubleClick}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
                         >
                             {videoPath ? (
                                     videoPath.match(/\.(jpg|jpeg|png|webp)$/i) ? (
                                         <img
-                                            src={`file://${videoPath}`}
+                                            src={`file:///${encodeURI(videoPath.replace(/\\/g, '/')).replace(/#/g, '%23')}`}
                                             className="w-full h-full object-contain relative z-0"
                                             alt="Preview"
                                         />
                                     ) : (
                                         <video
                                             ref={videoRef}
-                                            src={`file://${videoPath}`}
+                                            src={`file:///${encodeURI(videoPath.replace(/\\/g, '/')).replace(/#/g, '%23')}`}
                                             className="w-full h-full object-contain relative z-0"
                                             onLoadedMetadata={handleVideoLoaded}
                                             onTimeUpdate={handleTimeUpdate}
@@ -186,8 +213,8 @@ export const PreprocessingPage = () => {
                             ) : (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-700 pointer-events-none select-none">
                                     <Film size={48} className="mb-4 opacity-50" />
-                                    <span className="font-mono text-sm">[ No Video Selected ]</span>
-                                    <span className="text-xs mt-2 text-slate-600">Click "Import Media" to start</span>
+                                    <span className="font-mono text-sm">{t('canvas.noVideoMessage')}</span>
+                                    <span className="text-xs mt-2 text-slate-600">{t('canvas.dragHelpText')}</span>
                                 </div>
                             )}
 
@@ -215,7 +242,7 @@ export const PreprocessingPage = () => {
                                 {currentSubtitle}
                             </span>
                         ) : (
-                            <span className="text-xs text-slate-600 italic">No subtitle at current position</span>
+                            <span className="text-xs text-slate-600 italic">{t('subtitleBar.noSubtitle')}</span>
                         )}
                     </div>
 

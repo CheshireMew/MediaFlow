@@ -1,0 +1,36 @@
+{
+  "title": "Audio Transcriber",
+  "subtitle": "Faster-Whisper • VAD Slicing • Local Processing",
+  "taskPanel": { "title": "New Task" },
+  "progressCard": {
+    "systemReady": "System Ready",
+    "waitingMessage": "Waiting to start...",
+    "processingMessage": "Processing..."
+  },
+  "uploader": {
+    "replaceButton": "Replace File",
+    "dragText": "Drag & drop audio/video",
+    "supportedFormats": "Supports MP3, WAV, MP4, MKV"
+  },
+  "config": {
+    "title": "Configuration",
+    "modelSizeLabel": "Model Size",
+    "models": {
+      "tiny": "Tiny (Fastest)",
+      "base": "Base (Balanced)",
+      "small": "Small (Good)",
+      "medium": "Medium (Better)",
+      "largev1": "Large-v1",
+      "largev2": "Large-v2",
+      "largev3": "Large-v3 (Best)",
+      "largev3turbo": "Large-v3-Turbo (New)"
+    },
+    "deviceLabel": "Compute Device",
+    "devices": {
+      "cpu": "CPU (Int8)",
+      "cuda": "GPU (CUDA/Float16)"
+    },
+    "startButton": "Start Transcription",
+    "processingButton": "Processing..."
+  }
+}

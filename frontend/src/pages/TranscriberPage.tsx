@@ -1,10 +1,12 @@
 import { FileAudio } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useTranscriber } from '../hooks/useTranscriber';
 import { AudioFileUploader } from '../components/transcriber/AudioFileUploader';
 import { TranscriptionConfig } from '../components/transcriber/TranscriptionConfig';
 import { TranscriptionResults } from '../components/transcriber/TranscriptionResults';
 
 export const TranscriberPage = () => {
+  const { t } = useTranslation('transcriber');
   const { state, actions } = useTranscriber();
 
   return (
@@ -15,8 +17,8 @@ export const TranscriberPage = () => {
           <FileAudio className="w-6 h-6 text-purple-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Audio Transcriber</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Faster-Whisper • VAD Slicing • Local Processing</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">{t('title')}</h1>
+          <p className="text-slate-400 text-sm mt-0.5">{t('subtitle')}</p>
         </div>
       </header>
 
@@ -28,7 +30,7 @@ export const TranscriberPage = () => {
                  <div className="flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/20">
                     <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
                  </div>
-                 New Task
+                 {t('taskPanel.title')}
               </h3>
            </div>
 

@@ -1,0 +1,36 @@
+{
+  "title": "音频转录",
+  "subtitle": "Faster-Whisper • VAD 分割 • 本地处理",
+  "taskPanel": { "title": "新任务" },
+  "progressCard": {
+    "systemReady": "系统就绪",
+    "waitingMessage": "等待开始...",
+    "processingMessage": "处理中..."
+  },
+  "uploader": {
+    "replaceButton": "替换文件",
+    "dragText": "拖放音频/视频文件",
+    "supportedFormats": "支持 MP3、WAV、MP4、MKV"
+  },
+  "config": {
+    "title": "配置",
+    "modelSizeLabel": "模型大小",
+    "models": {
+      "tiny": "Tiny（最快）",
+      "base": "Base（均衡）",
+      "small": "Small（良好）",
+      "medium": "Medium（更好）",
+      "largev1": "Large-v1",
+      "largev2": "Large-v2",
+      "largev3": "Large-v3（最佳）",
+      "largev3turbo": "Large-v3-Turbo（新）"
+    },
+    "deviceLabel": "计算设备",
+    "devices": {
+      "cpu": "CPU (Int8)",
+      "cuda": "GPU (CUDA/Float16)"
+    },
+    "startButton": "开始转录",
+    "processingButton": "处理中..."
+  }
+}

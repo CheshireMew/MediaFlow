@@ -1,0 +1,30 @@
+{
+  "title": "前処理ラボ",
+  "importButton": "メディアをインポート",
+  "canvas": {
+    "noVideoMessage": "[ 動画未選択 ]",
+    "dragHelpText": "ファイルをドラッグするか「メディアをインポート」をクリック"
+  },
+  "roi": { "label": "ROI" },
+  "subtitleBar": { "noSubtitle": "現在位置に字幕がありません" },
+  "tabs": {
+    "enhance": "画質",
+    "clean": "クリーンアップ",
+    "extract": "OCR"
+  },
+  "button": {
+    "processingLabel": "処理中...",
+    "noMediaText": "メディアをインポートしてください",
+    "noROIText": "クリーンアップ領域を描画",
+    "enhanceText": "エンハンス開始",
+    "cleanText": "クリーンアップ開始",
+    "ocrROIText": "OCR抽出（領域）",
+    "ocrFullText": "OCR抽出（全画面）",
+    "defaultText": "処理開始"
+  },
+  "projectFiles": {
+    "title": "プロジェクトファイル",
+    "emptyState": "インポートされたファイルなし",
+    "removeTooltip": "リストから削除"
+  }
+}
