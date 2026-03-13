@@ -7,9 +7,11 @@ import type { SubtitleStyleState } from '../hooks/useSubtitleStyle';
 
 interface Props {
     style: SubtitleStyleState;
+    enabled: boolean;
+    onToggle: (enabled: boolean) => void;
 }
 
-export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
+export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }) => {
     const { t } = useTranslation('synthesis');
     const {
         fontSize, fontColor, fontName, isBold, isItalic,
@@ -24,9 +26,29 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
 
     return (
         <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                <Type size={12}/> {t('style.sectionTitle')}
-            </h3>
+            <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <Type size={12}/> {t('style.sectionTitle')}
+                </h3>
+                <button
+                    onClick={() => onToggle(!enabled)}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${
+                        enabled ? 'bg-indigo-500' : 'bg-white/10'
+                    }`}
+                    title={enabled ? t('common:disable') : t('common:enable')}
+                >
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                        enabled ? 'translate-x-4' : 'translate-x-0.5'
+                    }`} />
+                </button>
+            </div>
+            {!enabled && (
+                <p className="text-[10px] text-slate-600 bg-white/[0.02] border border-white/5 rounded-lg p-3 text-center">
+                    {t('style.subtitleDisabledHint', '字幕渲染已关闭，合成时将不会烧录字幕')}
+                </p>
+            )}
+            {enabled && (
+            <>
             <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-4 hover:border-white/10 transition-colors">
                 {/* Style Presets */}
                 <div className="space-y-1.5">
@@ -306,6 +328,8 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style }) => {
                 <MonitorPlay size={10} className="text-indigo-400"/>
                 {t('style.dragHint')}
             </p>
+            </>
+            )}
         </div>
     );
 };

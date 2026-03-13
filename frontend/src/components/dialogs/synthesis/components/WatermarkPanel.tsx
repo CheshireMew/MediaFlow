@@ -6,9 +6,11 @@ import type { WatermarkState } from '../hooks/useWatermark';
 
 interface Props {
     watermark: WatermarkState;
+    enabled: boolean;
+    onToggle: (enabled: boolean) => void;
 }
 
-export const WatermarkPanel: React.FC<Props> = ({ watermark }) => {
+export const WatermarkPanel: React.FC<Props> = ({ watermark, enabled, onToggle }) => {
     const { t } = useTranslation('synthesis');
     const {
         watermarkPreviewUrl,
@@ -20,10 +22,28 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark }) => {
 
     return (
         <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                <ImageIcon size={12}/> {t('watermark.sectionTitle')}
-            </h3>
-            
+            <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <ImageIcon size={12}/> {t('watermark.sectionTitle')}
+                </h3>
+                <button
+                    onClick={() => onToggle(!enabled)}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${
+                        enabled ? 'bg-indigo-500' : 'bg-white/10'
+                    }`}
+                    title={enabled ? t('common:disable') : t('common:enable')}
+                >
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                        enabled ? 'translate-x-4' : 'translate-x-0.5'
+                    }`} />
+                </button>
+            </div>
+            {!enabled && (
+                <p className="text-[10px] text-slate-600 bg-white/[0.02] border border-white/5 rounded-lg p-3 text-center">
+                    {t('watermark.watermarkDisabledHint', '水印渲染已关闭，合成时将不会添加水印')}
+                </p>
+            )}
+            {enabled && (
             <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-4 hover:border-white/10 transition-colors">
                 <label className="flex flex-col items-center justify-center w-full h-16 border-2 border-dashed border-white/10 rounded-lg cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all group">
                     <div className="flex flex-col items-center justify-center pt-2 pb-3">
@@ -94,6 +114,7 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark }) => {
                     </div>
                 )}
             </div>
+            )}
         </div>
     );
 };

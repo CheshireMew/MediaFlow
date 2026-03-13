@@ -14,6 +14,8 @@ interface Props {
     watermark: WatermarkState;
     output: OutputSettingsState;
     crop: CropState;
+    subtitleEnabled: boolean;
+    watermarkEnabled: boolean;
     onClose: () => void;
     onSynthesizeClick: () => void;
     isSynthesizing: boolean;
@@ -25,7 +27,9 @@ interface Props {
 }
 
 export const VideoPreview: React.FC<Props> = ({
-    mediaUrl, style, watermark, output, crop, onClose,
+    mediaUrl, style, watermark, output, crop,
+    subtitleEnabled, watermarkEnabled,
+    onClose,
     onSynthesizeClick, isSynthesizing,
     videoRef, videoSize, setVideoSize,
     currentTime, onTimeUpdate,
@@ -293,7 +297,7 @@ export const VideoPreview: React.FC<Props> = ({
                     )}
                     
                     {/* Watermark Overlay */}
-                    {watermarkPreviewUrl && (
+                    {watermarkEnabled && watermarkPreviewUrl && (
                         <div
                             className="absolute cursor-move select-none group"
                             style={{
@@ -318,6 +322,7 @@ export const VideoPreview: React.FC<Props> = ({
                     )}
                     
                     {/* Subtitle Overlay */}
+                    {subtitleEnabled && (
                     <div 
                         className="absolute left-0 right-0 cursor-move select-none group transition-colors px-6"
                         style={{ 
@@ -359,6 +364,7 @@ export const VideoPreview: React.FC<Props> = ({
                             </span>
                         )}
                     </div>
+                    )}
                 </div>
             </div>
             

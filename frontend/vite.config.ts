@@ -7,6 +7,14 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    watch: {
+      ignored: [
+        '**/build-backend/**',
+        '**/dist-backend/**',
+        '**/dist/**',
+        '**/node_modules/**',
+      ],
+    },
   },
   optimizeDeps: {
     include: ["react-window", "react-virtualized-auto-sizer"],

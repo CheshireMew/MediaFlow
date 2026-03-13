@@ -2,7 +2,7 @@
 // All state logic lives in hooks, all UI sections live in subcomponents.
 // This component only handles: hook wiring, handleSynthesize, and dialog layout.
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { MonitorPlay } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
@@ -34,6 +34,23 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
     const [currentTime, setCurrentTime] = useState(0);
     const [isSynthesizing, setIsSynthesizing] = useState(false);
+
+    // --- Toggle switches with localStorage persistence ---
+    const [subtitleEnabled, setSubtitleEnabled] = useState(() => {
+        const saved = localStorage.getItem('synthesis_subtitleEnabled');
+        return saved !== null ? JSON.parse(saved) : true;
+    });
+    const [watermarkEnabled, setWatermarkEnabled] = useState(() => {
+        const saved = localStorage.getItem('synthesis_watermarkEnabled');
+        return saved !== null ? JSON.parse(saved) : true;
+    });
+
+    useEffect(() => {
+        localStorage.setItem('synthesis_subtitleEnabled', JSON.stringify(subtitleEnabled));
+    }, [subtitleEnabled]);
+    useEffect(() => {
+        localStorage.setItem('synthesis_watermarkEnabled', JSON.stringify(watermarkEnabled));
+    }, [watermarkEnabled]);
 
     // --- Hooks ---
     const style = useSubtitleStyle(isOpen, regions, currentTime);
@@ -75,34 +92,47 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
             // ASS alpha: 00 = fully opaque, FF = fully transparent
             const bgAlphaHex = Math.round((1 - style.bgOpacity) * 255).toString(16).padStart(2, '0').toUpperCase();
 
-            const options = {
+            const options: Record<string, any> = {
                 crf: output.quality === 'high' ? 17 : output.quality === 'balanced' ? 20 : 26,
                 preset: output.quality === 'high' ? 'slow' : output.quality === 'balanced' ? 'medium' : 'fast',
                 use_gpu: output.useGpu,
-                font_name: style.fontName,
-                font_size: outcomeFontSize,
-                font_color: hexToAss(style.fontColor),
-                bold: style.isBold,
-                italic: style.isItalic,
-                outline: style.bgEnabled ? style.bgPadding : style.outlineSize,
-                shadow: style.shadowSize,
-                // Final decided styles:
-                outline_color: style.bgEnabled ? hexToAss(style.bgColor, bgAlphaHex) : hexToAss(style.outlineColor),
-                back_color: style.bgEnabled ? "&H80000000" : hexToAss(style.bgColor, bgAlphaHex), // Shadow
-                border_style: style.bgEnabled ? 3 : 1,
-                alignment: style.alignment,
-                multiline_align: style.multilineAlign,
-                margin_v: marginV,
-                wm_x: wmXExpr,
-                wm_y: wmYExpr,
-                wm_scale: backendScale,
-                wm_opacity: watermark.wmOpacity,
                 trim_start: output.trimStart > 0 ? output.trimStart : undefined,
                 trim_end: output.trimEnd > 0 ? output.trimEnd : undefined,
                 video_width: videoSize.w || 1920,
                 video_height: videoSize.h || 1080,
                 target_resolution: output.targetResolution,
             };
+
+            // Subtitle options (only if enabled)
+            if (subtitleEnabled) {
+                Object.assign(options, {
+                    font_name: style.fontName,
+                    font_size: outcomeFontSize,
+                    font_color: hexToAss(style.fontColor),
+                    bold: style.isBold,
+                    italic: style.isItalic,
+                    outline: style.bgEnabled ? style.bgPadding : style.outlineSize,
+                    shadow: style.shadowSize,
+                    outline_color: style.bgEnabled ? hexToAss(style.bgColor, bgAlphaHex) : hexToAss(style.outlineColor),
+                    back_color: style.bgEnabled ? "&H80000000" : hexToAss(style.bgColor, bgAlphaHex),
+                    border_style: style.bgEnabled ? 3 : 1,
+                    alignment: style.alignment,
+                    multiline_align: style.multilineAlign,
+                    margin_v: marginV,
+                });
+            } else {
+                options.skip_subtitles = true;
+            }
+
+            // Watermark options (only if enabled)
+            if (watermarkEnabled && watermark.watermarkPath) {
+                Object.assign(options, {
+                    wm_x: wmXExpr,
+                    wm_y: wmYExpr,
+                    wm_scale: backendScale,
+                    wm_opacity: watermark.wmOpacity,
+                });
+            }
 
             // Mix in Crop Params if enabled
             if (crop.isEnabled) {
@@ -131,7 +161,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                     output_path: targetPath,
                 };
 
-                await onSynthesize(finalOptions, videoPath, watermark.watermarkPath);
+                await onSynthesize(finalOptions, videoPath, watermarkEnabled ? watermark.watermarkPath : null);
             }
             
             alert(t('successMessage'));
@@ -165,9 +195,9 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-0 flex flex-col gap-6">
-                        <SubtitleStylePanel style={style} />
+                        <SubtitleStylePanel style={style} enabled={subtitleEnabled} onToggle={setSubtitleEnabled} />
                         <OutputSettingsPanel output={output} />
-                        <WatermarkPanel watermark={watermark} />
+                        <WatermarkPanel watermark={watermark} enabled={watermarkEnabled} onToggle={setWatermarkEnabled} />
                     </div>
                 </div>
 
@@ -178,6 +208,8 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                     watermark={watermark}
                     output={output}
                     crop={crop}
+                    subtitleEnabled={subtitleEnabled}
+                    watermarkEnabled={watermarkEnabled}
                     onClose={onClose}
                     onSynthesizeClick={handleSynthesize}
                     isSynthesizing={isSynthesizing}

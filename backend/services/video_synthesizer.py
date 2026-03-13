@@ -261,62 +261,65 @@ class VideoSynthesizer:
                 y=options.get('wm_y', '10')
             )
 
-        # 4. Subtitles
-        width = options.get('video_width')
-        height = options.get('video_height')
-
-        # If Target Resolution (or Force HD) is on, update dimensions
-        if target_res in ['720p', '1080p'] or options.get('force_hd'):
-             target_h = 720 if (target_res == '720p' or options.get('force_hd')) else 1080
-             height = target_h
-             
-             orig_w, orig_h = MediaProber.probe_resolution(video_path)
-             if orig_h > 0:
-                 width = int(orig_w * (target_h / orig_h))
-                 if width % 2 != 0: width -= 1
-             else:
-                 width = int(1280 * (target_h / 720)) # Approximation
-             
-             logger.info(f"Resolution updated for subtitles: {width}x{height}")
-             
-        elif not width or not height:
-            width, height = MediaProber.probe_resolution(video_path)
-            logger.info(f"Probed video resolution for subtitles: {width}x{height}")
+        # 4. Subtitles (conditionally skip if user toggled off)
+        temp_ass = None
+        if options.get('skip_subtitles'):
+            logger.info("Subtitles disabled by user, skipping subtitle burn-in")
         else:
-            logger.info(f"Using provided video resolution: {width}x{height}")
+            width = options.get('video_width')
+            height = options.get('video_height')
 
-        # Override resolution if cropped (and not scaled)
-        # If we scaled, we already handled width/height above.
-        crop_w = options.get('crop_w')
-        crop_h = options.get('crop_h')
-        if crop_w is not None and crop_h is not None and target_res == 'original' and not options.get('force_hd'):
-             width = int(crop_w)
-             height = int(crop_h)
-             logger.info(f"Resolution updated to cropped size: {width}x{height}")
+            # If Target Resolution (or Force HD) is on, update dimensions
+            if target_res in ['720p', '1080p'] or options.get('force_hd'):
+                 target_h = 720 if (target_res == '720p' or options.get('force_hd')) else 1080
+                 height = target_h
+                 
+                 orig_w, orig_h = MediaProber.probe_resolution(video_path)
+                 if orig_h > 0:
+                     width = int(orig_w * (target_h / orig_h))
+                     if width % 2 != 0: width -= 1
+                 else:
+                     width = int(1280 * (target_h / 720)) # Approximation
+                 
+                 logger.info(f"Resolution updated for subtitles: {width}x{height}")
+                 
+            elif not width or not height:
+                width, height = MediaProber.probe_resolution(video_path)
+                logger.info(f"Probed video resolution for subtitles: {width}x{height}")
+            else:
+                logger.info(f"Using provided video resolution: {width}x{height}")
 
-        options['video_width'] = width
-        options['video_height'] = height
-        
-        # Inject Smart Scale Factor into options for SubtitleWriter
-        if scale_factor != 1.0:
-            options['_smart_scale_factor'] = scale_factor
-            logger.info(f"Injected _smart_scale_factor: {scale_factor}")
+            # Override resolution if cropped (and not scaled)
+            crop_w = options.get('crop_w')
+            crop_h = options.get('crop_h')
+            if crop_w is not None and crop_h is not None and target_res == 'original' and not options.get('force_hd'):
+                 width = int(crop_w)
+                 height = int(crop_h)
+                 logger.info(f"Resolution updated to cropped size: {width}x{height}")
 
-        # Convert SRT to ASS
-        temp_ass = os.path.abspath(f"temp_sub_{uuid.uuid4().hex[:8]}.ass")
-        try:
-             # Calculate offset
-            trim_start = float(options.get('trim_start', 0))
-            sub_offset = -trim_start if trim_start > 0 else 0.0
+            options['video_width'] = width
+            options['video_height'] = height
             
-            SubtitleManager.convert_srt_to_ass(srt_path, temp_ass, options, time_offset=sub_offset)
-            
-            # Use relative path for filter to avoid escaping hell
-            video_stream = video_stream.filter('subtitles', os.path.basename(temp_ass))
-            
-        except Exception as e:
-            logger.error(f"Subtitle prep failed: {e}")
-            raise
+            # Inject Smart Scale Factor into options for SubtitleWriter
+            if scale_factor != 1.0:
+                options['_smart_scale_factor'] = scale_factor
+                logger.info(f"Injected _smart_scale_factor: {scale_factor}")
+
+            # Convert SRT to ASS
+            temp_ass = os.path.abspath(f"temp_sub_{uuid.uuid4().hex[:8]}.ass")
+            try:
+                 # Calculate offset
+                trim_start = float(options.get('trim_start', 0))
+                sub_offset = -trim_start if trim_start > 0 else 0.0
+                
+                SubtitleManager.convert_srt_to_ass(srt_path, temp_ass, options, time_offset=sub_offset)
+                
+                # Use relative path for filter to avoid escaping hell
+                video_stream = video_stream.filter('subtitles', os.path.basename(temp_ass))
+                
+            except Exception as e:
+                logger.error(f"Subtitle prep failed: {e}")
+                raise
             
         return video_stream, temp_ass
 

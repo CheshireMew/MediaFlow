@@ -30,7 +30,8 @@
     "bottomAligned": "底部对齐",
     "centerAligned": "居中对齐",
     "topAligned": "顶部对齐",
-    "dragHint": "在预览中拖动文字以调整位置。"
+    "dragHint": "在预览中拖动文字以调整位置。",
+    "subtitleDisabledHint": "字幕渲染已关闭，合成时将不会烧录字幕"
   },
   "watermark": {
     "sectionTitle": "水印",
@@ -39,7 +40,8 @@
     "active": "已启用",
     "positionPreset": "位置预设",
     "scale": "缩放",
-    "opacity": "不透明度"
+    "opacity": "不透明度",
+    "watermarkDisabledHint": "水印渲染已关闭，合成时将不会添加水印"
   },
   "output": {
     "sectionTitle": "输出",

@@ -30,7 +30,8 @@
     "bottomAligned": "下揃え",
     "centerAligned": "中央揃え",
     "topAligned": "上揃え",
-    "dragHint": "プレビューでテキストをドラッグして位置を調整。"
+    "dragHint": "プレビューでテキストをドラッグして位置を調整。",
+    "subtitleDisabledHint": "字幕レンダリングがオフです。合成時に字幕は焼き込まれません。"
   },
   "watermark": {
     "sectionTitle": "ウォーターマーク",
@@ -39,7 +40,8 @@
     "active": "有効",
     "positionPreset": "位置プリセット",
     "scale": "スケール",
-    "opacity": "不透明度"
+    "opacity": "不透明度",
+    "watermarkDisabledHint": "ウォーターマークレンダリングがオフです。合成時にウォーターマークは追加されません。"
   },
   "output": {
     "sectionTitle": "出力",

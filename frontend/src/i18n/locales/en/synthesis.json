@@ -30,7 +30,8 @@
     "bottomAligned": "Bottom aligned",
     "centerAligned": "Center aligned",
     "topAligned": "Top aligned",
-    "dragHint": "Drag text in preview to adjust position."
+    "dragHint": "Drag text in preview to adjust position.",
+    "subtitleDisabledHint": "Subtitle rendering is off. Subtitles will not be burned into the video."
   },
   "watermark": {
     "sectionTitle": "Watermark",
@@ -39,7 +40,8 @@
     "active": "Active",
     "positionPreset": "Position Preset",
     "scale": "Scale",
-    "opacity": "Opacity"
+    "opacity": "Opacity",
+    "watermarkDisabledHint": "Watermark rendering is off. No watermark will be added to the video."
   },
   "output": {
     "sectionTitle": "Output",
