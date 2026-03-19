@@ -158,7 +158,17 @@ class ASRService:
             }
         )
 
-    def transcribe_segment(self, audio_path: str, start: float, end: float, model_name: str = "base", device: str = "cpu", language: str = None) -> TaskResult:
+    def transcribe_segment(
+        self,
+        audio_path: str,
+        start: float,
+        end: float,
+        model_name: str = "base",
+        device: str = "cpu",
+        language: str = None,
+        task_id: str = None,
+        progress_callback=None,
+    ) -> TaskResult:
         """
         Transcribe a specific segment of the audio file.
         This is a synchronous blocking call designed for short segments (<60s).
@@ -180,7 +190,8 @@ class ASRService:
                 model_name=model_name,
                 device=device,
                 language=language,
-                task_id=f"seg_{temp_id}",
+                task_id=task_id or f"seg_{temp_id}",
+                progress_callback=progress_callback,
                 generate_peaks=False  # Disable redundant peak generation
             )
             

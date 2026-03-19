@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import { apiClient } from "../../api/client";
+import { API_BASE, apiClient } from "../../api/client";
 import { formatSRTTime } from "../../utils/subtitleParser";
 import type { ContextMenuItem } from "../../components/ui/ContextMenu";
 
@@ -45,6 +45,7 @@ export function useContextMenuBuilder({
   // Use ref to avoid re-creating callbacks when regions change
   const regionsRef = useRef(regions);
   regionsRef.current = regions;
+  const transcribePollersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
   const handleContextMenu = useCallback(
     (e: any, id: string, regionData?: { start: number; end: number }) => {
@@ -80,6 +81,35 @@ export function useContextMenuBuilder({
                 toast.info("正在识别片段...", 2000);
 
                 try {
+                  const applyTranscriptionResult = (
+                    payload: { segments?: any[]; text?: string },
+                    fallbackRegion: { start: number; end: number },
+                  ) => {
+                    const { segments, text } = payload;
+
+                    if (segments && segments.length > 0) {
+                      const newSegments = segments.map((seg: any, idx: number) => ({
+                        id: String(Date.now() + idx),
+                        start: seg.start,
+                        end: seg.end,
+                        text: String(seg.text || "").trim(),
+                      }));
+                      addSegments(newSegments);
+                      toast.success(`成功识别 ${newSegments.length} 个片段`);
+                      return;
+                    }
+
+                    const newId = String(Date.now());
+                    addSegment({
+                      id: newId,
+                      start: fallbackRegion.start,
+                      end: fallbackRegion.end,
+                      text: (text || "").trim() || "[无语音]",
+                    });
+                    setTimeout(() => selectSegment(newId, false, false), 50);
+                    toast.success("识别成功");
+                  };
+
                   const res = await apiClient.transcribeSegment({
                     video_path: "",
                     audio_path: currentFilePath,
@@ -91,34 +121,48 @@ export function useContextMenuBuilder({
                   });
 
                   if (res.status === "completed" && res.data) {
-                    const { segments, text } = res.data;
-                    if (segments && segments.length > 0) {
-                      const newSegments = segments.map(
-                        (seg: any, idx: number) => ({
-                          id: String(Date.now() + idx),
-                          start: seg.start,
-                          end: seg.end,
-                          text: seg.text.trim(),
-                        }),
-                      );
-                      addSegments(newSegments);
-                      toast.success(`成功识别 ${newSegments.length} 个片段`);
-                    } else {
-                      const newId = String(Date.now());
-                      addSegment({
-                        id: newId,
-                        start: regionData.start,
-                        end: regionData.end,
-                        text: (text || "").trim() || "[无语音]",
-                      });
-                      setTimeout(() => selectSegment(newId, false, false), 50);
-                      toast.success("识别成功");
-                    }
+                    applyTranscriptionResult(res.data, regionData);
                   } else {
-                    toast.info(
-                      `片段较长，后台处理中... (Task: ${res.task_id})`,
-                      5000,
-                    );
+                    const taskId = res.task_id;
+                    if (!taskId) {
+                      throw new Error("后台任务已创建，但未返回 task_id");
+                    }
+
+                    toast.info(`片段较长，后台处理中... (Task: ${taskId})`, 5000);
+
+                    if (transcribePollersRef.current[taskId]) {
+                      clearInterval(transcribePollersRef.current[taskId]);
+                    }
+
+                    transcribePollersRef.current[taskId] = setInterval(async () => {
+                      try {
+                        const statusRes = await fetch(
+                          `${API_BASE}/tasks/${taskId}`,
+                        ).then((r) => {
+                          if (!r.ok) throw new Error("Failed to get task status");
+                          return r.json();
+                        });
+
+                        if (statusRes.status === "completed") {
+                          clearInterval(transcribePollersRef.current[taskId]);
+                          delete transcribePollersRef.current[taskId];
+
+                          applyTranscriptionResult(
+                            statusRes.result?.meta || statusRes.result || {},
+                            regionData,
+                          );
+                        } else if (statusRes.status === "failed") {
+                          clearInterval(transcribePollersRef.current[taskId]);
+                          delete transcribePollersRef.current[taskId];
+                          toast.error(
+                            "长片段识别失败: " +
+                              String(statusRes.error || "unknown error"),
+                          );
+                        }
+                      } catch (pollErr) {
+                        console.error("ASR task polling failed:", pollErr);
+                      }
+                    }, 1000);
                   }
                 } catch (err) {
                   console.error(err);

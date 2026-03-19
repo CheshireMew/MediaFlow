@@ -21,6 +21,7 @@ class YtDlpConfigBuilder:
         start_url: Optional[str] = None,
         proxy: Optional[str] = None,
         playlist_title: Optional[str] = None,
+        playlist_items: Optional[str] = None,
         download_subs: bool = False,
         resolution: str = "best",
         codec: str = "best", # "best" (default) or "avc" (h264)
@@ -90,6 +91,13 @@ class YtDlpConfigBuilder:
             'ignoreerrors': False, # Fail on error (e.g. 403) so we know why download failed
             'referer': 'https://www.douyin.com/' if 'douyin' in str(start_url or url) else None,
         }
+        
+        # Determine whether to download playlist items or enforce single download
+        if playlist_items:
+            opts['playlist_items'] = playlist_items
+            opts['noplaylist'] = False
+        else:
+            opts['noplaylist'] = True
 
         if progress_hook:
             opts['progress_hooks'] = [progress_hook]

@@ -45,6 +45,7 @@ class DownloadStep(PipelineStep):
             url, 
             proxy=params.get("proxy"),
             playlist_title=params.get("playlist_title"),
+            playlist_items=params.get("playlist_items"),
             progress_callback=progress_cb,
             check_cancel_callback=check_cancel_cb,
             download_subs=params.get("download_subs", False),

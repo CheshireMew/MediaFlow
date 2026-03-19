@@ -96,18 +96,19 @@ async def transcribe_segment(req: TranscribeSegmentRequest, background_tasks: Ba
             request_params=req.dict()
         )
         
-        # Define worker for background
-        def worker_wrapper(task_id, r):
-             result = _get_asr_service().transcribe_segment(
-                 r.audio_path, r.start, r.end, r.model, r.device, r.language
-             )
-             return result
-
         background_tasks.add_task(
             BackgroundTaskRunner.run,
             task_id=task_id,
-            worker_fn=worker_wrapper,
-            worker_kwargs={"task_id": task_id, "r": req},
+            worker_fn=_get_asr_service().transcribe_segment,
+            worker_kwargs={
+                "audio_path": req.audio_path,
+                "start": req.start,
+                "end": req.end,
+                "model_name": req.model,
+                "device": req.device,
+                "language": req.language,
+                "task_id": task_id,
+            },
             start_message="Processing segment...",
             success_message="Segment transcribed"
         )

@@ -94,7 +94,7 @@ export function useDownloaderController() {
 
   const downloadVideos = useCallback(
     async (
-      urls: string[],
+      items: { url: string; title?: string; index?: number }[],
       playlistTitle?: string,
       extraInfo?: Record<string, any>,
     ) => {
@@ -103,25 +103,23 @@ export function useDownloaderController() {
       setError(null);
 
       let successCount = 0;
-      for (let i = 0; i < urls.length; i++) {
+      for (let i = 0; i < items.length; i++) {
         try {
-          let currentUrl = urls[i];
+          const item = items[i];
+          let currentUrl = item.url;
           let directUrl: string | null = null;
           let finalExtraInfo: any = { ...extraInfo };
-          let customFilename: string | undefined = undefined;
+          let customFilename: string | undefined = item.title;
 
-          // Determine filename
-          if (urls.length === 1) {
-            if (finalExtraInfo.title) {
-              customFilename = finalExtraInfo.title;
-            } else if (lastAnalysis?.title) {
-              customFilename = lastAnalysis.title;
+          // Determine filename fallback
+          if (!customFilename) {
+            if (items.length === 1) {
+              if (finalExtraInfo.title) {
+                customFilename = finalExtraInfo.title;
+              } else if (lastAnalysis?.title) {
+                customFilename = lastAnalysis.title;
+              }
             }
-          } else if (playlistInfo && playlistInfo.items) {
-            const found = playlistInfo.items.find(
-              (item) => item.url === currentUrl,
-            );
-            if (found) customFilename = found.title;
           }
 
           if (!customFilename && currentUrl.includes("douyin.com")) {
@@ -142,6 +140,7 @@ export function useDownloaderController() {
                 params: {
                   url: directUrl || currentUrl,
                   playlist_title: playlistTitle,
+                  playlist_items: item.index ? item.index.toString() : undefined,
                   download_subs: downloadSubs,
                   resolution: resolution,
                   codec: codec,
@@ -258,7 +257,11 @@ export function useDownloaderController() {
         if (analysis.title) {
           extraWithDirect.title = analysis.title;
         }
-        await downloadVideos([analysis.url || url], undefined, extraWithDirect);
+        await downloadVideos(
+          [{ url: analysis.url || url, title: analysis.title }],
+          undefined,
+          extraWithDirect,
+        );
       }
     } catch (e: any) {
       const errorMessage = e.message || "Analysis failed";
@@ -283,7 +286,7 @@ export function useDownloaderController() {
               setShowPlaylistDialog(true);
             } else {
               await downloadVideos(
-                [analysis.url || url],
+                [{ url: analysis.url || url, title: analysis.title }],
                 undefined,
                 analysis.extra_info,
               );
@@ -304,20 +307,28 @@ export function useDownloaderController() {
   const handlePlaylistDownload = (mode: "current" | "all" | "selected") => {
     if (!playlistInfo?.items) return;
 
-    let urlsToDownload: string[] = [];
+    let itemsToDownload: { url: string; title?: string; index?: number }[] = [];
     const playlistTitle = playlistInfo.id
       ? `${playlistInfo.title} [${playlistInfo.id}]`
       : playlistInfo.title;
 
     if (mode === "current") {
-      urlsToDownload = [url];
+      itemsToDownload = [{ url }];
     } else if (mode === "all") {
-      urlsToDownload = playlistInfo.items.map((item) => item.url);
+      itemsToDownload = playlistInfo.items.map((item) => ({
+        url: item.url,
+        title: item.title,
+        index: item.index,
+      }));
     } else {
-      urlsToDownload = selectedItems.map((i) => playlistInfo.items![i].url);
+      itemsToDownload = selectedItems.map((i) => ({
+        url: playlistInfo.items![i].url,
+        title: playlistInfo.items![i].title,
+        index: playlistInfo.items![i].index,
+      }));
     }
 
-    downloadVideos(urlsToDownload, playlistTitle);
+    downloadVideos(itemsToDownload, playlistTitle);
   };
 
   const toggleItemSelection = (index: number) => {
