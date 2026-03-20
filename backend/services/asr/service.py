@@ -17,12 +17,22 @@ from .core_strategies import CoreStrategies
 from backend.utils.peaks_generator import generate_multi_resolution_peaks
 
 class ASRService:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self):
         """Initialized via Container."""
+        if getattr(self, "_initialized", False):
+            return
         self.executor = ThreadPoolExecutor(max_workers=settings.ASR_MAX_WORKERS)
         self.model_manager = ModelManager()
         self.adapter = FasterWhisperAdapter()
         self.core_strategies = CoreStrategies(self.executor)
+        self._initialized = True
 
     def transcribe(self, audio_path: str, model_name: str = "base", device: str = "cpu", language: str = None, task_id: str = None, initial_prompt: str = None, progress_callback=None, generate_peaks: bool = True) -> TaskResult:
         """
@@ -31,9 +41,6 @@ class ASRService:
         if not os.path.exists(audio_path):
             logger.error(f"Audio file not found: {audio_path}")
             return TaskResult(success=False, error=f"File not found: {audio_path}")
-
-        if not initial_prompt:
-             initial_prompt = "Hello, Welcome. This is a subtitle for the video." if not language or language == "en" else "你好，欢迎。这是一个视频字幕。"
 
         # Calculate duration once for all paths
         try:

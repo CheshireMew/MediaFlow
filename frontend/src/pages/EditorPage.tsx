@@ -17,7 +17,15 @@ import { useEditorIO } from "../hooks/editor/useEditorIO";
 import { useEditorShortcuts } from "../hooks/editor/useEditorShortcuts";
 import { useEditorActions } from "../hooks/editor/useEditorActions";
 import { useContextMenuBuilder } from "../hooks/editor/useContextMenuBuilder";
+import { useEditorDragDrop } from "../hooks/editor/useEditorDragDrop";
+import { useEditorPlaybackPersistence } from "../hooks/editor/useEditorPlaybackPersistence";
+import { useEditorFindReplace } from "../hooks/editor/useEditorFindReplace";
+import { useEditorRegionHandlers } from "../hooks/editor/useEditorRegionHandlers";
 import { useEditorStore } from "../stores/editorStore";
+
+export { getSelectedTextForFindReplace } from "../hooks/editor/useEditorFindReplace";
+
+type WaveformPeaks = Array<Float32Array | number[]> | null;
 
 export function EditorPage() {
   const { t } = useTranslation('editor');
@@ -25,10 +33,7 @@ export function EditorPage() {
 
   // ── UI State ────────────────────────────────────────────────
   const [autoScroll, setAutoScroll] = useState(true);
-  const [peaks, setPeaks] = useState<any>(null);
-  const [showFindReplace, setShowFindReplace] = useState<{ isOpen: boolean; mode: 'find' | 'replace' }>({ isOpen: false, mode: 'find' });
-  const [searchTerm, setSearchTerm] = useState("");
-  const [matchCase, setMatchCase] = useState(false);
+  const [peaks, setPeaks] = useState<WaveformPeaks>(null);
   const [showSynthesis, setShowSynthesis] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
       position: { x: number; y: number };
@@ -38,9 +43,10 @@ export function EditorPage() {
 
   // ── Store ───────────────────────────────────────────────────
   const regions = useEditorStore(state => state.regions);
-  const setRegions = useEditorStore(state => state.setRegions);
+  const replaceRegionsWithUndo = useEditorStore(state => state.replaceRegionsWithUndo);
   const activeSegmentId = useEditorStore(state => state.activeSegmentId);
   const selectedIds = useEditorStore(state => state.selectedIds);
+  const currentSubtitlePath = useEditorStore(state => state.currentSubtitlePath);
   const undo = useEditorStore(state => state.undo);
   const redo = useEditorStore(state => state.redo);
   const deleteSegments = useEditorStore(state => state.deleteSegments);
@@ -53,40 +59,53 @@ export function EditorPage() {
   const addSegment = useEditorStore(state => state.addSegment);
   const addSegments = useEditorStore(state => state.addSegments);
   const updateSegments = useEditorStore(state => state.updateSegments);
+  const {
+    showFindReplace,
+    searchTerm,
+    setSearchTerm,
+    matchCase,
+    setMatchCase,
+    handleCloseFindReplace,
+    handleToggleFindReplace,
+  } = useEditorFindReplace();
 
   // ── IO Hook ─────────────────────────────────────────────────
   const {
-      mediaUrl, openFile, savePeaks, saveSubtitleFile,
-      detectSilence, isReady, currentFilePath,
+      mediaUrl, openFile, saveSubtitleFile,
+      detectSilence, currentFilePath,
       loadVideo, loadSubtitleFromPath,
   } = useEditorIO(setPeaks);
 
   // ── Action Hooks ────────────────────────────────────────────
   const { handleSave, handleTranslate, handleSmartSplit } = useEditorActions({
-      currentFilePath, regions: regions as any, saveSubtitleFile,
-      detectSilence, setRegions, videoRef,
+      currentFilePath, currentSubtitlePath, regions, saveSubtitleFile,
+      detectSilence, replaceRegionsWithUndo, videoRef,
   });
 
   const { handleContextMenu } = useContextMenuBuilder({
-      regions: regions as any, selectedIds, currentFilePath, videoRef,
+      regions, selectedIds, currentFilePath, videoRef,
       selectSegment, addSegment, addSegments, updateSegments,
       mergeSegments, splitSegment, deleteSegments, setContextMenu,
   });
 
-  // ── Shortcuts ───────────────────────────────────────────────
-  useEditorShortcuts({
-      videoRef, selectedIds, activeSegmentId,
-      undo, redo, deleteSegments, splitSegment,
-      onSave: handleSave,
-      onToggleFindReplace: (mode: 'find' | 'replace') => setShowFindReplace(prev => ({ isOpen: !prev.isOpen, mode: !prev.isOpen ? mode : prev.mode })),
-  });
-
   // ── Persistence & Safety ────────────────────────────────────
-  const regionsRef = useRef(regions);
-  useEffect(() => {
-    regionsRef.current = regions;
-    if (isReady) localStorage.setItem("editor_last_subtitles", JSON.stringify(regions));
-  }, [regions, isReady]);
+  const {
+    displaySegment,
+    handleRegionClick,
+    handleDetailUpdate,
+    handleRegionUpdateCallback,
+    handleFindReplaceSelectSegment,
+    handleFindReplaceUpdateSegment,
+    regionsRef,
+  } = useEditorRegionHandlers({
+    regions,
+    activeSegmentId,
+    selectSegment,
+    updateRegion,
+    updateRegionText,
+    snapshot,
+    videoRef,
+  });
 
   useEffect(() => {
       const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -94,77 +113,25 @@ export function EditorPage() {
       };
       window.addEventListener('beforeunload', handleBeforeUnload);
       return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
+  }, [regionsRef]);
 
-  // ── View Handlers ───────────────────────────────────────────
-  const handleRegionClick = useCallback((id: string, e?: MouseEvent | { ctrlKey: boolean, metaKey: boolean, shiftKey?: boolean, seek?: boolean }) => {
-      selectSegment(id, e?.ctrlKey || e?.metaKey || false, (e as any)?.shiftKey || false);
-      if ((e as any)?.seek && videoRef.current) {
-          const seg = regionsRef.current.find(r => r.id === id);
-          if (seg) videoRef.current.currentTime = seg.start;
-      }
-  }, [selectSegment]);
+  // ── Shortcuts ───────────────────────────────────────────────
+  useEditorShortcuts({
+      videoRef, selectedIds, activeSegmentId,
+      undo, redo, deleteSegments, splitSegment,
+      onSave: handleSave,
+      onToggleFindReplace: handleToggleFindReplace,
+  });
 
-  // Detail Editor
-  const displaySegment = regions.find(r => r.id === activeSegmentId);
-  const handleDetailUpdate = (field: 'start' | 'end' | 'text', value: string | number) => {
-      if (!displaySegment) return;
-      const id = String(displaySegment.id);
-      if (field === 'text') {
-          updateRegionText(id, value as string);
-      } else {
-          snapshot(); snapshot();
-          updateRegion(id, { [field]: value });
-      }
-  };
-
-  const handleRegionUpdateCallback = useCallback((id: string, start: number, end: number) => {
-      updateRegion(id, { start, end });
-  }, [updateRegion]);
-
-  // ── Drag & Drop ─────────────────────────────────────────────
-  const handleVideoDrop = useCallback(async (e: React.DragEvent) => {
-      e.preventDefault(); e.stopPropagation();
-      const file = e.dataTransfer.files[0];
-      if (file) {
-          let path = (file as any).path;
-          if (!path && window.electronAPI?.getPathForFile) path = window.electronAPI.getPathForFile(file);
-          if (path) await loadVideo(path);
-      }
-  }, [loadVideo]);
-
-  const handleSubtitleDrop = useCallback(async (e: React.DragEvent) => {
-      e.preventDefault(); e.stopPropagation();
-      const file = e.dataTransfer.files[0];
-      const name = file?.name?.toLowerCase() ?? '';
-      if (file && (name.endsWith('.srt') || name.endsWith('.vtt') || name.endsWith('.ass') || name.endsWith('.ssa') || name.endsWith('.sub') || name.endsWith('.txt') || name.endsWith('.lrc'))) {
-          let path = (file as any).path;
-          if (!path && window.electronAPI?.getPathForFile) path = window.electronAPI.getPathForFile(file);
-          if (path) await loadSubtitleFromPath(path);
-      }
-  }, [loadSubtitleFromPath]);
-
-  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
-
-  // ── Playback Persistence ────────────────────────────────────
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !currentFilePath) return;
-    const saveTime = () => { if (video.currentTime > 0) localStorage.setItem(`playback_pos_${currentFilePath}`, String(video.currentTime)); };
-    const interval = setInterval(saveTime, 5000);
-    video.addEventListener('pause', saveTime);
-    return () => { saveTime(); clearInterval(interval); video.removeEventListener('pause', saveTime); };
-  }, [currentFilePath]);
-
-  const handleLoadedMetadata = useCallback(() => {
-      if (currentFilePath && videoRef.current) {
-          const saved = localStorage.getItem(`playback_pos_${currentFilePath}`);
-          if (saved) {
-              const time = parseFloat(saved);
-              if (!isNaN(time) && time > 0 && time < videoRef.current.duration) videoRef.current.currentTime = time;
-          }
-      }
-  }, [currentFilePath]);
+  const { handleVideoDrop, handleSubtitleDrop, handleDragOver } =
+    useEditorDragDrop({
+      loadVideo,
+      loadSubtitleFromPath,
+    });
+  const { handleLoadedMetadata } = useEditorPlaybackPersistence({
+    currentFilePath,
+    videoRef,
+  });
 
   // ── Render ──────────────────────────────────────────────────
   return (
@@ -190,6 +157,7 @@ export function EditorPage() {
                         activeSegmentId={activeSegmentId}
                         autoScroll={autoScroll}
                         selectedIds={selectedIds}
+                        scrollResetKey={currentSubtitlePath || currentFilePath}
                         onSegmentClick={(id, multi, shift) => handleRegionClick(id, { ctrlKey: multi, metaKey: false, shiftKey: shift, seek: false })}
                         onSegmentDelete={(id) => deleteSegments([id])}
                         onSegmentMerge={(ids) => mergeSegments(ids)}
@@ -198,7 +166,7 @@ export function EditorPage() {
                             if (seg && videoRef.current) videoRef.current.currentTime = seg.start;
                         }}
                         onContextMenu={handleContextMenu}
-                        onAutoFix={(newSegments) => setRegions(newSegments)}
+                        onAutoFix={(newSegments) => replaceRegionsWithUndo(newSegments)}
                         searchTerm={searchTerm}
                         matchCase={matchCase}
                      />
@@ -252,13 +220,12 @@ export function EditorPage() {
                     videoRef={videoRef}
                     regions={regions}
                     onRegionUpdate={handleRegionUpdateCallback}
-                    onRegionClick={handleRegionClick}
-                    onContextMenu={handleContextMenu}
-                    peaks={peaks}
-                    onPeaksGenerated={savePeaks}
-                    selectedIds={selectedIds}
-                    autoScroll={autoScroll}
-                    onInteractStart={snapshot}
+                     onRegionClick={handleRegionClick}
+                     onContextMenu={handleContextMenu}
+                     peaks={peaks}
+                     selectedIds={selectedIds}
+                     autoScroll={autoScroll}
+                     onInteractStart={snapshot}
                  />
              )}
         </div>
@@ -272,10 +239,10 @@ export function EditorPage() {
         <FindReplaceDialog
             isOpen={showFindReplace.isOpen}
             initialMode={showFindReplace.mode}
-            onClose={() => setShowFindReplace({ ...showFindReplace, isOpen: false })}
+            onClose={handleCloseFindReplace}
             regions={regions}
-            onSelectSegment={(id) => selectSegment(id, false, false)}
-            onUpdateSegment={(id, text) => updateRegion(id, { text })}
+            onSelectSegment={handleFindReplaceSelectSegment}
+            onUpdateSegment={handleFindReplaceUpdateSegment}
             onUpdateSegments={updateSegments}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}

@@ -5,20 +5,12 @@ from backend.core.container import container, Services
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
 
-def _get_notifier():
-    return container.get(Services.WS_NOTIFIER)
-
-
-def _get_task_manager():
-    return container.get(Services.TASK_MANAGER)
-
-
 @router.websocket("/tasks")
 async def websocket_endpoint(websocket: WebSocket):
     from loguru import logger
     try:
-        notifier = _get_notifier()
-        tm = _get_task_manager()
+        notifier = container.get(Services.WS_NOTIFIER)
+        tm = container.get(Services.TASK_MANAGER)
 
         await notifier.connect(websocket)
         
@@ -35,18 +27,22 @@ async def websocket_endpoint(websocket: WebSocket):
 
         while True:
             data = await websocket.receive_json()
-            if data.get("action") == "cancel":
-                task_id = data.get("task_id")
-                if task_id:
-                    await tm.cancel_task(task_id)
+            action = data.get("action")
+            task_id = data.get("task_id")
+            if not task_id:
+                continue
+            if action == "pause":
+                await tm.pause_task(task_id)
+            elif action == "cancel":
+                await tm.cancel_task(task_id)
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected normally")
-        _get_notifier().disconnect(websocket)
+        container.get(Services.WS_NOTIFIER).disconnect(websocket)
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         # Ensure we try to disconnect cleanly if possible
         try:
-            _get_notifier().disconnect(websocket)
+            container.get(Services.WS_NOTIFIER).disconnect(websocket)
         except Exception:
             pass
 

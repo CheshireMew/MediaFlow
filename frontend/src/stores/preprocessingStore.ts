@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { OCRTextEvent } from "../types/api";
 
 export interface ProjectFile {
   path: string;
@@ -9,12 +10,6 @@ export interface ProjectFile {
 }
 
 export type PreprocessingTool = "enhance" | "clean" | "extract";
-
-export interface OCRResult {
-  text: string;
-  confidence: number;
-  bbox: [number, number, number, number];
-}
 
 export interface PreprocessingState {
   // Tool State
@@ -37,8 +32,21 @@ export interface PreprocessingState {
   // OCR Settings & Results
   ocrEngine: string;
   setOcrEngine: (engine: string) => void;
-  ocrResults: OCRResult[];
-  setOcrResults: (results: OCRResult[]) => void;
+  ocrResults: OCRTextEvent[];
+  setOcrResults: (results: OCRTextEvent[]) => void;
+
+  // Active Task State
+  preprocessingIsProcessing: boolean;
+  setPreprocessingIsProcessing: (processing: boolean) => void;
+  preprocessingActiveTaskId: string | null;
+  preprocessingActiveTaskTool: PreprocessingTool | null;
+  preprocessingActiveTaskVideoPath: string | null;
+  setPreprocessingActiveTask: (
+    taskId: string,
+    tool: PreprocessingTool,
+    videoPath: string,
+  ) => void;
+  clearPreprocessingActiveTask: () => void;
 
   // File State
   preprocessingFiles: ProjectFile[];
@@ -77,6 +85,27 @@ export const usePreprocessingStore = create<PreprocessingState>()(
 
       ocrResults: [],
       setOcrResults: (results) => set({ ocrResults: results }),
+
+      preprocessingIsProcessing: false,
+      setPreprocessingIsProcessing: (processing) =>
+        set({ preprocessingIsProcessing: processing }),
+      preprocessingActiveTaskId: null,
+      preprocessingActiveTaskTool: null,
+      preprocessingActiveTaskVideoPath: null,
+      setPreprocessingActiveTask: (taskId, tool, videoPath) =>
+        set({
+          preprocessingActiveTaskId: taskId,
+          preprocessingActiveTaskTool: tool,
+          preprocessingActiveTaskVideoPath: videoPath,
+          preprocessingIsProcessing: true,
+        }),
+      clearPreprocessingActiveTask: () =>
+        set({
+          preprocessingActiveTaskId: null,
+          preprocessingActiveTaskTool: null,
+          preprocessingActiveTaskVideoPath: null,
+          preprocessingIsProcessing: false,
+        }),
 
       preprocessingFiles: [],
       addPreprocessingFile: (file) =>
@@ -117,6 +146,7 @@ export const usePreprocessingStore = create<PreprocessingState>()(
         enhanceMethod: state.enhanceMethod,
         cleanMethod: state.cleanMethod,
         ocrEngine: state.ocrEngine,
+        ocrResults: state.ocrResults,
         preprocessingVideoPath: state.preprocessingVideoPath,
         // We typically don't persist results or files if they are transient,
         // but editorStore persisted files. logic says yes for files.

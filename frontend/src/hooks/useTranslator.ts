@@ -1,6 +1,7 @@
 import {
   useTranslatorStore,
   type TranslatorMode,
+  type TranslatorResultMode,
 } from "../stores/translatorStore";
 import { useTranslationTask } from "./useTranslationTask";
 import { useGlossary } from "./useGlossary";
@@ -21,6 +22,8 @@ interface UseTranslatorReturn {
   // UI State
   targetLang: string;
   mode: TranslatorMode;
+  activeMode: TranslatorMode | null;
+  resultMode: TranslatorResultMode;
   taskId: string | null;
   taskStatus: string;
   progress: number;
@@ -44,6 +47,8 @@ export const useTranslator = (): UseTranslatorReturn => {
   const {
     sourceSegments,
     targetSegments,
+    activeMode,
+    resultMode,
     setSourceSegments,
     updateTargetSegment,
   } = useTranslatorStore();
@@ -65,6 +70,8 @@ export const useTranslator = (): UseTranslatorReturn => {
     // UI State
     targetLang: task.targetLang,
     mode: task.mode,
+    activeMode,
+    resultMode,
     taskId: task.taskId,
     taskStatus: task.taskStatus,
     progress: task.progress,

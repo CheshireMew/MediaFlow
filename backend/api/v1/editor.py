@@ -1,17 +1,13 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Query
+from fastapi import APIRouter, HTTPException, UploadFile, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
+from pathlib import Path
 import os
 from backend.services.video_synthesizer import VideoSynthesizer
 from backend.core.container import container, Services
 from backend.models.schemas import SynthesisRequest
 import uuid
-
-
-def _get_synthesizer() -> VideoSynthesizer:
-    """Get VideoSynthesizer from DI container."""
-    return container.get(Services.VIDEO_SYNTHESIZER)
 
 router = APIRouter(prefix="/editor", tags=["Editor"])
 
@@ -46,7 +42,7 @@ async def upload_watermark_for_preview(file: UploadFile):
             shutil.copyfileobj(file.file, buffer)
             
         # Process (Trim & Convert) -> Returns path to trimmed PNG
-        png_path = _get_synthesizer().process_watermark(str(temp_input_path))
+        png_path = container.get(Services.VIDEO_SYNTHESIZER).process_watermark(str(temp_input_path))
         
         # Move to Persistent 'latest.png'
         persistent_path = watermarks_dir / "latest.png"
@@ -177,7 +173,7 @@ async def run_synthesis_task(task_id: str, req: SynthesisRequest):
     
     await BackgroundTaskRunner.run(
         task_id=task_id,
-        worker_fn=_get_synthesizer().burn_in_subtitles,
+        worker_fn=container.get(Services.VIDEO_SYNTHESIZER).burn_in_subtitles,
         worker_kwargs={
             "video_path": req.video_path,
             "srt_path": req.srt_path,
@@ -199,7 +195,7 @@ async def run_synthesis_task(task_id: str, req: SynthesisRequest):
 
 
 @router.post("/synthesize")
-async def start_synthesis_task(req: SynthesisRequest, background_tasks: BackgroundTasks):
+async def start_synthesis_task(req: SynthesisRequest):
     """
     Start a video synthesis task (burn-in subtitles/watermark).
     This is a long-running process, so we offload it.
@@ -215,18 +211,11 @@ async def start_synthesis_task(req: SynthesisRequest, background_tasks: Backgrou
         base, ext = os.path.splitext(req.video_path)
         req.output_path = f"{base}_burned.mp4"
 
-    task_manager = container.get(Services.TASK_MANAGER)
-    
-    # Create the task entry
-    # Note: create_task generates the ID and returns it
-    task_id = await task_manager.create_task(
+    response = await container.get(Services.TASK_ORCHESTRATOR).submit_task(
         task_type="synthesis",
         task_name=os.path.basename(req.video_path),
-        initial_message="Queued",
-        request_params=req.dict()
+        request_params=req.dict(),
+        runner_factory=lambda task_id: lambda: run_synthesis_task(task_id, req),
     )
-    
-    # Start background execution
-    background_tasks.add_task(run_synthesis_task, task_id, req)
 
-    return {"task_id": task_id, "status": "pending"}
+    return {"task_id": response["task_id"], "status": response["status"]}

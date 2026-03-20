@@ -6,6 +6,8 @@
  * re‑declaring inline.
  */
 
+import type { SubtitleSegment } from "./task";
+
 // ─── Generic Response Shapes ────────────────────────────────────
 
 /** Common message-only response from mutation endpoints. */
@@ -107,12 +109,33 @@ export interface UserSettings {
   llm_providers: LLMProvider[];
   default_download_path: string | null;
   language: string;
+  translation_target_language: string;
+  transcription_model: string;
   auto_execute_flow: boolean;
 }
 
 export interface ActiveProviderResponse {
   status: string;
   active_provider_id: string;
+}
+
+export interface ProviderConnectionRequest {
+  name?: string;
+  base_url: string;
+  api_key: string;
+  model: string;
+}
+
+export interface ProviderConnectionResponse {
+  status: string;
+  message: string;
+}
+
+export interface ToolUpdateResponse {
+  status: string;
+  message: string;
+  previous_version?: string | null;
+  current_version?: string | null;
 }
 
 // ─── Audio ──────────────────────────────────────────────────────
@@ -171,7 +194,7 @@ export interface TranscribeSegmentResponse {
   task_id?: string;
   data?: {
     text: string;
-    segments: any[];
+    segments: SubtitleSegment[];
   };
   message?: string;
 }
@@ -179,16 +202,16 @@ export interface TranscribeSegmentResponse {
 // ─── Translate ──────────────────────────────────────────────────
 
 export interface TranslateRequest {
-  segments: any[];
+  segments: SubtitleSegment[];
   target_language: string;
-  mode?: "standard" | "intelligent";
+  mode?: "standard" | "intelligent" | "proofread";
   context_path?: string | null;
 }
 
 export interface TranslateResponse {
   task_id: string;
   status: string;
-  segments?: any[];
+  segments?: SubtitleSegment[];
 }
 
 // ─── OCR ────────────────────────────────────────────────────────

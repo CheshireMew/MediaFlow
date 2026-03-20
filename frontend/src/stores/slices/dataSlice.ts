@@ -10,6 +10,8 @@ export interface DataSlice {
   currentSubtitlePath: string | null;
 
   setRegions: (regions: SubtitleSegment[]) => void;
+  replaceRegionsWithUndo: (regions: SubtitleSegment[]) => void;
+  replaceEditorDocument: (regions: SubtitleSegment[]) => void;
   setMediaUrl: (url: string | null) => void;
   setCurrentFilePath: (path: string | null) => void;
   setCurrentSubtitlePath: (path: string | null) => void;
@@ -35,6 +37,18 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
   currentSubtitlePath: null,
 
   setRegions: (regions) => set({ regions }),
+  replaceRegionsWithUndo: (regions) => {
+    get().snapshot();
+    set({ regions });
+  },
+  replaceEditorDocument: (regions) =>
+    set({
+      regions,
+      activeSegmentId: null,
+      selectedIds: [],
+      past: [],
+      future: [],
+    }),
   setMediaUrl: (url) => set({ mediaUrl: url }),
   setCurrentFilePath: (path) => set({ currentFilePath: path }),
   setCurrentSubtitlePath: (path) => set({ currentSubtitlePath: path }),

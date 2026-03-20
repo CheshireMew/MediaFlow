@@ -1,63 +1,156 @@
 import type { SubtitleSegment } from "../types/task";
 
 /**
- * Parse SRT (SubRip) subtitle content into SubtitleSegment array.
+ * Parse timestamp strings from common subtitle formats.
+ */
+function parseTimestamp(timestamp: string): number | null {
+  const match = timestamp
+    .trim()
+    .match(/^(?:(\d{1,2}):)?(\d{2}):(\d{2})[,.](\d{2,3})$/);
+  if (!match) return null;
+
+  const hours = Number(match[1] ?? 0);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+  const rawMs = match[4];
+  const milliseconds =
+    rawMs.length === 2 ? Number(rawMs) * 10 : Number(rawMs.padEnd(3, "0"));
+
+  return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+}
+
+function normalizeSubtitleText(text: string): string {
+  return text
+    .replace(/\{[^}]*\}/g, "")
+    .replace(/\\N/gi, "\n")
+    .replace(/\\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+function parseTimestampLine(line: string): { start: number; end: number } | null {
+  const match = line.match(
+    /((?:\d{1,2}:)?\d{2}:\d{2}[,.]\d{2,3})\s*-->\s*((?:\d{1,2}:)?\d{2}:\d{2}[,.]\d{2,3})/,
+  );
+  if (!match) return null;
+
+  const start = parseTimestamp(match[1]);
+  const end = parseTimestamp(match[2]);
+  if (start === null || end === null) return null;
+  return { start, end };
+}
+
+/**
+ * Parse SRT/WebVTT content into SubtitleSegment array.
  * Handles both Unix (\n) and Windows (\r\n) line endings.
  * Supports comma (,) and period (.) as millisecond separators.
  */
 export function parseSRT(content: string): SubtitleSegment[] {
-  // Normalize line endings to \n
   const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  // Split by blank lines (one or more empty lines)
   const blocks = normalized.trim().split(/\n\s*\n/);
 
   const segments: SubtitleSegment[] = [];
 
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i].trim();
-    if (!block) continue;
+  for (const block of blocks) {
+    const lines = block
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length === 0) continue;
 
-    const lines = block.split("\n");
-
-    // Find the line with timestamp (contains -->)
-    let timeLineIdx = -1;
-    for (let j = 0; j < lines.length; j++) {
-      if (lines[j].includes("-->")) {
-        timeLineIdx = j;
-        break;
-      }
-    }
-
+    const timeLineIdx = lines.findIndex((line) => line.includes("-->"));
     if (timeLineIdx === -1) continue;
 
-    const timeLine = lines[timeLineIdx];
-    const timeMatch = timeLine.match(
-      /(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})/,
-    );
+    const timing = parseTimestampLine(lines[timeLineIdx]);
+    if (!timing) continue;
 
-    if (!timeMatch) continue;
+    const text = normalizeSubtitleText(lines.slice(timeLineIdx + 1).join("\n"));
+    if (!text) continue;
 
-    const start =
-      parseInt(timeMatch[1]) * 3600 +
-      parseInt(timeMatch[2]) * 60 +
-      parseInt(timeMatch[3]) +
-      parseInt(timeMatch[4]) / 1000;
-    const end =
-      parseInt(timeMatch[5]) * 3600 +
-      parseInt(timeMatch[6]) * 60 +
-      parseInt(timeMatch[7]) +
-      parseInt(timeMatch[8]) / 1000;
-
-    // Text is everything after the timestamp line
-    const textLines = lines.slice(timeLineIdx + 1).filter((l) => l.trim());
-    const text = textLines.join(" ").trim();
-
-    if (text) {
-      segments.push({ id: String(segments.length + 1), start, end, text });
-    }
+    segments.push({
+      id: String(segments.length + 1),
+      start: timing.start,
+      end: timing.end,
+      text,
+    });
   }
 
   return segments;
+}
+
+export function parseASS(content: string): SubtitleSegment[] {
+  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalized.split("\n");
+  const segments: SubtitleSegment[] = [];
+
+  let inEventsSection = false;
+  let formatColumns: string[] = [];
+  let startIndex = -1;
+  let endIndex = -1;
+  let textIndex = -1;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    if (trimmed.startsWith("[")) {
+      inEventsSection = trimmed.toLowerCase() === "[events]";
+      continue;
+    }
+
+    if (!inEventsSection) continue;
+
+    if (trimmed.startsWith("Format:")) {
+      formatColumns = trimmed
+        .slice("Format:".length)
+        .split(",")
+        .map((part) => part.trim().toLowerCase());
+      startIndex = formatColumns.indexOf("start");
+      endIndex = formatColumns.indexOf("end");
+      textIndex = formatColumns.indexOf("text");
+      continue;
+    }
+
+    if (!trimmed.startsWith("Dialogue:") || textIndex === -1) continue;
+
+    const rawValues = trimmed.slice("Dialogue:".length).split(",");
+    if (rawValues.length <= textIndex) continue;
+
+    const textValue = rawValues.slice(textIndex).join(",");
+    const startValue = rawValues[startIndex]?.trim();
+    const endValue = rawValues[endIndex]?.trim();
+    if (!startValue || !endValue) continue;
+
+    const start = parseTimestamp(startValue);
+    const end = parseTimestamp(endValue);
+    if (start === null || end === null) continue;
+
+    const text = normalizeSubtitleText(textValue);
+    if (!text) continue;
+
+    segments.push({
+      id: String(segments.length + 1),
+      start,
+      end,
+      text,
+    });
+  }
+
+  return segments;
+}
+
+export function parseSubtitleContent(
+  content: string,
+  filePath?: string | null,
+): SubtitleSegment[] {
+  const normalizedPath = filePath?.toLowerCase() ?? "";
+  if (normalizedPath.endsWith(".ass") || normalizedPath.endsWith(".ssa")) {
+    return parseASS(content);
+  }
+  return parseSRT(content);
 }
 
 /**

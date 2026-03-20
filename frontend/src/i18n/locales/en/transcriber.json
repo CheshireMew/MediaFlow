@@ -7,6 +7,16 @@
     "waitingMessage": "Waiting to start...",
     "processingMessage": "Processing..."
   },
+  "results": {
+    "title": "Result Preview",
+    "segmentsCount": "{{count}} segments",
+    "empty": "No transcription results yet",
+    "missingSubtitleAlert": "No usable SRT path was found in the result."
+  },
+  "actions": {
+    "translate": "Translate",
+    "openEditor": "Open Editor"
+  },
   "uploader": {
     "replaceButton": "Replace File",
     "dragText": "Drag & drop audio/video",

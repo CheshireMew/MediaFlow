@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
-import { useTaskContext } from "../../context/TaskContext";
+import { useEffect, useCallback } from "react";
+import { useTaskContext } from "../../context/taskContext";
 import { apiClient } from "../../api/client";
 import { ocrService } from "../../services/ocrService";
 import { preprocessingService } from "../../services/preprocessingService";
 import type { OCRTextEvent } from "../../services/ocrService";
 import type { ROIRect } from "./useROIInteraction";
+import type { TaskResult } from "../../types/task";
+import { usePreprocessingStore } from "../../stores/preprocessingStore";
+import { getActivePreprocessingTask } from "./taskSelectors";
 
 // ─── Types ──────────────────────────────────────────────────────
 interface UseOCRProcessorArgs {
@@ -32,6 +35,10 @@ interface UseOCRProcessorReturn {
   handleStartOCR: () => Promise<void>;
 }
 
+interface OCRTaskResult extends TaskResult {
+  events?: OCRTextEvent[];
+}
+
 // ─── Hook ───────────────────────────────────────────────────────
 export function useOCRProcessor({
   videoPath,
@@ -45,15 +52,32 @@ export function useOCRProcessor({
   enhanceMethod,
   cleanMethod,
 }: UseOCRProcessorArgs): UseOCRProcessorReturn {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [ocrResults, setOcrResults] = useState<OCRTextEvent[]>([]);
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const { tasks } = useTaskContext();
+  const isProcessing = usePreprocessingStore(
+    (state) => state.preprocessingIsProcessing,
+  );
+  const setIsProcessing = usePreprocessingStore(
+    (state) => state.setPreprocessingIsProcessing,
+  );
+  const ocrResults = usePreprocessingStore((state) => state.ocrResults);
+  const setOcrResults = usePreprocessingStore((state) => state.setOcrResults);
+  const activeTaskId = usePreprocessingStore(
+    (state) => state.preprocessingActiveTaskId,
+  );
+  const setActiveTask = usePreprocessingStore(
+    (state) => state.setPreprocessingActiveTask,
+  );
+  const clearActiveTask = usePreprocessingStore(
+    (state) => state.clearPreprocessingActiveTask,
+  );
+  const activeTaskVideoPath = usePreprocessingStore(
+    (state) => state.preprocessingActiveTaskVideoPath,
+  );
 
   // ── Auto-load saved results ──────────────────────────────────
   useEffect(() => {
     if (!videoPath) {
-      setOcrResults([]);
+      setTimeout(() => setOcrResults([]), 0);
       return;
     }
 
@@ -71,7 +95,7 @@ export function useOCRProcessor({
     return () => {
       isMounted = false;
     };
-  }, [videoPath]);
+  }, [videoPath, setOcrResults]);
 
   // ── OCR Extraction ──────────────────────────────────────────
   const handleStartOCR = useCallback(async () => {
@@ -98,36 +122,63 @@ export function useOCRProcessor({
         roi: videoROI,
         engine: ocrEngine as "rapid" | "paddle",
       });
-      setActiveTaskId(res.task_id);
+      setActiveTask(res.task_id, "extract", videoPath);
       setOcrResults([]); // Clear while processing
     } catch (error) {
       console.error("OCR Failed", error);
       setIsProcessing(false);
     }
-  }, [videoPath, roi, canvasRef, videoResolution, ocrEngine]);
+  }, [
+    videoPath,
+    roi,
+    canvasRef,
+    videoResolution,
+    ocrEngine,
+    setActiveTask,
+    setIsProcessing,
+    setOcrResults,
+  ]);
 
   // ── Watch for task completion ────────────────────────────────
   useEffect(() => {
     if (!activeTaskId) return;
-    const task = tasks.find((t) => t.id === activeTaskId);
+    const task = getActivePreprocessingTask(
+      tasks,
+      activeTaskId,
+      activeTaskVideoPath,
+      videoPath,
+    );
     if (!task) return;
 
     if (task.status === "completed") {
-      setIsProcessing(false);
-      setActiveTaskId(null);
-      if (task.result && (task.result as any).events) {
-        setOcrResults((task.result as any).events);
-      } else {
-        setOcrResults([]);
+      const result = task.result as OCRTaskResult | undefined;
+      setTimeout(() => {
+        clearActiveTask();
+        setOcrResults(result?.events ?? []);
+      }, 0);
+    } else if (
+      task.status === "failed" ||
+      task.status === "cancelled" ||
+      task.status === "paused"
+    ) {
+      setTimeout(() => {
+        clearActiveTask();
+      }, 0);
+      if (task.status === "failed") {
+        console.error("OCR Task Failed:", task.error);
       }
-    } else if (task.status === "failed") {
-      setIsProcessing(false);
-      setActiveTaskId(null);
-      console.error("OCR Task Failed:", task.error);
     } else {
-      setIsProcessing(true);
+      setTimeout(() => setIsProcessing(true), 0);
     }
-  }, [tasks, activeTaskId]);
+  }, [
+    tasks,
+    activeTaskId,
+    activeTaskVideoPath,
+    videoPath,
+    clearActiveTask,
+    setIsProcessing,
+    setOcrResults,
+  ]);
 
   // ── General Processing (enhance / clean / extract) ──────────
   const handleStartProcessing = useCallback(async () => {
@@ -142,7 +193,7 @@ export function useOCRProcessor({
           method: enhanceMethod,
         });
         console.log("Enhance started:", res);
-        if (res.task_id) setActiveTaskId(res.task_id);
+        if (res.task_id) setActiveTask(res.task_id, "enhance", videoPath);
       } else if (activeTool === "clean") {
         const cleanRoi: [number, number, number, number] = roi
           ? [roi.x, roi.y, roi.w, roi.h]
@@ -153,7 +204,7 @@ export function useOCRProcessor({
           method: cleanMethod,
         });
         console.log("Clean started:", res);
-        if (res.task_id) setActiveTaskId(res.task_id);
+        if (res.task_id) setActiveTask(res.task_id, "clean", videoPath);
       } else if (activeTool === "extract") {
         await handleStartOCR();
       }
@@ -168,7 +219,10 @@ export function useOCRProcessor({
     handleStartOCR,
     enhanceModel,
     enhanceScale,
+    enhanceMethod,
     cleanMethod,
+    setActiveTask,
+    setIsProcessing,
   ]);
 
   return {

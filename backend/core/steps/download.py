@@ -7,14 +7,6 @@ from backend.core.context import PipelineContext
 from backend.core.container import container, Services
 
 
-def _get_downloader():
-    return container.get(Services.DOWNLOADER)
-
-
-def _get_task_manager():
-    return container.get(Services.TASK_MANAGER)
-
-
 class DownloadStep(PipelineStep):
     @property
     def name(self) -> str:
@@ -26,24 +18,30 @@ class DownloadStep(PipelineStep):
             raise ValueError("Download step requires 'url' param")
         
         loop = asyncio.get_running_loop()
-        tm = _get_task_manager()
+        tm = container.get(Services.TASK_MANAGER)
         
         # Callbacks for sync code
         def progress_cb(percent, msg):
             if task_id:
-                asyncio.run_coroutine_threadsafe(
-                    tm.update_task(task_id, progress=percent, message=msg),
-                    loop
+                tm.raise_if_control_requested(task_id)
+                tm.submit_threadsafe_update(
+                    loop,
+                    task_id,
+                    progress=percent,
+                    message=msg,
                 )
 
         def check_cancel_cb():
-            return task_id and tm.is_cancelled(task_id)
+            if task_id:
+                return tm.has_stop_request(task_id)
+            return False
 
         # Run download async (it handles thread pool internally)
-        downloader = _get_downloader()
+        downloader = container.get(Services.DOWNLOADER)
         result = await downloader.download(
             url, 
             proxy=params.get("proxy"),
+            output_dir=params.get("output_dir"),
             playlist_title=params.get("playlist_title"),
             playlist_items=params.get("playlist_items"),
             progress_callback=progress_cb,
@@ -57,15 +55,22 @@ class DownloadStep(PipelineStep):
         )
         
         if not result.success:
+            if task_id:
+                tm.raise_if_control_requested(task_id)
             raise Exception(result.error or "Download failed with unknown error")
 
-        # Find video file
-        video_file = next((f for f in result.files if f.type == "video"), None)
-        if not video_file:
-            raise Exception("Download succeeded but no video file was returned")
+        media_file = next(
+            (f for f in result.files if f.type in {"video", "audio"}),
+            None,
+        )
+        if not media_file:
+            raise Exception("Download succeeded but no media file was returned")
 
         # Store result in context
-        ctx.set("video_path", video_file.path)
+        if media_file.type == "audio":
+            ctx.set("audio_path", media_file.path)
+        else:
+            ctx.set("video_path", media_file.path)
         ctx.set("media_filename", result.meta.get("filename", "unknown.mp4"))
         ctx.set("title", result.meta.get("title", "Unknown"))
         
@@ -74,7 +79,7 @@ class DownloadStep(PipelineStep):
         if subtitle_file:
             ctx.set("subtitle_path", subtitle_file.path)
             
-        logger.success(f"Step Download finished. Path: {video_file.path}")
+        logger.success(f"Step Download finished. Path: {media_file.path}")
 
 
 # Register at module level

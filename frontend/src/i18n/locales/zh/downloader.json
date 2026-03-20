@@ -2,6 +2,21 @@
   "title": "视频下载",
   "subtitle": "从支持的平台下载高质量视频和音频",
   "taskPanel": { "title": "新任务" },
+  "recentDownloads": {
+    "title": "最近提交",
+    "empty": "还没有下载任务",
+    "activeCount": "活动中 {{count}}",
+    "status": {
+      "idle": "空闲",
+      "queued": "排队中",
+      "pending": "排队中",
+      "running": "进行中",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    }
+  },
   "supportedPlatforms": "支持的平台",
   "input": {
     "placeholder": "在此粘贴视频链接（如 YouTube、Bilibili...）",

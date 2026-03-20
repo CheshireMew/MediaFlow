@@ -16,6 +16,9 @@ export type {
   LLMProvider,
   UserSettings,
   ActiveProviderResponse,
+  ProviderConnectionRequest,
+  ProviderConnectionResponse,
+  ToolUpdateResponse,
   DetectSilenceResponse,
   ImagePreviewResponse,
   SynthesizeOptions,
@@ -42,6 +45,8 @@ import type {
   CookieStatusResponse,
   UserSettings,
   ActiveProviderResponse,
+  ProviderConnectionRequest,
+  ProviderConnectionResponse,
   DetectSilenceResponse,
   ImagePreviewResponse,
   SynthesizeRequest,
@@ -152,7 +157,6 @@ export const apiClient = {
   // ─── ASR ─────────────────────────────────────────────────────────
 
   transcribeSegment: (payload: TranscribeSegmentRequest) => {
-    // @ts-ignore
     return request<TranscribeSegmentResponse>("/transcribe/segment", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -199,8 +203,24 @@ export const apiClient = {
     });
   },
 
+  pauseAllTasks: () => {
+    return request<CountResponse>("/tasks/pause-all", { method: "POST" });
+  },
+
   cancelAllTasks: () => {
     return request<CountResponse>("/tasks/cancel-all", { method: "POST" });
+  },
+
+  pauseTask: (taskId: string) => {
+    return request<StatusMessageResponse>(`/tasks/${taskId}/pause`, {
+      method: "POST",
+    });
+  },
+
+  cancelTask: (taskId: string) => {
+    return request<StatusMessageResponse>(`/tasks/${taskId}/cancel`, {
+      method: "POST",
+    });
   },
 
   resumeTask: (taskId: string) => {
@@ -248,6 +268,19 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ provider_id: providerId }),
     });
+  },
+
+  testProviderConnection: (provider: ProviderConnectionRequest) => {
+    return request<ProviderConnectionResponse>("/settings/test-provider", {
+      method: "POST",
+      body: JSON.stringify(provider),
+    });
+  },
+
+  updateYtDlp: () => {
+    return request<ToolUpdateResponse>("/settings/update-yt-dlp", {
+      method: "POST",
+    }, 300_000);
   },
 
   detectSilence: (payload: {

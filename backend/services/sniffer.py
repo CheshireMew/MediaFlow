@@ -4,9 +4,6 @@ from loguru import logger
 from typing import Optional, Dict
 from backend.core.container import container, Services
 
-def _get_browser():
-    return container.get(Services.BROWSER)
-
 # Configuration Constants
 MIN_VIDEO_URL_LENGTH = 50       # Minimum length for valid video URLs
 URL_LOG_TRUNCATE_LENGTH = 100   # Truncate URLs in logs for readability
@@ -26,7 +23,7 @@ class NetworkSniffer:
         Navigate to a URL and extract information using custom JavaScript.
         """
         # Get context from browser service
-        context = await _get_browser().get_stealth_context(user_agent)
+        context = await container.get(Services.BROWSER).get_stealth_context(user_agent)
         page = await context.new_page()
         
         result = {}
@@ -66,7 +63,7 @@ class NetworkSniffer:
         """
         found_url = None
         extracted_title = "Video" # Default title
-        context = await _get_browser().get_stealth_context() 
+        context = await container.get(Services.BROWSER).get_stealth_context() 
         page = await context.new_page()
         viewport = context.pages[0].viewport_size if context.pages else None
 

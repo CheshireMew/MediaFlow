@@ -13,93 +13,107 @@ import 'lxgw-wenkai-webfont/lxgwwenkai-bold.css'
 import './index.css'
 import App from './App.tsx'
 import { initializeApi, apiClient } from './api/client';
-import { initI18n } from './i18n';
+import i18n, { initI18n } from './i18n';
+import { useEffect, useState } from 'react';
 
-const LoadingScreen = () => (
-  <div style={{
-    height: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#1a1b1e',
-    color: '#e0e0e0',
-    fontFamily: 'system-ui, sans-serif'
-  }}>
-    <h2 style={{ marginBottom: '1rem' }}>Connecting to MediaFlow Core...</h2>
-    <div className="loader" style={{ 
-        width: '20px', 
-        height: '20px', 
-        border: '2px solid #333', 
-        borderTopColor: '#fff', 
-        borderRadius: '50%', 
-        animation: 'spin 1s linear infinite' 
-    }}></div>
-    <style>{`
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    `}</style>
-  </div>
-);
-
-const initApp = async () => {
-  const root = createRoot(document.getElementById('root')!);
-  
-  // Show loading initially
-  root.render(
-    <StrictMode>
-       <LoadingScreen />
-    </StrictMode>
-  );
-
-  const pollConfig = async () => {
-    while (true) {
-      try {
-        // @ts-ignore
-        if (window.electronAPI?.getConfig) {
-           // @ts-ignore
-           const config = await window.electronAPI.getConfig();
-           if (config) {
-              initializeApi(config);
-              
-              // Verify connectivity
-              try {
-                  await apiClient.checkHealth();
-                  console.log("[Init] Backend is ready!");
-                  return; // Ready!
-              } catch (err) {
-                  console.log("[Init] Backend found but not healthy yet...", err);
-              }
-           } else {
-               console.log("[Init] Waiting for backend config...");
-           }
-        } else {
-            // Web mode or no electron API? Fallback to default
-            console.warn("[Init] Electron API not found, assuming web mode.");
-            return;
-        }
-      } catch (e) {
-        console.error("Failed to load dynamic config", e);
-      }
-      // Wait 1s before retry
-      await new Promise(r => setTimeout(r, 1000));
-    }
-  };
-
-  await pollConfig();
-
-  // Initialize i18n with user's saved language preference
-  try {
-    const settings = await apiClient.getSettings();
-    await initI18n(settings?.language || 'zh');
-  } catch {
-    await initI18n('zh');
-  }
-
-  root.render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  )
+type StartupState = {
+  backendReady: boolean;
+  message: string;
 };
 
-initApp();
+function BootApp() {
+  const getStartupText = (key: string) => i18n.t(`startup.status.${key}`);
+  const [startupState, setStartupState] = useState<StartupState>({
+    backendReady: false,
+    message: getStartupText('waitingConfig'),
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const updateState = (next: Partial<StartupState>) => {
+      if (cancelled) return;
+      setStartupState((prev) => ({ ...prev, ...next }));
+    };
+
+    const bootstrap = async () => {
+      while (!cancelled) {
+        try {
+          if (window.electronAPI?.getConfig) {
+            const config = await window.electronAPI.getConfig();
+            if (config) {
+              initializeApi(config);
+              updateState({ message: getStartupText('checkingHealth') });
+
+              try {
+                await apiClient.checkHealth();
+                console.log('[Init] Backend is ready!');
+
+                try {
+                  const settings = await apiClient.getSettings();
+                  if (settings?.language) {
+                    await i18n.changeLanguage(settings.language);
+                  }
+                } catch (error) {
+                  console.warn('[Init] Failed to load user settings during startup.', error);
+                }
+
+                updateState({
+                  backendReady: true,
+                  message: getStartupText('ready'),
+                });
+                return;
+              } catch (error) {
+                console.log('[Init] Backend found but not healthy yet...', error);
+                updateState({ message: getStartupText('retryingHealth') });
+              }
+            } else {
+              console.log('[Init] Waiting for backend config...');
+              updateState({ message: getStartupText('waitingConfig') });
+            }
+          } else {
+            console.warn('[Init] Electron API not found, assuming web mode.');
+            updateState({
+              backendReady: true,
+              message: getStartupText('webMode'),
+            });
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load dynamic config', error);
+          updateState({ message: getStartupText('retryingGeneric') });
+        }
+
+        await sleep(1000);
+      }
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <App
+      backendReady={startupState.backendReady}
+      startupMessage={startupState.message}
+    />
+  );
+}
+
+const initApp = async () => {
+  await initI18n('zh');
+
+  const root = createRoot(document.getElementById('root')!);
+  root.render(
+    <StrictMode>
+      <BootApp />
+    </StrictMode>,
+  );
+};
+
+void initApp();

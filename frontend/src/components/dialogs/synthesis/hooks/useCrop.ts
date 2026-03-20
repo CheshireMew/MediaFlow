@@ -8,11 +8,10 @@ export interface CropState {
   setCrop: (v: { x: number; y: number; w: number; h: number }) => void;
 }
 
-export function useCrop(isOpen: boolean): CropState {
+export function useCrop(): CropState {
   const [isEnabled, setIsEnabled] = useState(false);
-  // Default to full screen (no crop) - though conceptually "no crop" means disable filter
-  // Initial crop box: Center 50%
-  const [crop, setCrop] = useState({ x: 0.25, y: 0.25, w: 0.5, h: 0.5 });
+  // Start from full frame so enabling crop does not unexpectedly cut the video.
+  const [crop, setCrop] = useState({ x: 0, y: 0, w: 1, h: 1 });
 
   return {
     isEnabled,

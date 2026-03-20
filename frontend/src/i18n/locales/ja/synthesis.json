@@ -31,6 +31,7 @@
     "centerAligned": "中央揃え",
     "topAligned": "上揃え",
     "dragHint": "プレビューでテキストをドラッグして位置を調整。",
+    "resetPosition": "位置をリセット",
     "subtitleDisabledHint": "字幕レンダリングがオフです。合成時に字幕は焼き込まれません。"
   },
   "watermark": {

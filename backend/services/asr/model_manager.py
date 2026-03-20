@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional, Any
 from loguru import logger
 from backend.config import settings
+from backend.core.task_control import TaskControlRequested
 
 class ModelManager:
     def __init__(self):
@@ -82,6 +83,8 @@ class ModelManager:
             logger.success(f"Model {model_name} loaded successfully.")
             if progress_callback: progress_callback(10, "Model loaded successfully.")
             return self._model_instance
+        except TaskControlRequested:
+            raise
             
         except Exception as e:
             logger.error(f"Failed to load model {model_name}: {e}")

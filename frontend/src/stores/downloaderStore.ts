@@ -6,8 +6,6 @@ export interface DownloadHistoryItem {
   url: string;
   title: string;
   timestamp: number;
-  status: "pending" | "completed" | "failed";
-  path?: string;
 }
 
 interface DownloaderState {
@@ -26,11 +24,6 @@ interface DownloaderState {
   setCodec: (codec: string) => void;
   setDownloadSubs: (enabled: boolean) => void;
   addToHistory: (item: DownloadHistoryItem) => void;
-  updateHistoryStatus: (
-    id: string,
-    status: "completed" | "failed",
-    path?: string,
-  ) => void;
   clearHistory: () => void;
 }
 
@@ -51,13 +44,6 @@ export const useDownloaderStore = create<DownloaderState>()(
       addToHistory: (item) =>
         set((state) => ({
           history: [item, ...state.history].slice(0, 50), // Keep last 50
-        })),
-
-      updateHistoryStatus: (id, status, path) =>
-        set((state) => ({
-          history: state.history.map((item) =>
-            item.id === id ? { ...item, status, path } : item,
-          ),
         })),
 
       clearHistory: () => set({ history: [] }),

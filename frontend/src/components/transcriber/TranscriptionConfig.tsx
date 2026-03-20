@@ -10,6 +10,7 @@ interface TranscriptionConfigProps {
   onTranscribe: () => void;
   isFileSelected: boolean;
   activeTaskId: string | null;
+  isSubmitting: boolean;
 }
 
 export function TranscriptionConfig({
@@ -20,8 +21,11 @@ export function TranscriptionConfig({
   onTranscribe,
   isFileSelected,
   activeTaskId,
+  isSubmitting,
 }: TranscriptionConfigProps) {
   const { t } = useTranslation('transcriber');
+  const isDisabled = !isFileSelected || !!activeTaskId || isSubmitting;
+
   return (
     <div className="flex flex-col gap-6">
        {/* Section Header */}
@@ -74,16 +78,16 @@ export function TranscriptionConfig({
 
       <button
         onClick={onTranscribe}
-        disabled={!isFileSelected || !!activeTaskId}
+        disabled={isDisabled}
         className={`w-full h-12 rounded-xl flex items-center justify-center gap-2.5 font-bold text-sm transition-all shadow-lg relative overflow-hidden group/btn
-          ${!isFileSelected || activeTaskId 
+          ${isDisabled
             ? 'bg-slate-800/50 border border-white/5 text-slate-500 cursor-not-allowed shadow-none' 
             : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-purple-500/20 hover:shadow-purple-500/40 hover:-translate-y-0.5 active:translate-y-0 border border-white/10'}
         `}
       >
         <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 pointer-events-none" />
         <span className="relative z-10 flex items-center gap-2">
-          {activeTaskId ? (
+          {activeTaskId || isSubmitting ? (
             <>
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               {t('config.processingButton')}

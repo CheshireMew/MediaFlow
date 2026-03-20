@@ -5,10 +5,12 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from backend.services.settings_manager import settings_manager
-from backend.services.translator.llm_translator import llm_translator
+from backend.services.settings_manager import SettingsManager
+from backend.services.translator.llm_translator import LLMTranslator
 
 def test_settings_flow():
+    settings_manager = SettingsManager()
+    llm_translator = LLMTranslator()
     print("1. initializing SettingsManager...")
     # This should auto-migrate from .env if JSON is missing
     settings = settings_manager.get_settings()

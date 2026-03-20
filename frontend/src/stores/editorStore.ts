@@ -4,7 +4,7 @@ import { createDataSlice, type DataSlice } from "./slices/dataSlice";
 import { createUISlice, type UISlice } from "./slices/uiSlice";
 import { createHistorySlice, type HistorySlice } from "./slices/historySlice";
 
-export type EditorState = DataSlice & UISlice & HistorySlice & HistorySlice;
+export type EditorState = DataSlice & UISlice & HistorySlice;
 
 export const useEditorStore = create<EditorState>()(
   persist(

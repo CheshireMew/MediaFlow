@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 from pathlib import Path
@@ -34,26 +34,15 @@ from backend.core.task_runner import BackgroundTaskRunner
 from backend.models.schemas import TaskResult, FileRef
 import os
 
-def _get_enhancer():
-    return container.get(Services.ENHANCER)
-
-def _get_cleaner():
-    return container.get(Services.CLEANER)
-
-def _get_task_manager():
-    return container.get(Services.TASK_MANAGER)
-
 @router.post("/enhance", response_model=PreprocessingResponse)
-async def enhance_video(request: EnhanceRequest, background_tasks: BackgroundTasks):
+async def enhance_video(request: EnhanceRequest):
     """
     Video Enhancement (Super Resolution) using Real-ESRGAN or BasicVSR++.
     """
     from backend.utils.path_validator import validate_path
     validate_path(request.video_path, "video_path")
 
-    enhancer = _get_enhancer()
-    tm = _get_task_manager()
-    
+    enhancer = container.get(Services.ENHANCER)
     # 1. Check availability
     if not enhancer.is_available(request.method):
         detail = "Real-ESRGAN binary not found." if request.method == "realesrgan" else "BasicVSR++ dependencies (mmmagic, cuda) not found."
@@ -75,13 +64,6 @@ async def enhance_video(request: EnhanceRequest, background_tasks: BackgroundTas
 
     # 3. Create Task
     task_name = f"Enhance {p.name} ({request.method} {request.scale})"
-    task_id = await tm.create_task(
-        task_type="enhancement",
-        initial_message=f"Initializing {request.method}...",
-        task_name=task_name,
-        request_params=request.dict()
-    )
-
     # 4. Result Transformer
     def transform_result(path):
         return TaskResult(
@@ -97,32 +79,37 @@ async def enhance_video(request: EnhanceRequest, background_tasks: BackgroundTas
         ).dict()
 
     # 5. Run in Background
-    background_tasks.add_task(
-        BackgroundTaskRunner.run,
-        task_id=task_id,
-        worker_fn=enhancer.upscale,
-        worker_kwargs={
-            "input_path": request.video_path,
-            "output_path": str(output_path),
-            "model": request.model,
-            "scale": scale_val,
-            "method": request.method
-        },
-        start_message=f"Running {request.method}...",
-        success_message="Upscaling complete",
-        result_transformer=transform_result
+    response = await container.get(Services.TASK_ORCHESTRATOR).submit_task(
+        task_type="enhancement",
+        initial_message=f"Initializing {request.method}...",
+        queued_message=f"Initializing {request.method}...",
+        task_name=task_name,
+        request_params=request.dict(),
+        runner_factory=lambda task_id: lambda: BackgroundTaskRunner.run(
+            task_id=task_id,
+            worker_fn=enhancer.upscale,
+            worker_kwargs={
+                "input_path": request.video_path,
+                "output_path": str(output_path),
+                "model": request.model,
+                "scale": scale_val,
+                "method": request.method
+            },
+            start_message=f"Running {request.method}...",
+            success_message="Upscaling complete",
+            result_transformer=transform_result
+        ),
     )
 
     return PreprocessingResponse(
-        task_id=task_id,
+        task_id=response["task_id"],
         status="queued",
-        message=f"Enhancement started (Task {task_id})"
+        message=f"Enhancement started (Task {response['task_id']})"
     )
 
 @router.post("/clean", response_model=PreprocessingResponse)
 async def clean_video(
     request: CleanRequest,
-    background_tasks: BackgroundTasks
 ):
     """
     Video Cleanup (Watermark Removal) using OpenCV or ProPainter.
@@ -130,22 +117,13 @@ async def clean_video(
     from backend.utils.path_validator import validate_path
     validate_path(request.video_path, "video_path")
 
-    cleaner = _get_cleaner()
-    tm = _get_task_manager()
-    
+    cleaner = container.get(Services.CLEANER)
     p = Path(request.video_path)
     if not p.exists():
         raise HTTPException(status_code=404, detail="Video file not found")
         
     method = request.method or "telea"
     output_path = p.with_name(f"{p.stem}_cleaned_{method}{p.suffix}")
-    
-    task_id = await tm.create_task(
-        task_type="cleanup",
-        initial_message="Queued for Cleanup",
-        task_name=f"Clean {p.name}",
-        request_params=request.dict()
-    )
     
     def save_result(out_path):
         return TaskResult(
@@ -157,23 +135,29 @@ async def clean_video(
     # Validation logic for ROI?
     # CleanerService handles it.
     
-    background_tasks.add_task(
-        BackgroundTaskRunner.run,
-        task_id=task_id,
-        worker_fn=cleaner.clean_video,
-        worker_kwargs={
-            "input_path": request.video_path,
-            "output_path": str(output_path),
-            "roi": request.roi,
-            "method": method
-        },
-        start_message=f"Running Watermark Removal ({method})...",
-        success_message="Cleanup complete",
-        result_transformer=save_result
+    response = await container.get(Services.TASK_ORCHESTRATOR).submit_task(
+        task_type="cleanup",
+        initial_message="Queued for Cleanup",
+        queued_message="Queued for Cleanup",
+        task_name=f"Clean {p.name}",
+        request_params=request.dict(),
+        runner_factory=lambda task_id: lambda: BackgroundTaskRunner.run(
+            task_id=task_id,
+            worker_fn=cleaner.clean_video,
+            worker_kwargs={
+                "input_path": request.video_path,
+                "output_path": str(output_path),
+                "roi": request.roi,
+                "method": method
+            },
+            start_message=f"Running Watermark Removal ({method})...",
+            success_message="Cleanup complete",
+            result_transformer=save_result
+        ),
     )
 
     return PreprocessingResponse(
-        task_id=task_id,
+        task_id=response["task_id"],
         status="queued",
-        message=f"Cleanup started (Task {task_id})"
+        message=f"Cleanup started (Task {response['task_id']})"
     )

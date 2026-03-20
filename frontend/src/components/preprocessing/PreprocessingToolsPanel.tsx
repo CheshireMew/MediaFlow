@@ -5,6 +5,17 @@ import { EnhanceTab } from './tools/EnhanceTab';
 import { CleanTab } from './tools/CleanTab';
 import { OCRTab } from './tools/OCRTab';
 import type { SubtitleSegment } from '../../types/task';
+import type { PreprocessingTool } from '../../stores/preprocessingStore';
+
+const PREPROCESSING_TABS: Array<{
+    id: PreprocessingTool;
+    icon: typeof MonitorPlay;
+    labelKey: 'tabs.enhance' | 'tabs.clean' | 'tabs.extract';
+}> = [
+    { id: 'enhance', icon: MonitorPlay, labelKey: 'tabs.enhance' },
+    { id: 'clean', icon: Eraser, labelKey: 'tabs.clean' },
+    { id: 'extract', icon: ScanText, labelKey: 'tabs.extract' },
+];
 
 interface PreprocessingToolsPanelProps {
     isProcessing: boolean;
@@ -30,14 +41,10 @@ export const PreprocessingToolsPanel = ({
         <div className="w-80 bg-[#141414] border-l border-white/5 flex flex-col">
             {/* Tool Tabs */}
             <div className="flex p-1 gap-1 border-b border-white/5">
-                {[
-                    { id: 'enhance', icon: MonitorPlay, label: t('tabs.enhance') },
-                    { id: 'clean', icon: Eraser, label: t('tabs.clean') },
-                    { id: 'extract', icon: ScanText, label: t('tabs.extract') },
-                ].map(tab => (
+                {PREPROCESSING_TABS.map(tab => (
                     <button
                         key={tab.id}
-                        onClick={() => setActiveTool(tab.id as any)}
+                        onClick={() => setActiveTool(tab.id)}
                         className={`flex-1 py-3 flex flex-col items-center gap-1.5 rounded-lg text-[10px] font-medium transition-all
                             ${activeTool === tab.id
                                 ? 'bg-white/5 text-indigo-400 shadow-sm'
@@ -45,7 +52,7 @@ export const PreprocessingToolsPanel = ({
                             }`}
                     >
                         <tab.icon size={18} />
-                        {tab.label}
+                        {t(tab.labelKey)}
                     </button>
                 ))}
             </div>

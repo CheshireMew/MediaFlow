@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from loguru import logger
 
 from backend.models.schemas import TranscribeRequest, TaskResponse
@@ -8,20 +8,12 @@ from backend.core.container import container, Services
 router = APIRouter(prefix="/transcribe", tags=["Transcription"])
 
 
-def _get_task_manager():
-    return container.get(Services.TASK_MANAGER)
-
-
-def _get_asr_service():
-    return container.get(Services.ASR)
-
-
 async def run_transcription_task(task_id: str, req: TranscribeRequest):
     """
     Background worker function for transcription.
     Uses BackgroundTaskRunner to eliminate boilerplate.
     """
-    asr_service = _get_asr_service()
+    asr_service = container.get(Services.ASR)
     await BackgroundTaskRunner.run(
         task_id=task_id,
         worker_fn=asr_service.transcribe,
@@ -39,30 +31,24 @@ async def run_transcription_task(task_id: str, req: TranscribeRequest):
 
 
 @router.post("/", response_model=TaskResponse)
-async def transcribe_audio(req: TranscribeRequest, background_tasks: BackgroundTasks):
+async def transcribe_audio(req: TranscribeRequest):
     """
     Start an asynchronous transcription task.
     Returns a Task ID to track progress.
     """
-    logger.info(f"Received transcription request: {req.dict()}")
+    logger.info(f"Received transcription request: {req.model_dump()}")
     try:
         from pathlib import Path
         from backend.utils.path_validator import validate_path
         validate_path(req.audio_path, "audio_path")
         filename = Path(req.audio_path).name or "Audio"
-
-        # Create Task
-        task_id = await _get_task_manager().create_task(
+        response = await container.get(Services.TASK_ORCHESTRATOR).submit_task(
             task_type="transcribe",
-            initial_message="Queued",
             task_name=filename,
-            request_params=req.dict()
+            request_params=req.model_dump(),
+            runner_factory=lambda task_id: lambda: run_transcription_task(task_id, req),
         )
-        
-        # Dispatch Background Task
-        background_tasks.add_task(run_transcription_task, task_id, req)
-        
-        return TaskResponse(task_id=task_id, status="pending")
+        return TaskResponse(task_id=response["task_id"], status=response["status"])
 
     except Exception as e:
         logger.error(f"Failed to submit task: {e}")
@@ -73,7 +59,7 @@ class TranscribeSegmentRequest(TranscribeRequest):
     end: float
 
 @router.post("/segment")
-async def transcribe_segment(req: TranscribeSegmentRequest, background_tasks: BackgroundTasks):
+async def transcribe_segment(req: TranscribeSegmentRequest):
     """
     Transcribe a specific segment.
     Hybrid Strategy:
@@ -89,31 +75,30 @@ async def transcribe_segment(req: TranscribeSegmentRequest, background_tasks: Ba
     # HYBRID STRATEGY
     if duration > 30:
         # ASYNC PATH — offload long segments to background task
-        task_id = await _get_task_manager().create_task(
+        response = await container.get(Services.TASK_ORCHESTRATOR).submit_task(
             task_type="transcribe_segment",
-            initial_message="Queued (Long Segment)",
             task_name=f"Segment {req.start}-{req.end}",
-            request_params=req.dict()
+            initial_message="Queued (Long Segment)",
+            queued_message="Queued (Long Segment)",
+            request_params=req.model_dump(),
+            runner_factory=lambda task_id: lambda: BackgroundTaskRunner.run(
+                task_id=task_id,
+                worker_fn=container.get(Services.ASR).transcribe_segment,
+                worker_kwargs={
+                    "audio_path": req.audio_path,
+                    "start": req.start,
+                    "end": req.end,
+                    "model_name": req.model,
+                    "device": req.device,
+                    "language": req.language,
+                    "task_id": task_id,
+                },
+                start_message="Processing segment...",
+                success_message="Segment transcribed"
+            ),
         )
         
-        background_tasks.add_task(
-            BackgroundTaskRunner.run,
-            task_id=task_id,
-            worker_fn=_get_asr_service().transcribe_segment,
-            worker_kwargs={
-                "audio_path": req.audio_path,
-                "start": req.start,
-                "end": req.end,
-                "model_name": req.model,
-                "device": req.device,
-                "language": req.language,
-                "task_id": task_id,
-            },
-            start_message="Processing segment...",
-            success_message="Segment transcribed"
-        )
-        
-        return TaskResponse(task_id=task_id, status="pending", message="Segment too long, processing in background")
+        return TaskResponse(task_id=response["task_id"], status="pending", message="Segment too long, processing in background")
 
     else:
         # SYNC PATH (Non-blocking wrapper)
@@ -122,7 +107,7 @@ async def transcribe_segment(req: TranscribeSegmentRequest, background_tasks: Ba
             from functools import partial
             
             loop = asyncio.get_running_loop()
-            service = _get_asr_service()
+            service = container.get(Services.ASR)
             
             # Create partial function to pass arguments
             func = partial(

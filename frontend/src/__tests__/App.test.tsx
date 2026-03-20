@@ -2,29 +2,50 @@ import { render, screen } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import App from '../App'
 
+type MockElectronAPI = {
+  openFile: ReturnType<typeof vi.fn>
+  readFile: ReturnType<typeof vi.fn>
+  saveFile: ReturnType<typeof vi.fn>
+  onProgress: ReturnType<typeof vi.fn>
+  minimize: ReturnType<typeof vi.fn>
+  maximize: ReturnType<typeof vi.fn>
+  close: ReturnType<typeof vi.fn>
+}
+
+type MockIconComponent = (props: Record<string, unknown>) => JSX.Element
+
 // Mock Electron API
-(window as any).electronAPI = {
+window.electronAPI = {
   openFile: vi.fn(),
   readFile: vi.fn(),
   saveFile: vi.fn(),
   onProgress: vi.fn(),
-}
+  minimize: vi.fn(),
+  maximize: vi.fn(),
+  close: vi.fn(),
+} as unknown as MockElectronAPI & Window['electronAPI']
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}))
 
 // Mock Lucide icons and other complex components
 vi.mock('lucide-react', () => {
-  const icons = ['LayoutDashboard', 'Download', 'Type', 'Languages', 'Video', 'Settings', 'Clapperboard', 'Save', 'Scissors', 'Trash2', 'Plus', 'Play', 'Pause', 'Upload', 'CheckCircle', 'ChevronRight', 'X', 'Mic', 'Search', 'Clock', 'ChevronDown', 'Info', 'AlertCircle', 'Filter', 'ArrowLeftRight', 'Pencil', 'FileAudio', 'LogOut']
-  const mockIcons: any = {
+  const icons = ['LayoutDashboard', 'Download', 'Type', 'Languages', 'Video', 'Settings', 'Clapperboard', 'Save', 'Scissors', 'Trash2', 'Plus', 'Play', 'Pause', 'Upload', 'CheckCircle', 'ChevronRight', 'X', 'Mic', 'Search', 'Clock', 'ChevronDown', 'Info', 'AlertCircle', 'Filter', 'ArrowLeftRight', 'Pencil', 'FileAudio', 'LogOut', 'MonitorPlay', 'Eraser', 'ScanText', 'Loader2', 'FolderOpen', 'ArrowRight', 'Wand2', 'Minus', 'Square', 'Activity', 'Globe']
+  const mockIcons: Record<string, unknown> = {
     __esModule: true
   }
   icons.forEach(icon => {
-    mockIcons[icon] = (props: any) => <div data-testid={`icon-${icon.toLowerCase()}`} {...props}>{icon} Icon</div>
+    mockIcons[icon] = ((props: Record<string, unknown>) => <div data-testid={`icon-${icon.toLowerCase()}`} {...props}>{icon} Icon</div>) as MockIconComponent
   })
   // Proxy to catch any other icons not listed, but ONLY for uppercase/PascalCase names
   return new Proxy(mockIcons, {
     get: (target, prop: string) => {
       if (prop in target) return target[prop]
       if (typeof prop === 'string' && /^[A-Z]/.test(prop)) {
-        return (props: any) => <div data-testid={`icon-${prop.toLowerCase()}`} {...props}>{prop} Icon</div>
+        return ((props: Record<string, unknown>) => <div data-testid={`icon-${prop.toLowerCase()}`} {...props}>{prop} Icon</div>) as MockIconComponent
       }
       return undefined
     }
@@ -32,8 +53,8 @@ vi.mock('lucide-react', () => {
 })
 
 // Mock TaskContext to avoid WebSocket side effects
-vi.mock('../context/TaskContext', () => ({
-  TaskProvider: ({ children }: any) => <div data-testid="task-provider">{children}</div>,
+vi.mock('../context/taskContext', () => ({
+  TaskProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="task-provider">{children}</div>,
   useTaskContext: () => ({
     tasks: [],
     connected: false,

@@ -184,7 +184,8 @@ class VideoSynthesizer:
             input_kwargs['to'] = trim_end
             
         input_video = ffmpeg.input(video_path, **input_kwargs)
-        return input_video.video, input_video.audio
+        audio_stream = input_video.audio if MediaProber.has_audio(video_path) else None
+        return input_video.video, audio_stream
 
     def _apply_filters(self, video_stream, video_path, srt_path, watermark_path, options):
         # 1. Crop
@@ -392,8 +393,13 @@ class VideoSynthesizer:
             return output_kwargs
 
     def _run_ffmpeg(self, video_stream, audio_stream, output_path, output_kwargs, duration, progress_callback):
-        
-        out = ffmpeg.output(video_stream, audio_stream, output_path, **output_kwargs)
+        output_streams = [video_stream]
+        if audio_stream is not None:
+            output_streams.append(audio_stream)
+        else:
+            logger.info("No audio stream detected; exporting synthesized video without audio")
+
+        out = ffmpeg.output(*output_streams, output_path, **output_kwargs)
         out = out.global_args('-hide_banner', '-progress', 'pipe:1').overwrite_output()
         cmd_args = out.compile(cmd=settings.FFMPEG_PATH)
         

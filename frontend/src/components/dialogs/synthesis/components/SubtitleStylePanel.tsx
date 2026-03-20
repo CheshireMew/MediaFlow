@@ -1,7 +1,7 @@
 // ── Subtitle Style Settings Panel (Left sidebar section) ──
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Type, Bold, Italic, AlignLeft, AlignCenter, AlignRight, Save, Trash2, X, MonitorPlay, AlignStartVertical, AlignCenterVertical, AlignEndVertical } from 'lucide-react';
+import { Type, Bold, Italic, AlignLeft, AlignCenter, AlignRight, Save, Trash2, X, MonitorPlay, AlignStartVertical, AlignCenterVertical, AlignEndVertical, RotateCcw } from 'lucide-react';
 import { FONT_PRESETS, DEFAULT_PRESETS } from '../types';
 import type { SubtitleStyleState } from '../hooks/useSubtitleStyle';
 
@@ -17,11 +17,12 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }
         fontSize, fontColor, fontName, isBold, isItalic,
         outlineSize, shadowSize, outlineColor,
         bgEnabled, bgColor, bgOpacity, bgPadding, alignment, multilineAlign,
+        effectiveFontName, isFontAvailable, fontAvailabilityMessage,
         setFontSize, setFontColor, setFontName, setIsBold, setIsItalic,
         setOutlineSize, setShadowSize, setOutlineColor,
         setBgEnabled, setBgColor, setBgOpacity, setBgPadding, setAlignment, setMultilineAlign,
         customPresets, presetNameInput, setPresetNameInput,
-        confirmSavePreset, applyPreset, deletePreset,
+        confirmSavePreset, applyPreset, deletePreset, resetSubPos,
     } = style;
 
     return (
@@ -129,6 +130,12 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }
                             <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
                         ))}
                     </select>
+                    {!isFontAvailable && (
+                        <p className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
+                            {fontAvailabilityMessage}
+                            {effectiveFontName !== fontName ? ` 当前回退：${effectiveFontName}` : ''}
+                        </p>
+                    )}
                 </div>
 
                 {/* Size + Color */}
@@ -324,10 +331,20 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }
                 </div>
             </div>
 
-            <p className="text-[10px] text-slate-600 flex items-center gap-1.5 bg-indigo-500/5 p-2 rounded-lg border border-indigo-500/10">
-                <MonitorPlay size={10} className="text-indigo-400"/>
-                {t('style.dragHint')}
-            </p>
+            <div className="flex items-center gap-2">
+                <p className="flex-1 text-[10px] text-slate-600 flex items-center gap-1.5 bg-indigo-500/5 p-2 rounded-lg border border-indigo-500/10">
+                    <MonitorPlay size={10} className="text-indigo-400"/>
+                    {t('style.dragHint')}
+                </p>
+                <button
+                    onClick={resetSubPos}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 bg-black/20 text-[11px] font-medium text-slate-300 hover:text-white hover:border-white/20 hover:bg-white/5 transition-all"
+                    title={t('style.resetPosition')}
+                >
+                    <RotateCcw size={12} />
+                    {t('style.resetPosition')}
+                </button>
+            </div>
             </>
             )}
         </div>

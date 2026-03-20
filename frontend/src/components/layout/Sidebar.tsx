@@ -10,7 +10,7 @@ import {
   type LucideIcon,
   Wand2
 } from 'lucide-react';
-import { useTaskContext } from '../../context/TaskContext';
+import { useTaskContext } from '../../context/taskContext';
 
 interface SidebarItemProps {
   icon: LucideIcon;

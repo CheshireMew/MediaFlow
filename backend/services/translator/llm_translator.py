@@ -93,6 +93,7 @@ class TranslationCache:
 class LLMTranslator:
     def __init__(self):
         self._cache = TranslationCache()
+        self.model = settings.LLM_MODEL
 
     def _get_client(self):
         """Dynamically construct the OpenAI client based on active settings."""

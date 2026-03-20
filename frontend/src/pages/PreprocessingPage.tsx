@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePreprocessingStore } from '../stores/preprocessingStore';
-import { useTaskContext } from '../context/TaskContext';
+import { useTaskContext } from '../context/taskContext';
 import {
     Wand2,
     Upload, Film, Move, MousePointer2, Loader2,
@@ -13,8 +13,17 @@ import { PreprocessingToolsPanel } from '../components/preprocessing/Preprocessi
 // Extracted modules
 import { useROIInteraction } from '../hooks/preprocessing/useROIInteraction';
 import { useOCRProcessor } from '../hooks/preprocessing/useOCRProcessor';
+import { getActivePreprocessingTask } from '../hooks/preprocessing/taskSelectors';
 import { ProjectFileList } from '../components/preprocessing/ProjectFileList';
 import { VideoControlBar } from '../components/preprocessing/VideoControlBar';
+
+type DragFileWithPath = File & { path?: string };
+
+type ElectronMediaFile = {
+    path: string;
+    name: string;
+    size: number;
+};
 
 export const PreprocessingPage = () => {
     const { t } = useTranslation('preprocessing');
@@ -23,6 +32,11 @@ export const PreprocessingPage = () => {
 
         enhanceModel, enhanceScale, enhanceMethod,
         ocrEngine, cleanMethod,
+        ocrResults,
+        setOcrResults,
+        preprocessingIsProcessing,
+        preprocessingActiveTaskId,
+        preprocessingActiveTaskVideoPath,
         preprocessingFiles, addPreprocessingFile, removePreprocessingFile, updatePreprocessingFile,
         preprocessingVideoPath, setPreprocessingVideoPath,
     } = usePreprocessingStore();
@@ -56,7 +70,6 @@ export const PreprocessingPage = () => {
     });
 
     const {
-        isProcessing, ocrResults, setOcrResults,
         handleStartProcessing,
     } = useOCRProcessor({
         videoPath, roi, canvasRef, videoResolution,
@@ -64,6 +77,15 @@ export const PreprocessingPage = () => {
     });
 
     const { tasks } = useTaskContext();
+    const currentTask = useMemo(() => (
+        getActivePreprocessingTask(
+            tasks,
+            preprocessingActiveTaskId,
+            preprocessingActiveTaskVideoPath,
+            videoPath,
+        )
+    ), [preprocessingActiveTaskId, preprocessingActiveTaskVideoPath, tasks, videoPath]);
+    const isCurrentFileProcessing = preprocessingIsProcessing && preprocessingActiveTaskVideoPath === videoPath;
 
     // ── Video Helpers ────────────────────────────────────────────
     const handleTimeUpdate = useCallback(() => {
@@ -87,7 +109,11 @@ export const PreprocessingPage = () => {
 
     const handleDoubleClick = useCallback(() => {
         if (videoRef.current) {
-            videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
+            if (videoRef.current.paused) {
+                void videoRef.current.play();
+            } else {
+                videoRef.current.pause();
+            }
         }
     }, []);
 
@@ -99,11 +125,11 @@ export const PreprocessingPage = () => {
     const handleDrop = useCallback(async (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        const file = e.dataTransfer.files[0];
+        const file = e.dataTransfer.files[0] as DragFileWithPath | undefined;
         if (file) {
-            let path = (file as any).path;
-            if (!path && (window as any).electronAPI?.getPathForFile) {
-                path = (window as any).electronAPI.getPathForFile(file);
+            let path = file.path;
+            if (!path && window.electronAPI?.getPathForFile) {
+                path = window.electronAPI.getPathForFile(file);
             }
             if (path) {
                 addPreprocessingFile({ path, name: file.name, size: file.size });
@@ -116,10 +142,7 @@ export const PreprocessingPage = () => {
 
     const handleImportMedia = async () => {
         try {
-            const fileData = await (window as any).electronAPI.openFile();
-// ...
-    // ── Render ───────────────────────────────────────────────────
-// ...
+            const fileData = await window.electronAPI.openFile() as ElectronMediaFile | null;
 
             if (fileData?.path) {
                 addPreprocessingFile({ path: fileData.path, name: fileData.name, size: fileData.size });
@@ -250,20 +273,19 @@ export const PreprocessingPage = () => {
                     <VideoControlBar videoRef={videoRef as React.RefObject<HTMLVideoElement>} currentTime={currentTime} duration={duration} />
 
                     {/* Progress Bar Overlay */}
-                    {isProcessing && (
+                    {isCurrentFileProcessing && (
                         <div className="absolute bottom-[80px] left-0 right-0 bg-[#1a1a1a]/90 backdrop-blur-sm border-t border-indigo-500/30 p-2 z-30 animate-in slide-in-from-bottom-2">
                             {(() => {
-                                const task = tasks.find(t => ['running', 'pending', 'queued'].includes(t.status));
-                                if (task) return (
+                                if (currentTask) return (
                                     <div className="flex items-center gap-4 px-4">
                                         <Loader2 className="animate-spin text-indigo-400" size={16} />
                                         <div className="flex-1">
                                             <div className="flex justify-between text-[10px] mb-1">
-                                                <span className="text-slate-200 font-medium">{task.message || 'Processing...'}</span>
-                                                <span className="text-indigo-400 font-mono">{task.progress.toFixed(0)}%</span>
+                                                <span className="text-slate-200 font-medium">{currentTask.message || 'Processing...'}</span>
+                                                <span className="text-indigo-400 font-mono">{currentTask.progress.toFixed(0)}%</span>
                                             </div>
                                             <div className="h-1 bg-slate-700/50 rounded-full overflow-hidden">
-                                                <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300" style={{ width: `${task.progress}%` }} />
+                                                <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300" style={{ width: `${currentTask.progress}%` }} />
                                             </div>
                                         </div>
                                     </div>
@@ -281,7 +303,7 @@ export const PreprocessingPage = () => {
 
                 {/* Right: Tools Panel */}
                 <PreprocessingToolsPanel
-                    isProcessing={isProcessing}
+                    isProcessing={isCurrentFileProcessing}
                     roi={roi}
                     videoPath={videoPath}
                     ocrResults={ocrResults.map((r, i) => ({ ...r, id: i }))}

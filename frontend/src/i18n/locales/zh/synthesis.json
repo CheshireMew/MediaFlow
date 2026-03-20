@@ -31,6 +31,7 @@
     "centerAligned": "居中对齐",
     "topAligned": "顶部对齐",
     "dragHint": "在预览中拖动文字以调整位置。",
+    "resetPosition": "复位位置",
     "subtitleDisabledHint": "字幕渲染已关闭，合成时将不会烧录字幕"
   },
   "watermark": {

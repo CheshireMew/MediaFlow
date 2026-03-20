@@ -2,6 +2,21 @@
   "title": "Video Downloader",
   "subtitle": "Download high-quality video & audio from supported platforms",
   "taskPanel": { "title": "New Task" },
+  "recentDownloads": {
+    "title": "Recent Submissions",
+    "empty": "No downloads yet",
+    "activeCount": "{{count}} active",
+    "status": {
+      "idle": "Idle",
+      "queued": "Queued",
+      "pending": "Queued",
+      "running": "Running",
+      "paused": "Paused",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    }
+  },
   "supportedPlatforms": "Supported Platforms",
   "input": {
     "placeholder": "Paste video URL here (e.g. YouTube, Bilibili...)",

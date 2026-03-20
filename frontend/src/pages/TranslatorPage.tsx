@@ -8,6 +8,12 @@ import { useTranslator } from '../hooks/useTranslator';
 import { translatorService } from '../services/translator/translatorService';
 import { SegmentsTable } from '../components/translator/SegmentsTable';
 import { Sidebar } from '../components/translator/Sidebar';
+import type { TranslatorMode } from '../hooks/useTranslator';
+
+type ElectronSubtitleFile = {
+    path: string;
+    name: string;
+};
 
 export const TranslatorPage = () => {
     const {
@@ -17,6 +23,8 @@ export const TranslatorPage = () => {
         sourceFilePath,
         targetLang,
         mode,
+        activeMode,
+        resultMode,
         taskStatus,
         progress,
         isTranslating,
@@ -32,6 +40,7 @@ export const TranslatorPage = () => {
     } = useTranslator();
 
     const { t } = useTranslation('translator');
+    const hasGeneratedSegments = targetSegments.length > sourceSegments.length;
     
     // UI Local State for Sidebar
     const [showGlossary, setShowGlossary] = useState(false);
@@ -39,8 +48,8 @@ export const TranslatorPage = () => {
     // --- Legacy "Open File" Handler to wrap hook ---
     const handleOpenFile = async () => {
          if (window.electronAPI) {
-            const openFn = (window.electronAPI as any).openSubtitleFile || window.electronAPI.openFile;
-            const fileData = await openFn() as any;
+            const openFn = window.electronAPI.openSubtitleFile ?? window.electronAPI.openFile;
+            const fileData = await openFn() as ElectronSubtitleFile | null;
             if (fileData && fileData.path) {
                 handleFileUpload(fileData.path);
             }
@@ -114,7 +123,7 @@ export const TranslatorPage = () => {
                              className="h-10 px-5 bg-[#1a1a1a] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                              title={t('buttons.proofread.tooltip')}
                          >
-                             {isTranslating && mode === 'proofread' ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                             {isTranslating && activeMode === 'proofread' ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
                              <span className="hidden lg:inline">{t('buttons.proofread.label')}</span>
                          </button>
 
@@ -123,7 +132,7 @@ export const TranslatorPage = () => {
                              disabled={isTranslating || sourceSegments.length === 0}
                              className="h-10 px-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:shadow-lg hover:shadow-indigo-500/20 text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-indigo-500/10"
                          >
-                             {isTranslating && mode !== 'proofread' ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
+                             {isTranslating && activeMode !== 'proofread' ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
                              <span className="hidden lg:inline">{t('buttons.translate.label')}</span>
                          </button>
                      </div>
@@ -191,16 +200,44 @@ export const TranslatorPage = () => {
                              <div className="relative group">
                                 <select 
                                     value={mode} 
-                                    onChange={e => setMode(e.target.value as any)}
+                                    onChange={e => setMode(e.target.value as TranslatorMode)}
                                     className="bg-black/40 border border-white/10 text-xs px-3 py-1.5 rounded-lg outline-none text-slate-300 hover:text-white focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all appearance-none pr-8 cursor-pointer font-medium"
                                 >
                                     <option value="standard">{t('modes.standard')}</option>
                                     <option value="intelligent">{t('modes.intelligent')}</option>
+                                    <option value="proofread">{t('modes.proofread')}</option>
                                 </select>
                              </div>
                          </div>
                      </div>
                  </div>
+
+                 {targetSegments.length > 0 && resultMode && (
+                     <div className="flex-none px-4 py-3 border-b border-white/5 bg-black/20 flex items-center gap-2 text-xs text-slate-300">
+                        <span className={`px-2 py-1 rounded-md border font-semibold ${
+                            resultMode === 'proofread'
+                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                : resultMode === 'intelligent'
+                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                    : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
+                        }`}>
+                            {resultMode === 'proofread'
+                                ? t('result.proofreadBadge')
+                                : resultMode === 'intelligent'
+                                    ? t('result.intelligentBadge')
+                                    : t('result.standardBadge')}
+                        </span>
+                        <span>
+                            {resultMode === 'proofread'
+                                ? t('result.proofreadHint')
+                                : resultMode === 'intelligent'
+                                    ? hasGeneratedSegments
+                                        ? t('result.intelligentHintGenerated')
+                                        : t('result.intelligentHint')
+                                    : t('result.standardHint')}
+                        </span>
+                     </div>
+                 )}
     
                  <SegmentsTable 
                     sourceSegments={sourceSegments} 

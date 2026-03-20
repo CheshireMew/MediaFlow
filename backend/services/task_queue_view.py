@@ -1,0 +1,52 @@
+from typing import Optional
+
+from backend.models.task_model import Task
+
+
+class TaskQueueView:
+    @staticmethod
+    def get_queue_position(task_id: str, queued_ids: set[str], queued_order: list[str]) -> Optional[int]:
+        if task_id not in queued_ids:
+            return None
+        for index, queued_id in enumerate(queued_order, start=1):
+            if queued_id == task_id:
+                return index
+        return None
+
+    def serialize_task(
+        self,
+        task: Task,
+        *,
+        running_ids: set[str],
+        queued_ids: set[str],
+        queued_order: list[str],
+    ) -> dict:
+        data = task.model_dump(mode="json")
+        queue_state = "idle"
+        queue_position = None
+
+        if task.status == "paused":
+            queue_state = "paused"
+        elif task.status == "cancelled":
+            queue_state = "cancelled"
+        elif task.status == "completed":
+            queue_state = "completed"
+        elif task.status == "failed":
+            queue_state = "failed"
+        elif task.id in running_ids or task.status == "running":
+            queue_state = "running"
+        elif task.id in queued_ids or task.status == "pending":
+            queue_state = "queued"
+            queue_position = self.get_queue_position(task.id, queued_ids, queued_order)
+
+        data["queue_state"] = queue_state
+        data["queue_position"] = queue_position
+        return data
+
+    @staticmethod
+    def get_queue_summary(max_concurrent: int, running_ids: set[str], queued_ids: set[str]) -> dict:
+        return {
+            "max_concurrent": max_concurrent,
+            "running": len(running_ids),
+            "queued": len(queued_ids),
+        }

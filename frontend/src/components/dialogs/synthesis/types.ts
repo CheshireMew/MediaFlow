@@ -11,6 +11,11 @@ export const FONT_PRESETS = [
   { value: "LXGW WenKai", label: "霞鹜文楷" },
 ];
 
+export const DEFAULT_SUBTITLE_POSITION = {
+  x: 0.5,
+  y: 0.9,
+} as const;
+
 // Subtitle style presets
 export interface SubtitlePreset {
   label: string;

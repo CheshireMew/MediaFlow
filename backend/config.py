@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     # Server
     HOST: str = "127.0.0.1"
     PORT: int = 8800
+    TASK_MAX_CONCURRENT: int = 2
     
     # Paths
     # When deployed via PyInstaller in Electron, sys.executable is inside `resources/backend/`
@@ -39,6 +40,9 @@ class Settings(BaseSettings):
     ASR_MAX_WORKERS: int = 2
     ASR_MODEL_DIR: Path = BASE_DIR / "models" / "faster-whisper"
     OCR_MODEL_DIR: Path = BASE_DIR / "models" / "ocr"
+
+    # LLM Settings
+    LLM_MODEL: str = "gpt-4o-mini"
 
     
     # Model Map (Can be overridden by env var ASR_MODELS='{"tiny":"..."}')

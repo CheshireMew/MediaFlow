@@ -7,7 +7,7 @@
 - **📽️ 视频下载**: 支持多平台视频解析与下载（内置 yt-dlp 集成）。
 - **📝 智能转录**: 集成 Whisper 模型，支持本地 GPU 加速转录。
 - **🌍 翻译工作流**:
-  - 支持多服务商（DeepL, OpenAI, Claude, SiliconeFlow）。
+  - 支持多服务商（OpenAI、DeepSeek、OpenRouter、自定义 OpenAI 兼容接口）。
   - **术语表支持**: 保证专业词汇翻译准确性。
   - **人机协同**: 提供可视化字幕编辑器，支持波形图、实时预览和快捷键操作。
 - **🎬 视频合成**:
@@ -63,11 +63,33 @@ npm run electron:dev
 - **FFmpeg**: 需配置系统环境变量或放入 `bin/` 目录
 - **GPU**: 推荐 NVIDIA 显卡以获得最佳转录速度 (CUDA 11.8+)
 
+## ⚙️ 设置说明
+
+### LLM 供应商
+
+- 设置页内置常见供应商预设：`OpenAI / GPT`、`DeepSeek`、`OpenRouter`
+- 也支持自定义 OpenAI 兼容接口，手动填写 `Base URL`、`API Key` 和 `Model`
+- 新增或编辑供应商时可直接使用“测试连接”按钮校验接口是否可用
+
+### API Key 存储
+
+- API Key 保存在 `user_data/user_settings.json`
+- 在 Windows 上，程序会优先使用 DPAPI 进行本机当前用户级加密
+- 如果 DPAPI 不可用，会回退为可读明文保存，以避免用户因加密失败无法继续使用
+- 配置文件会显式标记 `api_key_encrypted: true/false`
+- `user_data/` 和 `data/` 已被 `.gitignore` 忽略，默认不会被提交到 Git
+
+### 默认下载目录
+
+- 可在设置页指定“默认下载目录”
+- 未设置时，下载任务默认保存到 `workspace/`
+
 ## 🔄 最近更新 (Architecture 2.0)
 
 - **UI/UX**: 修复了下载按钮样式、优化了合成对话框交互。
 - **Scaling**: 实现了 Subtitle/Watermark 的真·分辨率自适应缩放。
 - **Refactor**: 这里的代码库经历了深度重构，提升了可维护性和扩展性。
+- **Settings**: 新增 LLM 供应商预设、独立翻译目标语言、默认下载目录、测试连接与本地加密/明文回退标记。
 
 ---
 

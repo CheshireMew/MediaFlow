@@ -4,7 +4,7 @@ import re
 import shutil
 from pathlib import Path
 from typing import Optional, List, Callable, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from loguru import logger
 from backend.core.adapters.base import BaseAdapter
@@ -31,14 +31,16 @@ class FasterWhisperConfig(BaseModel):
     max_comma: int = 20
     max_comma_cent: int = 50
 
-    @validator("audio_path")
-    def validate_audio_exists(cls, v):
+    @field_validator("audio_path")
+    @classmethod
+    def validate_audio_exists(cls, v: Path) -> Path:
         if not v.exists():
             raise ValueError(f"Audio file not found: {v}")
         return v
 
-    @validator("output_dir")
-    def validate_output_dir(cls, v):
+    @field_validator("output_dir")
+    @classmethod
+    def validate_output_dir(cls, v: Path) -> Path:
         # We allow creation if not exists, but parent must exist? 
         # For simplicity, we just ensure it's a valid path structure.
         return v
@@ -90,15 +92,15 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         return cmd
 
     def _resolve_model_name(self, config: FasterWhisperConfig) -> str:
-        # CLI expects just "large-v3" if it's in the model_dir.
         name = config.model_name
-        # Simple mapping or pass-through
-        if "large-v3" in name: return "large-v3"
-        if "large-v2" in name: return "large-v2"
-        if "medium" in name: return "medium"
-        if "small" in name: return "small"
-        if "base" in name: return "base"
-        if "tiny" in name: return "tiny"
+
+        # The CLI resolves model folders beneath --model_dir on its own and may
+        # prepend "faster-whisper-" internally. Passing the prefixed folder name
+        # here can therefore become "faster-whisper-faster-whisper-*" and miss
+        # an otherwise valid local cache.
+        if (config.model_dir / f"faster-whisper-{name}").exists():
+            return name
+
         return name
 
     def execute(self, config: FasterWhisperConfig, progress_callback: Optional[Callable[[int, str], None]] = None) -> List[SubtitleSegment]:
@@ -125,6 +127,7 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
             errors='replace',
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
+        notable_output: list[str] = []
         
         while True:
             line = process.stdout.readline()
@@ -140,6 +143,7 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
                 
                 if not any(x in line for x in ["items/s", "it/s", "MB/s", ".bin", ".json"]) and line.strip():
                      logger.debug(f"CLI: {line}")
+                     notable_output.append(line)
         
         # Wait for process to really finish
         process.wait()
@@ -160,8 +164,16 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
                 stderr_output = process.stdout.read() if process.stdout else "" # stdout was redirected to stderr in Popen? No, merged.
                 raise RuntimeError(f"CLI process failed with code {process.returncode}. No output generated.")
 
+        unknown_model_line = next(
+            (line for line in notable_output if "Unknown model not found at:" in line),
+            None,
+        )
+        if unknown_model_line:
+            raise RuntimeError(unknown_model_line)
+
         if not has_output:
-             raise RuntimeError("CLI process exited successfully but No SRT output generated")
+             hint = notable_output[-1] if notable_output else "No CLI details captured."
+             raise RuntimeError(f"CLI process exited successfully but no SRT output was generated. Last detail: {hint}")
              
         srt_path = srt_files[0]
              

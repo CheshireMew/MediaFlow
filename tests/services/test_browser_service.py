@@ -2,7 +2,9 @@ import pytest
 import asyncio
 import threading
 from http.server import SimpleHTTPRequestHandler, HTTPServer
-from backend.services.browser_service import browser_service
+from backend.core.container import container, Services
+from backend.services.browser_service import BrowserService
+from backend.services.sniffer import NetworkSniffer
 
 # --- Local Server Setup ---
 HTML_CONTENT = b"""
@@ -50,6 +52,7 @@ def local_server():
     yield base_url
     
 async def _ensure_clean_browser():
+    browser_service = container.get(Services.BROWSER)
     try:
         if browser_service._browser or browser_service._playwright:
             await browser_service.stop()
@@ -60,16 +63,25 @@ async def _ensure_clean_browser():
 
 @pytest.mark.asyncio
 async def test_browser_sniffing(local_server):
+    container.clear()
+    container.register(Services.BROWSER, BrowserService)
+    container.register(Services.SNIFFER, NetworkSniffer)
+    browser_service = container.get(Services.BROWSER)
+    sniffer = container.get(Services.SNIFFER)
     await _ensure_clean_browser()
     try:
         # Test Sniffing Logic
-        await browser_service.start()
+        try:
+            await browser_service.start()
+        except PermissionError as e:
+            pytest.skip(f"Playwright subprocess not permitted in this environment: {e}")
         
         # We need a longer timeout for sniffing usually, but local is fast
-        result = await browser_service.sniff(url=local_server, timeout=10)
+        result = await sniffer.sniff(url=local_server, timeout=10)
         
         assert result is not None, "Sniffer returned None"
         assert "test_video_with_very_long_name" in result["url"]
         assert result["title"] == "E2E Test Page"
     finally:
         await browser_service.stop()
+        container.clear()

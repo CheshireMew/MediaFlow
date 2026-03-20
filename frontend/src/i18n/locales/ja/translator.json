@@ -13,7 +13,9 @@
     "sourceHeader": "ソース",
     "targetLabel": "ターゲット",
     "targetLangLabel": "ターゲット言語",
-    "modeLabel": "モード"
+    "modeLabel": "モード",
+    "generatedSegment": "生成段",
+    "noSourceSegment": "スマート分割で生成された追加ターゲット段"
   },
   "languages": {
     "Chinese": "中国語",
@@ -24,12 +26,22 @@
   },
   "modes": {
     "standard": "標準",
-    "intelligent": "スマート分割"
+    "intelligent": "スマート分割",
+    "proofread": "校正"
   },
   "loading": { "message": "翻訳中..." },
+  "result": {
+    "standardBadge": "標準翻訳結果",
+    "standardHint": "右側は元の分割に対応した通常翻訳結果です。",
+    "intelligentBadge": "スマート分割結果",
+    "intelligentHint": "右側は結合または分割されている可能性があり、元の行と一対一で対応しない場合があります。",
+    "intelligentHintGenerated": "右側は再分割済みで、一部の行は新しく生成されたターゲット段です。",
+    "proofreadBadge": "校正結果",
+    "proofreadHint": "右側は原文言語の校正結果であり、翻訳文ではありません。"
+  },
   "uploader": {
-    "dragText": "動画または字幕をドラッグ＆ドロップ",
-    "supportedFormats": ".srt, .mp4, .mp3, .wav 対応",
+    "dragText": "字幕ファイルをドラッグ＆ドロップ",
+    "supportedFormats": ".srt, .vtt, .ass, .ssa 対応",
     "readyStatus": "翻訳準備完了",
     "replaceButton": "ファイルを置換"
   }

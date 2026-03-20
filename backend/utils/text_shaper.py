@@ -5,12 +5,24 @@ Implements a simplified Unicode Line Breaking Algorithm for CJK text.
 Since libass cannot auto-wrap CJK text (requires libunibreak), we pre-calculate
 line breaks and insert ASS \\N markers before rendering.
 """
-import unicodedata
+from functools import lru_cache
+from pathlib import Path
+import os
 
 # Characters that MUST NOT appear at the START of a line (避头标点)
 _LINE_START_FORBIDDEN = set('，。！？；：、）」』】》〉）…—～·')
 # Characters that MUST NOT appear at the END of a line (避尾标点)
 _LINE_END_FORBIDDEN = set('（「『【《〈（')
+
+_FONT_FILENAME_HINTS = {
+    "arial": ["arial.ttf", "arial.ttf"],
+    "microsoftyahei": ["msyh.ttc", "msyh.ttf", "msyhbd.ttc"],
+    "simhei": ["simhei.ttf"],
+    "simsun": ["simsun.ttc", "simsun.ttf"],
+    "kaiti": ["simkai.ttf", "kaiti.ttf"],
+    "notosanssc": ["NotoSansSC-Regular.otf", "NotoSansSC-VariableFont_wght.ttf"],
+    "lxgwwenkai": ["LXGWWenKai-Regular.ttf", "LXGWWenKaiMono-Regular.ttf"],
+}
 
 
 def is_cjk(ch: str) -> bool:
@@ -51,6 +63,83 @@ def estimate_char_width(ch: str, font_size: int) -> float:
     return font_size * 0.5
 
 
+def _normalize_font_key(font_name: str) -> str:
+    return ''.join(ch.lower() for ch in font_name if ch.isalnum())
+
+
+def _candidate_font_dirs() -> list[Path]:
+    dirs: list[Path] = []
+    win_dir = os.environ.get("WINDIR")
+    if win_dir:
+        dirs.append(Path(win_dir) / "Fonts")
+
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        dirs.append(Path(local_app_data) / "Microsoft" / "Windows" / "Fonts")
+
+    user_profile = os.environ.get("USERPROFILE")
+    if user_profile:
+        dirs.append(Path(user_profile) / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts")
+
+    return [path for path in dirs if path.exists()]
+
+
+@lru_cache(maxsize=64)
+def _resolve_font_path(font_name: str) -> str | None:
+    normalized = _normalize_font_key(font_name)
+    if not normalized:
+        return None
+
+    font_dirs = _candidate_font_dirs()
+    hints = _FONT_FILENAME_HINTS.get(normalized, [])
+
+    for font_dir in font_dirs:
+        for filename in hints:
+            candidate = font_dir / filename
+            if candidate.exists():
+                return str(candidate)
+
+    for font_dir in font_dirs:
+        for pattern in ("*.ttf", "*.ttc", "*.otf"):
+            for candidate in font_dir.glob(pattern):
+                stem_key = _normalize_font_key(candidate.stem)
+                if normalized in stem_key or stem_key in normalized:
+                    return str(candidate)
+
+    return None
+
+
+@lru_cache(maxsize=2048)
+def _measure_text_width(text: str, font_name: str, font_size: int) -> float | None:
+    if not text or font_size <= 0:
+        return 0.0
+
+    font_path = _resolve_font_path(font_name)
+    if not font_path:
+        return None
+
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        font = ImageFont.truetype(font_path, font_size)
+        image = Image.new("L", (1, 1), 0)
+        draw = ImageDraw.Draw(image)
+        if hasattr(draw, "textlength"):
+            return float(draw.textlength(text, font=font))
+        bbox = draw.textbbox((0, 0), text, font=font)
+        return float(bbox[2] - bbox[0])
+    except Exception:
+        return None
+
+
+def measure_char_width(ch: str, font_name: str | None, font_size: int) -> float:
+    if font_name:
+        measured = _measure_text_width(ch, font_name, font_size)
+        if measured is not None and measured > 0:
+            return measured
+    return estimate_char_width(ch, font_size)
+
+
 def _can_break_before(ch: str) -> bool:
     """Check if we can insert a line break BEFORE this character."""
     if ch in _LINE_START_FORBIDDEN:
@@ -70,7 +159,7 @@ def _is_cjk_or_fullwidth(ch: str) -> bool:
     return is_cjk(ch) or is_fullwidth(ch) or ch in _LINE_START_FORBIDDEN or ch in _LINE_END_FORBIDDEN
 
 
-def shape_line(text: str, max_width_px: int, font_size: int) -> str:
+def shape_line(text: str, max_width_px: int, font_size: int, font_name: str | None = None) -> str:
     """
     Break a single line of text into multiple lines that fit within max_width_px.
     Returns text with \\N inserted at break points.
@@ -92,7 +181,7 @@ def shape_line(text: str, max_width_px: int, font_size: int) -> str:
         return text
     
     # Quick check: if entire text fits, return as-is
-    total_width = sum(estimate_char_width(ch, font_size) for ch in text)
+    total_width = sum(measure_char_width(ch, font_name, font_size) for ch in text)
     if total_width <= max_width_px:
         return text
     
@@ -102,7 +191,7 @@ def shape_line(text: str, max_width_px: int, font_size: int) -> str:
     last_break_idx = -1  # Index of last valid break point in current_line
     
     for ch in text:
-        ch_width = estimate_char_width(ch, font_size)
+        ch_width = measure_char_width(ch, font_name, font_size)
         
         # Track valid break points BEFORE adding current char
         if current_line:
@@ -125,7 +214,7 @@ def shape_line(text: str, max_width_px: int, font_size: int) -> str:
                     carry = current_line.pop()
                     lines.append(''.join(current_line))
                     current_line = [carry, ch]
-                    current_width = sum(estimate_char_width(c, font_size) for c in current_line)
+                    current_width = sum(measure_char_width(c, font_name, font_size) for c in current_line)
                 else:
                     lines.append(''.join(current_line))
                     current_line = [ch]
@@ -146,7 +235,7 @@ def shape_line(text: str, max_width_px: int, font_size: int) -> str:
                 
                 lines.append(''.join(before))
                 current_line = after + [ch]
-                current_width = sum(estimate_char_width(c, font_size) for c in current_line)
+                current_width = sum(measure_char_width(c, font_name, font_size) for c in current_line)
                 last_break_idx = -1
                 continue
             
@@ -168,7 +257,7 @@ def shape_line(text: str, max_width_px: int, font_size: int) -> str:
     return r'\N'.join(lines)
 
 
-def shape(text: str, max_width_px: int, font_size: int) -> str:
+def shape(text: str, max_width_px: int, font_size: int, font_name: str | None = None) -> str:
     """
     Shape subtitle text to fit within max_width_px.
     Handles existing \\N line breaks by processing each segment independently.
@@ -186,5 +275,5 @@ def shape(text: str, max_width_px: int, font_size: int) -> str:
     # Split on existing \N breaks, process each segment, then rejoin
     # Note: In ASS event text, \N is a literal backslash-N (two chars)
     segments = text.split(r'\N')
-    shaped_segments = [shape_line(seg, max_width_px, font_size) for seg in segments]
+    shaped_segments = [shape_line(seg, max_width_px, font_size, font_name) for seg in segments]
     return r'\N'.join(shaped_segments)

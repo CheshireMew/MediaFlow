@@ -1,10 +1,27 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { API_BASE, apiClient } from "../../api/client";
 import { formatSRTTime } from "../../utils/subtitleParser";
 import type { ContextMenuItem } from "../../components/ui/ContextMenu";
+import type { SubtitleSegment, TaskResult } from "../../types/task";
+import type { TranscribeSegmentResponse } from "../../types/api";
 
 // ─── Types ──────────────────────────────────────────────────────
-type Segment = { id: string; start: number; end: number; text: string };
+type Segment = SubtitleSegment & { id: string };
+
+type EditableSegmentUpdate = Pick<SubtitleSegment, "id" | "text">;
+
+type ContextMenuEvent = MouseEvent | React.MouseEvent;
+
+type SegmentTranscriptionPayload = {
+  segments?: Array<Pick<SubtitleSegment, "start" | "end" | "text">>;
+  text?: string;
+};
+
+type TaskStatusResponse = {
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  error?: string;
+  result?: TaskResult;
+};
 
 interface ContextMenuState {
   position: { x: number; y: number };
@@ -20,7 +37,7 @@ interface UseContextMenuBuilderArgs {
   selectSegment: (id: string, multi: boolean, range: boolean) => void;
   addSegment: (seg: Segment) => void;
   addSegments: (segs: Segment[]) => void;
-  updateSegments: (updates: any[]) => void;
+  updateSegments: (updates: EditableSegmentUpdate[]) => void;
   mergeSegments: (ids: string[]) => void;
   splitSegment: (time: number, id: string) => void;
   deleteSegments: (ids: string[]) => void;
@@ -45,10 +62,25 @@ export function useContextMenuBuilder({
   // Use ref to avoid re-creating callbacks when regions change
   const regionsRef = useRef(regions);
   regionsRef.current = regions;
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+  const currentFilePathRef = useRef(currentFilePath);
+  currentFilePathRef.current = currentFilePath;
   const transcribePollersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
+  useEffect(() => {
+    return () => {
+      Object.values(transcribePollersRef.current).forEach((poller) => {
+        clearInterval(poller);
+      });
+      transcribePollersRef.current = {};
+    };
+  }, []);
+
   const handleContextMenu = useCallback(
-    (e: any, id: string, regionData?: { start: number; end: number }) => {
+    (e: ContextMenuEvent, id: string, regionData?: { start: number; end: number }) => {
+      const currentSelectedIds = selectedIdsRef.current;
+      const currentPath = currentFilePathRef.current;
       const existing = regionsRef.current.find((r) => r.id === id);
 
       // ── Temporary region (drawn on waveform but not yet a segment) ──
@@ -73,7 +105,7 @@ export function useContextMenuBuilder({
             {
               label: "🎙️ 识别选中区域 (ASR)",
               onClick: async () => {
-                if (!currentFilePath) {
+                if (!currentPath) {
                   alert("请先保存或打开一个文件");
                   return;
                 }
@@ -82,13 +114,13 @@ export function useContextMenuBuilder({
 
                 try {
                   const applyTranscriptionResult = (
-                    payload: { segments?: any[]; text?: string },
+                    payload: SegmentTranscriptionPayload,
                     fallbackRegion: { start: number; end: number },
                   ) => {
                     const { segments, text } = payload;
 
                     if (segments && segments.length > 0) {
-                      const newSegments = segments.map((seg: any, idx: number) => ({
+                      const newSegments: Segment[] = segments.map((seg, idx) => ({
                         id: String(Date.now() + idx),
                         start: seg.start,
                         end: seg.end,
@@ -112,13 +144,13 @@ export function useContextMenuBuilder({
 
                   const res = await apiClient.transcribeSegment({
                     video_path: "",
-                    audio_path: currentFilePath,
+                    audio_path: currentPath,
                     srt_path: "",
                     watermark_path: null,
                     start: regionData.start,
                     end: regionData.end,
                     options: {},
-                  });
+                  }) as TranscribeSegmentResponse;
 
                   if (res.status === "completed" && res.data) {
                     applyTranscriptionResult(res.data, regionData);
@@ -140,7 +172,7 @@ export function useContextMenuBuilder({
                           `${API_BASE}/tasks/${taskId}`,
                         ).then((r) => {
                           if (!r.ok) throw new Error("Failed to get task status");
-                          return r.json();
+                          return r.json() as Promise<TaskStatusResponse>;
                         });
 
                         if (statusRes.status === "completed") {
@@ -179,11 +211,11 @@ export function useContextMenuBuilder({
       }
 
       // ── Existing segment context menu ───────────────────────────
-      if (!selectedIds.includes(id)) {
+      if (!currentSelectedIds.includes(id)) {
         selectSegment(id, false, false);
       }
 
-      const targetSelectedIds = selectedIds.includes(id) ? selectedIds : [id];
+      const targetSelectedIds = currentSelectedIds.includes(id) ? currentSelectedIds : [id];
 
       // Check continuity for merge
       const indices = targetSelectedIds
@@ -324,9 +356,7 @@ export function useContextMenuBuilder({
         label: "删除",
         danger: true,
         onClick: () => {
-          if (confirm(`确定删除这 ${targetSelectedIds.length} 项吗?`)) {
-            deleteSegments(targetSelectedIds);
-          }
+          deleteSegments(targetSelectedIds);
         },
       });
 
@@ -337,7 +367,6 @@ export function useContextMenuBuilder({
       });
     },
     [
-      selectedIds,
       selectSegment,
       mergeSegments,
       splitSegment,
@@ -345,7 +374,6 @@ export function useContextMenuBuilder({
       addSegment,
       addSegments,
       updateSegments,
-      currentFilePath,
       setContextMenu,
       videoRef,
     ],

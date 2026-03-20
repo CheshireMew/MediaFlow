@@ -51,6 +51,7 @@ export const TranscriberPage = () => {
                   onTranscribe={actions.startTranscription}
                   isFileSelected={!!state.file}
                   activeTaskId={state.activeTaskId}
+                  isSubmitting={state.isUploading}
                 />
 
                 {/* Progress Card (Persistent) */}
@@ -61,7 +62,7 @@ export const TranscriberPage = () => {
                 }`}>
                    <div className="flex justify-between items-center mb-3">
                      <span className={`text-xs font-bold uppercase tracking-wider transition-colors duration-300 ${state.activeTask ? "text-purple-400" : "text-slate-500"}`}>
-                       {state.activeTask ? state.activeTask.status : "System Ready"}
+                       {state.activeTask ? state.activeTask.status : t('progressCard.systemReady')}
                      </span>
                      <span className={`text-xs font-mono transition-colors duration-300 ${state.activeTask ? "text-purple-300" : "text-slate-600"}`}>
                         {state.activeTask ? state.activeTask.progress.toFixed(0) : 0}%
@@ -77,7 +78,7 @@ export const TranscriberPage = () => {
                    </div>
                    <div className={`text-xs truncate flex items-center gap-2 transition-colors duration-300 ${state.activeTask ? "text-purple-300/80" : "text-slate-500"}`}>
                      <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${state.activeTask ? "bg-purple-500 animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.6)]" : "bg-slate-700"}`} />
-                     {state.activeTask ? (state.activeTask.message || "Processing...") : "Waiting to start..."}
+                     {state.activeTask ? (state.activeTask.message || t('progressCard.processingMessage')) : t('progressCard.waitingMessage')}
                    </div>
                 </div>
               </div>

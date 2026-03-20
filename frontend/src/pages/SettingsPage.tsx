@@ -1,11 +1,58 @@
-
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "i18next";
 import { apiClient } from "../api/client";
-import type { LLMProvider, UserSettings } from "../types/api";
-import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay, Globe } from "lucide-react";
+import type { LLMProvider, UserSettings, ToolUpdateResponse } from "../types/api";
+import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay, Globe, Wrench } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "../i18n";
+
+const PROVIDER_PRESETS = [
+    {
+        key: "openai",
+        name: "OpenAI",
+        base_url: "https://api.openai.com/v1",
+        model: "gpt-4o-mini",
+    },
+    {
+        key: "deepseek",
+        name: "DeepSeek",
+        base_url: "https://api.deepseek.com/v1",
+        model: "deepseek-chat",
+    },
+    {
+        key: "openrouter",
+        name: "OpenRouter",
+        base_url: "https://openrouter.ai/api/v1",
+        model: "openai/gpt-4o-mini",
+    },
+    {
+        key: "custom",
+        name: "",
+        base_url: "",
+        model: "",
+    },
+] as const;
+
+const TRANSLATION_LANGUAGES = [
+    { value: "Chinese", labelKey: "languages.chinese" },
+    { value: "English", labelKey: "languages.english" },
+    { value: "Japanese", labelKey: "languages.japanese" },
+    { value: "Spanish", labelKey: "languages.spanish" },
+    { value: "French", labelKey: "languages.french" },
+    { value: "German", labelKey: "languages.german" },
+    { value: "Russian", labelKey: "languages.russian" },
+] as const;
+
+const TRANSCRIPTION_MODELS = [
+    { value: "tiny", label: "tiny" },
+    { value: "base", label: "base" },
+    { value: "small", label: "small" },
+    { value: "medium", label: "medium" },
+    { value: "large-v1", label: "large-v1" },
+    { value: "large-v2", label: "large-v2" },
+    { value: "large-v3", label: "large-v3" },
+    { value: "large-v3-turbo", label: "large-v3-turbo" },
+] as const;
 
 interface Notification {
     message: string;
@@ -19,16 +66,16 @@ const SettingsPage: React.FC = () => {
     const [openModal, setOpenModal] = useState(false);
     const [notification, setNotification] = useState<Notification | null>(null);
     const [activeTab, setActiveTab] = useState<'llm' | 'general'>('llm');
+    const [isTestingConnection, setIsTestingConnection] = useState(false);
+    const [isUpdatingYtDlp, setIsUpdatingYtDlp] = useState(false);
+    const [ytDlpUpdateInfo, setYtDlpUpdateInfo] = useState<ToolUpdateResponse | null>(null);
+    const [selectedProviderPreset, setSelectedProviderPreset] = useState<(typeof PROVIDER_PRESETS)[number]["key"]>("openai");
     
     // Form State
     const [editingProvider, setEditingProvider] = useState<LLMProvider | null>(null);
     const [formData, setFormData] = useState<Partial<LLMProvider>>({
         name: "", base_url: "https://api.openai.com/v1", api_key: "", model: "gpt-3.5-turbo"
     });
-
-    useEffect(() => {
-        fetchSettings();
-    }, []);
 
     const showNotification = (message: string, type: "success" | "error" = "success") => {
         setNotification({ message, type });
@@ -44,6 +91,22 @@ const SettingsPage: React.FC = () => {
             showNotification(t("loadFailed"), "error");
         }
     };
+
+    useEffect(() => {
+        let cancelled = false;
+        apiClient.getSettings()
+            .then((data) => {
+                if (!cancelled) setSettings(data);
+            })
+            .catch((error) => {
+                if (cancelled) return;
+                console.error("Failed to load settings:", error);
+                showNotification(t("loadFailed"), "error");
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [t]);
 
     const handleSaveProvider = async () => {
         if (!settings) return;
@@ -79,14 +142,33 @@ const SettingsPage: React.FC = () => {
 
     const handleDelete = async (id: string) => {
         if (!settings) return;
-        if (!confirm(t("llm.confirmDelete"))) return;
+        const provider = settings.llm_providers.find(p => p.id === id);
+        if (!provider) return;
+
+        const remainingProviders = settings.llm_providers.filter(p => p.id !== id);
+        const nextProvider = remainingProviders[0];
+        const confirmMessage = provider.is_active
+            ? (nextProvider
+                ? t("llm.confirmDeleteActiveWithFallback", { name: nextProvider.name })
+                : t("llm.confirmDeleteActiveWithoutFallback"))
+            : t("llm.confirmDelete");
+
+        if (!confirm(confirmMessage)) return;
         
-        const newProviders = settings.llm_providers.filter(p => p.id !== id);
+        const newProviders = remainingProviders;
         try {
             const res = await apiClient.updateSettings({ ...settings, llm_providers: newProviders });
             setSettings(res);
-            showNotification(t("llm.providerDeleted"));
-        } catch (error) {
+            if (provider.is_active) {
+                showNotification(
+                    nextProvider
+                        ? t("llm.activeProviderDeletedFallback", { name: nextProvider.name })
+                        : t("llm.activeProviderDeletedEmpty"),
+                );
+            } else {
+                showNotification(t("llm.providerDeleted"));
+            }
+        } catch {
             showNotification(t("llm.deleteFailed"), "error");
         }
     };
@@ -96,21 +178,99 @@ const SettingsPage: React.FC = () => {
             await apiClient.setActiveProvider(id);
             await fetchSettings(); // Reload to see update
             showNotification(t("llm.activeUpdated"));
-        } catch (error) {
+        } catch {
             showNotification(t("llm.activeFailed"), "error");
         }
     };
 
+    const detectProviderPreset = (provider?: Partial<LLMProvider> | null) => {
+        if (!provider?.base_url) return "custom" as const;
+        const matched = PROVIDER_PRESETS.find(
+            (preset) => preset.key !== "custom" && preset.base_url === provider.base_url,
+        );
+        return matched?.key || "custom";
+    };
+
+    const applyProviderPreset = (
+        presetKey: (typeof PROVIDER_PRESETS)[number]["key"],
+        current?: Partial<LLMProvider>,
+    ) => {
+        const preset = PROVIDER_PRESETS.find((item) => item.key === presetKey);
+        if (!preset) return;
+
+        setSelectedProviderPreset(presetKey);
+        setFormData((prev) => ({
+            ...prev,
+            ...current,
+            name:
+                preset.key === "custom"
+                    ? current?.name ?? prev.name ?? ""
+                    : preset.name,
+            base_url: preset.base_url,
+            model: preset.model,
+            api_key: current?.api_key ?? prev.api_key ?? "",
+        }));
+    };
+
     const openAdd = () => {
         setEditingProvider(null);
-        setFormData({ name: "New Provider", base_url: "https://api.openai.com/v1", api_key: "", model: "gpt-4o" });
+        setSelectedProviderPreset("openai");
+        setFormData({
+            name: "OpenAI",
+            base_url: "https://api.openai.com/v1",
+            api_key: "",
+            model: "gpt-4o-mini",
+        });
         setOpenModal(true);
     };
 
     const openEdit = (provider: LLMProvider) => {
         setEditingProvider(provider);
+        setSelectedProviderPreset(detectProviderPreset(provider));
         setFormData(provider);
         setOpenModal(true);
+    };
+
+    const handleTestConnection = async () => {
+        const base_url = formData.base_url?.trim() || "";
+        const api_key = formData.api_key?.trim() || "";
+        const model = formData.model?.trim() || "";
+        const name = formData.name?.trim();
+
+        if (!base_url || !api_key || !model) {
+            showNotification(t("llm.testMissingFields"), "error");
+            return;
+        }
+
+        setIsTestingConnection(true);
+        try {
+            const res = await apiClient.testProviderConnection({
+                name,
+                base_url,
+                api_key,
+                model,
+            });
+            showNotification(res.message || t("llm.testSucceeded"));
+        } catch (error) {
+            const message = error instanceof Error ? error.message : t("llm.testFailed");
+            showNotification(message, "error");
+        } finally {
+            setIsTestingConnection(false);
+        }
+    };
+
+    const handleUpdateYtDlp = async () => {
+        setIsUpdatingYtDlp(true);
+        try {
+            const result = await apiClient.updateYtDlp();
+            setYtDlpUpdateInfo(result);
+            showNotification(t("general.ytDlpUpdateSuccess"));
+        } catch (error) {
+            const message = error instanceof Error ? error.message : t("general.ytDlpUpdateFailed");
+            showNotification(message, "error");
+        } finally {
+            setIsUpdatingYtDlp(false);
+        }
     };
 
     return (
@@ -260,6 +420,78 @@ const SettingsPage: React.FC = () => {
                                     </select>
                                 </div>
 
+                                <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors">
+                                    <div className="space-y-1">
+                                        <h4 className="text-base font-medium text-white flex items-center gap-2">
+                                            <MonitorPlay size={18} className="text-indigo-400" />
+                                            {t("general.translationTargetLanguage")}
+                                        </h4>
+                                        <p className="text-sm text-slate-500">
+                                            {t("general.translationTargetLanguageDesc")}
+                                        </p>
+                                    </div>
+                                    <select
+                                        value={settings?.translation_target_language || 'Chinese'}
+                                        onChange={async (e) => {
+                                            if (!settings) return;
+                                            const targetLanguage = e.target.value;
+                                            try {
+                                                const res = await apiClient.updateSettings({
+                                                    ...settings,
+                                                    translation_target_language: targetLanguage,
+                                                });
+                                                setSettings(res);
+                                                showNotification(t("general.updateSuccess"));
+                                            } catch {
+                                                showNotification(t("general.updateFailed"), "error");
+                                            }
+                                        }}
+                                        className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
+                                    >
+                                        {TRANSLATION_LANGUAGES.map((lang) => (
+                                            <option key={lang.value} value={lang.value}>
+                                                {t(lang.labelKey)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors">
+                                    <div className="space-y-1">
+                                        <h4 className="text-base font-medium text-white flex items-center gap-2">
+                                            <Cpu size={18} className="text-indigo-400" />
+                                            {t("general.transcriptionModel")}
+                                        </h4>
+                                        <p className="text-sm text-slate-500">
+                                            {t("general.transcriptionModelDesc")}
+                                        </p>
+                                    </div>
+                                    <select
+                                        value={settings?.transcription_model || 'base'}
+                                        onChange={async (e) => {
+                                            if (!settings) return;
+                                            const transcriptionModel = e.target.value;
+                                            try {
+                                                const res = await apiClient.updateSettings({
+                                                    ...settings,
+                                                    transcription_model: transcriptionModel,
+                                                });
+                                                setSettings(res);
+                                                showNotification(t("general.updateSuccess"));
+                                            } catch {
+                                                showNotification(t("general.updateFailed"), "error");
+                                            }
+                                        }}
+                                        className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
+                                    >
+                                        {TRANSCRIPTION_MODELS.map((model) => (
+                                            <option key={model.value} value={model.value}>
+                                                {model.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 {/* Auto-Execute Flow Toggle */}
                                 <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors">
                                     <div className="space-y-1">
@@ -279,7 +511,7 @@ const SettingsPage: React.FC = () => {
                                                 const res = await apiClient.updateSettings({ ...settings, auto_execute_flow: newVal });
                                                 setSettings(res);
                                                 showNotification(newVal ? t("general.autoExecuteEnabled") : t("general.autoExecuteDisabled"));
-                                            } catch (e) {
+                                            } catch {
                                                 showNotification(t("general.updateFailed"), "error");
                                             }
                                         }}
@@ -290,6 +522,87 @@ const SettingsPage: React.FC = () => {
                                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                                             settings?.auto_execute_flow ? 'translate-x-6' : 'translate-x-1'
                                         }`} />
+                                    </button>
+                                </div>
+
+                                <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors gap-6">
+                                    <div className="space-y-1 min-w-0">
+                                        <h4 className="text-base font-medium text-white flex items-center gap-2">
+                                            <HardDrive size={18} className="text-indigo-400" />
+                                            {t("general.defaultDownloadPath")}
+                                        </h4>
+                                        <p className="text-sm text-slate-500">
+                                            {t("general.defaultDownloadPathDesc")}
+                                        </p>
+                                        <p className="text-xs text-slate-400 font-mono break-all">
+                                            {settings?.default_download_path || t("general.defaultDownloadPathUnset")}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <button
+                                            onClick={async () => {
+                                                const dir = await window.electronAPI?.selectDirectory?.();
+                                                if (!settings || !dir) return;
+                                                try {
+                                                    const res = await apiClient.updateSettings({
+                                                        ...settings,
+                                                        default_download_path: dir,
+                                                    });
+                                                    setSettings(res);
+                                                    showNotification(t("general.updateSuccess"));
+                                                } catch {
+                                                    showNotification(t("general.updateFailed"), "error");
+                                                }
+                                            }}
+                                            className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors"
+                                        >
+                                            {t("general.chooseFolder")}
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (!settings) return;
+                                                try {
+                                                    const res = await apiClient.updateSettings({
+                                                        ...settings,
+                                                        default_download_path: null,
+                                                    });
+                                                    setSettings(res);
+                                                    showNotification(t("general.updateSuccess"));
+                                                } catch {
+                                                    showNotification(t("general.updateFailed"), "error");
+                                                }
+                                            }}
+                                            className="px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            {t("general.clearFolder")}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors gap-6">
+                                    <div className="space-y-1 min-w-0">
+                                        <h4 className="text-base font-medium text-white flex items-center gap-2">
+                                            <Wrench size={18} className="text-indigo-400" />
+                                            {t("general.ytDlpTitle")}
+                                        </h4>
+                                        <p className="text-sm text-slate-500">
+                                            {t("general.ytDlpDesc")}
+                                        </p>
+                                        {ytDlpUpdateInfo && (
+                                            <p className="text-xs text-slate-400 font-mono break-all">
+                                                {t("general.ytDlpVersionInfo", {
+                                                    previous: ytDlpUpdateInfo.previous_version || "unknown",
+                                                    current: ytDlpUpdateInfo.current_version || "unknown",
+                                                })}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={handleUpdateYtDlp}
+                                        disabled={isUpdatingYtDlp}
+                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                                    >
+                                        {isUpdatingYtDlp ? t("general.ytDlpUpdating") : t("general.ytDlpUpdate")}
                                     </button>
                                 </div>
                             </div>
@@ -312,6 +625,33 @@ const SettingsPage: React.FC = () => {
                         </div>
                         
                         <div className="p-6 space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.providerPreset")}</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {PROVIDER_PRESETS.map((preset) => (
+                                        <button
+                                            key={preset.key}
+                                            type="button"
+                                            onClick={() => applyProviderPreset(preset.key, editingProvider ?? formData)}
+                                            className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                                                selectedProviderPreset === preset.key
+                                                    ? "border-indigo-500/50 bg-indigo-500/10 text-white"
+                                                    : "border-white/10 bg-black/20 text-slate-300 hover:border-white/20 hover:bg-white/5"
+                                            }`}
+                                        >
+                                            <div className="text-sm font-medium">
+                                                {t(`llm.presets.${preset.key}`)}
+                                            </div>
+                                            <div className="mt-1 text-[10px] text-slate-500">
+                                                {preset.key === "custom"
+                                                    ? t("llm.presetCustomDesc")
+                                                    : preset.model}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="space-y-1.5">
                                 <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.displayName")}</label>
                                 <input 
@@ -360,6 +700,13 @@ const SettingsPage: React.FC = () => {
                                 className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
                             >
                                 {tc("cancel")}
+                            </button>
+                            <button 
+                                onClick={handleTestConnection}
+                                disabled={isTestingConnection}
+                                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-200 bg-white/5 hover:bg-white/10 disabled:opacity-50 transition-colors"
+                            >
+                                {isTestingConnection ? t("llm.testingConnection") : t("llm.testConnection")}
                             </button>
                             <button 
                                 onClick={handleSaveProvider}

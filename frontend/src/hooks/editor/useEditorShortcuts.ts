@@ -72,33 +72,23 @@ export function useEditorShortcuts({
         case "Space":
           e.preventDefault();
           if (videoRef.current) {
-            videoRef.current.paused
-              ? videoRef.current.play()
-              : videoRef.current.pause();
+            if (videoRef.current.paused) {
+              void videoRef.current.play();
+            } else {
+              videoRef.current.pause();
+            }
           }
           break;
         case "Delete":
           if (selectedIds.length > 0) {
-            // We handle confirmation here or in the action?
-            // Original code: confirm(`Delete ${selectedIds.length} items?`)
-            // Let's assume action allows it, or we do check here.
-            if (
-              confirm(
-                `Delete ${selectedIds.length > 0 ? selectedIds.length : 1} items?`,
-              )
-            ) {
-              deleteSegments(
-                selectedIds.length > 0
-                  ? selectedIds
-                  : activeSegmentId
-                    ? [activeSegmentId]
-                    : [],
-              );
-            }
+            deleteSegments(
+              selectedIds.length > 0
+                ? selectedIds
+                : activeSegmentId
+                  ? [activeSegmentId]
+                  : [],
+            );
           } else if (activeSegmentId) {
-            // Wait, if activeSegmentId is set but not in selectedIds?
-            // selectedIds usually contains activeSegmentId.
-            // But just in case.
             deleteSegments([activeSegmentId]);
           }
           break;

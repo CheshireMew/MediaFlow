@@ -1,4 +1,4 @@
-from backend.services.downloader import downloader_service
+from backend.services.downloader.service import DownloaderService
 from pathlib import Path
 import os
 
@@ -19,7 +19,7 @@ Normal Text
     vtt_path = tmp_path / "test.vtt"
     vtt_path.write_text(vtt_content, encoding='utf-8')
     
-    downloader_service._clean_subtitles(str(vtt_path))
+    DownloaderService()._clean_subtitles(str(vtt_path))
     
     srt_path = tmp_path / "test.srt"
     assert srt_path.exists()
@@ -41,7 +41,7 @@ Short Video Text
     vtt_path = tmp_path / "short.vtt"
     vtt_path.write_text(vtt_content, encoding='utf-8')
     
-    downloader_service._clean_subtitles(str(vtt_path))
+    DownloaderService()._clean_subtitles(str(vtt_path))
     
     srt_path = tmp_path / "short.srt"
     assert srt_path.exists()

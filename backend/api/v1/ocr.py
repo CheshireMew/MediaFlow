@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 import os
@@ -44,126 +44,126 @@ class OCRExtractResponse(BaseModel):
 import asyncio
 from backend.core.container import container, Services
 
+
+async def run_ocr_task(task_id: str, request: OCRExtractRequest):
+    tm = container.get(Services.TASK_MANAGER)
+    try:
+        tm.raise_if_control_requested(task_id)
+        engine = _get_ocr_engine(request.engine)
+
+        if isinstance(engine, RapidOCREngine) and not engine.ocr:
+            await tm.update_task(task_id, status="running", cancelled=False, message="Initializing OCR Models...", progress=0)
+
+            loop = asyncio.get_running_loop()
+
+            def download_bridge(p, msg):
+                tm.raise_if_control_requested(task_id)
+                tm.submit_threadsafe_update(
+                    loop,
+                    task_id,
+                    progress=round(p * 20, 1),
+                    message=msg,
+                )
+
+            await asyncio.to_thread(engine.initialize_models, download_bridge)
+
+        await tm.update_task(task_id, status="running", cancelled=False, message="Starting extraction...", progress=0)
+
+        pipeline = VideoOCRPipeline(engine)
+        roi_tuple = tuple(request.roi) if request.roi and len(request.roi) == 4 else None
+
+        loop = asyncio.get_running_loop()
+        import time
+        last_update = 0
+
+        def progress_bridge(p, msg):
+            nonlocal last_update
+            tm.raise_if_control_requested(task_id)
+            now = time.time()
+            if now - last_update > 0.5 or p >= 1.0:
+                tm.submit_threadsafe_update(
+                    loop,
+                    task_id,
+                    progress=round(p * 100, 1),
+                    message=msg,
+                )
+                last_update = now
+
+        events = await asyncio.to_thread(
+            pipeline.process_video,
+            video_path=request.video_path,
+            roi=roi_tuple,
+            sample_rate=request.sample_rate,
+            progress_callback=progress_bridge
+        )
+
+        import json
+
+        base_path, _ = os.path.splitext(request.video_path)
+        json_path = f"{base_path}.ocr.json"
+        srt_path = f"{base_path}.ocr.srt"
+
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump([e.model_dump() for e in events], f, ensure_ascii=False, indent=2)
+
+        def format_time(seconds):
+            millis = int((seconds - int(seconds)) * 1000)
+            seconds = int(seconds)
+            mins, secs = divmod(seconds, 60)
+            hrs, mins = divmod(mins, 60)
+            return f"{hrs:02}:{mins:02}:{secs:02},{millis:03}"
+
+        with open(srt_path, "w", encoding="utf-8") as f:
+            for idx, event in enumerate(events, 1):
+                start = format_time(event.start)
+                end = format_time(event.end)
+                text = event.text.replace("\n", " ")
+                f.write(f"{idx}\n{start} --> {end}\n{text}\n\n")
+
+        logger.info(f"Saved OCR results to {json_path} and {srt_path}")
+
+        await tm.update_task(
+            task_id,
+            status="completed",
+            cancelled=False,
+            progress=100,
+            message="Extraction Complete",
+            result={
+                "events": [e.model_dump() for e in events],
+                "files": [
+                    {"type": "json", "path": json_path},
+                    {"type": "srt", "path": srt_path}
+                ]
+            }
+        )
+    except Exception as e:
+        request_type = tm.get_stop_request(task_id)
+        if request_type in {"pause", "cancel"}:
+            await tm.mark_controlled_stop(task_id, request_type, str(e))
+            return
+        logger.error(f"OCR Task failed: {e}")
+        await tm.update_task(task_id, status="failed", error=str(e))
+
 @router.post("/extract", response_model=OCRExtractResponse)
-async def extract_text(request: OCRExtractRequest, background_tasks: BackgroundTasks):
+async def extract_text(request: OCRExtractRequest):
     from backend.utils.path_validator import validate_path
     validate_path(request.video_path, "video_path")
 
     if not os.path.exists(request.video_path):
         raise HTTPException(status_code=404, detail="Video file not found")
 
-    tm = container.get(Services.TASK_MANAGER)
-    
-    # 1. Create a tracking task
-    task_id = await tm.create_task(
-        task_type="extract", 
-        task_name="OCR Extraction", 
+    response = await container.get(Services.TASK_ORCHESTRATOR).submit_task(
+        task_type="extract",
+        task_name="OCR Extraction",
         request_params={
             "video_path": request.video_path,
             "engine": request.engine,
-            "roi": request.roi
-        }
+            "roi": request.roi,
+            "sample_rate": request.sample_rate,
+        },
+        runner_factory=lambda task_id: lambda: run_ocr_task(task_id, request),
     )
-
-    # 2. Define the background worker
-    async def run_ocr_task():
-        try:
-            # Get Engine
-            engine = _get_ocr_engine(request.engine)
-            
-            # Auto-download models if needed (with progress)
-            if isinstance(engine, RapidOCREngine) and not engine.ocr:
-                 await tm.update_task(task_id, status="running", message="Initializing OCR Models...", progress=0)
-                 
-                 loop = asyncio.get_running_loop()
-                 def download_bridge(p, msg):
-                     asyncio.run_coroutine_threadsafe(
-                         tm.update_task(task_id, progress=round(p * 20, 1), message=msg), 
-                         loop
-                     )
-                 
-                 await asyncio.to_thread(engine.initialize_models, download_bridge)
-
-            # Start Extraction
-            await tm.update_task(task_id, status="running", message="Starting extraction...", progress=0)
-            
-            pipeline = VideoOCRPipeline(engine)
-            roi_tuple = tuple(request.roi) if request.roi and len(request.roi) == 4 else None
-            
-            loop = asyncio.get_running_loop()
-            import time
-            last_update = 0
-            
-            def progress_bridge(p, msg):
-                nonlocal last_update
-                now = time.time()
-                # Throttle updates to ~0.5s to avoid DB spam
-                if now - last_update > 0.5 or p >= 1.0:
-                    asyncio.run_coroutine_threadsafe(
-                        tm.update_task(task_id, progress=round(p * 100, 1), message=msg),
-                        loop
-                    )
-                    last_update = now
-
-            events = await asyncio.to_thread(
-                pipeline.process_video,
-                video_path=request.video_path,
-                roi=roi_tuple,
-                sample_rate=request.sample_rate,
-                progress_callback=progress_bridge
-            )
-            
-            # --- Save Results to Disk ---
-            import json
-            
-            base_path, _ = os.path.splitext(request.video_path)
-            json_path = f"{base_path}.ocr.json"
-            srt_path = f"{base_path}.ocr.srt"
-            
-            # Save JSON
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump([e.model_dump() for e in events], f, ensure_ascii=False, indent=2)
-                
-            # Save SRT
-            def format_time(seconds):
-                millis = int((seconds - int(seconds)) * 1000)
-                seconds = int(seconds)
-                mins, secs = divmod(seconds, 60)
-                hrs, mins = divmod(mins, 60)
-                return f"{hrs:02}:{mins:02}:{secs:02},{millis:03}"
-
-            with open(srt_path, "w", encoding="utf-8") as f:
-                for idx, event in enumerate(events, 1):
-                    start = format_time(event.start)
-                    end = format_time(event.end)
-                    text = event.text.replace("\n", " ")
-                    f.write(f"{idx}\n{start} --> {end}\n{text}\n\n")
-
-            logger.info(f"Saved OCR results to {json_path} and {srt_path}")
-            
-            # Save results
-            await tm.update_task(
-                task_id, 
-                status="completed", 
-                progress=100, 
-                message="Extraction Complete",
-                result={
-                    "events": [e.model_dump() for e in events],
-                    "files": [
-                        {"type": "json", "path": json_path},
-                        {"type": "srt", "path": srt_path}
-                    ]
-                }
-            )
-            
-        except Exception as e:
-            logger.error(f"OCR Task failed: {e}")
-            await tm.update_task(task_id, status="failed", error=str(e))
-
-    # 3. Launch background task (fire and forget)
-    background_tasks.add_task(run_ocr_task)
-
-    return OCRExtractResponse(task_id=task_id)
+    return OCRExtractResponse(task_id=response["task_id"])
 
 
 @router.get("/results")

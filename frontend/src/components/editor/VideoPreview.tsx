@@ -48,7 +48,7 @@ function VideoPreviewComponent({
                     <div className="flex-1 relative flex items-center justify-center bg-black/50 rounded-2xl overflow-hidden border border-white/5 shadow-2xl ring-1 ring-white/5">
                         <video 
                            key={mediaUrl}
-                           ref={videoRef as any}
+                           ref={videoRef}
                            src={mediaUrl}
                            className="max-w-full max-h-full shadow-2xl"
                            controls={true}

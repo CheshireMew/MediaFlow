@@ -5,6 +5,7 @@ from loguru import logger
 import contextlib
 
 from backend.config import settings
+from backend.core.database import shutdown_db
 from backend.api.v1 import (
     transcribe, pipeline, analyze, ws, tasks, cookies,
     translate, settings as settings_api, audio, glossary,
@@ -16,7 +17,13 @@ async def lifespan(app: FastAPI):
     # === Service Registration ===
     from backend.core.container import container, Services
     from backend.core.service_registry import register_all_services
+    from backend.core.tasks.registry import (
+        register_all_task_handlers,
+        validate_required_task_handlers,
+    )
     register_all_services()
+    register_all_task_handlers()
+    validate_required_task_handlers()
     
     # === Startup Logic ===
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
@@ -24,16 +31,29 @@ async def lifespan(app: FastAPI):
     
     # Configure File Logging
     log_file = settings.USER_DATA_DIR / "logs" / "mediaflow.log"
-    logger.add(
-        log_file,
-        rotation="10 MB",
-        retention="7 days",
-        level="DEBUG",
-        encoding="utf-8",
-        enqueue=True,
-        backtrace=True,
-        diagnose=True
-    )
+    try:
+        logger.add(
+            log_file,
+            rotation="10 MB",
+            retention="7 days",
+            level="DEBUG",
+            encoding="utf-8",
+            enqueue=True,
+            backtrace=True,
+            diagnose=True
+        )
+    except PermissionError:
+        logger.warning("Falling back to non-queued file logging due to restricted environment.")
+        logger.add(
+            log_file,
+            rotation="10 MB",
+            retention="7 days",
+            level="DEBUG",
+            encoding="utf-8",
+            enqueue=False,
+            backtrace=True,
+            diagnose=True
+        )
     
     logger.info(f"Directories initialized at {settings.BASE_DIR}")
     logger.info(f"Log file configured at {log_file}")
@@ -65,10 +85,14 @@ async def lifespan(app: FastAPI):
     
     # === Shutdown Logic ===
     logger.info("Shutting down...")
+    if container.has(Services.TASK_MANAGER) and Services.TASK_MANAGER in container._instances:
+        tm = container.get(Services.TASK_MANAGER)
+        await tm.shutdown_async()
     # Stop browser if it was instantiated
     if container.has(Services.BROWSER) and Services.BROWSER in container._instances:
         browser = container.get(Services.BROWSER)
         await browser.stop()
+    await shutdown_db()
     container.reset()
 
 

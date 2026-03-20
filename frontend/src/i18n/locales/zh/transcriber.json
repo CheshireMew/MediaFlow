@@ -7,6 +7,16 @@
     "waitingMessage": "等待开始...",
     "processingMessage": "处理中..."
   },
+  "results": {
+    "title": "结果预览",
+    "segmentsCount": "{{count}} 段",
+    "empty": "暂无转录结果",
+    "missingSubtitleAlert": "结果中没有可用的 SRT 路径，无法继续翻译。"
+  },
+  "actions": {
+    "translate": "翻译",
+    "openEditor": "打开编辑器"
+  },
   "uploader": {
     "replaceButton": "替换文件",
     "dragText": "拖放音频/视频文件",

@@ -10,12 +10,6 @@ from backend.core.container import container, Services
 from backend.utils.subtitle_manager import SubtitleManager
 from backend.models.schemas import SubtitleSegment, FileRef
 
-def _get_translator():
-    return container.get(Services.LLM_TRANSLATOR)
-
-def _get_task_manager():
-    return container.get(Services.TASK_MANAGER)
-
 class TranslateStep(PipelineStep):
     @property
     def name(self) -> str:
@@ -38,16 +32,19 @@ class TranslateStep(PipelineStep):
         mode = params.get("mode", "standard")
         
         # 2. Dependencies
-        translator = _get_translator()
-        tm = _get_task_manager()
+        translator = container.get(Services.LLM_TRANSLATOR)
+        tm = container.get(Services.TASK_MANAGER)
         loop = asyncio.get_running_loop()
 
         # 3. Execution
         def progress_cb(percent, msg):
             if task_id:
-                asyncio.run_coroutine_threadsafe(
-                    tm.update_task(task_id, progress=percent, message=msg),
-                    loop
+                tm.raise_if_control_requested(task_id)
+                tm.submit_threadsafe_update(
+                    loop,
+                    task_id,
+                    progress=percent,
+                    message=msg,
                 )
 
         translated_segments = await loop.run_in_executor(

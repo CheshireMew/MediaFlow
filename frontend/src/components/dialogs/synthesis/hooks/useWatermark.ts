@@ -35,20 +35,23 @@ export function useWatermark(
   // --- Restore from localStorage ---
   useEffect(() => {
     if (!isOpen) return;
+    const timer = setTimeout(() => {
+      const savedScale = localStorage.getItem("wm_scale");
+      const savedOpacity = localStorage.getItem("wm_opacity");
+      const savedPos = localStorage.getItem("wm_pos");
 
-    const savedScale = localStorage.getItem("wm_scale");
-    const savedOpacity = localStorage.getItem("wm_opacity");
-    const savedPos = localStorage.getItem("wm_pos");
-
-    if (savedScale) setWmScale(parseFloat(savedScale));
-    if (savedOpacity) setWmOpacity(parseFloat(savedOpacity));
-    if (savedPos) {
-      try {
-        setWmPos(JSON.parse(savedPos));
-      } catch {
-        /* ignore */
+      if (savedScale) setWmScale(parseFloat(savedScale));
+      if (savedOpacity) setWmOpacity(parseFloat(savedOpacity));
+      if (savedPos) {
+        try {
+          setWmPos(JSON.parse(savedPos));
+        } catch {
+          /* ignore */
+        }
       }
-    }
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [isOpen]);
 
   // --- Load persisted watermark image ---
@@ -74,17 +77,17 @@ export function useWatermark(
   useEffect(() => {
     if (!isInitialized.current) return;
     localStorage.setItem("wm_scale", wmScale.toString());
-  }, [wmScale]);
+  }, [wmScale, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized.current) return;
     localStorage.setItem("wm_opacity", wmOpacity.toString());
-  }, [wmOpacity]);
+  }, [wmOpacity, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized.current) return;
     localStorage.setItem("wm_pos", JSON.stringify(wmPos));
-  }, [wmPos]);
+  }, [wmPos, isInitialized]);
 
   // --- Handle watermark upload ---
   const handleWatermarkSelect = async (

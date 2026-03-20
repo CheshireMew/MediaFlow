@@ -7,14 +7,6 @@ from backend.core.context import PipelineContext
 from backend.core.container import container, Services
 
 
-def _get_asr_service():
-    return container.get(Services.ASR)
-
-
-def _get_task_manager():
-    return container.get(Services.TASK_MANAGER)
-
-
 class TranscribeStep(PipelineStep):
     @property
     def name(self) -> str:
@@ -22,7 +14,11 @@ class TranscribeStep(PipelineStep):
 
     async def execute(self, ctx: PipelineContext, params: dict, task_id: str = None):
         # Try to get path from previous step or params
-        audio_path = params.get("audio_path") or ctx.get("video_path")
+        audio_path = (
+            params.get("audio_path")
+            or ctx.get("audio_path")
+            or ctx.get("video_path")
+        )
         if not audio_path:
             raise ValueError("Transcribe step requires 'audio_path' (or result from download step)")
         
@@ -33,14 +29,17 @@ class TranscribeStep(PipelineStep):
         
         # Also run transcribe in executor because it blocks!
         loop = asyncio.get_running_loop()
-        asr_service = _get_asr_service()
-        tm = _get_task_manager()
+        asr_service = container.get(Services.ASR)
+        tm = container.get(Services.TASK_MANAGER)
 
         def progress_cb(percent, msg):
             if task_id:
-                asyncio.run_coroutine_threadsafe(
-                    tm.update_task(task_id, progress=percent, message=msg),
-                    loop
+                tm.raise_if_control_requested(task_id)
+                tm.submit_threadsafe_update(
+                    loop,
+                    task_id,
+                    progress=percent,
+                    message=msg,
                 )
         
         result = await loop.run_in_executor(
@@ -57,12 +56,17 @@ class TranscribeStep(PipelineStep):
         )
         
         if not result.success:
+            if task_id:
+                tm.raise_if_control_requested(task_id)
             raise Exception(result.error or "Transcription failed")
 
         text = result.meta.get("text", "")
         segments = result.meta.get("segments", [])
+        detected_language = result.meta.get("language", language or "auto")
 
+        ctx.set("text", text)
         ctx.set("transcript", text)
+        ctx.set("language", detected_language)
         ctx.set("segments", segments)
         
         # Extract SRT path

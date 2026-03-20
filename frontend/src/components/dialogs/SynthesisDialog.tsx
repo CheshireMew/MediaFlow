@@ -6,7 +6,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MonitorPlay } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
+import type { SynthesizeOptions } from '../../types/api';
 import { hexToAss } from './synthesis/types';
+import { computeSynthesisFontSize } from './synthesis/textShaper';
 import { useSubtitleStyle } from './synthesis/hooks/useSubtitleStyle';
 import { useWatermark } from './synthesis/hooks/useWatermark';
 import { useOutputSettings } from './synthesis/hooks/useOutputSettings';
@@ -22,7 +24,11 @@ interface SynthesisDialogProps {
     regions: SubtitleSegment[];
     videoPath: string | null;
     mediaUrl: string | null;
-    onSynthesize?: (options: any, videoPath: string, watermarkPath: string | null) => Promise<void>;
+    onSynthesize?: (
+        options: SynthesizeOptions & { output_path?: string | null },
+        videoPath: string,
+        watermarkPath: string | null,
+    ) => Promise<void>;
 }
 
 export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({ 
@@ -56,7 +62,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     const style = useSubtitleStyle(isOpen, regions, currentTime);
     const watermark = useWatermark(isOpen, style.isInitialized, videoSize);
     const output = useOutputSettings(isOpen, videoPath, style.isInitialized);
-    const crop = useCrop(isOpen);
+    const crop = useCrop();
 
     // --- Synthesize Action (cross-cutting: reads from all 3 hooks) ---
     const handleSynthesize = async () => {
@@ -76,23 +82,11 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                 backendScale = (videoSize.w * watermark.wmScale) / watermark.watermarkSize.w;
             }
 
-            // Calculate Font Size Scaling (WYSIWYG)
-            let outcomeFontSize = style.fontSize;
-            if (videoRef.current && videoSize.h > 0) {
-                const previewHeight = videoRef.current.clientHeight;
-                if (previewHeight > 0) {
-                    const ratio = videoSize.h / previewHeight;
-                    // FIX: FFmpeg (libass) renders fonts slightly smaller than HTML canvas at the same pixel size.
-                    // We add a compensation factor (approx 1.2x) to match WYSIWYG.
-                    const COMPENSATION_FACTOR = 1.25; 
-                    outcomeFontSize = Math.round(style.fontSize * ratio * COMPENSATION_FACTOR);
-                }
-            }
-
             // ASS alpha: 00 = fully opaque, FF = fully transparent
             const bgAlphaHex = Math.round((1 - style.bgOpacity) * 255).toString(16).padStart(2, '0').toUpperCase();
+            const assBackgroundColor = hexToAss(style.bgColor, bgAlphaHex);
 
-            const options: Record<string, any> = {
+            const options: SynthesizeOptions = {
                 crf: output.quality === 'high' ? 17 : output.quality === 'balanced' ? 20 : 26,
                 preset: output.quality === 'high' ? 'slow' : output.quality === 'balanced' ? 'medium' : 'fast',
                 use_gpu: output.useGpu,
@@ -106,15 +100,15 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
             // Subtitle options (only if enabled)
             if (subtitleEnabled) {
                 Object.assign(options, {
-                    font_name: style.fontName,
-                    font_size: outcomeFontSize,
+                    font_name: style.effectiveFontName,
+                    font_size: computeSynthesisFontSize(style.fontSize),
                     font_color: hexToAss(style.fontColor),
                     bold: style.isBold,
                     italic: style.isItalic,
                     outline: style.bgEnabled ? style.bgPadding : style.outlineSize,
                     shadow: style.shadowSize,
-                    outline_color: style.bgEnabled ? hexToAss(style.bgColor, bgAlphaHex) : hexToAss(style.outlineColor),
-                    back_color: style.bgEnabled ? "&H80000000" : hexToAss(style.bgColor, bgAlphaHex),
+                    outline_color: style.bgEnabled ? assBackgroundColor : hexToAss(style.outlineColor),
+                    back_color: style.bgEnabled ? assBackgroundColor : hexToAss(style.bgColor, bgAlphaHex),
                     border_style: style.bgEnabled ? 3 : 1,
                     alignment: style.alignment,
                     multiline_align: style.multilineAlign,
@@ -181,7 +175,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <div 
                 className="bg-[#0a0a0a] w-[95vw] h-[90vh] rounded-2xl border border-white/10 shadow-2xl flex overflow-hidden ring-1 ring-white/5"
-                style={{ WebkitAppRegion: 'no-drag' } as any}
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties & { WebkitAppRegion: 'no-drag' }}
             >
                 {/* Left: Settings Panel */}
                 <div className="w-[340px] bg-[#161616] flex flex-col border-r border-white/5 z-10 shrink-0">

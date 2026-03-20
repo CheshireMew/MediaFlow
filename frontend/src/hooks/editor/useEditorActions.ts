@@ -1,13 +1,18 @@
 import { useCallback } from "react";
-import { apiClient } from "../../api/client";
+import type { SubtitleSegment } from "../../types/task";
+import { NavigationService } from "../../services/ui/navigation";
 
 // ─── Types ──────────────────────────────────────────────────────
 interface UseEditorActionsArgs {
   currentFilePath: string | null;
-  regions: Array<{ id: string; start: number; end: number; text: string }>;
-  saveSubtitleFile: (regions: any[]) => Promise<string | boolean>;
+  currentSubtitlePath: string | null;
+  regions: SubtitleSegment[];
+  saveSubtitleFile: (
+    regions: SubtitleSegment[],
+    saveAs?: boolean,
+  ) => Promise<string | boolean>;
   detectSilence: () => Promise<[number, number][] | null>;
-  setRegions: (regions: any[]) => void;
+  replaceRegionsWithUndo: (regions: SubtitleSegment[]) => void;
   videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
@@ -17,13 +22,28 @@ interface UseEditorActionsReturn {
   handleSmartSplit: () => Promise<void>;
 }
 
+export function resolveSubtitlePathForTranslation(
+  currentFilePath: string,
+  currentSubtitlePath: string | null,
+  savedPath: string | boolean,
+): string {
+  if (typeof savedPath === "string" && savedPath) {
+    return savedPath;
+  }
+  if (currentSubtitlePath) {
+    return currentSubtitlePath;
+  }
+  return currentFilePath.replace(/\.[^.]+$/, ".srt");
+}
+
 // ─── Hook ───────────────────────────────────────────────────────
 export function useEditorActions({
   currentFilePath,
+  currentSubtitlePath,
   regions,
   saveSubtitleFile,
   detectSilence,
-  setRegions,
+  replaceRegionsWithUndo,
   videoRef,
 }: UseEditorActionsArgs): UseEditorActionsReturn {
   const handleSave = useCallback(async () => {
@@ -45,25 +65,28 @@ export function useEditorActions({
   const handleTranslate = useCallback(async () => {
     if (!currentFilePath) return;
 
+    let savedPath: string | boolean = false;
+
     // 1. Force Save FIRST
     try {
-      await saveSubtitleFile(regions);
+      savedPath = await saveSubtitleFile(regions);
+      if (!savedPath) return;
     } catch (e) {
       console.error("Failed to save before translate", e);
       if (!confirm("Failed to save subtitles. Continue with unsaved file?"))
         return;
     }
 
-    // 2. Set Session Storage & Navigate
-    const srtPath = currentFilePath.replace(/\.[^.]+$/, ".srt");
-    sessionStorage.setItem(
-      "mediaflow:pending_file",
-      JSON.stringify({ video_path: currentFilePath, subtitle_path: srtPath }),
+    const srtPath = resolveSubtitlePathForTranslation(
+      currentFilePath,
+      currentSubtitlePath,
+      savedPath,
     );
-    window.dispatchEvent(
-      new CustomEvent("mediaflow:navigate", { detail: "translator" }),
-    );
-  }, [currentFilePath, regions, saveSubtitleFile]);
+    NavigationService.navigate("translator", {
+      video_path: currentFilePath,
+      subtitle_path: srtPath,
+    });
+  }, [currentFilePath, currentSubtitlePath, regions, saveSubtitleFile]);
 
   const handleSmartSplit = useCallback(async () => {
     if (
@@ -99,14 +122,14 @@ export function useEditorActions({
           text: "",
         }));
 
-        setRegions(newSegments);
+        replaceRegionsWithUndo(newSegments);
       } else {
         alert("No silence/speech pattern detected.");
       }
     } catch (e) {
       alert("Failed to run detection. " + e);
     }
-  }, [detectSilence, setRegions, videoRef]);
+  }, [detectSilence, replaceRegionsWithUndo, videoRef]);
 
   return { handleSave, handleTranslate, handleSmartSplit };
 }

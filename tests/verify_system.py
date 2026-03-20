@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from backend.core.container import container, Services
-from backend.services.downloader import DownloaderService
+from backend.services.downloader.service import DownloaderService
 from backend.services.asr import ASRService
 from backend.services.task_manager import TaskManager
 from backend.config import settings

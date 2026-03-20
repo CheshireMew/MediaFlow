@@ -3,6 +3,10 @@ import { Clapperboard, Save, Wand2, Download, FolderOpen, Languages } from "luci
 import React from "react";
 import { useTranslation } from 'react-i18next';
 
+type AppRegionStyle = React.CSSProperties & {
+    WebkitAppRegion: "drag" | "no-drag";
+};
+
 interface EditorHeaderProps {
     autoScroll: boolean;
     setAutoScroll: (enabled: boolean) => void;
@@ -25,16 +29,18 @@ export function EditorHeader({
     onTranslate
 }: EditorHeaderProps) {
     const { t } = useTranslation('editor');
+    const dragRegionStyle: AppRegionStyle = { WebkitAppRegion: 'drag' };
+    const noDragRegionStyle: AppRegionStyle = { WebkitAppRegion: 'no-drag' };
     return (
         <header 
             className="flex-none pt-6 pb-6 pl-6 pr-32 flex items-center justify-between select-none relative z-50 transition-all"
-            style={{ WebkitAppRegion: 'drag' } as any}
+            style={dragRegionStyle}
         >
             {/* Window Controls Safe Zone (Absolute Top Right) */}
-            <div className="absolute top-0 right-0 w-32 h-10 z-50 no-drag" style={{ WebkitAppRegion: 'no-drag' } as any} />
+            <div className="absolute top-0 right-0 w-32 h-10 z-50 no-drag" style={noDragRegionStyle} />
 
             {/* Left: Brand & File */}
-            <div className="flex items-center gap-5 no-drag" style={{ WebkitAppRegion: 'no-drag' } as any}>
+            <div className="flex items-center gap-5 no-drag" style={noDragRegionStyle}>
                 <div className="flex items-center gap-4">
                     <div className="p-2 bg-gradient-to-br from-indigo-500/20 to-violet-500/20 rounded-2xl border border-white/5 shadow-lg shadow-indigo-500/10">
                         <Clapperboard className="w-6 h-6 text-indigo-400" />
@@ -58,7 +64,7 @@ export function EditorHeader({
             </div>
 
             {/* Right: Actions */}
-            <div className="flex items-center gap-4 no-drag" style={{ WebkitAppRegion: 'no-drag' } as any}>
+            <div className="flex items-center gap-4 no-drag" style={noDragRegionStyle}>
                  <div className="flex items-center gap-2 mr-4 bg-white/5 px-3 py-2 rounded-lg border border-white/5 shadow-inner">
                     <input 
                         type="checkbox" 

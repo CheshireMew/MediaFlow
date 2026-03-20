@@ -1,5 +1,6 @@
 import { API_BASE } from "../../api/client";
 import type { SubtitleSegment } from "../../types/task";
+import type { TaskResult } from "../../types/task";
 
 export interface GlossaryTerm {
   id: string;
@@ -20,6 +21,19 @@ export interface TranslateResponse {
   task_id: string;
   status: string;
   segments?: SubtitleSegment[];
+}
+
+export interface TranslationTaskStatus {
+  task_id?: string;
+  status: string;
+  progress?: number;
+  error?: string;
+  result?: {
+    segments?: SubtitleSegment[];
+    meta?: TaskResult["meta"] & {
+      segments?: SubtitleSegment[];
+    };
+  };
 }
 
 export const translatorService = {
@@ -66,7 +80,7 @@ export const translatorService = {
   },
 
   // Polling helper
-  getTaskStatus: async (taskId: string): Promise<any> => {
+  getTaskStatus: async (taskId: string): Promise<TranslationTaskStatus> => {
     const res = await fetch(`${API_BASE}/tasks/${taskId}`);
     if (!res.ok) throw new Error("Failed to get task status");
     return await res.json();

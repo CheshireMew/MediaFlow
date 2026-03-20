@@ -28,44 +28,49 @@ export const CropOverlay: React.FC<Props> = ({ crop, setCrop, containerRef }) =>
             const clamp = (v: number) => Math.max(0, Math.min(1, v));
 
             switch (dragMode) {
-                case 'move':
+                case 'move': {
                     // Clamp movement
                     const maxX = 1 - next.w;
                     const maxY = 1 - next.h;
                     next.x = Math.max(0, Math.min(maxX, next.x + dx));
                     next.y = Math.max(0, Math.min(maxY, next.y + dy));
                     break;
+                }
                 
-                case 'nw': // Top-Left
+                case 'nw': { // Top-Left
                     next.x = Math.min(next.x + next.w - 0.05, Math.max(0, next.x + dx));
                     next.w = startCrop.current.w - (next.x - startCrop.current.x);
                     next.y = Math.min(next.y + next.h - 0.05, Math.max(0, next.y + dy));
                     next.h = startCrop.current.h - (next.y - startCrop.current.y);
                     break;
+                }
                     
-                case 'ne': // Top-Right
+                case 'ne': { // Top-Right
                     next.w = clamp(startCrop.current.w + dx);
                     if (next.x + next.w > 1) next.w = 1 - next.x;
                     
                     next.y = Math.min(next.y + next.h - 0.05, Math.max(0, next.y + dy));
                     next.h = startCrop.current.h - (next.y - startCrop.current.y);
                     break;
+                }
                     
-                case 'sw': // Bottom-Left
+                case 'sw': { // Bottom-Left
                     next.x = Math.min(next.x + next.w - 0.05, Math.max(0, next.x + dx));
                     next.w = startCrop.current.w - (next.x - startCrop.current.x);
                     
                     next.h = clamp(startCrop.current.h + dy);
                     if (next.y + next.h > 1) next.h = 1 - next.y;
                     break;
+                }
                     
-                case 'se': // Bottom-Right
+                case 'se': { // Bottom-Right
                     next.w = clamp(startCrop.current.w + dx);
                     if (next.x + next.w > 1) next.w = 1 - next.x;
                     
                     next.h = clamp(startCrop.current.h + dy);
                     if (next.y + next.h > 1) next.h = 1 - next.y;
                     break;
+                }
                     
                 // (Simplified: edges invoke corners logic or just expansion)
                 // For MVP, just corners are usually enough, but let's add edges if needed.

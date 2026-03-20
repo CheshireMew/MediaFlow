@@ -31,6 +31,7 @@
     "centerAligned": "Center aligned",
     "topAligned": "Top aligned",
     "dragHint": "Drag text in preview to adjust position.",
+    "resetPosition": "Reset Position",
     "subtitleDisabledHint": "Subtitle rendering is off. Subtitles will not be burned into the video."
   },
   "watermark": {

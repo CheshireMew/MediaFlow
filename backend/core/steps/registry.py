@@ -22,5 +22,10 @@ class StepRegistry:
         return step
 
     @classmethod
+    def get(cls, name: str) -> PipelineStep:
+        """Backward-compatible alias used by older tests/callers."""
+        return cls.get_step(name)
+
+    @classmethod
     def list_steps(cls):
         return list(cls._steps.keys())

@@ -1,6 +1,8 @@
-import { Upload, FileVideo, FileText } from 'lucide-react';
+import { Upload, FileText } from 'lucide-react';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+
+type DragFileWithPath = File & { path?: string };
 
 interface FileUploaderProps {
     onFileSelect: (path: string) => void;
@@ -13,12 +15,9 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
-        const file = e.dataTransfer.files[0];
+        const file = e.dataTransfer.files[0] as DragFileWithPath | undefined;
         if (file && window.electronAPI) {
-            // Electron exposes path property on File object in main process usually, 
-            // but in renderer 'path' property is standard for Electron apps if webSecurity is false or specific setup.
-            // Assuming window.electronAPI handles the path or the File object has 'path' (standard in Electron renderer).
-            const filePath = (file as any).path; 
+            const filePath = file.path ?? window.electronAPI.getPathForFile?.(file);
             if (filePath) onFileSelect(filePath);
         }
     };
@@ -28,9 +27,9 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
     };
 
     const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
+        const file = e.target.files?.[0] as DragFileWithPath | undefined;
         if (file) {
-             const filePath = (file as any).path;
+             const filePath = file.path ?? window.electronAPI?.getPathForFile?.(file);
              if (filePath) onFileSelect(filePath);
         }
     };
@@ -56,18 +55,14 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
                 type="file" 
                 ref={fileInputRef} 
                 className="hidden" 
-                accept=".srt,.vtt,.ass,.ssa,.txt,.sub,.lrc,.mp4,.mkv,.avi,.mov,.webm,.mp3,.wav,.flac,.aac,.ogg,.m4a,.opus"
+                accept=".srt,.vtt,.ass,.ssa"
                 onChange={handleInput}
             />
             
             {currentFile ? (
                 <>
                     <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shadow-inner group-hover:scale-105 transition-transform duration-300">
-                        {currentFile.endsWith('.srt') || currentFile.endsWith('.vtt') ? (
-                            <FileText className="w-8 h-8 text-indigo-400" />
-                        ) : (
-                            <FileVideo className="w-8 h-8 text-indigo-400" />
-                        )}
+                        <FileText className="w-8 h-8 text-indigo-400" />
                     </div>
                     <div className="text-center z-10">
                         <p className="font-semibold text-white mb-1.5 truncate max-w-md">{currentFile.split(/[/\\]/).pop()}</p>

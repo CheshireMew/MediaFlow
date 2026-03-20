@@ -9,6 +9,7 @@ from backend.services.platforms.factory import PlatformFactory
 from backend.models.schemas import AnalyzeResult, PlaylistItem
 from backend.services.cookie_manager import CookieManager
 from urllib.parse import urlparse
+from backend.core.container import container, Services
 
 
 
@@ -136,6 +137,4 @@ class AnalyzerService:
         # If the platform returns the raw Pydantic model (which it should), just return it.
         # This is a placeholder if we ever need to map fields.
         return result
-
-
 

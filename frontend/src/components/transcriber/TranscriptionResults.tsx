@@ -1,4 +1,5 @@
 import { FileText, Clapperboard, ArrowRight, FolderOpen } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { TranscribeResult } from "../../types/transcriber";
 
 interface TranscriptionResultsProps {
@@ -7,7 +8,14 @@ interface TranscriptionResultsProps {
   onSendToTranslator: (payload: { video_path: string; subtitle_path: string }) => void;
 }
 
+type TranslatorPayload = {
+  video_path: string;
+  subtitle_path: string;
+};
+
 export function TranscriptionResults({ result, onSendToEditor, onSendToTranslator }: TranscriptionResultsProps) {
+  const { t } = useTranslation("transcriber");
+
   return (
     <div className="h-full flex flex-col bg-[#1a1a1a] border border-white/5 rounded-2xl shadow-2xl overflow-hidden">
       {/* Header */}
@@ -16,11 +24,11 @@ export function TranscriptionResults({ result, onSendToEditor, onSendToTranslato
            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
              <FileText className="w-4 h-4 text-indigo-400" />
            </div>
-           Result Preview
+           {t("results.title")}
         </h2>
         {result && result.segments && (
           <div className="px-2.5 py-1 rounded-md bg-white/5 border border-white/5 text-xs font-mono text-slate-400 flex items-center gap-2">
-            <span>{result.segments.length} segments</span>
+            <span>{t("results.segmentsCount", { count: result.segments.length })}</span>
           </div>
         )}
       </div>
@@ -48,7 +56,7 @@ export function TranscriptionResults({ result, onSendToEditor, onSendToTranslato
             <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
                <FileText className="w-8 h-8 opacity-20" />
             </div>
-            <p className="text-sm font-medium">No transcription results yet</p>
+            <p className="text-sm font-medium">{t("results.empty")}</p>
           </div>
         )}
       </div>
@@ -69,27 +77,27 @@ export function TranscriptionResults({ result, onSendToEditor, onSendToTranslato
             <div className="flex gap-3">
                 <button
                 onClick={() => {
-                    const payload = {
+                    const payload: Partial<TranslatorPayload> = {
                         video_path: result.video_path || result.audio_path,
                         subtitle_path: result.srt_path || result.subtitle_path
                     };
-                    if (payload.subtitle_path) {
-                            onSendToTranslator(payload as any); 
+                    if (payload.video_path && payload.subtitle_path) {
+                            onSendToTranslator(payload as TranslatorPayload); 
                     } else {
-                        alert("No SRT file path found in result. Cannot translate.");
+                        alert(t("results.missingSubtitleAlert"));
                     }
                 }}
                 className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 hover:border-indigo-500/30 rounded-xl text-sm font-medium transition-all"
                 >
                 <ArrowRight size={16} />
-                Translate
+                {t("actions.translate")}
                 </button>
                 <button
                 onClick={onSendToEditor}
                 className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-lg hover:shadow-purple-500/20 text-white rounded-xl text-sm font-medium transition-all transform hover:-translate-y-0.5"
                 >
                 <Clapperboard size={16} />
-                Open Editor
+                {t("actions.openEditor")}
                 </button>
             </div>
         </div>

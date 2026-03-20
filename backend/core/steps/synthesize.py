@@ -9,12 +9,6 @@ from backend.core.context import PipelineContext
 from backend.core.container import container, Services
 from backend.models.schemas import FileRef
 
-def _get_synthesizer():
-    return container.get(Services.VIDEO_SYNTHESIZER)
-
-def _get_task_manager():
-    return container.get(Services.TASK_MANAGER)
-
 class SynthesizeStep(PipelineStep):
     @property
     def name(self) -> str:
@@ -34,8 +28,8 @@ class SynthesizeStep(PipelineStep):
         output_path = p.parent / f"{p.stem}_synthesized.mp4"
         
         # 3. Execution
-        synthesizer = _get_synthesizer()
-        tm = _get_task_manager()
+        synthesizer = container.get(Services.VIDEO_SYNTHESIZER)
+        tm = container.get(Services.TASK_MANAGER)
         loop = asyncio.get_running_loop()
         
         # Merge options from params
@@ -46,9 +40,12 @@ class SynthesizeStep(PipelineStep):
         
         def progress_cb(percent, msg):
              if task_id:
-                asyncio.run_coroutine_threadsafe(
-                    tm.update_task(task_id, message=msg),
-                    loop
+                tm.raise_if_control_requested(task_id)
+                tm.submit_threadsafe_update(
+                    loop,
+                    task_id,
+                    progress=float(percent),
+                    message=msg,
                 )
 
         if task_id:

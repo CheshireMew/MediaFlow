@@ -1,17 +1,20 @@
-import { useRef, useCallback } from "react";
+import { useRef, useEffect } from "react";
 import {
   useTranslatorStore,
   type TranslatorMode,
 } from "../stores/translatorStore";
-import { translatorService } from "../services/translator/translatorService";
+import { useTaskContext } from "../context/taskContext";
+import { useTranslationTaskSync } from "./translator/useTranslationTaskSync";
+import { useTranslationCommands } from "./translator/useTranslationCommands";
 
 export const useTranslationTask = () => {
+  const { tasks, connected } = useTaskContext();
   const {
     sourceSegments,
-    targetSegments,
     sourceFilePath,
     targetLang,
     mode,
+    activeMode,
     taskId,
     taskStatus,
     progress,
@@ -21,125 +24,65 @@ export const useTranslationTask = () => {
     setTargetSegments,
     setTargetLang,
     setMode,
+    setActiveMode,
+    setResultMode,
   } = useTranslatorStore();
 
-  // Use ref for polling interval to clear it properly
-  const pollInterval = useRef<NodeJS.Timeout | null>(null);
+  const previousTranslateModeRef = useRef<"standard" | "intelligent">("standard");
+  const modeRef = useRef(mode);
+  const activeTaskModeRef = useRef<TranslatorMode>("standard");
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
+  useEffect(() => {
+    const shouldClearProofreadExecution =
+      !taskId &&
+      activeMode === "proofread" &&
+      (taskStatus === "processing_result" || taskStatus === "completed");
+
+    if (shouldClearProofreadExecution) {
+      setActiveMode(null);
+    }
+  }, [activeMode, setActiveMode, taskId, taskStatus]);
 
   const isTranslating =
     taskStatus === "translating" ||
     taskStatus === "starting" ||
     taskStatus === "processing_result" ||
-    taskStatus === "running";
+    taskStatus === "running" ||
+    taskStatus === "pending";
 
-  const pollTask = useCallback(
-    async (tid: string) => {
-      if (pollInterval.current) clearInterval(pollInterval.current);
-
-      pollInterval.current = setInterval(async () => {
-        try {
-          const statusRes = await translatorService.getTaskStatus(tid);
-
-          if (statusRes.progress) setProgress(statusRes.progress);
-
-          if (statusRes.status === "completed") {
-            if (pollInterval.current) clearInterval(pollInterval.current);
-
-            // Handle legacy vs new structure
-            const segments =
-              statusRes.result?.meta?.segments || statusRes.result?.segments;
-
-            setTaskStatus("processing_result");
-
-            if (segments && segments.length > 0) {
-              setTargetSegments(segments);
-            } else {
-              console.warn(
-                "Translation completed but no segments found:",
-                statusRes,
-              );
-              alert("Translation finished but returned no segments.");
-            }
-
-            // Buffer UI update
-            setTimeout(() => {
-              setTaskStatus("completed");
-            }, 600);
-          } else if (statusRes.status === "failed") {
-            if (pollInterval.current) clearInterval(pollInterval.current);
-            setTaskStatus("failed");
-            alert("Translation failed: " + statusRes.error);
-          } else {
-            setTaskStatus(statusRes.status);
-          }
-        } catch (e) {
-          console.error("Polling error (will keep retrying):", e);
-        }
-      }, 1000);
-    },
-    [setProgress, setTaskStatus, setTargetSegments],
-  );
-
-  const startTranslation = async () => {
-    if (sourceSegments.length === 0) return;
-
-    setTaskStatus("starting");
-    setProgress(0);
-
-    try {
-      const res = await translatorService.startTranslation({
-        segments: sourceSegments,
-        target_language: targetLang,
-        mode: mode,
-        context_path: sourceFilePath,
-      });
-      setTaskId(res.task_id);
-      setTaskStatus("translating");
-
-      pollTask(res.task_id);
-    } catch (e) {
-      console.error(e);
-      setTaskStatus("failed");
-      alert("Failed to start translation");
-    }
-  };
-
-  const proofreadSubtitle = async () => {
-    if (sourceSegments.length === 0) return;
-
-    setTaskStatus("starting");
-    setProgress(0);
-
-    try {
-      // Force Proofread Mode, Keep same target language (it's ignored by prompt anyway)
-      const res = await translatorService.startTranslation({
-        segments: sourceSegments,
-        target_language: targetLang,
-        mode: "proofread",
-        context_path: sourceFilePath,
-      });
-      setTaskId(res.task_id);
-      setTaskStatus("translating");
-
-      // Update UI mode to reflect what's happening
-      setMode("proofread");
-
-      pollTask(res.task_id);
-    } catch (e) {
-      console.error(e);
-      setTaskStatus("failed");
-      alert("Failed to start proofreading");
-    }
-  };
-
-  // Cleanup on unmount
-  // useEffect(() => {
-  //     return () => {
-  //         if (pollInterval.current) clearInterval(pollInterval.current);
-  //     };
-  // }, []);
-  // Note: We might NOT want to clear interval on unmount if we want background polling?
-  // For now, keeping it tied to the component lifecycle but arguably it should persist.
+  useTranslationTaskSync({
+    tasks,
+    connected,
+    sourceFilePath,
+    mode,
+    taskId,
+    setTaskId,
+    setTaskStatus,
+    setProgress,
+    setTargetSegments,
+    setActiveMode,
+    setResultMode,
+    activeTaskModeRef,
+    previousTranslateModeRef,
+  });
+  const { startTranslation, proofreadSubtitle } = useTranslationCommands({
+    sourceSegments,
+    sourceFilePath,
+    targetLang,
+    mode,
+    setTaskStatus,
+    setProgress,
+    setTaskId,
+    setMode,
+    setActiveMode,
+    setResultMode,
+    activeTaskModeRef,
+    previousTranslateModeRef,
+  });
 
   return {
     taskId,
@@ -147,8 +90,10 @@ export const useTranslationTask = () => {
     progress,
     targetLang,
     mode,
+    activeMode,
     isTranslating,
     startTranslation,
+    proofreadSubtitle,
     setTargetLang,
     setMode,
   };

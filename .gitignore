@@ -25,6 +25,7 @@ workspace/
 node_modules/
 dist/
 dist-electron/
+release/
 .vscode/
 
 # User Data (DB, local config)
@@ -42,9 +43,21 @@ user_data/
 /dist-backend/
 *.spec
 
+# Electron / desktop packaging artifacts
+/frontend/release/
+/frontend/win-unpacked/
+*.blockmap
+*.asar
+*.nsis.7z
+*.exe
+*.dmg
+*.AppImage
+*.zip
+
 # Large binaries / temp test files
 ffmpeg.zip
 cpu_generated*.txt
 generated*.txt
 original*.txt
 test_ffmpeg.py
+temp_sub*.ass

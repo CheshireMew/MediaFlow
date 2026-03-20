@@ -2,6 +2,21 @@
   "title": "動画ダウンローダー",
   "subtitle": "対応プラットフォームから高品質な動画・音声をダウンロード",
   "taskPanel": { "title": "新しいタスク" },
+  "recentDownloads": {
+    "title": "最近の送信",
+    "empty": "まだダウンロードタスクはありません",
+    "activeCount": "進行中 {{count}}",
+    "status": {
+      "idle": "待機",
+      "queued": "待機中",
+      "pending": "待機中",
+      "running": "実行中",
+      "paused": "一時停止",
+      "completed": "完了",
+      "failed": "失敗",
+      "cancelled": "キャンセル"
+    }
+  },
   "supportedPlatforms": "対応プラットフォーム",
   "input": {
     "placeholder": "動画のURLを貼り付け（例：YouTube、Bilibili...）",

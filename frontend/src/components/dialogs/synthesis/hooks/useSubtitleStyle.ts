@@ -1,8 +1,13 @@
 // ── Subtitle Style State + Persistence + Presets ──
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { SubtitleSegment } from "../../../../types/task";
-import { DEFAULT_PRESETS, loadCustomPresets } from "../types";
+import {
+  DEFAULT_PRESETS,
+  DEFAULT_SUBTITLE_POSITION,
+  loadCustomPresets,
+} from "../types";
 import type { SubtitlePreset } from "../types";
+import { isFontAvailable } from "../fontUtils";
 
 export interface SubtitleStyleState {
   // Style values
@@ -20,6 +25,8 @@ export interface SubtitleStyleState {
   bgPadding: number;
   alignment: number;
   multilineAlign: "bottom" | "center" | "top";
+  effectiveFontName: string;
+  isFontAvailable: boolean;
   // Setters
   setFontSize: (v: number) => void;
   setFontColor: (v: string) => void;
@@ -45,8 +52,10 @@ export interface SubtitleStyleState {
   // Position
   subPos: { x: number; y: number };
   setSubPos: (v: { x: number; y: number }) => void;
+  resetSubPos: () => void;
   // Computed
   currentSubtitle: string;
+  fontAvailabilityMessage: string | null;
   // Init guard (shared with other hooks)
   isInitialized: React.MutableRefObject<boolean>;
 }
@@ -73,103 +82,103 @@ export function useSubtitleStyle(
   const [multilineAlign, setMultilineAlign] = useState<
     "bottom" | "center" | "top"
   >("center");
+  const [fontAvailable, setFontAvailable] = useState(true);
   const [customPresets, setCustomPresets] = useState<SubtitlePreset[]>([]);
   const [presetNameInput, setPresetNameInput] = useState<string | null>(null);
-  const [subPos, setSubPos] = useState({ x: 0.5, y: 0.9 });
-  const [currentSubtitle, setCurrentSubtitle] = useState("");
+  const [subPos, setSubPos] = useState({ ...DEFAULT_SUBTITLE_POSITION });
 
   const isInitialized = useRef(false);
 
-  // --- Subtitle text sync ---
-  useEffect(() => {
+  const currentSubtitle = useMemo(() => {
     const seg = regions.find(
       (r) => currentTime >= r.start && currentTime < r.end,
     );
-    setCurrentSubtitle(seg ? seg.text : "");
+    return seg ? seg.text : "";
   }, [currentTime, regions]);
+
+  useEffect(() => {
+    setFontAvailable(isFontAvailable(fontName));
+  }, [fontName]);
+
+  const effectiveFontName = fontAvailable ? fontName : "Arial";
+  const fontAvailabilityMessage = fontAvailable
+    ? null
+    : `字体 "${fontName}" 当前不可用，预览和导出将回退到 Arial。`;
 
   // --- Restore from localStorage ---
   useEffect(() => {
     if (!isOpen) return;
+    const timer = setTimeout(() => {
+      try {
+        const savedFontName = localStorage.getItem("sub_fontName");
+        const savedBold = localStorage.getItem("sub_bold");
+        const savedItalic = localStorage.getItem("sub_italic");
+        const savedOutline = localStorage.getItem("sub_outline");
+        const savedShadow = localStorage.getItem("sub_shadow");
+        const savedOutlineColor = localStorage.getItem("sub_outlineColor");
+        const savedBgEnabled = localStorage.getItem("sub_bgEnabled");
+        const savedBgColor = localStorage.getItem("sub_bgColor");
+        const savedBgOpacity = localStorage.getItem("sub_bgOpacity");
+        const savedBgPadding = localStorage.getItem("sub_bgPadding");
+        const savedAlignment = localStorage.getItem("sub_alignment");
+        const savedMultilineAlign = localStorage.getItem("sub_multilineAlign");
+        const savedFontSize = localStorage.getItem("sub_fontSize");
+        const savedFontColor = localStorage.getItem("sub_fontColor");
+        const savedSubPos = localStorage.getItem("sub_pos");
 
-    // Load custom presets
-    setCustomPresets(loadCustomPresets());
+        setCustomPresets(loadCustomPresets());
 
-    // Restore subtitle style settings
-    try {
-      const savedFontName = localStorage.getItem("sub_fontName");
-      const savedBold = localStorage.getItem("sub_bold");
-      const savedItalic = localStorage.getItem("sub_italic");
-      const savedOutline = localStorage.getItem("sub_outline");
-      const savedShadow = localStorage.getItem("sub_shadow");
-      const savedOutlineColor = localStorage.getItem("sub_outlineColor");
-      const savedBgEnabled = localStorage.getItem("sub_bgEnabled");
-      const savedBgColor = localStorage.getItem("sub_bgColor");
-      const savedBgOpacity = localStorage.getItem("sub_bgOpacity");
-      const savedBgPadding = localStorage.getItem("sub_bgPadding");
-      const savedAlignment = localStorage.getItem("sub_alignment");
-      const savedMultilineAlign = localStorage.getItem("sub_multilineAlign");
-      const savedFontSize = localStorage.getItem("sub_fontSize");
-      const savedFontColor = localStorage.getItem("sub_fontColor");
-      const savedSubPos = localStorage.getItem("sub_pos");
-
-      console.log("Restoring Subtitle Styles from LS:", {
-        savedBgEnabled,
-        savedBgOpacity,
-        savedBgColor,
-      });
-
-      if (savedFontName) setFontName(savedFontName);
-      if (savedBold) setIsBold(savedBold === "true");
-      if (savedItalic) setIsItalic(savedItalic === "true");
-      if (savedOutline) {
-        const v = parseInt(savedOutline);
-        if (!isNaN(v)) setOutlineSize(v);
-      }
-      if (savedShadow) {
-        const v = parseInt(savedShadow);
-        if (!isNaN(v)) setShadowSize(v);
-      }
-      if (savedOutlineColor) setOutlineColor(savedOutlineColor);
-      if (savedBgEnabled) setBgEnabled(savedBgEnabled === "true");
-      if (savedBgColor) setBgColor(savedBgColor);
-      if (savedBgOpacity) {
-        const val = parseFloat(savedBgOpacity);
-        if (!isNaN(val)) setBgOpacity(val);
-      }
-      if (savedBgPadding) {
-        const v = parseInt(savedBgPadding);
-        if (!isNaN(v)) setBgPadding(v);
-      }
-      if (savedAlignment) setAlignment(parseInt(savedAlignment) || 2);
-      if (
-        savedMultilineAlign &&
-        ["bottom", "center", "top"].includes(savedMultilineAlign)
-      ) {
-        setMultilineAlign(savedMultilineAlign as "bottom" | "center" | "top");
-      }
-      if (savedFontSize) setFontSize(parseInt(savedFontSize) || 24);
-      if (savedFontColor) setFontColor(savedFontColor);
-
-      // Load saved position
-      if (savedSubPos) {
-        try {
-          const pos = JSON.parse(savedSubPos);
-          if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
-            setSubPos(pos);
-          }
-        } catch {
-          /* ignore */
+        if (savedFontName) setFontName(savedFontName);
+        if (savedBold) setIsBold(savedBold === "true");
+        if (savedItalic) setIsItalic(savedItalic === "true");
+        if (savedOutline) {
+          const v = parseInt(savedOutline);
+          if (!isNaN(v)) setOutlineSize(v);
         }
-      }
-    } catch (e) {
-      console.error("Failed to restore subtitle styles", e);
-    }
+        if (savedShadow) {
+          const v = parseInt(savedShadow);
+          if (!isNaN(v)) setShadowSize(v);
+        }
+        if (savedOutlineColor) setOutlineColor(savedOutlineColor);
+        if (savedBgEnabled) setBgEnabled(savedBgEnabled === "true");
+        if (savedBgColor) setBgColor(savedBgColor);
+        if (savedBgOpacity) {
+          const val = parseFloat(savedBgOpacity);
+          if (!isNaN(val)) setBgOpacity(val);
+        }
+        if (savedBgPadding) {
+          const v = parseInt(savedBgPadding);
+          if (!isNaN(v)) setBgPadding(v);
+        }
+        if (savedAlignment) setAlignment(parseInt(savedAlignment) || 2);
+        if (
+          savedMultilineAlign &&
+          ["bottom", "center", "top"].includes(savedMultilineAlign)
+        ) {
+          setMultilineAlign(savedMultilineAlign as "bottom" | "center" | "top");
+        }
+        if (savedFontSize) setFontSize(parseInt(savedFontSize) || 24);
+        if (savedFontColor) setFontColor(savedFontColor);
 
-    // Mark as initialized AFTER loading settings
-    isInitialized.current = true;
-    // Reset preset name input on dialog open
-    setPresetNameInput(null);
+        if (savedSubPos) {
+          try {
+            const pos = JSON.parse(savedSubPos);
+            if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
+              setSubPos(pos);
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch (e) {
+        console.error("Failed to restore subtitle styles", e);
+      }
+
+      isInitialized.current = true;
+      setPresetNameInput(null);
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [isOpen]);
 
   // --- Save position ---
@@ -278,6 +287,8 @@ export function useSubtitleStyle(
     bgPadding,
     alignment,
     multilineAlign,
+    effectiveFontName,
+    isFontAvailable: fontAvailable,
     setFontSize,
     setFontColor,
     setFontName,
@@ -300,7 +311,9 @@ export function useSubtitleStyle(
     deletePreset,
     subPos,
     setSubPos,
+    resetSubPos: () => setSubPos({ ...DEFAULT_SUBTITLE_POSITION }),
     currentSubtitle,
+    fontAvailabilityMessage,
     isInitialized,
   };
 }

@@ -1,4 +1,4 @@
-from fastapi import BackgroundTasks
+from collections.abc import Awaitable, Callable
 from backend.models.schemas import TranscribeRequest
 from backend.models.task_model import Task
 from backend.core.tasks.base import TaskHandler
@@ -10,12 +10,10 @@ from loguru import logger
 class TranscribeHandler(TaskHandler):
     """Handles transcription tasks."""
 
-    def resume(self, task: Task, background_tasks: BackgroundTasks) -> None:
+    def build_runner(self, task: Task) -> Callable[[], Awaitable[None]]:
         try:
             req = TranscribeRequest(**task.request_params)
-            # Task model uses 'id', but run_transcription_task expects 'task_id' string
-            background_tasks.add_task(run_transcription_task, task.id, req)
-            logger.info(f"Resumed transcribe task {task.id}")
+            return lambda: run_transcription_task(task.id, req)
         except Exception as e:
             logger.error(f"Failed to resume transcribe task {task.id}: {e}")
             raise

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from sqlmodel import SQLModel, create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
 from backend.config import settings
 
@@ -15,7 +16,8 @@ engine = create_async_engine(
     DATABASE_URL, 
     echo=False, 
     future=True,
-    connect_args={"check_same_thread": False} # Required for SQLite + async
+    connect_args={"check_same_thread": False}, # Required for SQLite + async
+    poolclass=NullPool,
 )
 
 # Session Factory
@@ -29,6 +31,10 @@ async def init_db():
     async with engine.begin() as conn:
         # Create tables
         await conn.run_sync(SQLModel.metadata.create_all)
+
+
+async def shutdown_db():
+    await engine.dispose()
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_maker() as session:

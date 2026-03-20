@@ -7,6 +7,16 @@ import type { WatermarkState } from '../hooks/useWatermark';
 import type { OutputSettingsState } from '../hooks/useOutputSettings';
 import type { CropState } from '../hooks/useCrop';
 import { CropOverlay } from './CropOverlay';
+import {
+    computePreviewScaledValue,
+    computeSubtitleLineBottomMargins,
+    shapeSubtitleText,
+} from '../textShaper';
+import {
+    buildAssLikeTextShadow,
+    getSubtitlePadding,
+    hexWithOpacity,
+} from '../previewStyle';
 
 interface Props {
     mediaUrl: string | null;
@@ -38,11 +48,17 @@ export const VideoPreview: React.FC<Props> = ({
     const { t } = useTranslation('synthesis');
     const [dragging, setDragging] = useState<'wm' | 'sub' | null>(null);
     const [isTrimOpen, setIsTrimOpen] = useState(false);
+    const [duration, setDuration] = useState(0);
 
     // --- Drag Logic ---
     const handleDragStart = (e: React.MouseEvent, type: 'wm' | 'sub') => {
         e.preventDefault();
         setDragging(type);
+    };
+
+    const handleSubtitleDragStart = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        handleDragStart(e, 'sub');
     };
 
     // Use window-level listeners so drag continues even if mouse leaves the preview area
@@ -84,9 +100,9 @@ export const VideoPreview: React.FC<Props> = ({
 
     // Destructure for readability
     const {
-        fontSize, fontColor, fontName, isBold, isItalic,
+        fontSize, fontColor, effectiveFontName, isBold, isItalic,
         outlineSize, shadowSize, outlineColor,
-        bgEnabled, bgColor, bgOpacity, bgPadding, alignment,
+        bgEnabled, bgColor, bgOpacity, bgPadding, alignment, multilineAlign,
         subPos, currentSubtitle,
     } = style;
 
@@ -98,6 +114,70 @@ export const VideoPreview: React.FC<Props> = ({
         quality, setQuality, isQualityMenuOpen, setIsQualityMenuOpen,
         trimStart, setTrimStart, trimEnd, setTrimEnd,
     } = output;
+
+    const effectiveDuration = mediaUrl ? duration : 0;
+    const previewVideoHeight = videoRef.current?.clientHeight || containerRef.current?.clientHeight || videoSize.h;
+    const previewFontSize = computePreviewScaledValue(
+        fontSize,
+        videoSize.h,
+        previewVideoHeight,
+    );
+    const previewOutlineSize = bgEnabled
+        ? computePreviewScaledValue(bgPadding, videoSize.h, previewVideoHeight)
+        : computePreviewScaledValue(outlineSize, videoSize.h, previewVideoHeight);
+    const previewShadowSize = computePreviewScaledValue(
+        shadowSize,
+        videoSize.h,
+        previewVideoHeight,
+    );
+    const previewBackgroundPadding = computePreviewScaledValue(
+        bgPadding,
+        videoSize.h,
+        previewVideoHeight,
+    );
+    const subtitleAvailableWidth = containerRef.current
+        ? Math.max(0, containerRef.current.clientWidth - Math.max(20, containerRef.current.clientWidth * 0.04))
+        : 0;
+    const shapedSubtitle = shapeSubtitleText(
+        currentSubtitle || t('preview.subtitlePosition'),
+        subtitleAvailableWidth,
+        previewFontSize,
+        {
+            fontFamily: effectiveFontName,
+            isBold,
+            isItalic,
+        },
+    );
+    const subtitleLines = shapedSubtitle.split('\n');
+    const previewMarginV = containerRef.current
+        ? Math.max(0, Math.round((1 - subPos.y) * containerRef.current.clientHeight))
+        : 0;
+    const previewLineStep = previewFontSize + previewOutlineSize * 2;
+    const lineBottomMargins = computeSubtitleLineBottomMargins(
+        subtitleLines.length,
+        previewMarginV,
+        previewLineStep,
+        multilineAlign,
+    );
+    const qualityOptions: Array<{
+        id: OutputSettingsState["quality"];
+        label: string;
+        desc: string;
+    }> = [
+        { id: 'high', label: t('preview.qualityHigh'), desc: t('preview.qualityHighDesc') },
+        { id: 'balanced', label: t('preview.qualityBalanced'), desc: t('preview.qualityBalancedDesc') },
+        { id: 'small', label: t('preview.qualitySmall'), desc: t('preview.qualitySmallDesc') }
+    ];
+    const previewTextShadow = buildAssLikeTextShadow({
+        outlineSize: previewOutlineSize,
+        outlineColor,
+        shadowSize: previewShadowSize,
+        backgroundEnabled: bgEnabled,
+    });
+    const previewBackgroundColor = bgEnabled
+        ? hexWithOpacity(bgColor, bgOpacity)
+        : 'transparent';
+    const previewPadding = getSubtitlePadding(bgEnabled, previewBackgroundPadding);
 
     return (
         <div
@@ -130,15 +210,11 @@ export const VideoPreview: React.FC<Props> = ({
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setIsQualityMenuOpen(false)} />
                                 <div className="absolute top-full mt-2 right-0 w-56 bg-[#161616] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 py-1 ring-1 ring-black/50 animate-in fade-in zoom-in-95 duration-100">
-                                    {[
-                                        { id: 'high', label: t('preview.qualityHigh'), desc: t('preview.qualityHighDesc') },
-                                        { id: 'balanced', label: t('preview.qualityBalanced'), desc: t('preview.qualityBalancedDesc') },
-                                        { id: 'small', label: t('preview.qualitySmall'), desc: t('preview.qualitySmallDesc') }
-                                    ].map(opt => (
+                                    {qualityOptions.map(opt => (
                                         <button
                                             key={opt.id}
                                             onClick={() => {
-                                                setQuality(opt.id as any);
+                                                setQuality(opt.id);
                                                 setIsQualityMenuOpen(false);
                                             }}
                                             className={`w-full text-left px-4 py-2.5 flex items-start gap-3 hover:bg-white/5 transition-colors ${quality === opt.id ? 'bg-indigo-500/10' : ''}`}
@@ -204,7 +280,7 @@ export const VideoPreview: React.FC<Props> = ({
                             <input
                                 type="number"
                                 min={0}
-                                max={trimEnd || videoRef.current?.duration || 100}
+                                max={trimEnd || effectiveDuration || 100}
                                 step={0.1}
                                 value={trimStart}
                                 onChange={(e) => setTrimStart(Number(e.target.value))}
@@ -228,7 +304,7 @@ export const VideoPreview: React.FC<Props> = ({
                             <input
                                 type="number"
                                 min={trimStart}
-                                max={videoRef.current?.duration || 10000}
+                                max={effectiveDuration || 10000}
                                 step={0.1}
                                 value={trimEnd}
                                 onChange={(e) => setTrimEnd(Number(e.target.value))}
@@ -276,7 +352,9 @@ export const VideoPreview: React.FC<Props> = ({
                             onLoadedMetadata={(e) => {
                                 const t = e.currentTarget;
                                 setVideoSize({ w: t.videoWidth, h: t.videoHeight });
+                                setDuration(t.duration || 0);
                             }}
+                            onDurationChange={(e) => setDuration(e.currentTarget.duration || 0)}
                         />
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full w-full text-slate-600 bg-white/[0.02]">
@@ -324,44 +402,49 @@ export const VideoPreview: React.FC<Props> = ({
                     {/* Subtitle Overlay */}
                     {subtitleEnabled && (
                     <div 
-                        className="absolute left-0 right-0 cursor-move select-none group transition-colors px-6"
+                        className="absolute inset-0 select-none group transition-colors px-6 pointer-events-none"
                         style={{ 
-                            top: `${subPos.y * 100}%`,
-                            transform: 'translateY(-50%)',
                             zIndex: 30,
                             textAlign: alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center',
                         }}
-                        onMouseDown={(e) => handleDragStart(e, 'sub')}
                     >
                         {(currentSubtitle || dragging === 'sub') && (
-                            <span 
-                                className={`
-                                    inline-block rounded text-lg md:text-xl leading-relaxed max-w-full break-words
-                                    transition-all duration-75
-                                    ${dragging === 'sub' ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-black/50' : 'group-hover:ring-1 group-hover:ring-white/30'}
-                                `}
-                                style={{ 
-                                    fontSize: `${fontSize}px`, 
-                                    color: fontColor,
-                                    fontFamily: `"${fontName}", sans-serif`,
-                                    fontWeight: isBold ? 'bold' : 'normal',
-                                    fontStyle: isItalic ? 'italic' : 'normal',
-                                    fontSynthesis: 'style',
-                                    WebkitTextStroke: outlineSize > 0 ? `${outlineSize}px ${outlineColor}` : undefined,
-                                    paintOrder: 'stroke fill',
-                                    textShadow: shadowSize > 0
-                                        ? `${shadowSize * 1.5}px ${shadowSize * 1.5}px ${shadowSize}px rgba(0,0,0,0.85)`
-                                        : undefined,
-                                    backgroundColor: bgEnabled
-                                        ? `${bgColor}${Math.round(bgOpacity * 255).toString(16).padStart(2, '0')}`
-                                        : 'transparent',
-                                    padding: bgEnabled
-                                        ? `${Math.max(2, bgPadding * 0.6)}px ${Math.max(4, bgPadding * 1.2)}px`
-                                        : '8px 16px',
-                                }}
-                            >
-                                {currentSubtitle || t('preview.subtitlePosition')}
-                            </span>
+                            subtitleLines.map((lineText, index) => (
+                                <div
+                                    key={`${index}-${lineText}`}
+                                    className="absolute left-6 right-6"
+                                    style={{
+                                        bottom: `${lineBottomMargins[index] ?? previewMarginV}px`,
+                                        textAlign: alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center',
+                                    }}
+                                >
+                                    <span 
+                                        className={`
+                                            inline-block rounded text-lg md:text-xl leading-relaxed max-w-full cursor-move pointer-events-auto
+                                            transition-all duration-75
+                                            ${dragging === 'sub' ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-black/50' : 'group-hover:ring-1 group-hover:ring-white/30'}
+                                        `}
+                                        onMouseDown={handleSubtitleDragStart}
+                                        style={{ 
+                                            fontSize: `${previewFontSize}px`, 
+                                            color: fontColor,
+                                            fontFamily: `"${effectiveFontName}", sans-serif`,
+                                            fontWeight: isBold ? 'bold' : 'normal',
+                                            fontStyle: isItalic ? 'italic' : 'normal',
+                                            fontSynthesis: 'style',
+                                            lineHeight: `${previewFontSize + previewOutlineSize * 2}px`,
+                                            WebkitTextStroke: undefined,
+                                            paintOrder: undefined,
+                                            textShadow: previewTextShadow,
+                                            backgroundColor: previewBackgroundColor,
+                                            padding: previewPadding,
+                                            whiteSpace: 'pre',
+                                        }}
+                                    >
+                                        {lineText}
+                                    </span>
+                                </div>
+                            ))
                         )}
                     </div>
                     )}
@@ -384,7 +467,7 @@ export const VideoPreview: React.FC<Props> = ({
                      <input 
                         type="range"
                         min="0"
-                        max={videoRef.current?.duration || 100}
+                        max={effectiveDuration || 100}
                         value={currentTime}
                         onChange={(e) => {
                             const t = Number(e.target.value);
@@ -398,7 +481,7 @@ export const VideoPreview: React.FC<Props> = ({
                             {currentTime.toFixed(1)}s
                         </span>
                         <span className="text-[10px] text-slate-600 font-mono">
-                            {videoRef.current?.duration?.toFixed(1) || '--'}s
+                            {effectiveDuration > 0 ? `${effectiveDuration.toFixed(1)}s` : '--s'}
                         </span>
                     </div>
                 </div>

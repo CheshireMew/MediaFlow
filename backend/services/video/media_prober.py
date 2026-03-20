@@ -34,6 +34,16 @@ class MediaProber:
             return 0.0
 
     @staticmethod
+    def has_audio(video_path: str) -> bool:
+        """Return whether the media file contains at least one audio stream."""
+        try:
+            probe = ffmpeg.probe(video_path, cmd=settings.FFPROBE_PATH)
+            return any(stream.get('codec_type') == 'audio' for stream in probe.get('streams', []))
+        except Exception as e:
+            logger.warning(f"Audio probe failed: {e}")
+            return False
+
+    @staticmethod
     def probe_resolution(video_path: str):
         try:
             # Use show_streams AND show_format to be safe, though streams is usually enough

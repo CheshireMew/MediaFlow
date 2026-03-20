@@ -23,12 +23,10 @@ export const preprocessingService = {
   enhanceVideo: async (
     data: EnhanceRequest,
   ): Promise<PreprocessingResponse> => {
-    // @ts-ignore - Assuming TaskResponse is compatible or we cast it
     return apiClient.enhanceVideo(data) as unknown as PreprocessingResponse;
   },
 
   cleanVideo: async (data: CleanRequest): Promise<PreprocessingResponse> => {
-    // @ts-ignore
     return apiClient.cleanVideo(data) as unknown as PreprocessingResponse;
   },
 };

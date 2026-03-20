@@ -3,6 +3,9 @@ from fastapi.testclient import TestClient
 from backend.main import app
 from backend.core.container import container, Services
 from unittest.mock import MagicMock
+from pathlib import Path
+import shutil
+import uuid
 
 @pytest.fixture
 def client():
@@ -32,3 +35,11 @@ def mock_llm():
     container.override(Services.LLM_TRANSLATOR, mock)
     yield mock
     container.reset()
+
+@pytest.fixture
+def tmp_path():
+    """Workspace-local temp path to avoid host TMP permission issues."""
+    path = Path("E:/Work/Code/Mediaflow/.temp/pytest") / str(uuid.uuid4())
+    path.mkdir(parents=True, exist_ok=True)
+    yield path
+    shutil.rmtree(path, ignore_errors=True)

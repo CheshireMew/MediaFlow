@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import Optional, Callable
 
+from .model_asset_downloader import ensure_basicvsr_assets
+
 class BasicVSRService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -31,6 +33,12 @@ class BasicVSRService:
             if progress_callback:
                 progress_callback(0, "Error: BasicVSR++ env missing")
             return False
+
+        if progress_callback:
+            progress_callback(0, "Preparing BasicVSR++ models...")
+        ensure_basicvsr_assets(
+            (lambda p, msg: progress_callback(p * 10, msg)) if progress_callback else None
+        )
 
         # Construct command to run the worker script in the sidecar env
         cmd = [

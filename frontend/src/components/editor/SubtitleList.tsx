@@ -10,6 +10,29 @@ import { validateSegment, fixOverlaps } from '../../utils/validation';
 const ITEM_HEIGHT = 44;
 const OVERSCAN = 5;
 
+export function highlightSubtitleText(
+    text: string,
+    searchTerm?: string,
+    matchCase?: boolean,
+) {
+    if (!searchTerm) return text;
+
+    try {
+        const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const splitRegex = new RegExp(`(${escapedTerm})`, matchCase ? 'g' : 'gi');
+        const parts = text.split(splitRegex);
+        return parts.map((part, i) =>
+            i % 2 === 1 ? (
+                <mark key={i} className="bg-yellow-500/50 text-white rounded-sm px-0.5">{part}</mark>
+            ) : (
+                <span key={i}>{part}</span>
+            )
+        );
+    } catch {
+        return text;
+    }
+}
+
 // Custom hook for element size
 function useElementSize() {
     const ref = React.useRef<HTMLDivElement>(null);
@@ -39,6 +62,7 @@ interface SubtitleListProps {
     activeSegmentId: string | null;
     autoScroll: boolean;
     selectedIds: string[];
+    scrollResetKey?: string | null;
     onSegmentClick: (id: string, multi: boolean, shift?: boolean) => void;
     onSegmentDelete: (id: string) => void;
     onSegmentMerge: (ids: string[]) => void;
@@ -56,6 +80,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
         activeSegmentId,
         autoScroll,
         selectedIds,
+        scrollResetKey,
         onSegmentClick,
         onSegmentDelete,
         onSegmentMerge,
@@ -86,6 +111,13 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
             listRef.current.scrollTop = itemTop - containerHeight / 2 + ITEM_HEIGHT / 2;
         }
     }, [activeSegmentId, autoScroll, segments]);
+
+    useEffect(() => {
+        setScrollTop(0);
+        if (listRef.current) {
+            listRef.current.scrollTop = 0;
+        }
+    }, [scrollResetKey]);
 
     // Check continuity for merge
     const activeIndices = selectedIds.map(id => segments.findIndex(s => String(s.id) === id)).sort((a,b) => a-b);
@@ -174,27 +206,12 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                 
                 {/* Text */}
                 <div className="flex-1 py-1 px-3 select-none min-w-0 flex items-center h-full">
-                    <div className={`text-sm w-full font-medium ${!seg.text ? 'text-slate-600 italic' : isActive ? 'text-white' : 'text-slate-300'} leading-relaxed`}>
+                    <div
+                        title={seg.text || undefined}
+                        className={`text-sm w-full font-medium truncate whitespace-nowrap overflow-hidden ${!seg.text ? 'text-slate-600 italic' : isActive ? 'text-white' : 'text-slate-300'} leading-relaxed`}
+                    >
                         {!seg.text ? t('subtitleList.emptySegmentLabel') : (
-                            searchTerm ? (
-                                (() => {
-                                    try {
-                                        const flags = matchCase ? 'g' : 'gi';
-                                        const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                                        const regex = new RegExp(`(${escapedTerm})`, flags);
-                                        const parts = seg.text.split(regex);
-                                        return parts.map((part, i) => 
-                                            regex.test(part) ? (
-                                                <mark key={i} className="bg-yellow-500/50 text-white rounded-sm px-0.5">{part}</mark>
-                                            ) : (
-                                                <span key={i}>{part}</span>
-                                            )
-                                        );
-                                    } catch (e) {
-                                        return seg.text;
-                                    }
-                                })()
-                            ) : seg.text
+                            searchTerm ? highlightSubtitleText(seg.text, searchTerm, matchCase) : seg.text
                         )}
                     </div>
                 </div>

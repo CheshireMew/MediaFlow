@@ -1,4 +1,4 @@
-from fastapi import BackgroundTasks
+from collections.abc import Awaitable, Callable
 from backend.models.task_model import Task
 from backend.models.schemas import PipelineRequest
 from backend.core.tasks.base import TaskHandler
@@ -10,12 +10,11 @@ from loguru import logger
 class PipelineHandler(TaskHandler):
     """Handles general pipeline tasks (like video download/process)."""
 
-    def resume(self, task: Task, background_tasks: BackgroundTasks) -> None:
+    def build_runner(self, task: Task) -> Callable[[], Awaitable[None]]:
         try:
             req = PipelineRequest(**task.request_params)
             pipeline_runner = container.get(Services.PIPELINE)
-            background_tasks.add_task(pipeline_runner.run, req.steps, task.id)
-            logger.info(f"Resumed pipeline task {task.id}")
+            return lambda: pipeline_runner.run(req.steps, task.id)
         except Exception as e:
             logger.error(f"Failed to resume pipeline task {task.id}: {e}")
             raise

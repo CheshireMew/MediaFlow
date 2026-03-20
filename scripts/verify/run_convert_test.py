@@ -5,7 +5,7 @@ from pathlib import Path
 # Add src to python path
 sys.path.append(os.getcwd())
 
-from backend.services.downloader import downloader_service
+from backend.services.downloader.service import DownloaderService
 
 def clean_manual():
     target_file = r"e:\Work\Code\Mediaflow\temp\Jon Hernandez - 📁 Sam Altman says that even though building software is now dramatica... [2016101057382825984].en.vtt"
@@ -16,7 +16,7 @@ def clean_manual():
         return
 
     # Call the updated internal method
-    downloader_service._clean_subtitles(target_file)
+    DownloaderService()._clean_subtitles(target_file)
     print("Process finished.")
 
 if __name__ == "__main__":

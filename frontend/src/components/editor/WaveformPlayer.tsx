@@ -5,6 +5,18 @@ import TimelinePlugin from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import HoverPlugin from 'wavesurfer.js/dist/plugins/hover.esm.js';
 import type { SubtitleSegment } from '../../types/task';
 
+type WaveformPeaks = Array<Float32Array | number[]> | null;
+
+type RegionLike = {
+    id: string;
+    start: number;
+    end: number;
+    color?: string;
+    element?: HTMLElement | null;
+    setOptions: (options: Record<string, unknown>) => void;
+    remove: () => void;
+};
+
 // Note: We need to import styles for regions if they are not bundled
 // usually wavesurfer regions has default styles or we inject them.
 
@@ -15,8 +27,8 @@ interface WaveformPlayerProps {
     onRegionUpdate: (id: string, start: number, end: number) => void;
     onRegionClick: (id: string, e: MouseEvent) => void;
     onContextMenu: (e: MouseEvent, id: string, regionData?: {start: number, end: number}) => void;
-    peaks?: any;
-    onPeaksGenerated?: (peaks: any) => void;
+    peaks?: WaveformPeaks;
+    onPeaksGenerated?: (peaks: WaveformPeaks) => void;
     selectedIds?: string[];
     autoScroll?: boolean;
     onInteractStart?: () => void;
@@ -37,15 +49,42 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
 }) => {
     const scrollContainerRef = useRef<HTMLDivElement>(null); // Top scrollbar
     const containerRef = useRef<HTMLDivElement>(null); // Waveform wrapper
+    const timelineContainerRef = useRef<HTMLDivElement>(null);
     const wavesurfer = useRef<WaveSurfer | null>(null);
     const wsRegions = useRef<RegionsPlugin | null>(null);
     const isDraggingRef = useRef(false);
     const currentTempRegionId = useRef<string | null>(null); // Track active temp region
     const latestRegionsRef = useRef(regions); // Track latest regions for event listeners
+    const peaksReportedRef = useRef(false);
+    const onContextMenuRef = useRef(onContextMenu);
+    const onRegionClickRef = useRef(onRegionClick);
+    const onRegionUpdateRef = useRef(onRegionUpdate);
+    const onInteractStartRef = useRef(onInteractStart);
+    const onPeaksGeneratedRef = useRef(onPeaksGenerated);
 
     useEffect(() => {
         latestRegionsRef.current = regions;
     }, [regions]);
+
+    useEffect(() => {
+        onContextMenuRef.current = onContextMenu;
+    }, [onContextMenu]);
+
+    useEffect(() => {
+        onRegionClickRef.current = onRegionClick;
+    }, [onRegionClick]);
+
+    useEffect(() => {
+        onRegionUpdateRef.current = onRegionUpdate;
+    }, [onRegionUpdate]);
+
+    useEffect(() => {
+        onInteractStartRef.current = onInteractStart;
+    }, [onInteractStart]);
+
+    useEffect(() => {
+        onPeaksGeneratedRef.current = onPeaksGenerated;
+    }, [onPeaksGenerated]);
 
     const [scrollWidth, setScrollWidth] = useState(0);
     const [duration, setDuration] = useState(0); // Added duration back
@@ -85,13 +124,14 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
              observer.observe(containerRef.current);
         }
         
-        window.addEventListener('resize', () => {
+        const handleResize = () => {
              if (containerRef.current) setScrollWidth(containerRef.current.scrollWidth);
-        });
+        };
+        window.addEventListener('resize', handleResize);
 
         return () => {
             observer.disconnect();
-            window.removeEventListener('resize', () => {});
+            window.removeEventListener('resize', handleResize);
         };
     }, [zoom, isReady]);
 
@@ -106,13 +146,25 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
 
     // Initialize WaveSurfer
     useEffect(() => {
-        if (!containerRef.current || !videoRef.current) return;
-        
-        setIsReady(false);
-        setHasError(false);
-        setLoadProgress(0);
+        if (!containerRef.current || !videoRef.current || !timelineContainerRef.current) return;
 
-        const options: any = {
+        const resetTimer = setTimeout(() => {
+            setIsReady(false);
+            setHasError(false);
+            setLoadProgress(0);
+        }, 0);
+        peaksReportedRef.current = false;
+
+        const reportGeneratedPeaks = () => {
+            if (peaks || peaksReportedRef.current || !onPeaksGeneratedRef.current) return;
+            const exported = wavesurfer.current?.exportPeaks();
+            if (exported && exported.length > 0) {
+                peaksReportedRef.current = true;
+                onPeaksGeneratedRef.current(exported);
+            }
+        };
+
+        const options: Parameters<typeof WaveSurfer.create>[0] = {
             container: containerRef.current,
             waveColor: '#4F46E5',
             progressColor: '#818cf8',
@@ -125,7 +177,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
             dragToSeek: false, // Critical: Disable drag-seeking so regions plugin can handle drag selection
             plugins: [
                 TimelinePlugin.create({
-                    container: '#waveform-timeline'
+                    container: timelineContainerRef.current
                 }),
                 HoverPlugin.create({
                     lineColor: 'rgba(255, 255, 255, 0.5)',
@@ -164,7 +216,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
              if(region.element) {
                  region.element.addEventListener('contextmenu', (e) => {
                      e.preventDefault();
-                     onContextMenu(e, region.id, { start: region.start, end: region.end });
+                     onContextMenuRef.current?.(e, region.id, { start: region.start, end: region.end });
                  });
              }
 
@@ -172,12 +224,11 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
              if (!isRealRegion) {
                  // Clear previous temp region if it exists due to stale state
                  if (currentTempRegionId.current && currentTempRegionId.current !== region.id) {
-                     const prev = regionsPlugin.getRegions().find(r => r.id === currentTempRegionId.current);
+                     const prev = regionsPlugin.getRegions().find((r) => r.id === currentTempRegionId.current);
                      if (prev) prev.remove();
                  }
                  
                  currentTempRegionId.current = region.id;
-                 (region as any).isUserCreated = true;
                  
                  // Show Toast hint
                  // toast.info("Right-click to identify segment", { duration: 2000 });
@@ -187,7 +238,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
         regionsPlugin.on('region-update', () => {
              if (!isDraggingRef.current) {
                  isDraggingRef.current = true;
-                 onInteractStart?.();
+                 onInteractStartRef.current?.();
              }
              if (wavesurfer.current) setDuration(wavesurfer.current.getDuration());
         });
@@ -198,12 +249,12 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
              // Temp regions don't sync back to parent until "Insert" is clicked
              const isReal = latestRegionsRef.current.some(r => String(r.id) === region.id);
              if (isReal) {
-                onRegionUpdate(region.id, region.start, region.end);
+                onRegionUpdateRef.current?.(region.id, region.start, region.end);
              }
         });
 
         regionsPlugin.on('region-clicked', (region, e) => {
-            onRegionClick(region.id, e);
+            onRegionClickRef.current?.(region.id, e);
         });
         
         // Interaction (Click on background)
@@ -216,7 +267,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
         // Click on Waveform (Background) -> Clear Temp Region
         ws.on('click', () => {
              if (currentTempRegionId.current) {
-                 const temp = regionsPlugin.getRegions().find(r => r.id === currentTempRegionId.current);
+                 const temp = regionsPlugin.getRegions().find((r) => r.id === currentTempRegionId.current);
                  if (temp) {
                      temp.remove();
                      currentTempRegionId.current = null;
@@ -228,10 +279,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
              setIsReady(true);
              setDuration(ws.getDuration());
              if (containerRef.current) setScrollWidth(containerRef.current.scrollWidth);
-             if (!peaks && onPeaksGenerated) {
-                 const exported = ws.exportPeaks();
-                 if (exported && exported.length > 0) onPeaksGenerated(exported);
-             }
+             reportGeneratedPeaks();
         });
         
         // Sync Scroll: WaveSurfer -> Top scrollbar (via scroll event)
@@ -247,14 +295,11 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
         ws.on('decode', () => {
              setDuration(ws.getDuration());
              if (containerRef.current) setScrollWidth(containerRef.current.scrollWidth);
-             if (!peaks && onPeaksGenerated) {
-                 const exported = ws.exportPeaks();
-                 if (exported && exported.length > 0) onPeaksGenerated(exported);
-             }
+             reportGeneratedPeaks();
         });
         
-        ws.on('error', (e) => {
-             console.error("Waveform error", e);
+        ws.on('error', (error) => {
+             console.error("Waveform error", error);
              setHasError(true);
         });
 
@@ -265,6 +310,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
         wavesurfer.current = ws;
 
         return () => {
+            clearTimeout(resetTimer);
             // Explicitly destroy plugins to detach events
             if (wsRegions.current) {
                 wsRegions.current.destroy();
@@ -274,9 +320,8 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
                 wavesurfer.current.destroy();
                 wavesurfer.current = null;
             }
-            setIsReady(false);
         };
-    }, [mediaUrl, videoRef]); // Added videoRef dependency to strictly follow deps
+    }, [mediaUrl, videoRef]);
 
     // Update Regions when props change OR when WaveSurfer is ready
     useEffect(() => {
@@ -313,7 +358,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
             geometryMap.set(strId, { start: seg.start, end: seg.end, color });
         });
 
-        const existingRegions = wsRegions.current.getRegions();
+        const existingRegions = wsRegions.current.getRegions() as RegionLike[];
         
         // 2. Remove regions that are NOT in props AND NOT the current temp region
         existingRegions.forEach(r => {
@@ -359,14 +404,14 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
             }
         });
 
-    }, [regions, selectedIds, isReady, zoom]);
+    }, [regions, selectedIds, isReady]);
 
     // Zoom setup...
     useEffect(() => {
         if(wavesurfer.current) {
             try {
                 wavesurfer.current.zoom(zoom);
-            } catch (e) {
+            } catch {
                 // console.warn("WaveSurfer zoom failed", e);
             }
         }
@@ -422,7 +467,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
                 onContextMenu={(e) => e.preventDefault()}
             >
                {/* Timeline container */}
-               <div id="waveform-timeline" className="absolute top-0 left-0 w-full h-5 z-20 pointer-events-none opacity-70"></div>
+               <div ref={timelineContainerRef} className="absolute top-0 left-0 w-full h-5 z-20 pointer-events-none opacity-70"></div>
             </div>
             
             {/* Loading Overlay */}

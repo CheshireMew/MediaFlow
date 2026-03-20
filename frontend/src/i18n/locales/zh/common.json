@@ -10,5 +10,45 @@
   "success": "成功",
   "failed": "失败",
   "active": "已激活",
-  "setActive": "设为激活"
+  "setActive": "设为激活",
+  "startup": {
+    "status": {
+      "waitingConfig": "正在等待后端配置...",
+      "checkingHealth": "已发现后端，正在检查服务健康状态...",
+      "retryingHealth": "后端正在启动中，正在重试健康检查...",
+      "retryingGeneric": "启动检查失败，正在重试...",
+      "ready": "后端已就绪。",
+      "webMode": "当前以无 Electron 后端引导的模式运行。"
+    },
+    "pages": {
+      "dashboard": {
+        "title": "任务监控",
+        "subtitle": "正在准备实时任务摘要和连接状态。"
+      },
+      "editor": {
+        "title": "字幕编辑器",
+        "subtitle": "正在准备波形、字幕列表和预览工作区。"
+      },
+      "downloader": {
+        "title": "下载器",
+        "subtitle": "正在准备链接解析、队列状态和最近下载记录。"
+      },
+      "transcriber": {
+        "title": "转录",
+        "subtitle": "正在准备上传控件、模型配置和转录结果。"
+      },
+      "translator": {
+        "title": "翻译",
+        "subtitle": "正在准备术语表、分段表格和导出操作。"
+      },
+      "preprocessing": {
+        "title": "预处理",
+        "subtitle": "正在准备媒体列表、预览画布和 OCR 工具。"
+      },
+      "settings": {
+        "title": "设置",
+        "subtitle": "正在准备模型提供商、工具和语言偏好。"
+      }
+    }
+  }
 }

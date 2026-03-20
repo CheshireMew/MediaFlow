@@ -63,13 +63,19 @@ function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    backgroundColor: "#1a1b1e",
     frame: false, // Custom frame
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: !isDev, // Disable only in Dev for localhost CORS
     },
+  });
+
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
   });
 
   if (isDev) {

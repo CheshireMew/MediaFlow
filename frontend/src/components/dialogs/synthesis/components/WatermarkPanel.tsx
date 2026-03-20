@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Image as ImageIcon } from 'lucide-react';
 import type { WatermarkState } from '../hooks/useWatermark';
 
+type WatermarkPositionPreset = "TL" | "TC" | "TR" | "BL" | "BC" | "BR" | "C" | "LC" | "RC";
+
 interface Props {
     watermark: WatermarkState;
     enabled: boolean;
@@ -70,10 +72,10 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark, enabled, onToggle }
                         <div className="space-y-2">
                             <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('watermark.positionPreset')}</label>
                             <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-black/20 rounded-lg border border-white/5">
-                                {['TL', 'TC', 'TR', 'LC', 'C', 'RC', 'BL', 'BC', 'BR'].map(p => (
+                                {(['TL', 'TC', 'TR', 'LC', 'C', 'RC', 'BL', 'BC', 'BR'] as WatermarkPositionPreset[]).map(p => (
                                     <button 
                                         key={p}
-                                        onClick={() => applyWmPositionPreset(p as any)}
+                                        onClick={() => applyWmPositionPreset(p)}
                                         className="p-2 rounded hover:bg-white/10 flex justify-center items-center bg-white/5 aspect-square transition-all active:scale-95 group"
                                         title={p}
                                     >

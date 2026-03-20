@@ -10,5 +10,45 @@
   "success": "Success",
   "failed": "Failed",
   "active": "Active",
-  "setActive": "Set Active"
+  "setActive": "Set Active",
+  "startup": {
+    "status": {
+      "waitingConfig": "Waiting for backend configuration...",
+      "checkingHealth": "Backend discovered. Checking health...",
+      "retryingHealth": "Backend is starting. Retrying health check...",
+      "retryingGeneric": "Startup check failed. Retrying...",
+      "ready": "Backend is ready.",
+      "webMode": "Running without Electron backend bootstrap."
+    },
+    "pages": {
+      "dashboard": {
+        "title": "Task Monitor",
+        "subtitle": "Preparing live task summaries and connection state."
+      },
+      "editor": {
+        "title": "Subtitle Editor",
+        "subtitle": "Preparing waveform, subtitle list, and preview workspace."
+      },
+      "downloader": {
+        "title": "Downloader",
+        "subtitle": "Preparing URL analysis, queue state, and recent downloads."
+      },
+      "transcriber": {
+        "title": "Transcriber",
+        "subtitle": "Preparing upload controls, model config, and transcription output."
+      },
+      "translator": {
+        "title": "Translator",
+        "subtitle": "Preparing glossary, segment table, and export actions."
+      },
+      "preprocessing": {
+        "title": "Preprocessing",
+        "subtitle": "Preparing media list, preview canvas, and OCR tools."
+      },
+      "settings": {
+        "title": "Settings",
+        "subtitle": "Preparing provider settings, tools, and language preferences."
+      }
+    }
+  }
 }

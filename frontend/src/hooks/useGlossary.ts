@@ -8,7 +8,7 @@ export const useGlossary = () => {
     try {
       const terms = await translatorService.listTerms();
       setGlossary(terms);
-    } catch (e) {
+    } catch {
       console.error("Failed to load glossary");
     }
   };

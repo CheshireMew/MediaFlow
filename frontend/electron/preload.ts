@@ -1,13 +1,16 @@
-// @ts-ignore
-const { contextBridge, ipcRenderer } = require("electron");
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  sendMessage: (message: any) => ipcRenderer.send("message-from-ui", message),
+  sendMessage: (message: string) => ipcRenderer.send("message-from-ui", message),
   openFile: (defaultPath?: string) =>
     ipcRenderer.invoke("dialog:openFile", defaultPath),
   openSubtitleFile: () => ipcRenderer.invoke("dialog:openSubtitleFile"),
   readFile: (filePath: string) => ipcRenderer.invoke("fs:readFile", filePath),
-  showSaveDialog: (options: any) =>
+  showSaveDialog: (options: {
+    title?: string;
+    defaultPath?: string;
+    filters?: Array<{ name: string; extensions: string[] }>;
+  }) =>
     ipcRenderer.invoke("dialog:saveFile", options),
   selectDirectory: () => ipcRenderer.invoke("dialog:selectDirectory"),
   showInExplorer: (filePath: string) =>
@@ -23,9 +26,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Data extraction
   extractDouyinData: (url: string) => ipcRenderer.invoke("douyin:extract", url),
   // File Utils
-  getPathForFile: (file: File) =>
-    // @ts-ignore
-    require("electron").webUtils.getPathForFile(file),
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke("fs:writeFile", filePath, content),
   readBinaryFile: (filePath: string) =>

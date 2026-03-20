@@ -5,8 +5,8 @@ import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 interface TimelineEditorProps {
   mediaUrl: string;
   initialRegions?: { start: number; end: number; content: string; id: string }[];
-  peaks?: any; 
-  onPeaksGenerated?: (peaks: any) => void;
+  peaks?: unknown;
+  onPeaksGenerated?: (peaks: ReturnType<WaveSurfer["exportPeaks"]>) => void;
 }
 
 export function TimelineEditor({ mediaUrl, initialRegions = [], peaks, onPeaksGenerated }: TimelineEditorProps) {
@@ -20,15 +20,13 @@ export function TimelineEditor({ mediaUrl, initialRegions = [], peaks, onPeaksGe
 
   useEffect(() => {
     if (!containerRef.current) return;
-    
-    setIsReady(false);
 
     // Initialize Regions Plugin
     const wsRegions = RegionsPlugin.create();
     regionsPluginRef.current = wsRegions;
 
     // Initialize WaveSurfer
-    const options: any = {
+    const options: Parameters<typeof WaveSurfer.create>[0] = {
       container: containerRef.current,
       waveColor: "#4F46E5",
       progressColor: "#818cf8",
@@ -99,8 +97,7 @@ export function TimelineEditor({ mediaUrl, initialRegions = [], peaks, onPeaksGe
     return () => {
       ws.destroy();
     };
-  }, [mediaUrl]); // We don't want to re-init on initialRegions change, only on mediaUrl. specific update logic needed for regions? 
-  // For now standard EditorPage logic re-mounts on URL change.
+  }, [mediaUrl, initialRegions, onPeaksGenerated, peaks]);
 
   // Zoom Handler
   useEffect(() => {

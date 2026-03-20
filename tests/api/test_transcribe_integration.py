@@ -1,25 +1,24 @@
-import pytest
-from unittest.mock import MagicMock, patch
-from fastapi.testclient import TestClient
-from backend.main import app
+from unittest.mock import patch
 from backend.services.task_manager import task_manager
-from backend.models.schemas import TranscribeResponse, SubtitleSegment
-import time
+from backend.models.schemas import TaskResult, SubtitleSegment, FileRef
 
 def test_transcribe_flow_integration(client, tmp_path):
     # 1. Setup Mock ASR Service
     # We mock the 'transcribe' method of the singleton instance used in the API
     with patch("src.services.asr.asr_service.transcribe") as mock_transcribe:
         # Define what the mock returns
-        mock_result = TranscribeResponse(
-            task_id="test_task_id",
-            segments=[
-                SubtitleSegment(id="1", start=0.0, end=1.0, text="Hello"),
-                SubtitleSegment(id="2", start=1.0, end=2.0, text="World")
-            ],
-            text="Hello\nWorld",
-            language="en",
-            srt_path="/tmp/test.srt"
+        mock_result = TaskResult(
+            success=True,
+            files=[FileRef(type="subtitle", path="/tmp/test.srt", label="transcription")],
+            meta={
+                "task_id": "test_task_id",
+                "language": "en",
+                "segments": [
+                    SubtitleSegment(id="1", start=0.0, end=1.0, text="Hello").model_dump(),
+                    SubtitleSegment(id="2", start=1.0, end=2.0, text="World").model_dump(),
+                ],
+                "text": "Hello\nWorld",
+            }
         )
         mock_transcribe.return_value = mock_result
         
@@ -59,8 +58,8 @@ def test_transcribe_flow_integration(client, tmp_path):
         assert task.status == "completed"
         assert task.progress == 100.0
         assert task.result is not None
-        assert len(task.result["segments"]) == 2
-        assert task.result["segments"][0]["text"] == "Hello"
+        assert len(task.result["meta"]["segments"]) == 2
+        assert task.result["meta"]["segments"][0]["text"] == "Hello"
         
         # Verify Mock was called
         mock_transcribe.assert_called_once()

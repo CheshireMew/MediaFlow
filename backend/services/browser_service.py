@@ -8,6 +8,7 @@ from loguru import logger
 from typing import Optional, List, Dict
 import urllib.parse
 from backend.services.utils.user_agents import get_random_user_agent
+from backend.core.container import container, Services
 
 class BrowserService:
     _instance = None
@@ -130,6 +131,4 @@ class BrowserService:
             await context.set_extra_http_headers(headers)
             
         return context
-
-# Singleton instance
 

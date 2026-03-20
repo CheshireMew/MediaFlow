@@ -7,6 +7,16 @@
     "waitingMessage": "開始を待っています...",
     "processingMessage": "処理中..."
   },
+  "results": {
+    "title": "結果プレビュー",
+    "segmentsCount": "{{count}} セグメント",
+    "empty": "文字起こし結果はまだありません",
+    "missingSubtitleAlert": "結果に使用可能な SRT パスがありません。翻訳を開始できません。"
+  },
+  "actions": {
+    "translate": "翻訳",
+    "openEditor": "エディターを開く"
+  },
   "uploader": {
     "replaceButton": "ファイルを置換",
     "dragText": "音声/動画をドラッグ＆ドロップ",

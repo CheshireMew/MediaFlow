@@ -6,6 +6,7 @@ import type { AnalyzeResult } from "../../api/client";
 interface PlaylistDialogProps {
   playlistInfo: AnalyzeResult;
   selectedItems: number[];
+  canDownloadCurrent: boolean;
   onClose: () => void;
   onSelectAll: () => void;
   onClearSelection: () => void;
@@ -17,6 +18,7 @@ interface PlaylistDialogProps {
 export function PlaylistDialog({
   playlistInfo,
   selectedItems,
+  canDownloadCurrent,
   onClose,
   onSelectAll,
   onClearSelection,
@@ -105,7 +107,8 @@ export function PlaylistDialog({
         <div className="flex-none p-5 border-t border-white/5 bg-white/[0.02] flex justify-end gap-3 rounded-b-2xl">
           <button
             onClick={onDownloadCurrent}
-            className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-sm font-medium text-slate-300 transition-colors"
+            disabled={!canDownloadCurrent}
+            className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-sm font-medium text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {t('playlist.downloadThisOnly')}
           </button>

@@ -1,6 +1,22 @@
 // ── Output Settings State + Persistence ──
 import { useState, useEffect } from "react";
 
+const readStoredQuality = (): "high" | "balanced" | "small" => {
+  const saved = localStorage.getItem("synthesis_quality");
+  return saved === "high" || saved === "balanced" || saved === "small"
+    ? saved
+    : "balanced";
+};
+
+const readStoredGpuPreference = (): boolean => {
+  const saved = localStorage.getItem("synthesis_use_gpu");
+  return saved === null ? true : saved === "true";
+};
+
+const readStoredTargetResolution = (): string => {
+  return localStorage.getItem("synthesis_target_resolution") ?? "original";
+};
+
 export interface OutputSettingsState {
   quality: "high" | "balanced" | "small";
   setQuality: (v: "high" | "balanced" | "small") => void;
@@ -27,64 +43,43 @@ export function useOutputSettings(
   isInitialized: React.MutableRefObject<boolean>,
 ): OutputSettingsState {
   const [quality, setQuality] = useState<"high" | "balanced" | "small">(
-    "balanced",
+    readStoredQuality,
   );
   const [isQualityMenuOpen, setIsQualityMenuOpen] = useState(false);
   const [outputFilename, setOutputFilename] = useState("");
   const [outputDir, setOutputDir] = useState<string | null>(null);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
-  const [useGpu, setUseGpu] = useState(true);
-  const [targetResolution, setTargetResolution] = useState("original");
-
-  // --- Restore quality ---
-  useEffect(() => {
-    if (!isOpen) return;
-    const savedQuality = localStorage.getItem("synthesis_quality");
-    if (savedQuality) {
-      setQuality(savedQuality as "high" | "balanced" | "small");
-    }
-  }, [isOpen]);
+  const [useGpu, setUseGpu] = useState(readStoredGpuPreference);
+  const [targetResolution, setTargetResolution] = useState(readStoredTargetResolution);
 
   // Reset trim when video changes or dialog opens
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
       setTrimStart(0);
       setTrimEnd(0);
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [isOpen, videoPath]);
 
   // --- Persist quality ---
   useEffect(() => {
     if (!isInitialized.current) return;
     localStorage.setItem("synthesis_quality", quality);
-  }, [quality]);
-
-  // --- Restore GPU preference ---
-  useEffect(() => {
-    if (!isOpen) return;
-    const saved = localStorage.getItem("synthesis_use_gpu");
-    if (saved !== null) setUseGpu(saved === "true");
-  }, [isOpen]);
+  }, [quality, isInitialized]);
 
   // --- Persist GPU preference ---
   useEffect(() => {
     if (!isInitialized.current) return;
     localStorage.setItem("synthesis_use_gpu", String(useGpu));
-  }, [useGpu]);
-
-  // --- Restore Resolution preference ---
-  useEffect(() => {
-    if (!isOpen) return;
-    const saved = localStorage.getItem("synthesis_target_resolution");
-    if (saved !== null) setTargetResolution(saved);
-  }, [isOpen]);
+  }, [useGpu, isInitialized]);
 
   // --- Persist Resolution preference ---
   useEffect(() => {
     if (!isInitialized.current) return;
     localStorage.setItem("synthesis_target_resolution", targetResolution);
-  }, [targetResolution]);
+  }, [targetResolution, isInitialized]);
 
   // --- Initialize output path from video path ---
   useEffect(() => {
@@ -95,7 +90,6 @@ export function useOutputSettings(
     const baseName = name.substring(0, name.lastIndexOf(".")) || name;
     const ext = name.substring(name.lastIndexOf("."));
     const defaultName = `${baseName}_synthesized${ext}`;
-    setOutputFilename(defaultName);
 
     // Directory: last used or current video directory
     const lastDir = localStorage.getItem("last_synthesis_dir");
@@ -103,12 +97,12 @@ export function useOutputSettings(
       0,
       Math.max(videoPath.lastIndexOf("\\"), videoPath.lastIndexOf("/")),
     );
-
-    if (lastDir) {
-      setOutputDir(lastDir);
-    } else {
-      setOutputDir(currentDir);
-    }
+    const nextDir = lastDir || currentDir;
+    const timer = setTimeout(() => {
+      setOutputFilename(defaultName);
+      setOutputDir(nextDir);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [isOpen, videoPath]);
 
   // --- Select output folder ---

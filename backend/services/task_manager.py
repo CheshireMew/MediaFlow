@@ -1,226 +1,340 @@
 import asyncio
-import uuid
-import time
-import json
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
-from loguru import logger
-from sqlmodel import select, delete
+import concurrent.futures
+from collections.abc import Awaitable, Callable
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
+from loguru import logger
+from sqlmodel import delete, select
+
+from backend.config import settings
+from backend.core.container import Services, container
 from backend.core.database import get_session_context, init_db
+from backend.core.task_control import (
+    TaskCancelRequested,
+    TaskControlRequested,
+    TaskPauseRequested,
+)
 from backend.models.task_model import Task
+from backend.services.task_control_service import TaskControlService
+from backend.services.task_event_publisher import TaskEventPublisher
+from backend.services.task_queue_view import TaskQueueView
+from backend.services.task_repository import TaskRepository
+from backend.services.task_runtime_state import TaskRuntimeState
 
 if TYPE_CHECKING:
     from backend.core.ws_notifier import WebSocketNotifier
 
+
 class TaskManager:
-    def __init__(self):
+    def __init__(
+        self,
+        repository: TaskRepository | None = None,
+        event_publisher: TaskEventPublisher | None = None,
+        queue_view: TaskQueueView | None = None,
+        control_service: TaskControlService | None = None,
+        runtime_state: TaskRuntimeState | None = None,
+    ):
         self.tasks: Dict[str, Task] = {}
         self._notifier: Optional["WebSocketNotifier"] = None
+        self._repository = repository or TaskRepository()
+        self._event_publisher = event_publisher or TaskEventPublisher()
+        self._queue_view = queue_view or TaskQueueView()
+        self._control_service = control_service or TaskControlService()
+        self._runtime_state = runtime_state or TaskRuntimeState()
+        self._queue: asyncio.Queue[str] = asyncio.Queue()
+        self._queued_ids = self._runtime_state.queued_ids
+        self._queued_order = self._runtime_state.queued_order
+        self._running_ids = self._runtime_state.running_ids
+        self._stop_requests: Dict[str, str] = self._runtime_state.stop_requests
+        self._execution_specs: Dict[str, Callable[[], Awaitable[None]]] = {}
+        self._delete_after_stop = self._runtime_state.delete_after_stop
+        self._workers: list[asyncio.Task] = []
+        self._threadsafe_update_futures: set[concurrent.futures.Future] = set()
+        self._accept_threadsafe_updates = True
+        self._max_concurrent = max(1, settings.TASK_MAX_CONCURRENT)
 
     def set_notifier(self, notifier: "WebSocketNotifier"):
         """Inject WebSocket notifier (set by lifespan after both are created)."""
         self._notifier = notifier
+        self._event_publisher.set_notifier(notifier)
 
-    async def _broadcast(self, message: dict):
-        """Delegate broadcast to notifier if available."""
+    @property
+    def active_connections(self):
+        """Backward-compatible access to websocket connections."""
+        notifier = self._notifier
+        if not notifier and container.has(Services.WS_NOTIFIER):
+            notifier = container.get(Services.WS_NOTIFIER)
+            self._notifier = notifier
+        return notifier.active_connections if notifier else []
+
+    async def connect(self, websocket):
+        """Backward-compatible websocket API delegated to notifier."""
+        if not self._notifier:
+            self._notifier = container.get(Services.WS_NOTIFIER)
+            self._event_publisher.set_notifier(self._notifier)
+        await self._notifier.connect(websocket)
+
+    def disconnect(self, websocket):
+        """Backward-compatible websocket API delegated to notifier."""
         if self._notifier:
-            await self._notifier.broadcast(message)
-        
+            self._notifier.disconnect(websocket)
+
     async def init_async(self):
-        """Initialize DB and load tasks."""
+        """Initialize DB, load tasks, and start queue workers."""
         await init_db()
         await self.load_tasks()
+        self._start_workers()
+
+    async def shutdown_async(self):
+        """Stop queue workers cleanly."""
+        self._accept_threadsafe_updates = False
+        await self.drain_threadsafe_updates()
+        for worker in self._workers:
+            worker.cancel()
+        if self._workers:
+            await asyncio.gather(*self._workers, return_exceptions=True)
+        self._workers.clear()
+        self._runtime_state.clear()
+        self._execution_specs.clear()
+        self._threadsafe_update_futures.clear()
+        self._accept_threadsafe_updates = True
+
+    def submit_threadsafe_update(self, loop: asyncio.AbstractEventLoop, task_id: str, **kwargs):
+        if not self._accept_threadsafe_updates or loop.is_closed():
+            return None
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                self.update_task(task_id, **kwargs),
+                loop,
+            )
+        except RuntimeError:
+            return None
+        self._threadsafe_update_futures.add(future)
+
+        def _cleanup(done_future):
+            self._threadsafe_update_futures.discard(done_future)
+
+        future.add_done_callback(_cleanup)
+        return future
+
+    async def drain_threadsafe_updates(self):
+        pending = list(self._threadsafe_update_futures)
+        for future in pending:
+            try:
+                await asyncio.wrap_future(future)
+            except Exception:
+                continue
+
+    def _start_workers(self):
+        if self._workers:
+            return
+        for index in range(self._max_concurrent):
+            self._workers.append(asyncio.create_task(self._worker_loop(index)))
+        logger.info(f"Started {len(self._workers)} task queue workers.")
+
+    async def _worker_loop(self, worker_index: int):
+        while True:
+            task_id = await self._queue.get()
+            self._runtime_state.unmark_queued(task_id)
+            try:
+                task = self.get_task(task_id)
+                if not task:
+                    continue
+                if task.status != "pending":
+                    continue
+
+                runner = self._execution_specs.get(task_id)
+                if not runner:
+                    logger.warning(f"Skipping task {task_id}: no execution spec registered.")
+                    continue
+
+                self._runtime_state.mark_running(task_id)
+                logger.info(f"[Queue:{worker_index}] Starting task {task_id}")
+                await runner()
+            except TaskControlRequested as e:
+                logger.info(f"[Queue:{worker_index}] Task {task_id} stopped cooperatively: {e}")
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.exception(f"[Queue:{worker_index}] Task {task_id} crashed: {e}")
+            finally:
+                self._runtime_state.unmark_running(task_id)
+                if task_id in self._delete_after_stop:
+                    await self._finalize_delete(task_id)
+                self._queue.task_done()
 
     async def load_tasks(self):
         """Load tasks from DB on startup."""
         try:
-            async with get_session_context() as session:
-                statement = select(Task)
-                result = await session.execute(statement)
-                tasks = result.scalars().all()
-                
-                self.tasks.clear()
-                for task in tasks:
-                    # Mark any 'running' tasks as 'paused' since service restarted
-                    if task.status in ["running", "pending"]:
-                        task.status = "paused"
-                        task.message = "Interrupted by restart"
-                        task.cancelled = True 
-                        session.add(task)
-                    
-                    self.tasks[task.id] = task
-                
-                if tasks:
-                    await session.commit()
-                    # Refresh all to ensure we have clean state if needed, though they are detached now
-                    
+            self.tasks = await self._repository.load_all()
             logger.info(f"Loaded {len(self.tasks)} tasks from SQLite.")
         except Exception as e:
+            self.tasks.clear()
             logger.error(f"Failed to load tasks from DB: {e}")
+
+    def serialize_task(self, task: Task) -> dict:
+        return self._queue_view.serialize_task(
+            task,
+            running_ids=self._running_ids,
+            queued_ids=self._queued_ids,
+            queued_order=self._queued_order,
+        )
+
+    def get_queue_summary(self) -> dict:
+        return self._queue_view.get_queue_summary(
+            self._max_concurrent,
+            self._running_ids,
+            self._queued_ids,
+        )
 
     def get_tasks_snapshot(self) -> list:
         """Return serialized list of all tasks (for WebSocket snapshot)."""
-        return [task.model_dump(mode='json') for task in self.tasks.values()]
+        return [self.serialize_task(task) for task in self.tasks.values()]
 
-    async def create_task(self, task_type: str, initial_message: str = "Pending...", request_params: Dict = None, task_name: str = None) -> str:
-        task_id = str(uuid.uuid4())[:8]
-        final_name = task_name or f"{task_type.capitalize()} {task_id}"
-
-        if request_params:
-            try:
-                if hasattr(request_params, "model_dump"):
-                    request_params = request_params.model_dump(mode="json")
-                request_params = json.loads(json.dumps(request_params, default=str))
-            except Exception as e:
-                logger.warning(f"Failed to serialize request_params: {e}")
-                request_params = {}
-
-        new_task = Task(
-            id=task_id,
-            name=final_name,
-            type=task_type,
-            status="pending",
-            message=initial_message,
-            created_at=time.time(),
-            request_params=request_params
+    async def create_task(
+        self,
+        task_type: str,
+        initial_message: str = "Pending...",
+        request_params: Dict = None,
+        task_name: str = None,
+    ) -> str:
+        new_task = await self._repository.create_task(
+            task_type=task_type,
+            initial_message=initial_message,
+            request_params=request_params,
+            task_name=task_name,
         )
-        
-        # DB First
-        async with get_session_context() as session:
-            session.add(new_task)
-            await session.commit()
-            await session.refresh(new_task)
-            
-            # Update Cache
-            self.tasks[task_id] = new_task
-        
-        # Broadcast
-        await self._broadcast({
-            "type": "update",
-            "task": new_task.model_dump(mode='json')
-        })
-        
-        return task_id
+        self.tasks[new_task.id] = new_task
+        await self._event_publisher.publish_update(self.serialize_task(new_task))
+        return new_task.id
+
+    async def enqueue_task(
+        self,
+        task_id: str,
+        runner: Callable[[], Awaitable[None]],
+        queued_message: Optional[str] = None,
+    ) -> None:
+        self._execution_specs[task_id] = runner
+        task = self.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        if task_id in self._running_ids or task_id in self._queued_ids:
+            return
+
+        self._runtime_state.mark_queued(task_id)
+        updates = {"status": "pending", "cancelled": False}
+        if queued_message is not None:
+            updates["message"] = queued_message
+        await self.update_task(task_id, **updates)
+        await self._queue.put(task_id)
+        logger.info(f"Queued task {task_id}. pending={len(self._queued_ids)} running={len(self._running_ids)}")
+
+    def has_stop_request(self, task_id: str) -> bool:
+        return self._control_service.has_stop_request(self._stop_requests, task_id)
+
+    def get_stop_request(self, task_id: str) -> Optional[str]:
+        return self._control_service.get_stop_request(self._stop_requests, task_id)
+
+    def clear_stop_request(self, task_id: str) -> None:
+        self._control_service.clear_stop_request(self._stop_requests, task_id)
+
+    def raise_if_control_requested(self, task_id: Optional[str]) -> None:
+        if not task_id:
+            return
+        request = self.get_stop_request(task_id)
+        if request == "pause":
+            raise TaskPauseRequested("Task paused by user")
+        if request == "cancel":
+            raise TaskCancelRequested("Task cancelled by user")
+
+    async def mark_controlled_stop(self, task_id: str, request: Optional[str], message: Optional[str] = None):
+        await self._control_service.mark_controlled_stop(
+            self,
+            self._stop_requests,
+            task_id,
+            request,
+            message=message,
+        )
 
     async def update_task(self, task_id: str, **kwargs):
-        # 1. DB Read-Modify-Write
-        updated_task = None
-        async with get_session_context() as session:
-            db_task = await session.get(Task, task_id)
-            if db_task:
-                for key, value in kwargs.items():
-                    if hasattr(db_task, key):
-                        setattr(db_task, key, value)
-                
-                session.add(db_task)
-                await session.commit()
-                await session.refresh(db_task)
-                updated_task = db_task
-            else:
-                logger.warning(f"Task {task_id} not found in DB during update.")
-                return
-
-        # 2. Update Cache
+        updated_task = await self._repository.update_task(
+            task_id,
+            cached_task=self.tasks.get(task_id),
+            **kwargs,
+        )
         if updated_task:
             self.tasks[task_id] = updated_task
-            
-            # 3. Broadcast
-            await self._broadcast({
-                "type": "update",
-                "task": updated_task.model_dump(mode='json')
-            })
+            await self._event_publisher.publish_update(self.serialize_task(updated_task))
 
-    async def cancel_task(self, task_id: str):
-        updated_task = None
-        async with get_session_context() as session:
-            db_task = await session.get(Task, task_id)
-            if db_task:
-                db_task.cancelled = True
-                db_task.status = "cancelled"
-                session.add(db_task)
-                await session.commit()
-                await session.refresh(db_task)
-                updated_task = db_task
+    async def pause_task(self, task_id: str) -> bool:
+        return await self._control_service.pause_task(self, task_id)
 
-        if updated_task:
-            self.tasks[task_id] = updated_task
-            logger.info(f"Task {task_id} marked for cancellation")
-            await self._broadcast({"type": "update", "task": updated_task.model_dump(mode='json')})
+    async def cancel_task(self, task_id: str) -> bool:
+        return await self._control_service.cancel_task(self, task_id)
 
     async def delete_task(self, task_id: str) -> bool:
-        task_exists = False
-        async with get_session_context() as session:
-            db_task = await session.get(Task, task_id)
-            if db_task:
-                task_exists = True
-                # If running, we should ideally cancel first, but this is delete
-                await session.delete(db_task)
-                await session.commit()
+        task = self.get_task(task_id)
+        if task and task.status == "running":
+            self._delete_after_stop.add(task_id)
+            await self.cancel_task(task_id)
+            logger.info(f"Task {task_id} scheduled for deletion after stop")
+            return True
 
+        if task and task.status in {"pending", "paused"}:
+            self._queued_ids.discard(task_id)
+            if task_id in self._queued_order:
+                self._queued_order.remove(task_id)
+            self._delete_after_stop.discard(task_id)
+            self.clear_stop_request(task_id)
+            self._execution_specs.pop(task_id, None)
+            return await self._finalize_delete(task_id)
+
+        return await self._finalize_delete(task_id)
+
+    async def _finalize_delete(self, task_id: str) -> bool:
+        task_exists = await self._repository.delete_task(task_id)
         if task_exists:
-            # Remove from Memory
-            if task_id in self.tasks:
-                del self.tasks[task_id]
-            
-            await self._broadcast({
-                "type": "delete",
-                "task_id": task_id
-            })
+            self._queued_ids.discard(task_id)
+            if task_id in self._queued_order:
+                self._queued_order.remove(task_id)
+            self._running_ids.discard(task_id)
+            self.clear_stop_request(task_id)
+            self._execution_specs.pop(task_id, None)
+            self._delete_after_stop.discard(task_id)
+            self.tasks.pop(task_id, None)
+
+            await self._event_publisher.publish_delete(task_id)
             logger.info(f"Task {task_id} deleted")
             return True
         return False
-    
-    async def delete_all_tasks(self) -> int:
-        count = 0
-        async with get_session_context() as session:
-            # Count first
-            statement = select(Task)
-            result = await session.execute(statement)
-            tasks = result.scalars().all()
-            count = len(tasks)
-            
-            if count > 0:
-                delete_statement = delete(Task)
-                await session.execute(delete_statement)
-                await session.commit()
 
+    async def delete_all_tasks(self) -> int:
+        count = await self._repository.delete_all_tasks()
         self.tasks.clear()
-        
-        await self._broadcast({
-             "type": "snapshot", 
-             "tasks": []
-        })
+        self._runtime_state.clear()
+        self._execution_specs.clear()
+
+        await self._event_publisher.publish_snapshot([])
         logger.info(f"Deleted all {count} tasks")
         return count
-    
+
+    async def pause_all_tasks(self) -> int:
+        count = 0
+        for task in list(self.tasks.values()):
+            if task.status in {"pending", "running"}:
+                changed = await self.pause_task(task.id)
+                if changed:
+                    count += 1
+        return count
+
     async def cancel_all_tasks(self):
         cancelled_count = 0
-        async with get_session_context() as session:
-            statement = select(Task).where(Task.status.in_(["pending", "running"])).where(Task.cancelled == False)
-            result = await session.execute(statement)
-            tasks_to_cancel = result.scalars().all()
-            
-            for task in tasks_to_cancel:
-                task.cancelled = True
-                task.status = "cancelled"
-                session.add(task)
-                cancelled_count += 1
-            
-            if cancelled_count > 0:
-                await session.commit()
-                # Refresh cache for all modified tasks
-                # Re-fetch or iterate
-                for task in tasks_to_cancel:
-                     # Since we still have the object attached to session or refreshed
-                     # We can update cache
-                     self.tasks[task.id] = task
-
-        if cancelled_count > 0:
-            logger.info(f"Marked {cancelled_count} tasks for cancellation")
-            await self._broadcast({
-                 "type": "snapshot", 
-                 "tasks": [t.model_dump(mode='json') for t in self.tasks.values()]
-            })
+        for task in list(self.tasks.values()):
+            if task.status in {"pending", "running", "paused"}:
+                changed = await self.cancel_task(task.id)
+                if changed:
+                    cancelled_count += 1
         return cancelled_count
 
     def get_task(self, task_id: str) -> Optional[Task]:
@@ -230,57 +344,10 @@ class TaskManager:
         task = self.tasks.get(task_id)
         return task.cancelled if task else False
 
-    def find_task_by_params(self, task_type: str, request_params: Dict[str, Any]) -> Optional[str]:
-        if not request_params:
-            return None
-            
-        def get_comparison_key(params: Dict) -> str:
-            if 'steps' in params:
-                 try:
-                     for step in params['steps']:
-                         if step['step_name'] == 'download' and 'url' in step['params']:
-                             return step['params']['url']
-                 except (KeyError, TypeError, IndexError):
-                     pass
-            elif 'url' in params:
-                return params['url']
-            return json.dumps(params, sort_keys=True)
-
-        target_key = get_comparison_key(request_params)
-        
-        for task in self.tasks.values():
-            if task.type != task_type:
-                continue
-            if not task.request_params:
-                continue
-            current_key = get_comparison_key(task.request_params)
-            if current_key == target_key:
-                return task.id
-        return None
-
-    async def reset_task(self, task_id: str):
-        updated_task = None
-        async with get_session_context() as session:
-            db_task = await session.get(Task, task_id)
-            if db_task:
-                db_task.status = "pending"
-                db_task.progress = 0.0
-                db_task.message = "Resuming..."
-                db_task.created_at = time.time()
-                db_task.result = None
-                db_task.error = None
-                db_task.cancelled = False
-                session.add(db_task)
-                await session.commit()
-                await session.refresh(db_task)
-                updated_task = db_task
-
-        if updated_task:
-            self.tasks[task_id] = updated_task
-            await self._broadcast({
-                "type": "update",
-                "task": updated_task.model_dump(mode='json')
-            })
-            logger.info(f"Task {task_id} reset for reuse")
+class _TaskManagerProxy:
+    def __getattr__(self, item):
+        return getattr(container.get(Services.TASK_MANAGER), item)
 
 
+# Backward-compatible proxy export for legacy imports/tests without startup side effects.
+task_manager = _TaskManagerProxy()

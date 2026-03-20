@@ -34,6 +34,13 @@ class ServiceContainer:
             name: Service identifier (e.g., "task_manager")
             factory: Callable that creates the service instance
         """
+        if name in self._factories:
+            existing_factory = self._factories[name]
+            if existing_factory is factory:
+                logger.warning(f"[Container] Duplicate registration ignored for service: {name}")
+                return
+            raise RuntimeError(f"Service '{name}' already registered")
+
         self._factories[name] = factory
         logger.debug(f"[Container] Registered service: {name}")
     
@@ -69,6 +76,12 @@ class ServiceContainer:
         """
         self._instances.clear()
         logger.debug("[Container] All service instances cleared")
+
+    def clear(self) -> None:
+        """Clear all factories and instances. Intended for tests/bootstrap reset."""
+        self._factories.clear()
+        self._instances.clear()
+        logger.debug("[Container] Cleared all factories and instances")
     
     def override(self, name: str, instance: Any) -> None:
         """
@@ -89,6 +102,11 @@ container = ServiceContainer()
 # Service name constants (prevents typos)
 class Services:
     TASK_MANAGER = "task_manager"
+    TASK_ORCHESTRATOR = "task_orchestrator"
+    TASK_REQUEST_DEDUPLICATOR = "task_request_deduplicator"
+    TASK_RESUME_SERVICE = "task_resume_service"
+    DOWNLOAD_WORKFLOW = "download_workflow"
+    TRANSCRIBER_WORKFLOW = "transcriber_workflow"
     WS_NOTIFIER = "ws_notifier"
     ASR = "asr"
     DOWNLOADER = "downloader"
@@ -115,7 +133,7 @@ if TYPE_CHECKING:
     from backend.services.task_manager import TaskManager
     from backend.core.ws_notifier import WebSocketNotifier
     from backend.services.asr import ASRService
-    from backend.services.downloader import DownloaderService
+    from backend.services.downloader.service import DownloaderService
     from backend.services.settings_manager import SettingsManager
     from backend.services.video_synthesizer import VideoSynthesizer
     from backend.core.pipeline import PipelineRunner

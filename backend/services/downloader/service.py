@@ -11,10 +11,19 @@ from loguru import logger
 from backend.config import settings
 from backend.models.schemas import TaskResult, FileRef
 from backend.services.platforms.factory import PlatformFactory
+from backend.utils.subtitle_manager import SubtitleManager
 
 from .config_builder import YtDlpConfigBuilder
 from .post_processor import DownloadPostProcessor
 from .progress import ProgressHook, ProgressCallback, CancelCheckCallback
+
+
+def _infer_media_file_type(path: str) -> str:
+    suffix = Path(path).suffix.lower()
+    if suffix in {".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg"}:
+        return "audio"
+    return "video"
+
 
 class DownloaderService:
     def __init__(self):
@@ -26,6 +35,7 @@ class DownloaderService:
         self,
         url: str,
         proxy: Optional[str] = None,
+        output_dir: Optional[str] = None,
         playlist_title: Optional[str] = None,
         playlist_items: Optional[str] = None,
         progress_callback: Optional[ProgressCallback] = None,
@@ -71,6 +81,7 @@ class DownloaderService:
                 url=final_url,
                 start_url=url,
                 proxy=proxy,
+                output_dir=output_dir,
                 playlist_title=playlist_title,
                 playlist_items=playlist_items,
                 progress_callback=progress_callback,
@@ -90,6 +101,7 @@ class DownloaderService:
         url: str,
         start_url: Optional[str] = None,
         proxy: Optional[str] = None,
+        output_dir: Optional[str] = None,
         playlist_title: Optional[str] = None,
         playlist_items: Optional[str] = None,
         progress_callback: Optional[ProgressCallback] = None,
@@ -106,12 +118,14 @@ class DownloaderService:
         # 1. Handle Local Source (Direct Download)
         if local_source:
              return self._handle_local_source(
-                 local_source, url, filename, playlist_title, task_id
+                 local_source, url, filename, playlist_title, task_id, output_dir
              )
 
         # 2. Build Configuration
+        target_output_dir = Path(output_dir) if output_dir else self.output_dir
+        target_output_dir.mkdir(parents=True, exist_ok=True)
         progress_hook = ProgressHook(progress_callback, check_cancel_callback)
-        ydl_opts = self.config_builder.build(
+        ydl_opts = YtDlpConfigBuilder(target_output_dir).build(
             url=url,
             start_url=start_url,
             proxy=proxy,
@@ -160,7 +174,11 @@ class DownloaderService:
         logger.success(f"Download complete: {downloaded_path}")
 
         files = [
-            FileRef(type="video", path=str(downloaded_path), label="source")
+            FileRef(
+                type=_infer_media_file_type(str(downloaded_path)),
+                path=str(downloaded_path),
+                label="source",
+            )
         ]
         if subtitle_path:
             files.append(FileRef(type="subtitle", path=str(subtitle_path), label="downloaded"))
@@ -177,17 +195,26 @@ class DownloaderService:
             }
         )
 
-    def _handle_local_source(self, local_source: str, url: str, filename: Optional[str], playlist_title: Optional[str], task_id: Optional[str]) -> TaskResult:
+    def _handle_local_source(
+        self,
+        local_source: str,
+        url: str,
+        filename: Optional[str],
+        playlist_title: Optional[str],
+        task_id: Optional[str],
+        output_dir: Optional[str] = None,
+    ) -> TaskResult:
         local_path = Path(local_source)
         if not local_path.exists():
              return TaskResult(success=False, error=f"Local source not found: {local_source}")
 
         # Determine destination
+        base_output_dir = Path(output_dir) if output_dir else self.output_dir
         if playlist_title:
              safe_playlist_title = "".join([c for c in playlist_title if c.isalpha() or c.isdigit() or c in ' -_[]']).rstrip()
-             dest_dir = self.output_dir / safe_playlist_title
+             dest_dir = base_output_dir / safe_playlist_title
         else:
-             dest_dir = self.output_dir
+             dest_dir = base_output_dir
         
         dest_dir.mkdir(parents=True, exist_ok=True)
         final_name = filename or f"Douyin_Video_{int(time.time())}"
@@ -197,7 +224,11 @@ class DownloaderService:
         return TaskResult(
             success=True,
             files=[
-                FileRef(type="video", path=str(dest_path), label="source")
+                FileRef(
+                    type=_infer_media_file_type(str(dest_path)),
+                    path=str(dest_path),
+                    label="source",
+                )
             ],
             meta={
                 "id": task_id or str(uuid.uuid4()),
@@ -207,3 +238,11 @@ class DownloaderService:
                 "source_url": url
             }
         )
+
+    def _clean_subtitles(self, subtitle_path: str) -> Optional[Path]:
+        """
+        Backward-compatible helper retained for tests and older callers.
+        Converts a VTT subtitle file to SRT using the shared subtitle parser.
+        """
+        path = Path(subtitle_path)
+        return SubtitleManager.process_vtt_file(path)

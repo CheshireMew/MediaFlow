@@ -5,15 +5,6 @@ from backend.services.platforms.base import BasePlatform
 from backend.models.schemas import AnalyzeResult, PlaylistItem
 from backend.core.container import container, Services
 
-def _get_cookie_manager():
-    return container.get(Services.COOKIE_MANAGER)
-
-def _get_browser():
-    return container.get(Services.BROWSER)
-
-def _get_sniffer():
-    return container.get(Services.SNIFFER)
-
 
 class DouyinPlatform(BasePlatform):
     """
@@ -44,8 +35,8 @@ class DouyinPlatform(BasePlatform):
         logger.info(f"[Douyin] Extracted ID: {video_id}")
 
         # 2. Use Playwright to sniff the real video URL
-        browser_service = _get_browser()
-        sniffer = _get_sniffer()
+        browser_service = container.get(Services.BROWSER)
+        sniffer = container.get(Services.SNIFFER)
         
         logger.info(f"[Douyin] Sniffing video URL via Playwright...")
         try:

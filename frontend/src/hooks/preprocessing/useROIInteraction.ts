@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 // ─── Types ──────────────────────────────────────────────────────
 export type InteractionMode = "idle" | "drawing" | "moving" | "resizing";
@@ -148,11 +148,11 @@ export function useROIInteraction({
       else if (interactionMode === "moving" && dragStart && snapshotRoi) {
         const dx = cx - dragStart.x;
         const dy = cy - dragStart.y;
-        let newX = Math.max(
+        const newX = Math.max(
           0,
           Math.min(snapshotRoi.x + dx, rect.width - snapshotRoi.w),
         );
-        let newY = Math.max(
+        const newY = Math.max(
           0,
           Math.min(snapshotRoi.y + dy, rect.height - snapshotRoi.h),
         );

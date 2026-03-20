@@ -195,7 +195,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 text = seg.text.replace('\n', r'\N')
 
                 # Smart line breaking: fit text within effective width
-                text = shape(text, effective_width, font_size)
+                text = shape(text, effective_width, font_size, font_name=font_name)
                 
                 # Split multi-line text into separate Dialogue events
                 # to prevent background box overlap (ASS has no line-spacing control)
@@ -203,7 +203,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 
                 if len(sub_lines) <= 1:
                     # Single line — always use margin_v directly (WYSIWYG)
-                    events.append(f"Dialogue: 0,{start_ts},{end_ts},Default,,0,0,0,,{text}")
+                    events.append(
+                        f"Dialogue: 0,{start_ts},{end_ts},Default,,0,0,{margin_v},,{text}"
+                    )
                 else:
                     # Multi-line — emit one Dialogue per line with stacked MarginV
                     num_lines = len(sub_lines)

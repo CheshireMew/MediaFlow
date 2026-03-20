@@ -4,6 +4,7 @@ import type { SubtitleSegment } from "../types/task";
 import type { GlossaryTerm } from "../services/translator/translatorService";
 
 export type TranslatorMode = "standard" | "intelligent" | "proofread";
+export type TranslatorResultMode = TranslatorMode | null;
 
 interface TranslatorState {
   // Data
@@ -15,6 +16,8 @@ interface TranslatorState {
   // UI State
   targetLang: string;
   mode: TranslatorMode;
+  activeMode: TranslatorMode | null;
+  resultMode: TranslatorResultMode;
   taskId: string | null;
   taskStatus: string;
   progress: number;
@@ -30,6 +33,8 @@ interface TranslatorState {
   setSourceFilePath: (path: string | null) => void;
   setTargetLang: (lang: string) => void;
   setMode: (mode: TranslatorMode) => void;
+  setActiveMode: (mode: TranslatorMode | null) => void;
+  setResultMode: (mode: TranslatorResultMode) => void;
   setTaskId: (id: string | null) => void;
   setTaskStatus: (status: string) => void;
   setProgress: (progress: number) => void;
@@ -46,6 +51,8 @@ export const useTranslatorStore = create<TranslatorState>()(
       sourceFilePath: null,
       targetLang: "Chinese",
       mode: "standard",
+      activeMode: null,
+      resultMode: null,
       taskId: null,
       taskStatus: "",
       progress: 0,
@@ -73,6 +80,8 @@ export const useTranslatorStore = create<TranslatorState>()(
       setSourceFilePath: (path) => set({ sourceFilePath: path }),
       setTargetLang: (lang) => set({ targetLang: lang }),
       setMode: (mode) => set({ mode }),
+      setActiveMode: (activeMode) => set({ activeMode }),
+      setResultMode: (resultMode) => set({ resultMode }),
       setTaskId: (id) => set({ taskId: id }),
       setTaskStatus: (status) => set({ taskStatus: status }),
       setProgress: (progress) => set({ progress }),
@@ -82,6 +91,8 @@ export const useTranslatorStore = create<TranslatorState>()(
           taskId: null,
           taskStatus: "",
           progress: 0,
+          activeMode: null,
+          resultMode: null,
         }),
     }),
     {
@@ -93,6 +104,7 @@ export const useTranslatorStore = create<TranslatorState>()(
         sourceFilePath: state.sourceFilePath,
         targetLang: state.targetLang,
         mode: state.mode,
+        resultMode: state.resultMode,
       }),
     },
   ),

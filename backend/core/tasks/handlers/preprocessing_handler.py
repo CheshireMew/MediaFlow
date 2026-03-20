@@ -1,4 +1,4 @@
-from fastapi import BackgroundTasks
+from collections.abc import Awaitable, Callable
 from backend.models.schemas import TaskResult, FileRef
 from backend.models.task_model import Task
 from backend.core.tasks.base import TaskHandler
@@ -13,7 +13,7 @@ from loguru import logger
 class EnhancementHandler(TaskHandler):
     """Handles video enhancement tasks."""
 
-    def resume(self, task: Task, background_tasks: BackgroundTasks) -> None:
+    def build_runner(self, task: Task) -> Callable[[], Awaitable[None]]:
         try:
             req = EnhanceRequest(**task.request_params)
             enhancer = container.get(Services.ENHANCER)
@@ -39,8 +39,7 @@ class EnhancementHandler(TaskHandler):
                     }
                 ).dict()
 
-            background_tasks.add_task(
-                BackgroundTaskRunner.run,
+            return lambda: BackgroundTaskRunner.run(
                 task_id=task.id,
                 worker_fn=enhancer.upscale,
                 worker_kwargs={
@@ -54,7 +53,6 @@ class EnhancementHandler(TaskHandler):
                 success_message="Upscaling complete",
                 result_transformer=transform_result
             )
-            logger.info(f"Resumed enhancement task {task.id}")
 
         except Exception as e:
             logger.error(f"Failed to resume enhancement task {task.id}: {e}")
@@ -64,7 +62,7 @@ class EnhancementHandler(TaskHandler):
 class CleanupHandler(TaskHandler):
     """Handles video cleanup tasks."""
 
-    def resume(self, task: Task, background_tasks: BackgroundTasks) -> None:
+    def build_runner(self, task: Task) -> Callable[[], Awaitable[None]]:
         try:
             req = CleanRequest(**task.request_params)
             # Assuming CLEANER service exists in container
@@ -81,8 +79,7 @@ class CleanupHandler(TaskHandler):
                     meta={"video_path": out_path}
                 ).dict()
 
-            background_tasks.add_task(
-                BackgroundTaskRunner.run,
+            return lambda: BackgroundTaskRunner.run(
                 task_id=task.id,
                 worker_fn=cleaner.clean_video,
                 worker_kwargs={
@@ -95,7 +92,6 @@ class CleanupHandler(TaskHandler):
                 success_message="Cleanup complete",
                 result_transformer=save_result
             )
-            logger.info(f"Resumed cleanup task {task.id}")
 
         except Exception as e:
             logger.error(f"Failed to resume cleanup task {task.id}: {e}")

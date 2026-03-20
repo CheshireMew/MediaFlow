@@ -1,63 +1,40 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { apiClient } from "../api/client";
 import type { AnalyzeResult } from "../api/client";
 import { useDownloaderStore } from "../stores/downloaderStore";
-import { useTaskContext } from "../context/TaskContext";
+import type { ElectronCookie, PipelineRequest } from "../types/api";
+import { useDownloaderTasks } from "./downloader/useDownloaderTasks";
+
+type DownloadQueueItem = {
+  url: string;
+  title?: string;
+  index?: number;
+};
+
+type DownloadExtraInfo = Record<string, unknown> & {
+  title?: string;
+  direct_src?: string;
+};
 
 export function useDownloaderController() {
-  const { tasks } = useTaskContext();
-
+  const { downloadEntries, activeDownloadCount } = useDownloaderTasks();
   // Global Persistent State
   const {
     url,
     resolution,
     codec,
     downloadSubs,
-    history,
     setUrl,
     setResolution,
     setCodec,
     setDownloadSubs,
     addToHistory,
-    updateHistoryStatus,
   } = useDownloaderStore();
-
-  // Sync Task Status to History
-  useEffect(() => {
-    tasks.forEach((task) => {
-      if (task.status === "completed" || task.status === "failed") {
-        const historyItem = history.find((h) => h.id === task.id);
-
-        if (historyItem) {
-          const newStatus = task.status as "completed" | "failed";
-          let newPath = historyItem.path;
-
-          if (task.status === "completed" && task.result?.files) {
-            const videoFile = task.result.files.find(
-              (f: any) => f.type === "video",
-            );
-            if (videoFile?.path) {
-              newPath = videoFile.path;
-            }
-          }
-
-          // Only update if changed to avoid infinite loops
-          if (
-            historyItem.status !== newStatus ||
-            (newStatus === "completed" && historyItem.path !== newPath)
-          ) {
-            updateHistoryStatus(task.id, newStatus, newPath);
-          }
-        }
-      }
-    });
-  }, [tasks, history, updateHistoryStatus]);
 
   // Ephemeral UI State
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<any>(null);
 
   // Playlist / Dialog State
   const [playlistInfo, setPlaylistInfo] = useState<AnalyzeResult | null>(null);
@@ -78,37 +55,41 @@ export function useDownloaderController() {
       const cookies = await window.electronAPI.fetchCookies(
         `https://www.${domain}`,
       );
-      if (!cookies || cookies.length === 0) {
+      const cookieList = Array.isArray(cookies) ? (cookies as ElectronCookie[]) : [];
+      if (cookieList.length === 0) {
         setError(`无法获取 ${domain} 的 Cookie。请尝试在浏览器中登录后重试。`);
         return false;
       }
-      await apiClient.saveCookies(domain, cookies);
+      await apiClient.saveCookies(domain, cookieList);
       setError(null);
       return true;
-    } catch (cookieError: any) {
+    } catch (cookieError: unknown) {
       console.error("[Cookie] Fetch failed:", cookieError);
-      setError(`Cookie 获取失败: ${cookieError.message}`);
+      setError(
+        `Cookie 获取失败: ${
+          cookieError instanceof Error ? cookieError.message : String(cookieError)
+        }`,
+      );
       return false;
     }
   };
 
   const downloadVideos = useCallback(
     async (
-      items: { url: string; title?: string; index?: number }[],
+      items: DownloadQueueItem[],
       playlistTitle?: string,
-      extraInfo?: Record<string, any>,
+      extraInfo?: DownloadExtraInfo,
     ) => {
       setLoading(true);
       setShowPlaylistDialog(false);
       setError(null);
 
-      let successCount = 0;
       for (let i = 0; i < items.length; i++) {
         try {
           const item = items[i];
-          let currentUrl = item.url;
+          const currentUrl = item.url;
           let directUrl: string | null = null;
-          let finalExtraInfo: any = { ...extraInfo };
+          const finalExtraInfo: DownloadExtraInfo = { ...extraInfo };
           let customFilename: string | undefined = item.title;
 
           // Determine filename fallback
@@ -131,7 +112,7 @@ export function useDownloaderController() {
           }
 
           // Construct base pipeline
-          const basePipeline = {
+          const basePipeline: PipelineRequest = {
             pipeline_id: "downloader_tool",
             task_name: customFilename,
             steps: [
@@ -151,62 +132,8 @@ export function useDownloaderController() {
             ],
           };
 
-          // Auto-Execute Flow Logic
-          try {
-            const settings = await apiClient.getSettings();
-            if (settings.auto_execute_flow) {
-              // Read preferred model from localStorage or default
-              const preferredModel =
-                localStorage.getItem("transcriber_model") || "base";
-
-              basePipeline.steps.push(
-                {
-                  step_name: "transcribe",
-                  params: {
-                    model: preferredModel,
-                    language: "auto", // Auto-detect source
-                  },
-                },
-                {
-                  step_name: "translate",
-                  params: {
-                    target_language: settings.language || "zh",
-                    mode: "standard",
-                  },
-                },
-                {
-                  step_name: "synthesize",
-                  params: {
-                    options: {}, // Use defaults
-                  },
-                },
-              );
-            }
-          } catch (e) {
-            console.warn(
-              "[Auto-Execute] Failed to load settings, skipping auto-flow",
-              e,
-            );
-          }
-
           // Execute Pipeline
           const apiResult = await apiClient.runPipeline(basePipeline);
-
-          successCount++;
-
-          // For single file, we can show the result card (though it might be pending)
-          // Ideally we wait for completion or simply show "Task Started"
-          // The old logic likely returned the result immediately or waited?
-          // runPipeline returns { task_id, status, message }
-          // The old useDownloader seemed to set result to something that has video_path?
-          // If runPipeline is async but returns immediately, we don't have video_path yet.
-          // BUT, maybe the simple download (non-pipeline) returned it?
-          // The new refactor uses runPipeline exclusively.
-          // So 'result' is just the Task Info now.
-          // However, DownloadResultCard probably expects video_path.
-          // We might need to fetch the task result after completion or just rely on TaskMonitor.
-          // Let's set the result to the Task Ref for now.
-          setResult(apiResult);
 
           // Add to history
           if (apiResult && apiResult.task_id) {
@@ -215,17 +142,20 @@ export function useDownloaderController() {
               url: currentUrl,
               title: customFilename || "Unknown Video",
               timestamp: Date.now(),
-              status: "pending",
             });
           }
-        } catch (e: any) {
-          console.error(e);
-          setError(`Failed to queue ${urls[i]}: ${e.message}`);
+        } catch (error: unknown) {
+          console.error("[Downloader] Failed to queue download:", error);
+          setError(
+            `Failed to queue ${currentUrl}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
         }
       }
       setLoading(false);
     },
-    [downloadSubs, resolution, codec, playlistInfo, lastAnalysis, addToHistory],
+    [downloadSubs, resolution, codec, lastAnalysis, addToHistory],
   );
 
   const handleAnalyzeAndDownload = async () => {
@@ -250,7 +180,7 @@ export function useDownloaderController() {
         setAnalyzing(false);
       } else {
         setAnalyzing(false);
-        const extraWithDirect = analysis.extra_info || {};
+        const extraWithDirect: DownloadExtraInfo = { ...(analysis.extra_info ?? {}) };
         if (analysis.direct_src) {
           extraWithDirect.direct_src = analysis.direct_src;
         }
@@ -263,8 +193,9 @@ export function useDownloaderController() {
           extraWithDirect,
         );
       }
-    } catch (e: any) {
-      const errorMessage = e.message || "Analysis failed";
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Analysis failed";
 
       // Cookie Logic
       if (errorMessage.includes("COOKIES_REQUIRED:")) {
@@ -285,10 +216,19 @@ export function useDownloaderController() {
               setSelectedItems([]);
               setShowPlaylistDialog(true);
             } else {
+              const extraWithDirect: DownloadExtraInfo = {
+                ...(analysis.extra_info ?? {}),
+              };
+              if (analysis.direct_src) {
+                extraWithDirect.direct_src = analysis.direct_src;
+              }
+              if (analysis.title) {
+                extraWithDirect.title = analysis.title;
+              }
               await downloadVideos(
                 [{ url: analysis.url || url, title: analysis.title }],
                 undefined,
-                analysis.extra_info,
+                extraWithDirect,
               );
             }
             setAnalyzing(false);
@@ -307,13 +247,43 @@ export function useDownloaderController() {
   const handlePlaylistDownload = (mode: "current" | "all" | "selected") => {
     if (!playlistInfo?.items) return;
 
-    let itemsToDownload: { url: string; title?: string; index?: number }[] = [];
+    let itemsToDownload: DownloadQueueItem[] = [];
     const playlistTitle = playlistInfo.id
       ? `${playlistInfo.title} [${playlistInfo.id}]`
       : playlistInfo.title;
 
     if (mode === "current") {
-      itemsToDownload = [{ url }];
+      let currentItem: DownloadQueueItem | null = null;
+
+      if (selectedItems.length === 1) {
+        const selectedItem = playlistInfo.items[selectedItems[0]];
+        currentItem = {
+          url: selectedItem.url,
+          title: selectedItem.title,
+          index: selectedItem.index,
+        };
+      } else {
+        const matchedItem = playlistInfo.items.find(
+          (item) =>
+            item.url === url ||
+            url.includes(item.url) ||
+            item.url.includes(url),
+        );
+        if (matchedItem) {
+          currentItem = {
+            url: matchedItem.url,
+            title: matchedItem.title,
+            index: matchedItem.index,
+          };
+        }
+      }
+
+      if (!currentItem) {
+        setError("无法确定当前视频，请先在播放列表中选择一项后再仅下载该视频。");
+        return;
+      }
+
+      itemsToDownload = [currentItem];
     } else if (mode === "all") {
       itemsToDownload = playlistInfo.items.map((item) => ({
         url: item.url,
@@ -331,6 +301,15 @@ export function useDownloaderController() {
     downloadVideos(itemsToDownload, playlistTitle);
   };
 
+  const canDownloadCurrent =
+    selectedItems.length === 1 ||
+    Boolean(
+      playlistInfo?.items?.some(
+        (item) =>
+          item.url === url || url.includes(item.url) || item.url.includes(url),
+      ),
+    );
+
   const toggleItemSelection = (index: number) => {
     setSelectedItems((prev) =>
       prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index],
@@ -343,13 +322,15 @@ export function useDownloaderController() {
     loading,
     analyzing,
     error,
-    result,
     playlistInfo,
     showPlaylistDialog,
     selectedItems,
+    canDownloadCurrent,
     downloadSubs,
     resolution,
     codec,
+    downloadEntries,
+    activeDownloadCount,
 
     // Actions
     setUrl,

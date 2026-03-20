@@ -12,16 +12,29 @@ export interface FileRef {
   mime_type?: string;
 }
 
+export type TaskMeta = Record<string, unknown>;
+
+export type TaskRequestParams = Record<string, unknown>;
+
 export interface TaskResult {
   success: boolean;
   files: FileRef[];
-  meta: Record<string, any>;
+  meta: TaskMeta;
   error?: string;
 }
 
 export interface Task {
   id: string;
-  type: "download" | "transcribe" | "translate" | "pipeline" | "synthesis";
+  type:
+    | "download"
+    | "transcribe"
+    | "transcribe_segment"
+    | "translate"
+    | "pipeline"
+    | "synthesis"
+    | "enhancement"
+    | "cleanup"
+    | "extract";
   status:
     | "pending"
     | "running"
@@ -34,6 +47,8 @@ export interface Task {
   message?: string;
   error?: string;
   result?: TaskResult;
-  request_params?: any;
+  request_params?: TaskRequestParams;
   created_at: number;
+  queue_state?: "queued" | "running" | "paused" | "cancelled" | "completed" | "failed" | "idle";
+  queue_position?: number | null;
 }

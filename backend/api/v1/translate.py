@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from loguru import logger
@@ -9,13 +9,25 @@ from backend.core.container import container, Services
 
 router = APIRouter(prefix="/translate", tags=["Translator"])
 
+LANGUAGE_SUFFIX_MAP = {
+    "Chinese": "_CN",
+    "English": "_EN",
+    "Japanese": "_JP",
+    "Spanish": "_ES",
+    "French": "_FR",
+    "German": "_DE",
+    "Russian": "_RU",
+}
 
-def _get_task_manager():
-    return container.get(Services.TASK_MANAGER)
+
+def get_language_suffix(target_language: str) -> str:
+    return LANGUAGE_SUFFIX_MAP.get(target_language, f"_{target_language}")
 
 
-def _get_llm_translator():
-    return container.get(Services.LLM_TRANSLATOR)
+def get_translation_output_suffix(target_language: str, mode: str) -> str:
+    if mode == "proofread":
+        return "_PR"
+    return get_language_suffix(target_language)
 
 
 class TranslateRequest(BaseModel):
@@ -34,7 +46,7 @@ async def run_translation_task(task_id: str, req: TranslateRequest):
     Background translation task.
     Uses BackgroundTaskRunner to eliminate boilerplate.
     """
-    llm_translator = _get_llm_translator()
+    llm_translator = container.get(Services.LLM_TRANSLATOR)
     
     # We need to define result_transformer that can save file if path exists
     def save_and_transform(segments):
@@ -51,9 +63,7 @@ async def run_translation_task(task_id: str, req: TranslateRequest):
                 from pathlib import Path
                 
                 # Determine output path (e.g. original_CN.srt)
-                suffix = f"_{req.target_language}"
-                if req.target_language == "Chinese": suffix = "_CN"
-                elif req.target_language == "English": suffix = "_EN"
+                suffix = get_translation_output_suffix(req.target_language, req.mode)
                 
                 source_path = Path(req.context_path)
                 stem = source_path.stem
@@ -111,7 +121,7 @@ async def translate_segment_sync(req: TranslateRequest):
     import asyncio
     from functools import partial
 
-    translator = _get_llm_translator()
+    translator = container.get(Services.LLM_TRANSLATOR)
     try:
         loop = asyncio.get_running_loop()
         func = partial(
@@ -133,7 +143,7 @@ async def translate_segment_sync(req: TranslateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/", response_model=TranslateResponse)
-async def translate_subtitles(req: TranslateRequest, background_tasks: BackgroundTasks):
+async def translate_subtitles(req: TranslateRequest):
     """
     Submit a translation task.
     """
@@ -146,21 +156,14 @@ async def translate_subtitles(req: TranslateRequest, background_tasks: Backgroun
             validate_path(req.context_path, "context_path")
             source_name = Path(req.context_path).name
 
-        task_id = await _get_task_manager().create_task(
+        response = await container.get(Services.TASK_ORCHESTRATOR).submit_task(
             task_type="translate",
-            initial_message="Queued",
             task_name=f"{source_name} ({req.target_language})",
-            request_params={
-                "mode": req.mode, 
-                "count": len(req.segments),
-                "context_path": req.context_path,
-                "srt_path": req.context_path 
-            }
+            request_params=req.model_dump(mode="json"),
+            runner_factory=lambda task_id: lambda: run_translation_task(task_id, req),
         )
         
-        background_tasks.add_task(run_translation_task, task_id, req)
-        
-        return TranslateResponse(task_id=task_id, status="pending")
+        return TranslateResponse(task_id=response["task_id"], status=response["status"])
         
     except Exception as e:
         logger.error(f"Failed to submit translation task: {e}")

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, RefObject } from 'react';
-import { Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 
 interface VideoControlBarProps {
     videoRef: RefObject<HTMLVideoElement>;
@@ -36,7 +36,11 @@ export const VideoControlBar = ({ videoRef, currentTime, duration }: VideoContro
     const togglePlay = () => {
         const v = videoRef.current;
         if (!v) return;
-        v.paused ? v.play() : v.pause();
+        if (v.paused) {
+            void v.play();
+        } else {
+            v.pause();
+        }
     };
 
     const toggleMute = () => {

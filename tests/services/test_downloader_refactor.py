@@ -1,13 +1,14 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from backend.services.downloader import downloader_service
+from backend.services.downloader.service import DownloaderService
 from backend.services.platforms.base import BasePlatform
-from backend.models.schemas import AnalyzeResult, MediaAsset
+from backend.models.schemas import AnalyzeResult, TaskResult, FileRef
 
 @pytest.mark.asyncio
 async def test_download_uses_strategy():
+    downloader_service = DownloaderService()
     # Mock PlatformFactory
-    with patch("src.services.platforms.factory.PlatformFactory.get_handler", new_callable=AsyncMock) as mock_get_handler:
+    with patch("backend.services.platforms.factory.PlatformFactory.get_handler", new_callable=AsyncMock) as mock_get_handler:
         # Mock a handler
         mock_handler = AsyncMock(spec=BasePlatform)
         mock_handler.analyze.return_value = AnalyzeResult(
@@ -27,12 +28,10 @@ async def test_download_uses_strategy():
             mock_get_loop.return_value = mock_loop
             
             # Setup run_in_executor to return immediate result
-            expected_asset = MediaAsset(
-                id="task1",
-                filename="Mock Video.mp4",
-                path="/tmp/Mock Video.mp4",
-                duration=100,
-                title="Mock Video"
+            expected_asset = TaskResult(
+                success=True,
+                files=[FileRef(type="video", path="/tmp/Mock Video.mp4", label="source")],
+                meta={"id": "task1", "filename": "Mock Video.mp4", "duration": 100, "title": "Mock Video"}
             )
             mock_loop.run_in_executor = AsyncMock(return_value=expected_asset)
 
@@ -51,14 +50,19 @@ async def test_download_uses_strategy():
 
 @pytest.mark.asyncio
 async def test_download_fallback_when_no_handler():
-    with patch("src.services.platforms.factory.PlatformFactory.get_handler", new_callable=AsyncMock) as mock_get_handler:
+    downloader_service = DownloaderService()
+    with patch("backend.services.platforms.factory.PlatformFactory.get_handler", new_callable=AsyncMock) as mock_get_handler:
         mock_get_handler.return_value = None # No handler
 
         with patch("asyncio.get_running_loop") as mock_get_loop:
             mock_loop = MagicMock()
             mock_get_loop.return_value = mock_loop
             
-            expected_asset = MediaAsset(id="task2", filename="file.mp4", path="path", duration=10, title="Title")
+            expected_asset = TaskResult(
+                success=True,
+                files=[FileRef(type="video", path="path", label="source")],
+                meta={"id": "task2", "filename": "file.mp4", "duration": 10, "title": "Title"}
+            )
             mock_loop.run_in_executor = AsyncMock(return_value=expected_asset)
 
             await downloader_service.download("http://generic.com/video", task_id="task2")

@@ -13,7 +13,9 @@
     "sourceHeader": "Source",
     "targetLabel": "Target",
     "targetLangLabel": "Target Lang",
-    "modeLabel": "Mode"
+    "modeLabel": "Mode",
+    "generatedSegment": "Generated",
+    "noSourceSegment": "Extra target segment created by smart split"
   },
   "languages": {
     "Chinese": "Chinese (中文)",
@@ -24,12 +26,22 @@
   },
   "modes": {
     "standard": "Standard",
-    "intelligent": "Smart Split"
+    "intelligent": "Smart Split",
+    "proofread": "Proofread"
   },
   "loading": { "message": "Translating..." },
+  "result": {
+    "standardBadge": "Standard Translation",
+    "standardHint": "The right column currently shows one-to-one translated segments.",
+    "intelligentBadge": "Smart Split Result",
+    "intelligentHint": "The right column may be merged or split and does not necessarily match the source row-for-row.",
+    "intelligentHintGenerated": "The right column has been resegmented; some rows are newly generated target segments.",
+    "proofreadBadge": "Proofread Result",
+    "proofreadHint": "The right column currently shows corrected source-language text, not a target-language translation."
+  },
   "uploader": {
-    "dragText": "Drag & drop Video or Subtitle",
-    "supportedFormats": "Supports .srt, .mp4, .mp3, .wav",
+    "dragText": "Drag & drop subtitle file",
+    "supportedFormats": "Supports .srt, .vtt, .ass, .ssa",
     "readyStatus": "Ready to Translate",
     "replaceButton": "Replace File"
   }

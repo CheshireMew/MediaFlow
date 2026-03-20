@@ -1,98 +1,87 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 
 from backend.core.container import container, Services
-from backend.models.schemas import PipelineRequest
-# Import registry and handlers to ensure they are registered
-from backend.core.tasks.registry import TaskHandlerRegistry
-import backend.core.tasks.handlers.transcribe_handler
-import backend.core.tasks.handlers.synthesis_handler
-import backend.core.tasks.handlers.pipeline_handler
-import backend.core.tasks.handlers.preprocessing_handler
 from loguru import logger
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 
-def _get_task_manager():
-    return container.get(Services.TASK_MANAGER)
-
-
-def _get_pipeline_runner():
-    return container.get(Services.PIPELINE)
-
-
 @router.get("/", response_model=list[dict])
 async def list_tasks():
     """Get all tasks."""
-    tm = _get_task_manager()
-    return [task.dict() for task in tm.tasks.values()]
+    tm = container.get(Services.TASK_MANAGER)
+    return [tm.serialize_task(task) for task in tm.tasks.values()]
+
+
+@router.get("/queue/summary", response_model=dict)
+async def get_queue_summary():
+    """Get task queue runtime summary."""
+    return container.get(Services.TASK_MANAGER).get_queue_summary()
 
 
 @router.get("/{task_id}", response_model=dict)
 async def get_task(task_id: str):
     """Get task status."""
-    task = _get_task_manager().get_task(task_id)
+    tm = container.get(Services.TASK_MANAGER)
+    task = tm.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task.dict()
+    return tm.serialize_task(task)
+
+
+@router.post("/pause-all")
+async def pause_all_tasks():
+    """Pause all active tasks."""
+    count = await container.get(Services.TASK_MANAGER).pause_all_tasks()
+    return {"message": f"Marked {count} tasks for pause", "count": count}
 
 
 @router.post("/cancel-all")
 async def cancel_all_tasks():
     """Cancel all active tasks."""
-    count = await _get_task_manager().cancel_all_tasks()
+    count = await container.get(Services.TASK_MANAGER).cancel_all_tasks()
     return {"message": f"Marked {count} tasks for cancellation", "count": count}
 
 
-@router.post("/{task_id}/resume")
-async def resume_task(task_id: str, background_tasks: BackgroundTasks):
-    """Resume a paused/cancelled/failed task."""
-    tm = _get_task_manager()
-    task = tm.get_task(task_id)
-    if not task:
+@router.post("/{task_id}/pause")
+async def pause_task(task_id: str):
+    """Pause a queued task or cooperatively pause a running task."""
+    success = await container.get(Services.TASK_MANAGER).pause_task(task_id)
+    if not success:
         raise HTTPException(status_code=404, detail="Task not found")
-    
-    if not task.request_params:
-         raise HTTPException(status_code=400, detail="Cannot resume task: Missing parameters")
+    return {"message": "Pause requested", "status": "paused"}
 
-    if task.status == "running":
-        return {"message": "Task is already running", "status": "running"}
+@router.post("/{task_id}/cancel")
+async def cancel_task(task_id: str):
+    """Cancel a task."""
+    success = await container.get(Services.TASK_MANAGER).cancel_task(task_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"message": "Cancellation requested", "status": "cancelled"}
 
-    # Reset task state
-    await tm.update_task(task_id, status="pending", message="Resuming...", error=None, result=None, cancelled=False)
-    
+
+@router.post("/{task_id}/resume")
+async def resume_task(task_id: str):
+    """Resume a paused/cancelled/failed task."""
     try:
-        # OCP: Use Registry to find handler
-        handler = TaskHandlerRegistry.get(task.type)
-        if handler:
-            handler.resume(task, background_tasks)
-        else:
-            # Fallback for legacy pipeline tasks that might not have a type or default type
-            if not task.type or task.type == "pipeline":
-                # Assuming generic pipeline if no handler found matched "pipeline"
-                # But we registered "pipeline" in PipelineHandler.
-                # If task.type is None/empty, we might want to default to pipeline?
-                # For safety, let's explicitly check if generic pipeline handler works.
-                logger.warning(f"No specific handler for task type '{task.type}'. defaulting to PipelineHandler.")
-                # This might fail if params don't match PipelineRequest.
-                # But previous code fallback was PipelineRequest.
-                fallback_handler = TaskHandlerRegistry.get("pipeline")
-                if fallback_handler:
-                    fallback_handler.resume(task, background_tasks)
-                else:
-                    raise ValueError(f"No handler found for task type: {task.type}")
-                    
+        return await container.get(Services.TASK_ORCHESTRATOR).resume_task(task_id)
+    except ValueError as e:
+         detail = str(e)
+         if detail == "Task not found":
+             raise HTTPException(status_code=404, detail=detail)
+         if detail == "Cannot resume task: Missing parameters":
+             raise HTTPException(status_code=400, detail=detail)
+         logger.error(f"Resume failed: {e}")
+         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
          logger.error(f"Resume failed: {e}")
          raise HTTPException(status_code=500, detail=f"Failed to restart task: {e}")
-
-    return {"message": "Task resumed", "status": "pending"}
 
 
 @router.delete("/{task_id}")
 async def delete_task(task_id: str):
     """Delete a task (remove from list)."""
-    success = await _get_task_manager().delete_task(task_id)
+    success = await container.get(Services.TASK_MANAGER).delete_task(task_id)
     if not success:
          raise HTTPException(status_code=404, detail="Task not found")
     return {"message": "Task deleted", "task_id": task_id}
@@ -101,5 +90,5 @@ async def delete_task(task_id: str):
 @router.delete("/")
 async def delete_all_tasks():
     """Delete ALL tasks."""
-    count = await _get_task_manager().delete_all_tasks()
+    count = await container.get(Services.TASK_MANAGER).delete_all_tasks()
     return {"message": f"Deleted {count} tasks", "count": count}

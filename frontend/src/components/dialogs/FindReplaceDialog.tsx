@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, ArrowUp, ArrowDown, X, Replace } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
@@ -24,6 +23,47 @@ interface Match {
     end: number;
 }
 
+export function findTextMatches(
+    text: string,
+    searchTerm: string,
+    matchCase: boolean
+): Array<{ start: number; end: number }> {
+    if (!text || !searchTerm) {
+        return [];
+    }
+
+    const source = matchCase ? text : text.toLowerCase();
+    const term = matchCase ? searchTerm : searchTerm.toLowerCase();
+    const matches: Array<{ start: number; end: number }> = [];
+
+    let pos = source.indexOf(term);
+    while (pos !== -1) {
+        matches.push({
+            start: pos,
+            end: pos + term.length
+        });
+        pos = source.indexOf(term, pos + term.length);
+    }
+
+    return matches;
+}
+
+export function replaceAllLiteral(
+    text: string,
+    searchTerm: string,
+    replaceTerm: string,
+    matchCase: boolean
+): string {
+    if (!text || !searchTerm) {
+        return text;
+    }
+
+    const flag = matchCase ? 'g' : 'gi';
+    const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedTerm, flag);
+    return text.replace(regex, () => replaceTerm);
+}
+
 export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
     isOpen,
     initialMode,
@@ -39,7 +79,6 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
 }) => {
     const { t } = useTranslation('editor');
     const [replaceTerm, setReplaceTerm] = useState("");
-    const [matches, setMatches] = useState<Match[]>([]);
     const [currentIndex, setCurrentIndex] = useState(-1);
     
     // Focus management
@@ -57,59 +96,67 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
             }, 50);
         }
     }, [isOpen, initialMode]);
-    
-    // Auto-search logic
+
     useEffect(() => {
-        if (!searchTerm) {
-            setMatches([]);
+        if (!isOpen) {
+            setReplaceTerm("");
             setCurrentIndex(-1);
-            return;
+        }
+    }, [isOpen]);
+    
+    const matches = useMemo(() => {
+        if (!searchTerm) {
+            return [];
         }
 
         const newMatches: Match[] = [];
         regions.forEach(r => {
             if (!r.text) return;
-            const text = matchCase ? r.text : r.text.toLowerCase();
-            const term = matchCase ? searchTerm : searchTerm.toLowerCase();
-            
-            let pos = text.indexOf(term);
-            while (pos !== -1) {
+            const regionMatches = findTextMatches(r.text, searchTerm, matchCase);
+
+            regionMatches.forEach(({ start, end }) => {
                 newMatches.push({
                    id: String(r.id),
-                   start: pos,
-                   end: pos + term.length
+                   start,
+                   end
                 });
-                pos = text.indexOf(term, pos + 1);
-            }
+            });
         });
 
-        setMatches(newMatches);
-        if (newMatches.length > 0) {
-             setCurrentIndex(0); // Optionally preserve index if possible, but keep simple
-             onSelectSegment(newMatches[0].id);
-        } else {
-             setCurrentIndex(-1);
+        return newMatches;
+    }, [searchTerm, matchCase, regions]);
+
+    const activeIndex =
+        matches.length === 0
+            ? -1
+            : currentIndex >= 0 && currentIndex < matches.length
+              ? currentIndex
+              : 0;
+
+    useEffect(() => {
+        if (activeIndex >= 0) {
+            onSelectSegment(matches[activeIndex].id);
         }
-    }, [searchTerm, matchCase, regions]); // Re-run when regions change (edit happens)
+    }, [activeIndex, matches, onSelectSegment]);
 
     const handleNext = () => {
         if (matches.length === 0) return;
-        const next = (currentIndex + 1) % matches.length;
+        const next = ((activeIndex >= 0 ? activeIndex : 0) + 1) % matches.length;
         setCurrentIndex(next);
         onSelectSegment(matches[next].id);
     };
 
     const handlePrev = () => {
         if (matches.length === 0) return;
-        const prev = (currentIndex - 1 + matches.length) % matches.length;
+        const prev = ((activeIndex >= 0 ? activeIndex : 0) - 1 + matches.length) % matches.length;
         setCurrentIndex(prev);
         onSelectSegment(matches[prev].id);
     };
 
     const handleReplace = () => {
-        if (currentIndex === -1 || matches.length === 0) return;
+        if (activeIndex === -1 || matches.length === 0) return;
         
-        const currentMatch = matches[currentIndex];
+        const currentMatch = matches[activeIndex];
         const region = regions.find(r => String(r.id) === currentMatch.id);
         if (!region || !region.text) return;
 
@@ -144,11 +191,7 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
         dirtyRegions.forEach(id => {
              const region = regions.find(r => String(r.id) === id);
              if (region && region.text) {
-                 const flag = matchCase ? 'g' : 'gi';
-                 // Escape regex special chars
-                 const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                 const regex = new RegExp(escapedTerm, flag);
-                 const newText = region.text.replace(regex, replaceTerm);
+                 const newText = replaceAllLiteral(region.text, searchTerm, replaceTerm, matchCase);
                  if (newText !== region.text) {
                      updatedSegments.push({
                          ...region,
@@ -170,7 +213,7 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
              {/* Header */}
              <div className="flex items-center justify-between p-2 bg-slate-900/50 border-b border-slate-700 select-none">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-2">{t('findReplace.title')}</span>
-                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }} className="text-slate-400 hover:text-white hover:bg-slate-700 p-1.5 rounded-md transition-colors z-10 relative">
+                  <button aria-label={t('findReplace.closeButton', 'Close')} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }} className="text-slate-400 hover:text-white hover:bg-slate-700 p-1.5 rounded-md transition-colors z-10 relative">
                       <X size={14} />
                   </button>
              </div>
@@ -196,7 +239,7 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
                      />
                      <div className="absolute right-1 top-1 flex items-center gap-1">
                           <span className="text-xs text-slate-500 py-1.5 px-2 font-mono">
-                             {matches.length > 0 ? `${currentIndex + 1}/${matches.length}` : '0/0'}
+                             {matches.length > 0 ? `${activeIndex + 1}/${matches.length}` : '0/0'}
                           </span>
                           <div className="flex bg-slate-800 rounded border border-slate-700 overflow-hidden z-20">
                               <button onClick={handlePrev} disabled={matches.length === 0} className="p-1 hover:bg-slate-700 disabled:opacity-50 text-slate-400 hover:text-white transition-colors" title={t('findReplace.previousTooltip', '上一个 (Shift+Enter)')}>

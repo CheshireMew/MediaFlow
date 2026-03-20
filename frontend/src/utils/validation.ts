@@ -74,7 +74,7 @@ export function fixOverlaps(segments: SubtitleSegment[]): SubtitleSegment[] {
 
     // Check overlap: current start is before previous end
     // Add small buffer (0.05s) to match validation logic
-    if (current.start < prev.end + 0.05) {
+    if (current.start < prev.end - 0.05) {
       // Shift current start to occur after previous end + 0.05s
       const newStart = Number((prev.end + 0.05).toFixed(3));
 
