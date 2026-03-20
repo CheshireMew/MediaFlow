@@ -1,9 +1,12 @@
 
 import sys
 import os
-sys.path.append(os.getcwd())
+from pathlib import Path
+
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 from backend.core.database import SessionLocal
-from backend.models.task import Task
+from backend.models.task_model import Task
 
 def check_task(task_id):
     db = SessionLocal()

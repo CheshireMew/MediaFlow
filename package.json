@@ -4,7 +4,9 @@
   "description": "Modular video subtitle processing workstation",
   "private": true,
   "scripts": {
-    "dev": "npm run electron:dev --prefix frontend",
+    "backend:dev": "python run.py",
+    "frontend:dev": "npm run electron:dev --prefix frontend",
+    "dev": "npm run frontend:dev",
     "build": "npm run build --prefix frontend",
     "preview": "npm run preview --prefix frontend",
     "install:frontend": "npm install --prefix frontend",

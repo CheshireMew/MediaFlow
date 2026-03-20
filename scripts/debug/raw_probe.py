@@ -3,9 +3,11 @@ import subprocess
 import json
 import os
 import sys
+from pathlib import Path
 
 # Add project root to path
-sys.path.append(os.getcwd())
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 
 ffprobe_path = r"e:\Work\Code\Mediaflow\bin\ffprobe.exe"
 input_video = r"e:\Work\Code\Mediaflow\temp\Oguz Erkan - Peter Lynch explains how to deal with a falling stock.  It’s quite re... [2021709347286638592].mp4"

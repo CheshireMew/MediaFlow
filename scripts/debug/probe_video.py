@@ -2,9 +2,11 @@
 import sys
 import os
 import ffmpeg
+from pathlib import Path
 
 # Add project root to path
-sys.path.append(os.getcwd())
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 
 # Define paths
 input_video = r"e:\Work\Code\Mediaflow\temp\Oguz Erkan - Peter Lynch explains how to deal with a falling stock.  It’s quite re... [2021709347286638592].mp4"

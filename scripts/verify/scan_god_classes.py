@@ -16,7 +16,7 @@ def count_lines(file_path):
 
 def scan_files():
     file_stats = []
-    base_dir = Path.cwd()
+    base_dir = Path(__file__).resolve().parents[2]
 
     for target in TARGET_DIRS:
         target_path = base_dir / target

@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.append(str(Path(__file__).parent.parent))
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 
 from backend.services.cleaner import CleanerService
 
@@ -32,10 +33,12 @@ def progress(percent, status):
 
 def verify_cleaner():
     cleaner = CleanerService()
-    
-    test_video = "tests/test_cleaner_input.mp4"
-    output_telea = "tests/test_cleaner_telea.mp4"
-    output_prop = "tests/test_cleaner_propainter.mp4"
+
+    output_dir = repo_root / "output" / "verify_cleaner"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    test_video = str(output_dir / "test_cleaner_input.mp4")
+    output_telea = str(output_dir / "test_cleaner_telea.mp4")
+    output_prop = str(output_dir / "test_cleaner_propainter.mp4")
     
     create_test_video(test_video)
     

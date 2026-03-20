@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 # Add project root to sys.path
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from backend.services.task_manager import TaskManager
 from backend.models.task_model import Task

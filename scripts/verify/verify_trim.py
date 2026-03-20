@@ -3,9 +3,11 @@ import os
 import sys
 import ffmpeg
 from loguru import logger
+from pathlib import Path
 
 # Add project root to path
-sys.path.append(os.getcwd())
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 
 from backend.services.video_synthesizer import VideoSynthesizer
 from backend.config import settings
@@ -31,12 +33,12 @@ Start: 8s, End: 9s
     return path
 
 def verify_trim():
-    video_path = "data/test_video.mp4"
-    srt_path = "data/test_srt.srt"
-    output_path = "output/trimmed_video.mp4"
+    video_path = repo_root / "data" / "test_video.mp4"
+    srt_path = repo_root / "data" / "test_srt.srt"
+    output_path = repo_root / "output" / "trimmed_video.mp4"
     
     # ensure output dir
-    os.makedirs("output", exist_ok=True)
+    (repo_root / "output").mkdir(exist_ok=True)
     
     # Create dummy SRT
     create_dummy_srt(srt_path)
@@ -63,10 +65,10 @@ def verify_trim():
     }
     
     try:
-        synth.burn_in_subtitles(video_path, srt_path, output_path, options=options)
-        
+        synth.burn_in_subtitles(str(video_path), str(srt_path), str(output_path), options=options)
+
         # Verify Duration
-        probe = ffmpeg.probe(output_path, cmd=settings.FFPROBE_PATH)
+        probe = ffmpeg.probe(str(output_path), cmd=settings.FFPROBE_PATH)
         video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
         duration = float(video_info['duration'])
         

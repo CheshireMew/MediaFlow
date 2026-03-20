@@ -2,9 +2,11 @@
 import os
 import sys
 from loguru import logger
+from pathlib import Path
 
 # Add project root to path
-sys.path.append(os.getcwd())
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 
 from backend.utils.subtitle_writer import SubtitleWriter
 
@@ -18,11 +20,11 @@ Opacity Test
     return path
 
 def verify_opacity():
-    srt_path = "output/test_opacity.srt"
-    ass_path = "output/test_opacity.ass"
+    srt_path = repo_root / "output" / "test_opacity.srt"
+    ass_path = repo_root / "output" / "test_opacity.ass"
     
     # ensure output dir
-    os.makedirs("output", exist_ok=True)
+    (repo_root / "output").mkdir(exist_ok=True)
     create_dummy_srt(srt_path)
     
     # Test Case 1: Background Panel ON (BorderStyle=3), Opacity 0.2
@@ -37,7 +39,7 @@ def verify_opacity():
     }
     
     logger.info("Test 1: BorderStyle=3, Opacity 0.2 (Alpha CC)")
-    SubtitleWriter.convert_srt_to_ass(srt_path, ass_path, style_options=options_1)
+    SubtitleWriter.convert_srt_to_ass(str(srt_path), str(ass_path), style_options=options_1)
     
     with open(ass_path, 'r', encoding='utf-8-sig') as f:
         content = f.read()
@@ -69,7 +71,7 @@ def verify_opacity():
     }
     
     logger.info("Test 2: BorderStyle=3, Opacity 1.0 (Alpha 00)")
-    SubtitleWriter.convert_srt_to_ass(srt_path, ass_path, style_options=options_2)
+    SubtitleWriter.convert_srt_to_ass(str(srt_path), str(ass_path), style_options=options_2)
     
     with open(ass_path, 'r', encoding='utf-8-sig') as f:
         content = f.read()

@@ -4,9 +4,11 @@ import sys
 import ffmpeg
 from loguru import logger
 import shutil
+from pathlib import Path
 
 # Add project root to path
-sys.path.append(os.getcwd())
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 
 from backend.services.video_synthesizer import VideoSynthesizer
 from backend.config import settings
@@ -22,12 +24,12 @@ Cropped Adaptive Test
     return path
 
 def verify_crop_adaptive():
-    video_path = "data/test_video.mp4"
-    srt_path = "data/test_srt_crop_adaptive.srt"
-    output_path = "output/cropped_video_adaptive.mp4"
+    video_path = repo_root / "data" / "test_video.mp4"
+    srt_path = repo_root / "data" / "test_srt_crop_adaptive.srt"
+    output_path = repo_root / "output" / "cropped_video_adaptive.mp4"
     
     # ensure output dir
-    os.makedirs("output", exist_ok=True)
+    (repo_root / "output").mkdir(exist_ok=True)
     
     # Create dummy SRT
     create_dummy_srt(srt_path)
@@ -66,9 +68,9 @@ def verify_crop_adaptive():
         synth_options['video_width'] = synth_options['crop_w']
         synth_options['video_height'] = synth_options['crop_h']
         
-    test_ass_path = "output/test_crop_adaptive.ass"
-    SubtitleWriter.convert_srt_to_ass(srt_path, test_ass_path, style_options=synth_options)
-    
+    test_ass_path = repo_root / "output" / "test_crop_adaptive.ass"
+    SubtitleWriter.convert_srt_to_ass(str(srt_path), str(test_ass_path), style_options=synth_options)
+
     with open(test_ass_path, 'r', encoding='utf-8-sig') as f:
         content = f.read()
         
@@ -91,7 +93,7 @@ def verify_crop_adaptive():
     # Now run the actual synthesis to ensure no FFmpeg errors
     logger.info("Running FFmpeg synthesis...")
     try:
-        synth.burn_in_subtitles(video_path, srt_path, output_path, options=options)
+        synth.burn_in_subtitles(str(video_path), str(srt_path), str(output_path), options=options)
         logger.success("FFmpeg synthesis PASSED.")
     except Exception as e:
         logger.error(f"FFmpeg synthesis FAILED: {e}")

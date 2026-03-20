@@ -6,7 +6,7 @@ echo ==========================================
 
 :: 1. Start Backend Server
 echo [1/2] Launching Backend (Python)...
-start "MediaFlow Backend" cmd /k "python run.py"
+start "MediaFlow Backend" cmd /k "npm run backend:dev"
 
 :: Wait for backend to potentially initialize
 timeout /t 2 /nobreak >nul
@@ -21,6 +21,3 @@ echo    System Started!
 echo    - Backend running in separate window
 echo    - Frontend launching...
 echo ==========================================
-
-### npm run dev
-### python run.py

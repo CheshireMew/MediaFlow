@@ -2,8 +2,9 @@ import sys
 import os
 from pathlib import Path
 
-# Add src to python path
-sys.path.append(os.getcwd())
+# Add project root to python path
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 
 from backend.services.downloader.service import DownloaderService
 

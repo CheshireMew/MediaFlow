@@ -5,7 +5,8 @@ from pathlib import Path
 from loguru import logger
 
 # Add src to path
-sys.path.append(str(Path.cwd()))
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 
 from backend.services.asr import ASRService
 from backend.config import settings

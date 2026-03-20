@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 DIRS = ["backend", "scripts", "tests"]
 
@@ -20,7 +21,7 @@ def replace_imports(file_path):
         print(f"Error processing {file_path}: {e}")
 
 def main():
-    base_dir = os.getcwd()
+    base_dir = str(Path(__file__).resolve().parents[2])
     for d in DIRS:
         target_dir = os.path.join(base_dir, d)
         if not os.path.exists(target_dir):

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.append(str(Path(__file__).parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from backend.core.pipeline import PipelineRunner
 from backend.models.schemas import PipelineStepRequest

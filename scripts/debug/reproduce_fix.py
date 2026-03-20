@@ -2,9 +2,11 @@
 import sys
 import os
 import logging
+from pathlib import Path
 
-# Add src to path
-sys.path.append(os.getcwd())
+# Add project root to path
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 
 # Configure logging to capture logger output
 logging.basicConfig(level=logging.INFO)

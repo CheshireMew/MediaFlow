@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 # Add project root to sys.path
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from backend.services.settings_manager import SettingsManager
 from backend.services.translator.llm_translator import LLMTranslator

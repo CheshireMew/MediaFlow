@@ -1,7 +1,7 @@
 import asyncio
 import sys
 from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from backend.core.container import container, Services
 from backend.services.downloader.service import DownloaderService

@@ -1,19 +1,19 @@
 
-import os
 import glob
 import subprocess
 import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.append(os.getcwd())
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
 
 from backend.utils.subtitle_writer import SubtitleWriter
 from backend.services.video_synthesizer import VideoSynthesizer
 
 def analyze():
     # Find the video file
-    video_files = glob.glob("temp/*Peter Lynch*.mp4")
+    video_files = glob.glob(str(repo_root / "temp" / "*Peter Lynch*.mp4"))
     if not video_files:
         print("Video not found!")
         return
@@ -22,7 +22,7 @@ def analyze():
     print(f"Found video: {video_path}")
 
     # Find the SRT file
-    srt_files = glob.glob("temp/*Peter Lynch*.srt")
+    srt_files = glob.glob(str(repo_root / "temp" / "*Peter Lynch*.srt"))
     if not srt_files:
         print("SRT not found!")
         return
@@ -52,7 +52,7 @@ def analyze():
     # Generate ASS content in memory (simulate)
     # We can't easily get the string without modifying the code or using a temp file.
     # Let's use the actual method to a temp file
-    temp_ass = "temp/debug_output.ass"
+    temp_ass = str(repo_root / "temp" / "debug_output.ass")
     
     print("Converting to ASS...")
     SubtitleWriter.convert_srt_to_ass(srt_path, temp_ass, options)
