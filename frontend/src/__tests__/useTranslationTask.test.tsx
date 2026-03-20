@@ -37,6 +37,7 @@ describe("useTranslationTask", () => {
       taskId: null,
       taskStatus: "",
       progress: 0,
+      taskError: null,
     });
     translatorServiceMock.startTranslation.mockReset();
     taskContextMock.tasks = [];
@@ -118,5 +119,31 @@ describe("useTranslationTask", () => {
     expect(useTranslatorStore.getState().taskStatus).toBe("running");
     expect(useTranslatorStore.getState().activeMode).toBe("intelligent");
     expect(useTranslatorStore.getState().progress).toBe(42);
+  });
+
+  test("stores backend task error when translation fails", () => {
+    useTranslatorStore.setState({ taskId: "task-fail" });
+    taskContextMock.tasks = [
+      {
+        id: "task-fail",
+        type: "translate",
+        status: "failed",
+        progress: 12,
+        error: "Network unreachable while contacting LLM provider",
+        created_at: 1,
+        request_params: {
+          context_path: "E:/subs/demo.srt",
+          mode: "standard",
+        },
+      } as Task,
+    ];
+
+    renderHook(() => useTranslationTask());
+
+    expect(useTranslatorStore.getState().taskStatus).toBe("failed");
+    expect(useTranslatorStore.getState().taskError).toBe(
+      "Network unreachable while contacting LLM provider",
+    );
+    expect(useTranslatorStore.getState().taskId).toBeNull();
   });
 });

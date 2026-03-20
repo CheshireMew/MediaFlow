@@ -25,6 +25,7 @@ let translatorState = {
   taskId: null as string | null,
   taskStatus: "",
   progress: 0,
+  taskError: null as string | null,
   isTranslating: false,
 };
 
@@ -108,6 +109,7 @@ describe("TranslatorPage integration", () => {
       taskId: null,
       taskStatus: "",
       progress: 0,
+      taskError: null,
       isTranslating: false,
     };
   });
@@ -141,5 +143,19 @@ describe("TranslatorPage integration", () => {
     expect(setModeMock).not.toHaveBeenCalled();
     expect(screen.getByText("翻译中...")).not.toBeNull();
     expect(document.querySelector(".lucide-loader-circle")).not.toBeNull();
+  });
+
+  it("renders backend task error when translation fails", () => {
+    translatorState = {
+      ...translatorState,
+      taskStatus: "failed",
+      taskError: "Network unreachable while contacting LLM provider",
+    };
+
+    render(<TranslatorPage />);
+
+    expect(
+      screen.getByText("Network unreachable while contacting LLM provider"),
+    ).not.toBeNull();
   });
 });

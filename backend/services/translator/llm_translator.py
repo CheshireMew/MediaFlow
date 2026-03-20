@@ -37,6 +37,7 @@ CACHE_MAX_AGE_DAYS = 7
 CONTEXT_OVERLAP = 3  # Number of lines from previous batch to include as context
 
 MAX_CORRECTION_ROUNDS = 2  # 1 initial + 2 corrections = 3 total LLM calls
+MAX_CONSECUTIVE_BATCH_FAILURES = 2
 
 
 class TranslationCache:
@@ -382,6 +383,8 @@ Rules:
         translated_segments = []
         total_batches = (len(segments) + batch_size - 1) // batch_size
         effective_mode = mode if mode in ["standard", "intelligent", "proofread"] else "standard"
+        consecutive_failures = 0
+        last_batch_error: Exception | None = None
 
         logger.info(f"Starting translation: {len(segments)} segments, mode={effective_mode}, batch_size={batch_size}, batches={total_batches}")
 
@@ -403,9 +406,19 @@ Rules:
             try:
                 result = self._translate_batch_struct(batch, target_language, effective_mode, context_before=context)
                 translated_segments.extend(result)
+                consecutive_failures = 0
+                last_batch_error = None
             except Exception as e:
                 logger.error(f"[Translate] Batch {batch_num} failed: {e}. Falling back to source text.")
                 translated_segments.extend(batch)
+                consecutive_failures += 1
+                last_batch_error = e
+
+                if consecutive_failures >= MAX_CONSECUTIVE_BATCH_FAILURES or total_batches == 1:
+                    raise RuntimeError(
+                        "Translation failed after consecutive LLM batch errors. "
+                        f"Last error: {e}"
+                    ) from e
 
             prev_batch = batch
 

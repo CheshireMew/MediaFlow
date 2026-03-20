@@ -78,7 +78,7 @@ async def main():
         for s in segments
     ]
     
-    with patch("src.services.translator.llm_translator.LLMTranslator.translate_segments") as mock_translate:
+    with patch("backend.services.translator.llm_translator.LLMTranslator.translate_segments") as mock_translate:
         # Simulate delay
         async def mock_translate_fn(*args, **kwargs):
             print("  (Mock LLM) Translating...")

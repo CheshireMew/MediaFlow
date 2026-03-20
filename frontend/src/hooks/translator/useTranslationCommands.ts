@@ -9,6 +9,7 @@ type UseTranslationCommandsParams = {
   mode: TranslatorMode;
   setTaskStatus: (status: string) => void;
   setProgress: (progress: number) => void;
+  setTaskError: (error: string | null) => void;
   setTaskId: (id: string | null) => void;
   setMode: (mode: TranslatorMode) => void;
   setActiveMode: (mode: TranslatorMode | null) => void;
@@ -24,6 +25,7 @@ export function useTranslationCommands({
   mode,
   setTaskStatus,
   setProgress,
+  setTaskError,
   setTaskId,
   setMode,
   setActiveMode,
@@ -37,6 +39,7 @@ export function useTranslationCommands({
 
     setTaskStatus("starting");
     setProgress(0);
+    setTaskError(null);
 
     try {
       activeTaskModeRef.current = effectiveMode;
@@ -56,7 +59,8 @@ export function useTranslationCommands({
     } catch (e) {
       console.error(e);
       setTaskStatus("failed");
-      alert("Failed to start translation");
+      setTaskError(e instanceof Error ? e.message : "Failed to start translation");
+      alert(`Failed to start translation.\n${e instanceof Error ? e.message : ""}`.trim());
     }
   };
 
@@ -68,6 +72,7 @@ export function useTranslationCommands({
 
     setTaskStatus("starting");
     setProgress(0);
+    setTaskError(null);
 
     try {
       activeTaskModeRef.current = "proofread";
@@ -85,7 +90,8 @@ export function useTranslationCommands({
       console.error(e);
       setActiveMode(null);
       setTaskStatus("failed");
-      alert("Failed to start proofreading");
+      setTaskError(e instanceof Error ? e.message : "Failed to start proofreading");
+      alert(`Failed to start proofreading.\n${e instanceof Error ? e.message : ""}`.trim());
     }
   };
 

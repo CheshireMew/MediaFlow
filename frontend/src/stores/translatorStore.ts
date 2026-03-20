@@ -21,6 +21,7 @@ interface TranslatorState {
   taskId: string | null;
   taskStatus: string;
   progress: number;
+  taskError: string | null;
 
   // Computed
   isTranslating: () => boolean;
@@ -38,6 +39,7 @@ interface TranslatorState {
   setTaskId: (id: string | null) => void;
   setTaskStatus: (status: string) => void;
   setProgress: (progress: number) => void;
+  setTaskError: (error: string | null) => void;
   resetTask: () => void;
 }
 
@@ -56,6 +58,7 @@ export const useTranslatorStore = create<TranslatorState>()(
       taskId: null,
       taskStatus: "",
       progress: 0,
+      taskError: null,
 
       // Computed
       isTranslating: () => {
@@ -85,12 +88,14 @@ export const useTranslatorStore = create<TranslatorState>()(
       setTaskId: (id) => set({ taskId: id }),
       setTaskStatus: (status) => set({ taskStatus: status }),
       setProgress: (progress) => set({ progress }),
+      setTaskError: (taskError) => set({ taskError }),
 
       resetTask: () =>
         set({
           taskId: null,
           taskStatus: "",
           progress: 0,
+          taskError: null,
           activeMode: null,
           resultMode: null,
         }),

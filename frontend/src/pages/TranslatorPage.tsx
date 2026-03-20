@@ -27,6 +27,7 @@ export const TranslatorPage = () => {
         resultMode,
         taskStatus,
         progress,
+        taskError,
         isTranslating,
         updateTargetSegment,
         setTargetLang,
@@ -236,6 +237,12 @@ export const TranslatorPage = () => {
                                         : t('result.intelligentHint')
                                     : t('result.standardHint')}
                         </span>
+                     </div>
+                 )}
+
+                 {taskStatus === "failed" && taskError && (
+                     <div className="flex-none px-4 py-3 border-b border-rose-500/20 bg-rose-500/10 text-sm text-rose-200">
+                        {taskError}
                      </div>
                  )}
     

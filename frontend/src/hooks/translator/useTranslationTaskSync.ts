@@ -18,6 +18,7 @@ type UseTranslationTaskSyncParams = {
   setTaskId: (id: string | null) => void;
   setTaskStatus: (status: string) => void;
   setProgress: (progress: number) => void;
+  setTaskError: (error: string | null) => void;
   setTargetSegments: (segments: Task["result"]["meta"]["segments"]) => void;
   setActiveMode: (mode: TranslatorMode | null) => void;
   setResultMode: (mode: TranslatorMode | null) => void;
@@ -34,6 +35,7 @@ export function useTranslationTaskSync({
   setTaskId,
   setTaskStatus,
   setProgress,
+  setTaskError,
   setTargetSegments,
   setActiveMode,
   setResultMode,
@@ -57,12 +59,14 @@ export function useTranslationTaskSync({
     setTaskId(runningTask.id);
     setTaskStatus(runningTask.status);
     setProgress(runningTask.progress);
+    setTaskError(null);
   }, [
     activeTaskModeRef,
     mode,
     previousTranslateModeRef,
     setActiveMode,
     setProgress,
+    setTaskError,
     setTaskId,
     setTaskStatus,
     sourceFilePath,
@@ -93,11 +97,13 @@ export function useTranslationTaskSync({
 
     if (task.status === "running" || task.status === "pending") {
       setTaskStatus(task.status);
+      setTaskError(null);
       return;
     }
 
     if (task.status === "processing_result") {
       setTaskStatus("processing_result");
+      setTaskError(null);
       return;
     }
 
@@ -116,6 +122,7 @@ export function useTranslationTaskSync({
       }
       setTaskStatus("processing_result");
       setProgress(100);
+      setTaskError(null);
       setActiveMode(null);
 
       setTimeout(() => {
@@ -128,6 +135,7 @@ export function useTranslationTaskSync({
 
     if (task.status === "failed" || task.status === "cancelled") {
       setTaskStatus(task.status);
+      setTaskError(task.error || task.message || null);
       setActiveMode(null);
       setTaskId(null);
     }
@@ -136,6 +144,7 @@ export function useTranslationTaskSync({
     connected,
     setActiveMode,
     setProgress,
+    setTaskError,
     setResultMode,
     setTargetSegments,
     setTaskId,
