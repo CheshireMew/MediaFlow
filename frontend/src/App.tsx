@@ -12,6 +12,7 @@ import { TranscriberPage } from "./pages/TranscriberPage";
 import { TranslatorPage } from "./pages/TranslatorPage";
 import { PreprocessingPage } from "./pages/PreprocessingPage";
 import SettingsPage from "./pages/SettingsPage";
+import { ENABLE_EXPERIMENTAL_PREPROCESSING } from "./config/features";
 
 import { TaskProvider } from "./context/taskContext";
 
@@ -91,10 +92,12 @@ function App({
                 path="/translator"
                 element={routeElement(backendReady, startupMessage, <TranslatorPage />, "translator")}
               />
-              <Route
-                path="/preprocessing"
-                element={routeElement(backendReady, startupMessage, <PreprocessingPage />, "preprocessing")}
-              />
+              {ENABLE_EXPERIMENTAL_PREPROCESSING && (
+                <Route
+                  path="/preprocessing"
+                  element={routeElement(backendReady, startupMessage, <PreprocessingPage />, "preprocessing")}
+                />
+              )}
               <Route
                 path="/settings"
                 element={routeElement(backendReady, startupMessage, <SettingsPage />, "settings")}

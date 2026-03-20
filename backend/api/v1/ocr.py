@@ -2,8 +2,6 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 import os
-from backend.services.ocr.ocr_engine import RapidOCREngine, PaddleOCREngine
-from backend.services.ocr.pipeline import VideoOCRPipeline, TextEvent
 from loguru import logger
 
 router = APIRouter()
@@ -16,17 +14,29 @@ router = APIRouter()
 _rapid_ocr_engine = None
 _paddle_ocr_engine = None
 
+
 def _get_ocr_engine(engine_type: str = "rapid"):
     global _rapid_ocr_engine, _paddle_ocr_engine
-    
+
     if engine_type == "paddle":
         if _paddle_ocr_engine is None:
+            from backend.services.ocr.ocr_engine import PaddleOCREngine
+
             _paddle_ocr_engine = PaddleOCREngine()
         return _paddle_ocr_engine
     else:
         if _rapid_ocr_engine is None:
+            from backend.services.ocr.ocr_engine import RapidOCREngine
+
             _rapid_ocr_engine = RapidOCREngine()
         return _rapid_ocr_engine
+
+
+class TextEvent(BaseModel):
+    start: float
+    end: float
+    text: str
+    box: List[List[int]] = []
 
 class OCRExtractRequest(BaseModel):
     video_path: str
@@ -51,7 +61,7 @@ async def run_ocr_task(task_id: str, request: OCRExtractRequest):
         tm.raise_if_control_requested(task_id)
         engine = _get_ocr_engine(request.engine)
 
-        if isinstance(engine, RapidOCREngine) and not engine.ocr:
+        if request.engine != "paddle" and not engine.ocr:
             await tm.update_task(task_id, status="running", cancelled=False, message="Initializing OCR Models...", progress=0)
 
             loop = asyncio.get_running_loop()
@@ -68,6 +78,8 @@ async def run_ocr_task(task_id: str, request: OCRExtractRequest):
             await asyncio.to_thread(engine.initialize_models, download_bridge)
 
         await tm.update_task(task_id, status="running", cancelled=False, message="Starting extraction...", progress=0)
+
+        from backend.services.ocr.pipeline import VideoOCRPipeline
 
         pipeline = VideoOCRPipeline(engine)
         roi_tuple = tuple(request.roi) if request.roi and len(request.roi) == 4 else None

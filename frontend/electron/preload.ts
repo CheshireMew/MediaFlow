@@ -37,6 +37,4 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("fs:getFileSize", filePath),
   saveFile: (filePath: string, content: string) =>
     ipcRenderer.invoke("fs:writeFile", filePath, content),
-  // Config
-  getConfig: () => ipcRenderer.invoke("config:get"),
 });

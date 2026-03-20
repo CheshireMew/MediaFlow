@@ -1,12 +1,24 @@
 /**
- * Text Splitter Utility for Subtitles
- * Inspired by Subtitle Edit's logic (TextSplit.cs / Utilities.cs)
+ * Shared subtitle splitting heuristics.
+ * The splitter scores multiple candidate breakpoints instead of using a fixed
+ * punctuation priority, and exposes a token-weighted timing ratio for better
+ * subtitle time allocation.
  */
 
-interface SplitResult {
+type SplitReason = "dialog" | "sentence" | "pause" | "space" | "midpoint";
+type TextProfile = "latin" | "cjk" | "mixed";
+
+interface SplitCandidate {
   index: number;
+  reason: SplitReason;
   score: number;
-  reason: "dialog" | "sentence" | "comma" | "length" | "fallback";
+}
+
+interface WeightedToken {
+  start: number;
+  end: number;
+  text: string;
+  weight: number;
 }
 
 const ABBREVIATIONS = [
@@ -24,163 +36,354 @@ const ABBREVIATIONS = [
   "vs.",
 ];
 
-// CJK characters range
 const REGEX_CJK =
-  /[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF\u4E00-\u9FAF\u3400-\u4DBF]/;
+  /[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF\u4E00-\u9FFF\u3400-\u4DBF]/g;
+const REGEX_LATIN_WORD = /[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g;
+const REGEX_TOKEN =
+  /[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*|[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF\u4E00-\u9FFF\u3400-\u4DBF]+|\s+|./g;
 
-/**
- * Checks if a split at the given index is safe.
- * Prevents splitting:
- * 1. Inside numbers (1.5, 2,000)
- * 2. After abbreviations (Mr. Smith)
- * 3. Inside brackets/quotes (basic check)
- */
+const BAD_START_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "as",
+  "at",
+  "because",
+  "but",
+  "by",
+  "for",
+  "from",
+  "if",
+  "in",
+  "into",
+  "of",
+  "on",
+  "or",
+  "so",
+  "than",
+  "that",
+  "the",
+  "to",
+  "with",
+]);
+
+const BAD_END_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "as",
+  "at",
+  "because",
+  "but",
+  "for",
+  "from",
+  "if",
+  "in",
+  "into",
+  "of",
+  "on",
+  "or",
+  "so",
+  "than",
+  "that",
+  "the",
+  "to",
+  "with",
+]);
+
+const BAD_START_CJK = new Set(["的", "了", "呢", "吗", "は", "が", "を", "に", "で", "と", "か"]);
+const BAD_END_CJK = new Set(["的", "了", "和", "与", "及", "は", "が", "を", "に", "で", "と"]);
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function detectTextProfile(text: string): TextProfile {
+  const cjkCount = (text.match(REGEX_CJK) || []).join("").length;
+  const latinCount = (text.match(REGEX_LATIN_WORD) || []).join("").length;
+
+  if (cjkCount === 0 && latinCount > 0) {
+    return "latin";
+  }
+  if (cjkCount > 0 && latinCount === 0) {
+    return "cjk";
+  }
+  if (cjkCount > latinCount * 1.5) {
+    return "cjk";
+  }
+  if (latinCount > cjkCount * 1.5) {
+    return "latin";
+  }
+  return "mixed";
+}
+
+function getLastWord(text: string): string {
+  const match = text.trim().match(/([A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*)\W*$/);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function getFirstWord(text: string): string {
+  const match = text.trim().match(/^([A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*)/);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function getLastCjkChar(text: string): string {
+  const match = text.trim().match(/([\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF])\W*$/);
+  return match ? match[1] : "";
+}
+
+function getFirstCjkChar(text: string): string {
+  const match = text.trim().match(/^([\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF])/);
+  return match ? match[1] : "";
+}
+
 function canBreakAt(text: string, index: number): boolean {
-  if (index <= 0 || index >= text.length) return false;
+  if (index <= 0 || index >= text.length) {
+    return false;
+  }
 
   const prev = text[index - 1];
   const curr = text[index];
   const next = text[index + 1];
 
-  // 1. Check for floating point numbers or versions (e.g., 1.5, v2.0)
-  // If break char is '.' and surrounded by digits
-  if (curr === "." && /\d/.test(prev) && next && /\d/.test(next)) {
+  if ((curr === "." || curr === ",") && /\d/.test(prev) && next && /\d/.test(next)) {
     return false;
   }
 
-  // 2. Check for abbreviations
-  // We check if the text ending at 'index' matches any abbreviation
-  const textUpToSplit = text.substring(0, index + 1); // include the split char (e.g. '.')
+  const textUpToSplit = text.slice(0, index + 1);
   const lastWord = textUpToSplit.trim().split(/\s+/).pop();
-
   if (lastWord && ABBREVIATIONS.some((abbr) => lastWord.endsWith(abbr))) {
-    // Double check it's not the end of a sentence?
-    // Subtitle Edit uses a "NoBreakAfter" list.
-    // Assuming if next char is lower case, it's definitely an abbreviation.
-    if (next && /[a-z]/.test(next)) return false;
-
-    // Even if uppercase, assume abbreviation if the list says so (safer)
     return false;
   }
 
-  // 3. Check for quoting/bracketing (Simple balance check is too expensive here,
-  // relying on local context).
-  // Avoid splitting immediately after an opening bracket/quote if possible.
-  if ("([".includes(prev)) return false;
-  if (")].".includes(next)) return false; // Don't split before a closing bracket or dot
+  if ("([".includes(prev)) {
+    return false;
+  }
+  if (next && ")]}".includes(next)) {
+    return false;
+  }
 
   return true;
 }
 
-/**
- * Calculates the visual/length score.
- * Lower score is better (closer to middle).
- */
-function getBalanceScore(index: number, totalLength: number): number {
-  const middle = totalLength / 2;
-  return Math.abs(index - middle);
+function getBaseReasonScore(reason: SplitReason, profile: TextProfile): number {
+  const profileScores: Record<TextProfile, Record<SplitReason, number>> = {
+    latin: {
+      dialog: -42,
+      pause: -24,
+      sentence: -14,
+      space: 6,
+      midpoint: 18,
+    },
+    cjk: {
+      dialog: -34,
+      pause: -28,
+      sentence: -18,
+      space: 10,
+      midpoint: 14,
+    },
+    mixed: {
+      dialog: -38,
+      pause: -24,
+      sentence: -15,
+      space: 8,
+      midpoint: 16,
+    },
+  };
+
+  return profileScores[profile][reason];
+}
+
+function getCandidatePenalty(
+  text: string,
+  splitIndex: number,
+  reason: SplitReason,
+  profile: TextProfile,
+): number {
+  const before = text.slice(0, splitIndex).trim();
+  const after = text.slice(splitIndex).trim();
+  if (!before || !after) {
+    return 100;
+  }
+
+  const ratio = splitIndex / text.length;
+  let penalty = Math.abs(ratio - 0.5) * 90;
+
+  if (ratio < 0.2 || ratio > 0.8) {
+    penalty += 18;
+  }
+
+  const beforeWords = before.split(/\s+/).filter(Boolean).length;
+  const afterWords = after.split(/\s+/).filter(Boolean).length;
+  if (profile !== "cjk" && (beforeWords < 2 || afterWords < 2)) {
+    penalty += 22;
+  }
+
+  if (profile !== "latin") {
+    if (before.length < 4 || after.length < 4) {
+      penalty += 18;
+    }
+  }
+
+  const prevWord = getLastWord(before);
+  const nextWord = getFirstWord(after);
+  if (prevWord && BAD_END_WORDS.has(prevWord)) {
+    penalty += 18;
+  }
+  if (nextWord && BAD_START_WORDS.has(nextWord)) {
+    penalty += 24;
+  }
+
+  const prevCjk = getLastCjkChar(before);
+  const nextCjk = getFirstCjkChar(after);
+  if (prevCjk && BAD_END_CJK.has(prevCjk)) {
+    penalty += 10;
+  }
+  if (nextCjk && BAD_START_CJK.has(nextCjk)) {
+    penalty += 12;
+  }
+
+  if (reason === "sentence") {
+    penalty += 8;
+    if (after.length < before.length * 0.4) {
+      penalty += 14;
+    }
+  }
+
+  if (reason === "space") {
+    penalty += 6;
+  }
+
+  return penalty;
+}
+
+function addCandidate(
+  candidates: SplitCandidate[],
+  text: string,
+  splitIndex: number,
+  reason: SplitReason,
+  profile: TextProfile,
+): void {
+  if (splitIndex <= 0 || splitIndex >= text.length) {
+    return;
+  }
+
+  const score =
+    getBaseReasonScore(reason, profile) +
+    getCandidatePenalty(text, splitIndex, reason, profile);
+
+  candidates.push({ index: splitIndex, reason, score });
+}
+
+function getTokenWeight(token: string, profile: TextProfile): number {
+  if (!token) {
+    return 0;
+  }
+
+  if (/^\s+$/.test(token)) {
+    return 0.15;
+  }
+
+  if (/^[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*$/.test(token)) {
+    return 1 + Math.min(token.length, 12) * 0.08;
+  }
+
+  if (/^[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF]+$/.test(token)) {
+    return token.length;
+  }
+
+  if (/^[,.;:!?，。！？；：、'"“”‘’()[\]-]+$/.test(token)) {
+    return profile === "cjk" ? 0.12 : 0.18;
+  }
+
+  return Math.max(0.35, token.length * 0.35);
+}
+
+function getWeightedTokens(text: string, profile: TextProfile): WeightedToken[] {
+  return Array.from(text.matchAll(REGEX_TOKEN)).map((match) => {
+    const tokenText = match[0];
+    const start = match.index ?? 0;
+    return {
+      start,
+      end: start + tokenText.length,
+      text: tokenText,
+      weight: getTokenWeight(tokenText, profile),
+    };
+  });
+}
+
+export function getSplitTimingRatio(text: string, splitIndex: number): number {
+  if (!text) {
+    return 0.5;
+  }
+
+  const profile = detectTextProfile(text);
+  const tokens = getWeightedTokens(text, profile);
+  const totalWeight = tokens.reduce((sum, token) => sum + token.weight, 0);
+
+  if (totalWeight <= 0) {
+    return clamp(splitIndex / text.length, 0.1, 0.9);
+  }
+
+  let prefixWeight = 0;
+  for (const token of tokens) {
+    if (token.end <= splitIndex) {
+      prefixWeight += token.weight;
+      continue;
+    }
+    if (token.start >= splitIndex) {
+      continue;
+    }
+
+    const overlap = splitIndex - token.start;
+    prefixWeight += token.weight * (overlap / Math.max(1, token.text.length));
+  }
+
+  return clamp(prefixWeight / totalWeight, 0.1, 0.9);
 }
 
 /**
  * Finds the best character index to split the text.
- * Returns the index relative to the start of the string.
- * The split should happen AFTER this index (i.e. text[index] is the last char of first part).
+ * The split should happen at the returned index, i.e. the second part starts
+ * at text[index].
  */
 export function getBestSplitIndex(text: string): number {
-  if (!text || text.length < 2) return -1;
+  if (!text || text.length < 2) {
+    return -1;
+  }
 
   const len = text.length;
-  const candidates: SplitResult[] = [];
+  const profile = detectTextProfile(text);
+  const candidates: SplitCandidate[] = [];
 
-  // Priority 1: Dialog Dash (- ...)
-  // Look for a dash that is preceded by space or newline, indicating a second speaker.
-  // Index will be the character BEFORE the dash (usually a space).
   for (let i = 1; i < len - 1; i++) {
-    // Pattern: " - " or "\n- "
     if (text[i] === "-" && (text[i - 1] === " " || text[i - 1] === "\n")) {
-      // We want to split BEFORE the dash, so the second line starts with "- "
-      // So the split index is i - 1 (the space/newline)
-      candidates.push({
-        index: i - 1,
-        score: getBalanceScore(i, len),
-        reason: "dialog",
-      });
+      addCandidate(candidates, text, i, "dialog", profile);
     }
   }
 
-  // If dialog splits found, pick best balanced one
-  if (candidates.length > 0) {
-    return candidates.sort((a, b) => a.score - b.score)[0].index + 1; // +1 because we split after index
-  }
+  const sentenceEndings = [".", "?", "!", "。", "？", "！"];
+  const pauseMarks = [",", ";", ":", "，", "；", "：", "、"];
 
-  // Priority 2: Strong Sentence Endings
-  const strongEndings = [".", "?", "!", "。", "？", "！"];
   for (let i = 0; i < len - 1; i++) {
     const char = text[i];
-    if (strongEndings.includes(char)) {
-      if (canBreakAt(text, i)) {
-        candidates.push({
-          index: i,
-          score: getBalanceScore(i, len),
-          reason: "sentence",
-        });
-      }
+    if (!canBreakAt(text, i)) {
+      continue;
+    }
+
+    if (sentenceEndings.includes(char)) {
+      addCandidate(candidates, text, i + 1, "sentence", profile);
+    } else if (pauseMarks.includes(char)) {
+      addCandidate(candidates, text, i + 1, "pause", profile);
+    } else if (char === " " && profile !== "cjk") {
+      addCandidate(candidates, text, i + 1, "space", profile);
     }
   }
 
-  if (candidates.length > 0) {
-    return candidates.sort((a, b) => a.score - b.score)[0].index + 1;
+  if (candidates.length === 0) {
+    return Math.floor(len / 2);
   }
 
-  // Priority 3: Weak Pauses (Comma, Semicolon)
-  const weakPauses = [",", ";", ":", "，", "；", "：", "、"];
-  for (let i = 0; i < len - 1; i++) {
-    const char = text[i];
-    if (weakPauses.includes(char)) {
-      if (canBreakAt(text, i)) {
-        candidates.push({
-          index: i,
-          score: getBalanceScore(i, len),
-          reason: "comma",
-        });
-      }
-    }
-  }
-
-  if (candidates.length > 0) {
-    return candidates.sort((a, b) => a.score - b.score)[0].index + 1;
-  }
-
-  // Priority 4: Search for Space (Western) or Midpoint (CJK)
-  const mid = Math.floor(len / 2);
-  const isCJK = REGEX_CJK.test(text);
-
-  if (isCJK) {
-    // For CJK, just split at middle
-    return mid;
-  } else {
-    // For Western, find closest space to middle
-    let bestSpaceIndex = -1;
-    let bestDist = Infinity;
-
-    for (let i = 0; i < len; i++) {
-      if (text[i] === " ") {
-        const dist = Math.abs(i - mid);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestSpaceIndex = i;
-        }
-      }
-    }
-
-    if (bestSpaceIndex !== -1) {
-      return bestSpaceIndex + 1; // Split after the space? Or replace space? usually replace space with newline conceptually
-      // Here we are returning index to valid "end of part 1".
-      // If we return space index, part 1 ends with space.
-      return bestSpaceIndex + 1;
-    }
-  }
-
-  // Total fallback
-  return mid;
+  candidates.sort((a, b) => a.score - b.score);
+  return candidates[0].index;
 }

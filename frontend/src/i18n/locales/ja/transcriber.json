@@ -11,9 +11,14 @@
     "title": "結果プレビュー",
     "segmentsCount": "{{count}} セグメント",
     "empty": "文字起こし結果はまだありません",
-    "missingSubtitleAlert": "結果に使用可能な SRT パスがありません。翻訳を開始できません。"
+    "missingSubtitleAlert": "結果に使用可能な SRT パスがありません。翻訳を開始できません。",
+    "smartSplitNoChanges": "スマート分割が必要な長い字幕は見つかりませんでした。",
+    "smartSplitSuccess": "長い字幕を {{count}} 件スマート分割しました。",
+    "smartSplitError": "スマート分割に失敗し、字幕ファイルを更新できませんでした。"
   },
   "actions": {
+    "smartSplit": "スマート分割",
+    "smartSplitting": "分割中...",
     "translate": "翻訳",
     "openEditor": "エディターを開く"
   },

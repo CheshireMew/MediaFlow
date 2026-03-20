@@ -3,7 +3,6 @@ import sys
 from importlib import import_module
 
 from fastapi import APIRouter, HTTPException
-from openai import OpenAI
 from backend.services.settings_manager import UserSettings, LLMProvider
 from backend.core.container import container, Services
 
@@ -33,6 +32,8 @@ class ToolUpdateResponse(BaseModel):
 
 
 def _test_provider_connection(provider: ProviderConnectionRequest):
+    from openai import OpenAI
+
     if not provider.base_url.strip():
         raise ValueError("Base URL is required")
     if not provider.api_key.strip():

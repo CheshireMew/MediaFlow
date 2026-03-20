@@ -3,6 +3,8 @@ import sys
 import PyInstaller.__main__
 
 def build():
+    os.environ.setdefault("ENABLE_EXPERIMENTAL_PREPROCESSING", "false")
+
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     entry_point = os.path.join(root_dir, "run.py")
     dist_path = os.path.join(root_dir, "dist-backend")
@@ -36,9 +38,34 @@ def build():
         # Audio/Video processing
         '--hidden-import', 'ffmpeg',
         '--hidden-import', 'faster_whisper',
-        '--hidden-import', 'torch',
-        '--hidden-import', 'torchaudio',
-        '--hidden-import', 'torchvision',
+        '--exclude-module', 'torch',
+        '--exclude-module', 'torchaudio',
+        '--exclude-module', 'torchvision',
+        '--exclude-module', 'basicsr',
+        '--exclude-module', 'realesrgan',
+        '--exclude-module', 'mmcv',
+        '--exclude-module', 'mmedit',
+        '--exclude-module', 'pandas',
+        '--exclude-module', 'pandas.plotting',
+        '--exclude-module', 'matplotlib',
+        '--exclude-module', 'matplotlib.backends',
+        '--exclude-module', 'matplotlib.pyplot',
+        '--exclude-module', 'PyQt5',
+        '--exclude-module', 'ctranslate2.converters',
+        '--exclude-module', 'transformers',
+        '--exclude-module', 'librosa',
+        '--exclude-module', 'sklearn',
+        '--exclude-module', 'numba',
+        '--exclude-module', 'llvmlite',
+        '--exclude-module', 'pytest',
+        '--exclude-module', 'pytest_asyncio',
+        '--exclude-module', 'coverage',
+        '--exclude-module', 'tkinter',
+        '--exclude-module', '_tkinter',
+        '--exclude-module', 'win32com',
+        '--exclude-module', 'pythoncom',
+        '--exclude-module', 'pywintypes',
+        '--exclude-module', 'Pythonwin',
         
         # Add entire backend package structure
         '--add-data', f'{os.path.join(root_dir, "backend")};backend',

@@ -1,0 +1,12 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mf_card" x1="40" y1="28" x2="216" y2="228" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7F65FF"/>
+      <stop offset="1" stop-color="#B431FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="16" y="16" width="224" height="224" rx="68" fill="url(#mf_card)"/>
+  <rect x="64" y="60" width="128" height="136" rx="40" stroke="#F5EEFF" stroke-width="12"/>
+  <circle cx="128" cy="128" r="24" fill="#FDFBFF"/>
+</svg>

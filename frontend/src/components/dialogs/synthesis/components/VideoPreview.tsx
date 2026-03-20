@@ -49,6 +49,11 @@ export const VideoPreview: React.FC<Props> = ({
     const [dragging, setDragging] = useState<'wm' | 'sub' | null>(null);
     const [isTrimOpen, setIsTrimOpen] = useState(false);
     const [duration, setDuration] = useState(0);
+    const [previewMetrics, setPreviewMetrics] = useState({
+        containerWidth: 0,
+        containerHeight: 0,
+        videoHeight: 0,
+    });
 
     // --- Drag Logic ---
     const handleDragStart = (e: React.MouseEvent, type: 'wm' | 'sub') => {
@@ -98,6 +103,36 @@ export const VideoPreview: React.FC<Props> = ({
         };
     }, [dragging, setWmPos, setSubPos]);
 
+    useEffect(() => {
+        const container = containerRef.current;
+        const video = videoRef.current;
+
+        if (!container && !video) {
+            return;
+        }
+
+        const measure = () => {
+            setPreviewMetrics({
+                containerWidth: container?.clientWidth || 0,
+                containerHeight: container?.clientHeight || 0,
+                videoHeight: video?.clientHeight || 0,
+            });
+        };
+
+        measure();
+
+        if (typeof ResizeObserver === 'undefined') {
+            window.addEventListener('resize', measure);
+            return () => window.removeEventListener('resize', measure);
+        }
+
+        const observer = new ResizeObserver(measure);
+        if (container) observer.observe(container);
+        if (video) observer.observe(video);
+
+        return () => observer.disconnect();
+    }, [mediaUrl, videoRef, videoSize.h, videoSize.w]);
+
     // Destructure for readability
     const {
         fontSize, fontColor, effectiveFontName, isBold, isItalic,
@@ -116,7 +151,7 @@ export const VideoPreview: React.FC<Props> = ({
     } = output;
 
     const effectiveDuration = mediaUrl ? duration : 0;
-    const previewVideoHeight = videoRef.current?.clientHeight || containerRef.current?.clientHeight || videoSize.h;
+    const previewVideoHeight = previewMetrics.videoHeight || previewMetrics.containerHeight || videoSize.h;
     const previewFontSize = computePreviewScaledValue(
         fontSize,
         videoSize.h,
@@ -135,8 +170,8 @@ export const VideoPreview: React.FC<Props> = ({
         videoSize.h,
         previewVideoHeight,
     );
-    const subtitleAvailableWidth = containerRef.current
-        ? Math.max(0, containerRef.current.clientWidth - Math.max(20, containerRef.current.clientWidth * 0.04))
+    const subtitleAvailableWidth = previewMetrics.containerWidth
+        ? Math.max(0, previewMetrics.containerWidth - Math.max(20, previewMetrics.containerWidth * 0.04))
         : 0;
     const shapedSubtitle = shapeSubtitleText(
         currentSubtitle || t('preview.subtitlePosition'),
@@ -149,8 +184,8 @@ export const VideoPreview: React.FC<Props> = ({
         },
     );
     const subtitleLines = shapedSubtitle.split('\n');
-    const previewMarginV = containerRef.current
-        ? Math.max(0, Math.round((1 - subPos.y) * containerRef.current.clientHeight))
+    const previewMarginV = previewMetrics.containerHeight
+        ? Math.max(0, Math.round((1 - subPos.y) * previewMetrics.containerHeight))
         : 0;
     const previewLineStep = previewFontSize + previewOutlineSize * 2;
     const lineBottomMargins = computeSubtitleLineBottomMargins(

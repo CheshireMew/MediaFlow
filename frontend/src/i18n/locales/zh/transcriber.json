@@ -11,9 +11,14 @@
     "title": "结果预览",
     "segmentsCount": "{{count}} 段",
     "empty": "暂无转录结果",
-    "missingSubtitleAlert": "结果中没有可用的 SRT 路径，无法继续翻译。"
+    "missingSubtitleAlert": "结果中没有可用的 SRT 路径，无法继续翻译。",
+    "smartSplitNoChanges": "没有发现需要智能分割的长字幕。",
+    "smartSplitSuccess": "已智能分割 {{count}} 条长字幕。",
+    "smartSplitError": "智能分割失败，未能写回字幕文件。"
   },
   "actions": {
+    "smartSplit": "智能分割",
+    "smartSplitting": "分割中...",
     "translate": "翻译",
     "openEditor": "打开编辑器"
   },

@@ -8,6 +8,7 @@ import {
 } from "../types";
 import type { SubtitlePreset } from "../types";
 import { isFontAvailable } from "../fontUtils";
+import { computeDefaultSubtitleFontSize } from "../textShaper";
 
 export interface SubtitleStyleState {
   // Style values
@@ -64,9 +65,11 @@ export function useSubtitleStyle(
   isOpen: boolean,
   regions: SubtitleSegment[],
   currentTime: number,
+  videoHeight: number,
+  videoPath: string | null,
 ): SubtitleStyleState {
   // --- State ---
-  const [fontSize, setFontSize] = useState(24);
+  const [fontSize, setFontSizeState] = useState(24);
   const [fontColor, setFontColor] = useState("#FFFFFF");
   const [fontName, setFontName] = useState("Arial");
   const [isBold, setIsBold] = useState(false);
@@ -88,6 +91,11 @@ export function useSubtitleStyle(
   const [subPos, setSubPos] = useState({ ...DEFAULT_SUBTITLE_POSITION });
 
   const isInitialized = useRef(false);
+  const lastRecommendedVideoKey = useRef<string | null>(null);
+
+  const setFontSize = (value: number) => {
+    setFontSizeState(value);
+  };
 
   const currentSubtitle = useMemo(() => {
     const seg = regions.find(
@@ -127,6 +135,7 @@ export function useSubtitleStyle(
         const savedSubPos = localStorage.getItem("sub_pos");
 
         setCustomPresets(loadCustomPresets());
+        lastRecommendedVideoKey.current = null;
 
         if (savedFontName) setFontName(savedFontName);
         if (savedBold) setIsBold(savedBold === "true");
@@ -157,7 +166,11 @@ export function useSubtitleStyle(
         ) {
           setMultilineAlign(savedMultilineAlign as "bottom" | "center" | "top");
         }
-        if (savedFontSize) setFontSize(parseInt(savedFontSize) || 24);
+        if (savedFontSize) {
+          setFontSizeState(parseInt(savedFontSize) || 24);
+        } else {
+          setFontSizeState(computeDefaultSubtitleFontSize(videoHeight));
+        }
         if (savedFontColor) setFontColor(savedFontColor);
 
         if (savedSubPos) {
@@ -179,7 +192,30 @@ export function useSubtitleStyle(
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [isOpen]);
+  }, [isOpen, videoHeight]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      lastRecommendedVideoKey.current = null;
+      return;
+    }
+
+    if (videoHeight <= 0) {
+      return;
+    }
+
+    const currentVideoKey = videoPath ?? "__unknown_video__";
+    const shouldRecommend =
+      lastRecommendedVideoKey.current !== currentVideoKey ||
+      lastRecommendedVideoKey.current === null;
+
+    if (!shouldRecommend) {
+      return;
+    }
+
+    setFontSizeState(computeDefaultSubtitleFontSize(videoHeight));
+    lastRecommendedVideoKey.current = currentVideoKey;
+  }, [isOpen, videoHeight, videoPath]);
 
   // --- Save position ---
   useEffect(() => {
@@ -224,7 +260,7 @@ export function useSubtitleStyle(
   // --- Preset actions ---
   const applyPreset = (preset: SubtitlePreset) => {
     setFontName(preset.fontName);
-    setFontSize(preset.fontSize);
+    setFontSizeState(preset.fontSize);
     setFontColor(preset.fontColor);
     setIsBold(preset.bold);
     setIsItalic(preset.italic);

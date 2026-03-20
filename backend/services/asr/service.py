@@ -11,6 +11,7 @@ from backend.utils.audio_processor import AudioProcessor
 from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils.segment_refiner import SegmentRefiner
 from backend.core.adapters.faster_whisper import FasterWhisperAdapter, FasterWhisperConfig
+from backend.core.task_control import TaskControlRequested
 
 from .model_manager import ModelManager
 from .core_strategies import CoreStrategies
@@ -82,13 +83,13 @@ class ASRService:
                     model_dir=settings.ASR_MODEL_DIR,
                     language=language,
                     initial_prompt=initial_prompt,
-                    # Calculate max_line_width based on language
-                    max_line_width=30 if language in ["zh", "ja", "ko", "zh-CN"] else 50,
                     device=device
                 )
 
                 final_segments = self.adapter.execute(config, progress_callback)
                 
+            except TaskControlRequested:
+                raise
             except Exception as e:
                 logger.error(f"CLI Transcription failed: {e}. Falling back to internal engine.")
                 use_cli = False # Fallback
@@ -182,7 +183,7 @@ class ASRService:
         """
         import uuid
         temp_id = str(uuid.uuid4())[:8]
-        segment_filename = f"segment_{temp_id}.mp3"
+        segment_filename = f"segment_{temp_id}.wav"
         segment_path = settings.WORKSPACE_DIR / segment_filename
         
         try:

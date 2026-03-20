@@ -1,13 +1,15 @@
 import React from "react";
 import { describe, expect, test } from "vitest";
-import { render, renderHook } from "@testing-library/react";
+import { act, render, renderHook } from "@testing-library/react";
 import { highlightSubtitleText } from "../components/editor/SubtitleList";
 import {
   findTextMatches,
   replaceAllLiteral,
 } from "../components/dialogs/FindReplaceDialog";
 import { useCrop } from "../components/dialogs/synthesis/hooks/useCrop";
+import { useSubtitleStyle } from "../components/dialogs/synthesis/hooks/useSubtitleStyle";
 import {
+  computeDefaultSubtitleFontSize,
   computePreviewScaledValue,
   computeSubtitleLineBottomMargins,
   computeSynthesisFontSize,
@@ -207,6 +209,73 @@ describe("editor subtitle behaviors", () => {
   test("synthesis font size compensates for ass rendering being smaller than css", () => {
     expect(computeSynthesisFontSize(24)).toBe(30);
     expect(computeSynthesisFontSize(40)).toBe(50);
+  });
+
+  test("default subtitle font size adapts to the video height", () => {
+    expect(computeDefaultSubtitleFontSize(0)).toBe(24);
+    expect(computeDefaultSubtitleFontSize(720)).toBe(18);
+    expect(computeDefaultSubtitleFontSize(1080)).toBe(24);
+    expect(computeDefaultSubtitleFontSize(2160)).toBe(42);
+  });
+
+  test("subtitle style recommends a new font size when switching videos before manual override", async () => {
+    localStorage.removeItem("sub_fontSize");
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = (() =>
+      ({
+        font: "",
+        measureText: () => ({ width: 10 }),
+      }) as CanvasRenderingContext2D) as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const { result, rerender } = renderHook(
+        ({ videoHeight, videoPath }) =>
+          useSubtitleStyle(true, [], 0, videoHeight, videoPath),
+        {
+          initialProps: { videoHeight: 1080, videoPath: "E:/video-a.mp4" },
+        },
+      );
+
+      await Promise.resolve();
+      expect(result.current.fontSize).toBe(24);
+
+      rerender({ videoHeight: 720, videoPath: "E:/video-b.mp4" });
+      await Promise.resolve();
+      expect(result.current.fontSize).toBe(18);
+    } finally {
+      HTMLCanvasElement.prototype.getContext = originalGetContext;
+    }
+  });
+
+  test("subtitle style recalculates the recommended font size whenever the video changes", async () => {
+    localStorage.removeItem("sub_fontSize");
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = (() =>
+      ({
+        font: "",
+        measureText: () => ({ width: 10 }),
+      }) as CanvasRenderingContext2D) as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const { result, rerender } = renderHook(
+        ({ videoHeight, videoPath }) =>
+          useSubtitleStyle(true, [], 0, videoHeight, videoPath),
+        {
+          initialProps: { videoHeight: 1080, videoPath: "E:/video-a.mp4" },
+        },
+      );
+
+      await Promise.resolve();
+
+      act(() => {
+        result.current.setFontSize(30);
+      });
+      rerender({ videoHeight: 720, videoPath: "E:/video-b.mp4" });
+      await Promise.resolve();
+      expect(result.current.fontSize).toBe(18);
+    } finally {
+      HTMLCanvasElement.prototype.getContext = originalGetContext;
+    }
   });
 
   test("ass-like preview shadow includes outline ring and drop shadow", () => {

@@ -1,10 +1,14 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "../../api/client";
 import { NavigationService } from "../../services/ui/navigation";
 import type { ElectronFile } from "../../types/electron";
 import type { PipelineRequest } from "../../types/api";
 import type { TranscribeResult } from "../../types/transcriber";
+import { toSRT } from "../../utils/subtitleParser";
+import { smartSplitTranscriptionResult } from "../../utils/transcriberSmartSplit";
+import { toast } from "../../utils/toast";
 
 type UseTranscriberCommandsArgs = {
   file: ElectronFile | null;
@@ -14,6 +18,7 @@ type UseTranscriberCommandsArgs = {
   setResult: (value: TranscribeResult | null) => void;
   setActiveTaskId: (taskId: string | null) => void;
   setIsUploading: (value: boolean) => void;
+  setIsSmartSplitting: (value: boolean) => void;
 };
 
 export function useTranscriberCommands({
@@ -24,7 +29,10 @@ export function useTranscriberCommands({
   setResult,
   setActiveTaskId,
   setIsUploading,
+  setIsSmartSplitting,
 }: UseTranscriberCommandsArgs) {
+  const { t } = useTranslation("transcriber");
+
   const startTranscription = useCallback(async () => {
     if (!file) return;
     setResult(null);
@@ -110,9 +118,42 @@ export function useTranscriberCommands({
     }
   }, [file?.path, result?.srt_path]);
 
+  const smartSplitSegments = useCallback(async () => {
+    if (!result) {
+      return;
+    }
+
+    const { result: nextResult, splitCount } =
+      smartSplitTranscriptionResult(result);
+
+    if (splitCount === 0) {
+      toast.info(t("results.smartSplitNoChanges"));
+      return;
+    }
+
+    const targetPath = nextResult.srt_path || nextResult.subtitle_path;
+
+    try {
+      setIsSmartSplitting(true);
+
+      if (targetPath && window.electronAPI?.writeFile) {
+        await window.electronAPI.writeFile(targetPath, toSRT(nextResult.segments));
+      }
+
+      setResult(nextResult);
+      toast.success(t("results.smartSplitSuccess", { count: splitCount }));
+    } catch (error) {
+      console.error("[Transcriber] Failed to smart split segments", error);
+      toast.error(t("results.smartSplitError"));
+    } finally {
+      setIsSmartSplitting(false);
+    }
+  }, [result, setIsSmartSplitting, setResult, t]);
+
   return {
     startTranscription,
     sendToTranslator,
     sendToEditor,
+    smartSplitSegments,
   };
 }

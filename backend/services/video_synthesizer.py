@@ -43,7 +43,7 @@ class VideoSynthesizer:
         temp_sr_path = None
         target_res = options.get('target_resolution', 'original')
 
-        if target_res.startswith('sr_'):
+        if target_res.startswith('sr_') and settings.ENABLE_EXPERIMENTAL_PREPROCESSING:
             # Format: 'sr_4x' OR 'sr_basicvsr_4x' OR 'sr_realesrgan_4x'
             parts = target_res.split('_')
             
@@ -101,6 +101,11 @@ class VideoSynthesizer:
                 original_callback = progress_callback
                 if original_callback:
                     progress_callback = lambda p, m: original_callback(50 + p * 0.5, m)
+        elif target_res.startswith('sr_'):
+            logger.warning(
+                "Experimental SR preprocessing is disabled in this build; falling back to original resolution"
+            )
+            options['target_resolution'] = 'original'
 
         # ── End SR Pre-processing ──────────────────────────────
         

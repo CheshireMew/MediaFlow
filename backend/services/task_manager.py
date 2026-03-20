@@ -52,6 +52,7 @@ class TaskManager:
         self._threadsafe_update_futures: set[concurrent.futures.Future] = set()
         self._accept_threadsafe_updates = True
         self._max_concurrent = max(1, settings.TASK_MAX_CONCURRENT)
+        self._startup_load_task: asyncio.Task | None = None
 
     def set_notifier(self, notifier: "WebSocketNotifier"):
         """Inject WebSocket notifier (set by lifespan after both are created)."""
@@ -82,12 +83,31 @@ class TaskManager:
     async def init_async(self):
         """Initialize DB, load tasks, and start queue workers."""
         await init_db()
-        await self.load_tasks()
         self._start_workers()
+        await self.load_tasks()
+
+    async def warm_start_async(self):
+        """
+        Fast startup path for desktop packaging:
+        initialize the DB and queue workers immediately, then load persisted
+        tasks in the background so health checks can pass without waiting for a
+        potentially large task table to be hydrated.
+        """
+        await init_db()
+        self._start_workers()
+
+        if self._startup_load_task and not self._startup_load_task.done():
+            return
+
+        self._startup_load_task = asyncio.create_task(self._load_tasks_background())
 
     async def shutdown_async(self):
         """Stop queue workers cleanly."""
         self._accept_threadsafe_updates = False
+        if self._startup_load_task:
+            self._startup_load_task.cancel()
+            await asyncio.gather(self._startup_load_task, return_exceptions=True)
+            self._startup_load_task = None
         await self.drain_threadsafe_updates()
         for worker in self._workers:
             worker.cancel()
@@ -171,6 +191,15 @@ class TaskManager:
         except Exception as e:
             self.tasks.clear()
             logger.error(f"Failed to load tasks from DB: {e}")
+
+    async def _load_tasks_background(self):
+        try:
+            await self.load_tasks()
+            logger.info("Background task hydration completed.")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Background task hydration failed: {e}")
 
     def serialize_task(self, task: Task) -> dict:
         return self._queue_view.serialize_task(

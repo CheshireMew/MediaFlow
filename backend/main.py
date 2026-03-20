@@ -5,11 +5,10 @@ from loguru import logger
 import contextlib
 
 from backend.config import settings
-from backend.core.database import shutdown_db
 from backend.api.v1 import (
     transcribe, pipeline, analyze, ws, tasks, cookies,
     translate, settings as settings_api, audio, glossary,
-    editor, ocr, preprocessing,
+    editor, ocr,
 )
 
 @contextlib.asynccontextmanager
@@ -58,13 +57,6 @@ async def lifespan(app: FastAPI):
     logger.info(f"Directories initialized at {settings.BASE_DIR}")
     logger.info(f"Log file configured at {log_file}")
     logger.info(f"Registered {len(container._factories)} services")
-    
-    # Initialize Database & Load Tasks, wire WebSocket notifier
-    if container.has(Services.TASK_MANAGER):
-        tm = container.get(Services.TASK_MANAGER)
-        notifier = container.get(Services.WS_NOTIFIER)
-        tm.set_notifier(notifier)
-        await tm.init_async()
 
     # Write server.json for frontend discovery
     import json
@@ -81,6 +73,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to write server config: {e}")
 
+    # Initialize queue/database after discovery config is available so the
+    # desktop shell can connect immediately and the heavier task hydration work
+    # happens in the background.
+    if container.has(Services.TASK_MANAGER):
+        tm = container.get(Services.TASK_MANAGER)
+        notifier = container.get(Services.WS_NOTIFIER)
+        tm.set_notifier(notifier)
+        await tm.warm_start_async()
+
     yield
     
     # === Shutdown Logic ===
@@ -92,6 +93,8 @@ async def lifespan(app: FastAPI):
     if container.has(Services.BROWSER) and Services.BROWSER in container._instances:
         browser = container.get(Services.BROWSER)
         await browser.stop()
+    from backend.core.database import shutdown_db
+
     await shutdown_db()
     container.reset()
 
@@ -117,7 +120,11 @@ app.include_router(glossary.router, prefix="/api/v1")
 
 app.include_router(editor.router, prefix="/api/v1")
 app.include_router(ocr.router, prefix="/api/v1/ocr")
-app.include_router(preprocessing.router, prefix="/api/v1/preprocessing")
+
+if settings.ENABLE_EXPERIMENTAL_PREPROCESSING:
+    from backend.api.v1 import preprocessing
+
+    app.include_router(preprocessing.router, prefix="/api/v1/preprocessing")
 
 # CORS (Restricted to local Electron and Vite dev server)
 app.add_middleware(

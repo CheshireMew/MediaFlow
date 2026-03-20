@@ -54,6 +54,8 @@ describe("TranscriptionResults actions", () => {
           video_path: "E:/sample.mp4",
           segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
         }}
+        isSmartSplitting={false}
+        onSmartSplit={vi.fn()}
         onSendToEditor={vi.fn()}
         onSendToTranslator={onSendToTranslator}
       />,
@@ -79,6 +81,8 @@ describe("TranscriptionResults actions", () => {
           video_path: "E:/sample.mp4",
           segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
         }}
+        isSmartSplitting={false}
+        onSmartSplit={vi.fn()}
         onSendToEditor={onSendToEditor}
         onSendToTranslator={vi.fn()}
       />,

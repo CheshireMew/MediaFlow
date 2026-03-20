@@ -48,12 +48,10 @@ function killBackend() {
 import { registerDialogHandlers } from "./ipc/dialog-handlers";
 import { registerWindowHandlers } from "./ipc/window-handlers";
 import { registerCookieHandlers } from "./ipc/cookie-handlers";
-import { registerConfigHandlers } from "./ipc/config-handlers";
 
 registerDialogHandlers();
 registerWindowHandlers();
 registerCookieHandlers();
-registerConfigHandlers();
 
 // ─── Main Window ────────────────────────────────────────────────
 function createWindow() {

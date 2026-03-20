@@ -181,6 +181,19 @@ class SegmentRefiner:
         return final_segments
 
     @staticmethod
+    def _starts_like_continuation(text: str) -> bool:
+        text = (text or "").lstrip()
+        if not text:
+            return False
+
+        first = text[0]
+        return (
+            first.islower()
+            or first.isdigit()
+            or first in {",", ".", "!", "?", ";", ":", "'", '"', ")", "]", "}", "%"}
+        )
+
+    @staticmethod
     def merge_segments(segments: List[SubtitleSegment], gap_threshold=1.0, max_chars=80) -> List[SubtitleSegment]:
         """
         Smartly merge short segments to improve readability and flow.
@@ -199,6 +212,7 @@ class SegmentRefiner:
                 time_gap = curr.start - prev.end
                 combined_text = prev.text + " " + curr.text
                 combined_len = len(combined_text)
+                combined_duration = curr.end - prev.start
                 
                 # --- Classification ---
                 # A "Fragment" is a very short standalone utterance (e.g. "mistake.", "I do.")
@@ -208,6 +222,7 @@ class SegmentRefiner:
                 is_tiny_tail = len(curr.text) < 8 
                 
                 prev_ends_sentence = prev.text.strip()[-1] in {'.', '!', '?', '。', '！', '？'} if prev.text else False
+                looks_like_continuation = SegmentRefiner._starts_like_continuation(curr.text)
                 
                 # --- Decision Logic ---
                 should_merge = False
@@ -228,7 +243,17 @@ class SegmentRefiner:
                 # 3. Previous sentence didn't explicitly end (no punctuation) OR current is a fragment
                 elif not prev_ends_sentence:
                     if combined_len <= max_chars and time_gap < gap_threshold:
-                         should_merge = True
+                        should_merge = True
+                    # Sentence-level rescue: ASR often hard-wraps one sentence across
+                    # consecutive cues. Allow a larger temporary subtitle block here;
+                    # later rendering can still wrap lines visually.
+                    elif (
+                        looks_like_continuation
+                        and combined_len <= 160
+                        and combined_duration <= 8.0
+                        and time_gap < 1.2
+                    ):
+                        should_merge = True
                          
                 # Logic 3: Force Merge Fragments if very close
                 # If it's a fragment and there is almost NO silence (<0.3s), merge it even if prev had punctuation

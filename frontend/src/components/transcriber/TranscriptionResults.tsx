@@ -1,9 +1,11 @@
-import { FileText, Clapperboard, ArrowRight, FolderOpen } from "lucide-react";
+import { FileText, Clapperboard, ArrowRight, FolderOpen, Scissors } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TranscribeResult } from "../../types/transcriber";
 
 interface TranscriptionResultsProps {
   result: TranscribeResult | null;
+  isSmartSplitting: boolean;
+  onSmartSplit: () => void | Promise<void>;
   onSendToEditor: () => void;
   onSendToTranslator: (payload: { video_path: string; subtitle_path: string }) => void;
 }
@@ -13,7 +15,13 @@ type TranslatorPayload = {
   subtitle_path: string;
 };
 
-export function TranscriptionResults({ result, onSendToEditor, onSendToTranslator }: TranscriptionResultsProps) {
+export function TranscriptionResults({
+  result,
+  isSmartSplitting,
+  onSmartSplit,
+  onSendToEditor,
+  onSendToTranslator,
+}: TranscriptionResultsProps) {
   const { t } = useTranslation("transcriber");
 
   return (
@@ -27,8 +35,18 @@ export function TranscriptionResults({ result, onSendToEditor, onSendToTranslato
            {t("results.title")}
         </h2>
         {result && result.segments && (
-          <div className="px-2.5 py-1 rounded-md bg-white/5 border border-white/5 text-xs font-mono text-slate-400 flex items-center gap-2">
-            <span>{t("results.segmentsCount", { count: result.segments.length })}</span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onSmartSplit}
+              disabled={isSmartSplitting}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 disabled:bg-white/5 text-amber-300 disabled:text-slate-500 border border-amber-500/20 disabled:border-white/5 text-sm font-medium transition-colors"
+            >
+              <Scissors className="w-4 h-4" />
+              {isSmartSplitting ? t("actions.smartSplitting") : t("actions.smartSplit")}
+            </button>
+            <div className="px-2.5 py-1 rounded-md bg-white/5 border border-white/5 text-xs font-mono text-slate-400 flex items-center gap-2">
+              <span>{t("results.segmentsCount", { count: result.segments.length })}</span>
+            </div>
           </div>
         )}
       </div>

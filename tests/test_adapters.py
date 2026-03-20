@@ -43,6 +43,8 @@ class TestFasterWhisperAdapter:
         assert "en" in cmd
         assert "--vad_filter" in cmd
         assert "True" in cmd # checking string conversion
+        assert "--max_line_width" not in cmd
+        assert "--max_line_count" not in cmd
 
     def test_build_command_auto_language(self, tmp_path):
         audio = tmp_path / "test.wav"
@@ -74,3 +76,23 @@ class TestFasterWhisperAdapter:
         adapter = FasterWhisperAdapter()
         # Should resolve to "large-v3"
         assert adapter._resolve_model_name(config) == "large-v3"
+
+    def test_build_command_includes_line_limits_when_explicitly_set(self, tmp_path):
+        audio = tmp_path / "test.wav"
+        audio.touch()
+
+        config = FasterWhisperConfig(
+            audio_path=audio,
+            output_dir=tmp_path / "out",
+            model_dir=Path("/models"),
+            max_line_width=50,
+            max_line_count=2,
+        )
+
+        adapter = FasterWhisperAdapter()
+        cmd = adapter.build_command(config)
+
+        assert "--max_line_width" in cmd
+        assert "50" in cmd
+        assert "--max_line_count" in cmd
+        assert "2" in cmd

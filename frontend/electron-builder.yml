@@ -16,12 +16,17 @@ files:
 
 extraResources:
   # ── bin/ ──────────────────────────────────────────────────
-  # Contains: ffmpeg, ffprobe, realesrgan-ncnn-vulkan, realcugan,
-  #           python_env (sidecar for BasicVSR/PyTorch .pth models)
+  # Stable desktop build only ships the core runtime.
+  # Experimental preprocessing binaries stay in source/dev only.
   - from: ../bin
     to: bin
     filter:
       - "**/*"
+      - "!python_env/**"
+      - "!realesrgan/**"
+      - "!realesrgan-ncnn-vulkan*"
+      - "!realcugan/**"
+      - "!realcugan*"
       - "!**/__pycache__/**"
       - "!**/tests/**"
       - "!**/test/**"
@@ -40,66 +45,6 @@ extraResources:
       - "!realesrgan/*.png"
       - "!realesrgan/README*.md"
 
-      # ── Exclude dev-only scripts from python_env ──
-      - "!python_env/Scripts/__pycache__/**"
-      - "!python_env/Scripts/pip*.exe"
-      - "!python_env/Scripts/wheel.exe"
-      - "!python_env/Scripts/yapf*.exe"
-      - "!python_env/Scripts/tensorboard.exe"
-      - "!python_env/Scripts/torchrun.exe"
-      - "!python_env/Scripts/markdown*.exe"
-      - "!python_env/Scripts/pygmentize.exe"
-      - "!python_env/Scripts/normalizer.exe"
-      - "!python_env/Scripts/futurize.exe"
-      - "!python_env/Scripts/pasteurize.exe"
-      - "!python_env/Scripts/convert-*.exe"
-      - "!python_env/Scripts/isympy.exe"
-      - "!python_env/Scripts/pywin32_testall*"
-      - "!python_env/Scripts/pywin32_postinstall*"
-      - "!python_env/Scripts/imageio_*.exe"
-      - "!python_env/Scripts/tiff*.exe"
-      - "!python_env/Scripts/mi.exe"
-      - "!python_env/Scripts/mim.exe"
-      - "!python_env/Scripts/odl.exe"
-      - "!python_env/Scripts/openxlab.exe"
-      - "!python_env/Scripts/pyav.exe"
-      - "!python_env/Scripts/pyft*.exe"
-      - "!python_env/Scripts/fonttools.exe"
-      - "!python_env/Scripts/ttx.exe"
-      - "!python_env/Scripts/jp.py"
-      - "!python_env/Scripts/numba"
-      - "!python_env/Lib/site-packages/pythonwin/**"
-      - "!python_env/Lib/site-packages/win32/pythonservice.exe"
-      - "!python_env/Lib/site-packages/setuptools/cli*.exe"
-      - "!python_env/Lib/site-packages/setuptools/gui*.exe"
-      - "!python_env/Lib/site-packages/torch/bin/nvfuser_tests.exe"
-      - "!python_env/Lib/site-packages/torch/bin/protoc.exe"
-      - "!python_env/Lib/site-packages/**/tests/**"
-      - "!python_env/Lib/site-packages/**/test/**"
-      - "!python_env/Lib/site-packages/**/testing/**"
-      - "!python_env/Lib/site-packages/**/docs/**"
-      - "!python_env/Lib/site-packages/**/examples/**"
-      - "!python_env/Lib/site-packages/**/sample_data/**"
-      - "!python_env/Lib/site-packages/mmedit/.mim/**"
-      - "!python_env/Lib/site-packages/tensorboard/**"
-      - "!python_env/Lib/site-packages/tensorboard-*.dist-info/**"
-      - "!python_env/Lib/site-packages/tensorboard_data_server/**"
-      - "!python_env/Lib/site-packages/tensorboard_data_server-*.dist-info/**"
-      - "!python_env/Lib/site-packages/tb_nightly-*.dist-info/**"
-      - "!python_env/Lib/site-packages/tests/**"
-      - "!python_env/Lib/site-packages/yapftests/**"
-
-      # ── Exclude pip itself from python_env (not needed at runtime) ──
-      - "!python_env/Lib/site-packages/pip/**"
-      - "!python_env/Lib/site-packages/pip-*/**"
-
-      # ── Exclude __pycache__ everywhere in python_env ──
-      - "!python_env/**/__pycache__/**"
-
-      # ── Exclude misc docs / licenses inside python_env libs ──
-      - "!python_env/get_pip.py"
-      - "!python_env/python.cat"
-      - "!python_env/LICENSE.txt"
       - "!models/**/*.pth"
 
       # ── Exclude realcugan docs ──
@@ -120,6 +65,13 @@ extraResources:
       - "!**/testing/**"
       - "!**/Pythonwin/**"
       - "!**/pythonwin/**"
+      - "!**/torch/**"
+      - "!**/torchaudio/**"
+      - "!**/torchvision/**"
+      - "!**/mmcv/**"
+      - "!**/mmedit/**"
+      - "!**/basicsr/**"
+      - "!**/realesrgan/**"
       - "!**/_test*.pyd"
       - "!**/torch/bin/protoc.exe"
       - "!**/pytest-*.dist-info/**"

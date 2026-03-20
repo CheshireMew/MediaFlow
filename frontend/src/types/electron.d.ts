@@ -35,7 +35,6 @@ interface ElectronAPI {
   writeBinaryFile: (filePath: string, data: ArrayBuffer) => Promise<void>;
   getFileSize: (filePath: string) => Promise<number>;
   saveFile: (filePath: string, content: string) => Promise<void>;
-  getConfig?: () => Promise<{ base_url: string; ws_url?: string } | null>;
   minimize: () => void;
   maximize: () => void;
   close: () => void;

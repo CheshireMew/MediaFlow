@@ -1,31 +1,35 @@
 from importlib import import_module
 from typing import Dict, Type, Optional
+from backend.config import settings
 from backend.core.tasks.base import TaskHandler
 from loguru import logger
 
 
-HANDLER_MODULES = (
+HANDLER_MODULES = [
     "backend.core.tasks.handlers.transcribe_handler",
     "backend.core.tasks.handlers.synthesis_handler",
     "backend.core.tasks.handlers.pipeline_handler",
-    "backend.core.tasks.handlers.preprocessing_handler",
     "backend.core.tasks.handlers.translate_handler",
     "backend.core.tasks.handlers.download_handler",
     "backend.core.tasks.handlers.transcribe_segment_handler",
     "backend.core.tasks.handlers.ocr_handler",
-)
+]
+
+if settings.ENABLE_EXPERIMENTAL_PREPROCESSING:
+    HANDLER_MODULES.append("backend.core.tasks.handlers.preprocessing_handler")
 
 REQUIRED_TASK_TYPES = {
     "transcribe",
     "synthesis",
     "pipeline",
-    "enhancement",
-    "cleanup",
     "translate",
     "download",
     "transcribe_segment",
     "extract",
 }
+
+if settings.ENABLE_EXPERIMENTAL_PREPROCESSING:
+    REQUIRED_TASK_TYPES.update({"enhancement", "cleanup"})
 
 class TaskHandlerRegistry:
     """

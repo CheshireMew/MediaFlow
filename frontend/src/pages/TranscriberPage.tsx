@@ -89,6 +89,8 @@ export const TranscriberPage = () => {
         <div className="flex-1 min-w-0 h-full flex flex-col">
             <TranscriptionResults 
                 result={state.result}
+                isSmartSplitting={state.isSmartSplitting}
+                onSmartSplit={actions.smartSplitSegments}
                 onSendToEditor={actions.sendToEditor}
                 onSendToTranslator={actions.sendToTranslator}
             />

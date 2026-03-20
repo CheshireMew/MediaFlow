@@ -23,8 +23,8 @@ class FasterWhisperConfig(BaseModel):
     language: Optional[str] = "auto"
     initial_prompt: Optional[str] = None
     vad_filter: bool = True
-    max_line_width: int = Field(default=50, ge=10, le=200)
-    max_line_count: int = 1
+    max_line_width: Optional[int] = Field(default=None, ge=10, le=200)
+    max_line_count: Optional[int] = None
     device: str = "cpu"
     # Sentence segmentation (faster-whisper-xxl)
     sentence: bool = True
@@ -73,10 +73,15 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
             "--output_format", "srt",
             "--print_progress",
             "--vad_filter", "True" if config.vad_filter else "False",
-            "--max_line_width", str(config.max_line_width),
-            "--max_line_count", str(config.max_line_count),
             "--device", config.device
         ]
+
+        # Preserve sentence-level cues by default. Hard line-width limits here
+        # make the CLI split one spoken sentence across multiple subtitle cues.
+        if config.max_line_width is not None:
+            cmd.extend(["--max_line_width", str(config.max_line_width)])
+        if config.max_line_count is not None:
+            cmd.extend(["--max_line_count", str(config.max_line_count)])
 
         if config.sentence:
             cmd.extend(["--sentence"])
@@ -92,7 +97,7 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         return cmd
 
     def _resolve_model_name(self, config: FasterWhisperConfig) -> str:
-        name = config.model_name
+        name = Path(str(config.model_name)).name
 
         # The CLI resolves model folders beneath --model_dir on its own and may
         # prepend "faster-whisper-" internally. Passing the prefixed folder name

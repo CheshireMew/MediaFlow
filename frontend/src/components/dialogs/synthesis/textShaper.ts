@@ -232,6 +232,15 @@ export function computeSynthesisFontSize(
   return Math.max(1, Math.round(previewFontSize * ASS_FONT_COMPENSATION));
 }
 
+export function computeDefaultSubtitleFontSize(videoHeight: number): number {
+  if (videoHeight <= 0) {
+    return 24;
+  }
+
+  const suggested = Math.round((videoHeight * 0.022) / 2) * 2;
+  return Math.min(42, Math.max(18, suggested));
+}
+
 export function computePreviewScaledValue(
   sourceValue: number,
   sourceVideoHeight: number,

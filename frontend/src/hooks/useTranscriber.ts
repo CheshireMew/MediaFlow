@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useTaskContext } from "../context/taskContext";
 import type { TranscribeResult } from "../types/transcriber";
 import type { ElectronFile } from "../types/electron";
@@ -27,6 +27,7 @@ export function useTranscriber() {
   );
 
   const [isUploading, setIsUploading] = useState(false);
+  const [isSmartSplitting, setIsSmartSplitting] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() =>
     localStorage.getItem("transcriber_activeTaskId"),
   );
@@ -70,6 +71,7 @@ export function useTranscriber() {
     setResult,
     setActiveTaskId,
     setIsUploading,
+    setIsSmartSplitting,
   });
 
   return {
@@ -78,6 +80,7 @@ export function useTranscriber() {
       model,
       device,
       isUploading,
+      isSmartSplitting,
       activeTaskId,
       result,
       activeTask: selectTaskById(tasks, activeTaskId),
@@ -87,6 +90,7 @@ export function useTranscriber() {
       setModel,
       setDevice,
       startTranscription: commands.startTranscription,
+      smartSplitSegments: commands.smartSplitSegments,
       sendToTranslator: commands.sendToTranslator,
       sendToEditor: commands.sendToEditor,
       onFileDrop: fileActions.onFileDrop,

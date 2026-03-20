@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { 
+import {
   LayoutDashboard, 
   Download, 
   FileAudio, 
@@ -11,6 +11,8 @@ import {
   Wand2
 } from 'lucide-react';
 import { useTaskContext } from '../../context/taskContext';
+import { ENABLE_EXPERIMENTAL_PREPROCESSING } from '../../config/features';
+import mediaflowMark from '../../assets/mediaflow-mark.svg';
 
 interface SidebarItemProps {
   icon: LucideIcon;
@@ -68,20 +70,25 @@ export function Sidebar() {
   const menuItems = [
     { id: 'dashboard', labelKey: 'monitor', icon: LayoutDashboard, badge: activeTaskCount},
     { id: 'editor', labelKey: 'editor', icon: Pencil },
-    { id: 'preprocessing', labelKey: 'preprocess', icon: Wand2 },
     { id: 'downloader', labelKey: 'download', icon: Download },
     { id: 'transcriber', labelKey: 'transcribe', icon: FileAudio },
     { id: 'translator', labelKey: 'translate', icon: Languages },
     { id: 'settings', labelKey: 'settings', icon: Settings },
   ];
 
+  if (ENABLE_EXPERIMENTAL_PREPROCESSING) {
+    menuItems.splice(2, 0, {
+      id: 'preprocessing',
+      labelKey: 'preprocess',
+      icon: Wand2,
+    });
+  }
+
   return (
     <div className="w-20 bg-[#1a1a1a] border-r border-[#333] flex flex-col items-center py-6 h-full select-none z-50 shadow-2xl">
         {/* App Logo/Brand */}
-        <div className="mb-8 p-2 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20 cursor-default">
-            <div className="w-6 h-6 border-2 border-white/80 rounded-lg flex items-center justify-center">
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-            </div>
+        <div className="mb-8 cursor-default">
+            <img src={mediaflowMark} alt="MediaFlow" className="w-12 h-12 rounded-2xl shadow-lg shadow-indigo-500/20" />
         </div>
 
         <div className="flex-1 w-full px-2 space-y-1 overflow-y-auto no-scrollbar">

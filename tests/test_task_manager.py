@@ -100,3 +100,38 @@ async def test_delete_task(task_manager):
     async with db_module.get_session_context() as session:
         db_task = await session.get(Task, task_id)
         assert db_task is None
+
+@pytest.mark.asyncio
+async def test_warm_start_returns_before_background_task_hydration_finishes(
+    test_engine,
+    monkeypatch,
+):
+    monkeypatch.setattr(db_module, "engine", test_engine)
+
+    test_session_maker = sessionmaker(
+        test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    monkeypatch.setattr(db_module, "async_session_maker", test_session_maker)
+
+    tm = TaskManager()
+    load_started = asyncio.Event()
+    release_load = asyncio.Event()
+
+    async def slow_load_tasks():
+        load_started.set()
+        await release_load.wait()
+        tm.tasks = {}
+
+    monkeypatch.setattr(tm, "load_tasks", slow_load_tasks)
+
+    await tm.warm_start_async()
+    await asyncio.wait_for(load_started.wait(), timeout=1.0)
+
+    assert tm._startup_load_task is not None
+    assert not tm._startup_load_task.done()
+
+    release_load.set()
+    await asyncio.wait_for(tm._startup_load_task, timeout=1.0)
+    await tm.shutdown_async()

@@ -34,6 +34,8 @@ describe("TranscriptionResults", () => {
       <I18nextProvider i18n={i18n}>
         <TranscriptionResults
           result={null}
+          isSmartSplitting={false}
+          onSmartSplit={vi.fn()}
           onSendToEditor={vi.fn()}
           onSendToTranslator={vi.fn()}
         />
@@ -59,6 +61,8 @@ describe("TranscriptionResults", () => {
               { id: "1", start: 0, end: 1, text: "hello" },
             ],
           }}
+          isSmartSplitting={false}
+          onSmartSplit={vi.fn()}
           onSendToEditor={vi.fn()}
           onSendToTranslator={vi.fn()}
         />

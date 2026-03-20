@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { SubtitleSegment } from "../../types/task";
-import { getBestSplitIndex } from "../../utils/textSplitter";
+import { splitSubtitleSegment } from "../../utils/subtitleSplit";
 import type { EditorState } from "../editorStore";
 
 export interface DataSlice {
@@ -129,46 +129,20 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
     const segment = state.regions.find((r) => r.id === idToSplit);
     if (!segment) return;
 
-    const text = segment.text || "";
-    const duration = segment.end - segment.start;
-    const isPlayheadInside =
-      currentTime > segment.start + 0.1 && currentTime < segment.end - 0.1;
-
-    let splitTime = 0;
-    let splitIndex = -1;
-
-    const smartIndex = getBestSplitIndex(text);
-
-    if (smartIndex !== -1 && smartIndex !== Math.floor(text.length / 2)) {
-      splitIndex = smartIndex;
-      const ratio = splitIndex / text.length;
-      splitTime = segment.start + duration * ratio;
-    } else {
-      if (isPlayheadInside) {
-        splitTime = currentTime;
-        const ratio = (currentTime - segment.start) / duration;
-        splitIndex = Math.floor(text.length * ratio);
-      } else {
-        splitTime = segment.start + duration / 2;
-        splitIndex = Math.floor(text.length / 2);
-      }
-    }
+    const split = splitSubtitleSegment(segment, {
+      currentTime,
+      fallbackToMidpoint: true,
+    });
+    if (!split) return;
 
     get().snapshot();
 
-    const text1 = text.substring(0, splitIndex).trimEnd();
-    const text2 = text.substring(splitIndex).trimStart();
-
     const part1 = {
-      ...segment,
-      end: splitTime,
-      text: text1,
+      ...split.parts[0],
       id: segment.id + "_1",
     };
     const part2 = {
-      ...segment,
-      start: splitTime,
-      text: text2,
+      ...split.parts[1],
       id: segment.id + "_2",
     };
 

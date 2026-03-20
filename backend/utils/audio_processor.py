@@ -119,7 +119,9 @@ class AudioProcessor:
     @staticmethod
     def split_audio_physically(audio_path: str, split_points: List[float], output_dir: Path) -> List[Tuple[str, float]]:
         """
-        Split audio file into physical chunks using ffmpeg stream copy/conversion.
+        Split audio into precisely trimmed PCM WAV chunks.
+        Using mp3 here introduces encoder delay/padding that can accumulate
+        drift when chunk timestamps are stitched back onto the original media.
         Returns list of (chunk_path, start_offset_seconds).
         """
         chunks = []
@@ -131,21 +133,24 @@ class AudioProcessor:
         base_name = Path(audio_path).stem
         
         for idx, end_point in enumerate(all_points):
-            chunk_filename = f"{base_name}_part{idx:03d}.mp3"
+            chunk_filename = f"{base_name}_part{idx:03d}.wav"
             chunk_path = output_dir / chunk_filename
-            
+
+            trim_filter = f"atrim=start={current_start:.3f}"
+            if end_point is not None:
+                trim_filter += f":end={end_point:.3f}"
+            trim_filter += ",asetpts=PTS-STARTPTS"
+
             cmd = [
                 settings.FFMPEG_PATH, "-y",
                 "-i", audio_path,
-                "-ss", f"{current_start:.3f}",
+                "-vn",
+                "-af", trim_filter,
+                "-ac", "1",
+                "-ar", "16000",
+                "-c:a", "pcm_s16le",
+                str(chunk_path),
             ]
-            
-            if end_point is not None:
-                duration = end_point - current_start
-                cmd.extend(["-t", f"{duration:.3f}"])
-            
-            # Re-encode to mp3 for compatibility/size
-            cmd.extend(["-c:a", "libmp3lame", "-q:a", "4", str(chunk_path)])
             
             try:
                 # Validate input path before processing each chunk (though verified at start)
@@ -154,7 +159,7 @@ class AudioProcessor:
 
                 subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, shell=False)
                 chunks.append((str(chunk_path), current_start))
-                current_start = end_point if end_point else 0 # Next start
+                current_start = end_point if end_point is not None else current_start
             except Exception as e:
                 logger.error(f"Failed to create chunk {idx}: {e}")
                 
@@ -169,19 +174,25 @@ class AudioProcessor:
         if not Path(audio_path).exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-        duration = end - start
-        if duration <= 0:
+        if end <= start:
             raise ValueError("End time must be greater than start time")
 
+        output_path_obj = Path(output_path)
+        if output_path_obj.suffix.lower() != ".wav":
+            output_path_obj = output_path_obj.with_suffix(".wav")
+
+        trim_filter = f"atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS"
         cmd = [
             settings.FFMPEG_PATH, "-y",
             "-i", audio_path,
-            "-ss", f"{start:.3f}",
-            "-t", f"{duration:.3f}",
-            "-c:a", "libmp3lame", "-q:a", "4", # Re-encode for safety
-            str(output_path)
+            "-vn",
+            "-af", trim_filter,
+            "-ac", "1",
+            "-ar", "16000",
+            "-c:a", "pcm_s16le",
+            str(output_path_obj)
         ]
 
-        logger.info(f"Extracting segment: {start:.2f}-{end:.2f} to {output_path}")
+        logger.info(f"Extracting segment: {start:.2f}-{end:.2f} to {output_path_obj}")
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, shell=False)
-        return str(output_path)
+        return str(output_path_obj)

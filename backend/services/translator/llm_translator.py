@@ -5,8 +5,6 @@ import time
 from pathlib import Path
 from typing import List, Dict, Optional, Literal
 from pydantic import BaseModel, Field
-import instructor
-from openai import OpenAI
 from loguru import logger
 from backend.models.schemas import SubtitleSegment
 from backend.config import settings
@@ -98,6 +96,9 @@ class LLMTranslator:
 
     def _get_client(self):
         """Dynamically construct the OpenAI client based on active settings."""
+        import instructor
+        from openai import OpenAI
+
         from backend.core.container import container, Services
         settings_manager = container.get(Services.SETTINGS_MANAGER)
 
@@ -124,14 +125,11 @@ class LLMTranslator:
             result = [self._map_seg(orig, id_to_text[str(orig.id)]) for orig in segments]
             return True, "", result
 
-        if len(resp.segments) == len(segments):
-            logger.warning(f"IDs differ but count matches ({len(segments)}). Positional mapping.")
-            result = [self._map_seg(orig, resp.segments[i].text) for i, orig in enumerate(segments)]
-            return True, "", result
-
         missing = [id for id in expected_ids if id not in id_to_text]
         extra = [id for id in id_to_text if id not in expected_ids]
         error = f"Expected {len(segments)} segments but got {len(resp.segments)}."
+        if len(resp.segments) == len(segments):
+            error += " Segment IDs/order did not match the input."
         if missing:
             error += f" Missing IDs: {missing}."
         if extra:
@@ -159,14 +157,23 @@ class LLMTranslator:
                     model=model_name,
                     response_model=TranslationResponse,
                     messages=[
-                        {"role": "system", "content": f"Translate the following subtitle line to {target_language}. Return ONLY the translation, nothing else."},
+                        {
+                            "role": "system",
+                            "content": (
+                                f"Translate the following subtitle line to {target_language}.\n"
+                                "Return exactly one segment.\n"
+                                "You MUST preserve the original id exactly.\n"
+                                "Do not merge, split, or rewrite surrounding lines."
+                            ),
+                        },
                         {"role": "user", "content": json.dumps({str(seg.id): seg.text}, ensure_ascii=False)}
                     ],
                     temperature=0.3
                 )
-                if resp.segments:
+                if len(resp.segments) == 1 and str(resp.segments[0].id) == str(seg.id):
                     result.append(self._map_seg(seg, resp.segments[0].text))
                 else:
+                    logger.warning(f"[LLM] Single-line returned invalid id/count for [{seg.id}], keeping source text")
                     result.append(seg)
             except Exception as e:
                 logger.warning(f"[LLM] Single-line failed for [{seg.id}]: {e}")

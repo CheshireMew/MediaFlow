@@ -59,7 +59,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     }, [watermarkEnabled]);
 
     // --- Hooks ---
-    const style = useSubtitleStyle(isOpen, regions, currentTime);
+    const style = useSubtitleStyle(isOpen, regions, currentTime, videoSize.h, videoPath);
     const watermark = useWatermark(isOpen, style.isInitialized, videoSize);
     const output = useOutputSettings(isOpen, videoPath, style.isInitialized);
     const crop = useCrop();

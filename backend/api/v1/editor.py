@@ -4,7 +4,6 @@ from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
 import os
-from backend.services.video_synthesizer import VideoSynthesizer
 from backend.core.container import container, Services
 from backend.models.schemas import SynthesisRequest
 import uuid

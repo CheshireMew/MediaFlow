@@ -11,9 +11,14 @@
     "title": "Result Preview",
     "segmentsCount": "{{count}} segments",
     "empty": "No transcription results yet",
-    "missingSubtitleAlert": "No usable SRT path was found in the result."
+    "missingSubtitleAlert": "No usable SRT path was found in the result.",
+    "smartSplitNoChanges": "No long subtitle segments needed smart splitting.",
+    "smartSplitSuccess": "Smart-split {{count}} long subtitle segments.",
+    "smartSplitError": "Smart split failed and the subtitle file could not be updated."
   },
   "actions": {
+    "smartSplit": "Smart Split",
+    "smartSplitting": "Splitting...",
     "translate": "Translate",
     "openEditor": "Open Editor"
   },
