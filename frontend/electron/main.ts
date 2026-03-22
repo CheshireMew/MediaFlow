@@ -25,7 +25,6 @@ import {
   DESKTOP_TASK_OWNER_MODE,
   DESKTOP_WORKER_PROTOCOL_VERSION,
 } from "../src/contracts/runtimeContracts";
-import { normalizeDesktopWorkerCommandPayload } from "./executionAdapter";
 
 let backendProcess: ChildProcess | null = null;
 let desktopWorkerProcess: ChildProcess | null = null;
@@ -231,12 +230,8 @@ function dispatchNextDesktopWorkerTask() {
   }
   syncQueuedDesktopWorkerTasks();
   try {
-    const normalizedPayload = normalizeDesktopWorkerCommandPayload(
-      pending.command,
-      pending.payload,
-    );
     desktopWorkerProcess.stdin.write(
-      `${JSON.stringify({ id: nextTaskId, command: pending.command, payload: normalizedPayload })}\n`,
+      `${JSON.stringify({ id: nextTaskId, command: pending.command, payload: pending.payload })}\n`,
     );
   } catch (error) {
     desktopWorkerRequests.delete(nextTaskId);
@@ -577,9 +572,8 @@ function requestDesktopWorker<T = unknown>(command: string, payload: Record<stri
           return;
         }
         try {
-          const normalizedPayload = normalizeDesktopWorkerCommandPayload(command, payload);
           desktopWorkerProcess.stdin.write(
-            `${JSON.stringify({ id, command, payload: normalizedPayload })}\n`,
+            `${JSON.stringify({ id, command, payload })}\n`,
           );
         } catch (error) {
           desktopWorkerRequests.delete(id);
