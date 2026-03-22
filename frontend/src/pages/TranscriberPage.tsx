@@ -4,10 +4,36 @@ import { useTranscriber } from '../hooks/useTranscriber';
 import { AudioFileUploader } from '../components/transcriber/AudioFileUploader';
 import { TranscriptionConfig } from '../components/transcriber/TranscriptionConfig';
 import { TranscriptionResults } from '../components/transcriber/TranscriptionResults';
+import { getExecutionModeDisplay } from '../services/ui/executionModeDisplay';
 
 export const TranscriberPage = () => {
   const { t } = useTranslation('transcriber');
   const { state, actions } = useTranscriber();
+  const executionModeDisplay = state.executionMode
+    ? getExecutionModeDisplay(state.executionMode)
+    : null;
+  const progressState = state.activeTask
+    ? {
+        status: state.activeTask.status,
+        progress: state.activeTask.progress,
+        message:
+          state.activeTask.message || t('progressCard.processingMessage'),
+        active: true,
+      }
+    : state.desktopProgress.active
+      ? {
+          status: "running",
+          progress: state.desktopProgress.progress,
+          message:
+            state.desktopProgress.message || t('progressCard.processingMessage'),
+          active: true,
+        }
+      : {
+          status: t('progressCard.systemReady'),
+          progress: 0,
+          message: t('progressCard.waitingMessage'),
+          active: false,
+        };
 
   return (
     <div className="w-full h-full px-6 pb-6 pt-5 flex flex-col overflow-hidden">
@@ -56,29 +82,36 @@ export const TranscriberPage = () => {
 
                 {/* Progress Card (Persistent) */}
                 <div className={`border rounded-xl p-4 transition-all duration-500 ${
-                  state.activeTask 
+                  progressState.active 
                     ? "bg-purple-500/10 border-purple-500/20 shadow-[0_0_20px_-5px_rgba(168,85,247,0.15)]" 
                     : "bg-white/[0.02] border-white/5"
                 }`}>
                    <div className="flex justify-between items-center mb-3">
-                     <span className={`text-xs font-bold uppercase tracking-wider transition-colors duration-300 ${state.activeTask ? "text-purple-400" : "text-slate-500"}`}>
-                       {state.activeTask ? state.activeTask.status : t('progressCard.systemReady')}
-                     </span>
-                     <span className={`text-xs font-mono transition-colors duration-300 ${state.activeTask ? "text-purple-300" : "text-slate-600"}`}>
-                        {state.activeTask ? state.activeTask.progress.toFixed(0) : 0}%
+                     <div className="flex items-center gap-2">
+                       <span className={`text-xs font-bold uppercase tracking-wider transition-colors duration-300 ${progressState.active ? "text-purple-400" : "text-slate-500"}`}>
+                         {progressState.status}
+                       </span>
+                       {executionModeDisplay && (
+                         <span className={`px-1.5 py-0.5 rounded border text-[10px] font-mono ${executionModeDisplay.className}`}>
+                           {executionModeDisplay.label}
+                         </span>
+                       )}
+                     </div>
+                     <span className={`text-xs font-mono transition-colors duration-300 ${progressState.active ? "text-purple-300" : "text-slate-600"}`}>
+                        {progressState.progress.toFixed(0)}%
                      </span>
                    </div>
-                   <div className={`h-1.5 rounded-full overflow-hidden mb-3 transition-colors duration-300 ${state.activeTask ? "bg-purple-900/40" : "bg-white/5"}`}>
+                   <div className={`h-1.5 rounded-full overflow-hidden mb-3 transition-colors duration-300 ${progressState.active ? "bg-purple-900/40" : "bg-white/5"}`}>
                      <div 
                        className={`h-full transition-all duration-300 ease-out ${
-                           state.activeTask ? "bg-gradient-to-r from-purple-500 to-pink-500" : "bg-slate-700 w-0"
+                           progressState.active ? "bg-gradient-to-r from-purple-500 to-pink-500" : "bg-slate-700 w-0"
                        }`}
-                       style={{ width: `${state.activeTask ? state.activeTask.progress : 0}%` }}
+                       style={{ width: `${progressState.progress}%` }}
                      />
                    </div>
-                   <div className={`text-xs truncate flex items-center gap-2 transition-colors duration-300 ${state.activeTask ? "text-purple-300/80" : "text-slate-500"}`}>
-                     <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${state.activeTask ? "bg-purple-500 animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.6)]" : "bg-slate-700"}`} />
-                     {state.activeTask ? (state.activeTask.message || t('progressCard.processingMessage')) : t('progressCard.waitingMessage')}
+                   <div className={`text-xs truncate flex items-center gap-2 transition-colors duration-300 ${progressState.active ? "text-purple-300/80" : "text-slate-500"}`}>
+                     <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${progressState.active ? "bg-purple-500 animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.6)]" : "bg-slate-700"}`} />
+                     {progressState.message}
                    </div>
                 </div>
               </div>

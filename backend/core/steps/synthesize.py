@@ -15,28 +15,31 @@ class SynthesizeStep(PipelineStep):
         return "synthesize"
 
     async def execute(self, ctx: PipelineContext, params: dict, task_id: str = None):
-        # 1. Inputs
-        video_path = ctx.get("video_path")
-        srt_path = ctx.get("srt_path")
-        
+        # 1. Inputs — ctx takes priority (set by upstream steps), fall back to params
+        video_path = (
+            ctx.get_media_path("video_ref", "video_path")
+            or params.get("video_path")
+            or (params.get("video_ref") or {}).get("path")
+        )
+        srt_path = (
+            ctx.get_media_path("subtitle_ref", "srt_path", "subtitle_path")
+            or params.get("srt_path")
+            or (params.get("srt_ref") or {}).get("path")
+        )
+
         if not video_path or not srt_path:
             raise ValueError("Synthesize step requires 'video_path' and 'srt_path' in context")
-            
+
         # 2. Output Path
-        # Logic: video.mp4 -> video_synthesized.mp4
         p = Path(video_path)
         output_path = p.parent / f"{p.stem}_synthesized.mp4"
-        
+
         # 3. Execution
         synthesizer = container.get(Services.VIDEO_SYNTHESIZER)
         tm = container.get(Services.TASK_MANAGER)
         loop = asyncio.get_running_loop()
-        
-        # Merge options from params
+
         options = params.get("options", {})
-        
-        # Add crop/trim if present in params (passed from frontend)
-        # We need to ensure we pass everything relevant
         
         def progress_cb(percent, msg):
              if task_id:
@@ -64,9 +67,13 @@ class SynthesizeStep(PipelineStep):
         )
         
         # 4. Context Update
-        ctx.set("output_video_path", output_file)
-        # Update "video_path" to point to the synthesized one for downstream steps and final result
-        ctx.set("video_path", output_file)
+        ctx.set_media(
+            path_key="video_path",
+            ref_key="video_ref",
+            path=output_file,
+            media_type="video/mp4",
+            extra_ref_keys=("output_ref",),
+        )
         
         logger.success(f"Step Synthesize finished. Output: {output_file}")
 

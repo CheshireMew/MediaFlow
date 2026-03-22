@@ -1,6 +1,11 @@
 import { useCallback } from "react";
 
+import { isDesktopRuntime } from "../../services/domain";
 import { useTranslatorStore } from "../../stores/translatorStore";
+import {
+  createMediaReference,
+  type MediaReference,
+} from "../../services/ui/mediaReference";
 import {
   getTranslatorAutoloadSuffixes,
   isSupportedTranslatorSubtitlePath,
@@ -15,9 +20,11 @@ export function useTranslatorFileLoader() {
     targetLang,
     mode,
     setSourceFilePath,
+    setSourceFileRef,
     setSourceSegments,
     setTargetSegments,
     setTargetLang,
+    setTargetSubtitleRef,
     resetTask,
   } = useTranslatorStore();
 
@@ -48,7 +55,7 @@ export function useTranslatorFileLoader() {
   );
 
   const tryLoadExistingTarget = useCallback(async (sourcePath: string) => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
 
     const priorities = getTranslatorAutoloadSuffixes(targetLang, mode);
     for (const suffix of priorities) {
@@ -62,6 +69,7 @@ export function useTranslatorFileLoader() {
           );
           if (foundLang) setTargetLang(foundLang);
           setTargetSegments(parsed);
+          setTargetSubtitleRef(createMediaReference({ path: targetPath }));
           break;
         }
       } catch {
@@ -70,8 +78,22 @@ export function useTranslatorFileLoader() {
     }
   }, [mode, setTargetLang, setTargetSegments, targetLang]);
 
-  const handleFileUpload = useCallback(async (path: string) => {
-    if (!window.electronAPI) return;
+  const handleFileUpload = useCallback(async (input: string | MediaReference) => {
+    if (!isDesktopRuntime()) return;
+    const resolvedRef =
+      typeof input === "string"
+        ? createMediaReference({ path: input })
+        : createMediaReference({
+            path: input.path,
+            name: input.name,
+            size: input.size,
+            type: input.type,
+            media_id: input.media_id,
+            media_kind: input.media_kind,
+            role: input.role,
+            origin: input.origin,
+          });
+    const path = resolvedRef.path;
     if (!isSupportedTranslatorSubtitlePath(path)) {
       alert("AI 翻译当前只支持导入字幕文件（如 .srt / .vtt / .ass / .ssa）。");
       return;
@@ -88,8 +110,10 @@ export function useTranslatorFileLoader() {
         sourceFilePath !== path || hasSameSubtitleContent(path, parsed);
       resetTask();
       setSourceFilePath(path);
+      setSourceFileRef(resolvedRef);
       setSourceSegments(parsed);
       setTargetSegments(parsed.map((s) => ({ ...s, text: "" })));
+      setTargetSubtitleRef(null);
       if (shouldReuseExistingTarget) {
         await tryLoadExistingTarget(path);
       }
@@ -101,8 +125,10 @@ export function useTranslatorFileLoader() {
     hasSameSubtitleContent,
     resetTask,
     setSourceFilePath,
+    setSourceFileRef,
     setSourceSegments,
     setTargetSegments,
+    setTargetSubtitleRef,
     sourceFilePath,
     tryLoadExistingTarget,
   ]);

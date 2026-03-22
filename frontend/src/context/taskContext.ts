@@ -1,13 +1,21 @@
-import React, { createContext, useContext } from "react";
+import { createContext, useContext } from "react";
 import type { Task } from "../types/task";
-import { useTaskSocket } from "../hooks/tasks/useTaskSocket";
-import { useTaskStore } from "../hooks/tasks/useTaskStore";
+export { TaskProvider } from "./TaskProvider";
 
 export interface TaskContextType {
   tasks: Task[];
   connected: boolean;
-  pauseTask: (taskId: string) => void;
+  remoteTasksReady: boolean;
+  tasksSettled: boolean;
+  taskOwnerMode: import("../contracts/runtimeContracts").TaskOwnerMode;
+  pauseLocalTasks: () => Promise<void>;
+  pauseRemoteTasks: () => Promise<void>;
+  pauseAllTasks: () => Promise<void>;
+  pauseTask: (taskId: string) => Promise<void> | void;
+  resumeTask: (taskId: string) => Promise<void>;
   addTask: (task: Task) => void;
+  deleteTask: (taskId: string) => Promise<void>;
+  clearTasks: () => Promise<void>;
 }
 
 export const TaskContext = createContext<TaskContextType | null>(null);
@@ -18,21 +26,4 @@ export const useTaskContext = () => {
     throw new Error("useTaskContext must be used within a TaskProvider");
   }
   return context;
-};
-
-export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boolean }> = ({
-  children,
-  enabled = true,
-}) => {
-  const { tasks, applyMessage, addTask } = useTaskStore();
-  const { connected, sendPause } = useTaskSocket({
-    onMessage: applyMessage,
-    enabled,
-  });
-
-  return React.createElement(
-    TaskContext.Provider,
-    { value: { tasks, connected, pauseTask: sendPause, addTask } },
-    children,
-  );
 };

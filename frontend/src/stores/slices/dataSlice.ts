@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { SubtitleSegment } from "../../types/task";
+import type { MediaReference } from "../../services/ui/mediaReference";
 import { splitSubtitleSegment } from "../../utils/subtitleSplit";
 import type { EditorState } from "../editorStore";
 
@@ -8,6 +9,8 @@ export interface DataSlice {
   mediaUrl: string | null;
   currentFilePath: string | null;
   currentSubtitlePath: string | null;
+  currentFileRef: MediaReference | null;
+  currentSubtitleRef: MediaReference | null;
 
   setRegions: (regions: SubtitleSegment[]) => void;
   replaceRegionsWithUndo: (regions: SubtitleSegment[]) => void;
@@ -15,6 +18,8 @@ export interface DataSlice {
   setMediaUrl: (url: string | null) => void;
   setCurrentFilePath: (path: string | null) => void;
   setCurrentSubtitlePath: (path: string | null) => void;
+  setCurrentFileRef: (reference: MediaReference | null) => void;
+  setCurrentSubtitleRef: (reference: MediaReference | null) => void;
 
   // Complex Data Actions
   deleteSegments: (ids: string[]) => void;
@@ -22,7 +27,9 @@ export interface DataSlice {
   splitSegment: (currentTime: number, targetId?: string) => void;
   addSegment: (segment: SubtitleSegment) => void;
   addSegments: (segments: SubtitleSegment[]) => void;
-  updateSegments: (segments: SubtitleSegment[]) => void;
+  updateSegments: (
+    segments: Array<Pick<SubtitleSegment, "id"> & Partial<SubtitleSegment>>,
+  ) => void;
   updateRegion: (id: string, updates: Partial<SubtitleSegment>) => void;
   updateRegionText: (id: string, text: string) => void;
 }
@@ -35,6 +42,8 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
   mediaUrl: null,
   currentFilePath: null,
   currentSubtitlePath: null,
+  currentFileRef: null,
+  currentSubtitleRef: null,
 
   setRegions: (regions) => set({ regions }),
   replaceRegionsWithUndo: (regions) => {
@@ -52,6 +61,8 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
   setMediaUrl: (url) => set({ mediaUrl: url }),
   setCurrentFilePath: (path) => set({ currentFilePath: path }),
   setCurrentSubtitlePath: (path) => set({ currentSubtitlePath: path }),
+  setCurrentFileRef: (reference) => set({ currentFileRef: reference }),
+  setCurrentSubtitleRef: (reference) => set({ currentSubtitleRef: reference }),
 
   deleteSegments: (ids) => {
     if (ids.length === 0) return;

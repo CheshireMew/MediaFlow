@@ -45,11 +45,11 @@ async def test_pipeline_runner_cancellation():
     params = DownloadParams(url="https://example.com/video")
     step_req = DownloadStepRequest(step_name="download", params=params)
     steps = [step_req]
-    
-    with pytest.raises(Exception, match="Pipeline cancelled"):
-         await runner.run(steps, task_id="task-123")
-    
-    mock_tm.update_task.assert_any_call("task-123", status="cancelled", message="Pipeline cancelled by user")
+
+    result = await runner.run(steps, task_id="task-123")
+
+    assert result["status"] == "cancelled"
+    mock_tm.mark_controlled_stop.assert_any_call("task-123", "cancel", "Pipeline cancelled")
 
 @pytest.mark.asyncio
 async def test_pipeline_runner_step_failure():

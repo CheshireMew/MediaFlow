@@ -40,12 +40,14 @@ async def transcribe_audio(req: TranscribeRequest):
     try:
         from pathlib import Path
         from backend.utils.path_validator import validate_path
+        if not req.audio_path:
+            raise ValueError("audio path is required")
         validate_path(req.audio_path, "audio_path")
         filename = Path(req.audio_path).name or "Audio"
         response = await container.get(Services.TASK_ORCHESTRATOR).submit_task(
             task_type="transcribe",
             task_name=filename,
-            request_params=req.model_dump(),
+            request_params=req.model_dump(mode="json"),
             runner_factory=lambda task_id: lambda: run_transcription_task(task_id, req),
         )
         return TaskResponse(task_id=response["task_id"], status=response["status"])

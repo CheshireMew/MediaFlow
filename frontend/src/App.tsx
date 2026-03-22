@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { ReactElement } from "react";
 import { HashRouter, Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
 import { Layout } from "./components/layout/Layout";
@@ -13,11 +14,13 @@ import { TranslatorPage } from "./pages/TranslatorPage";
 import { PreprocessingPage } from "./pages/PreprocessingPage";
 import SettingsPage from "./pages/SettingsPage";
 import { ENABLE_EXPERIMENTAL_PREPROCESSING } from "./config/features";
+import { isDesktopRuntime } from "./services/domain";
 
 import { TaskProvider } from "./context/taskContext";
 
 interface AppProps {
-  backendReady?: boolean;
+  appReady?: boolean;
+  remoteBackendReady?: boolean;
   startupMessage?: string;
 }
 
@@ -37,9 +40,10 @@ function ExternalNavListener() {
 }
 
 function routeElement(
-  backendReady: boolean,
+  appReady: boolean,
+  remoteBackendReady: boolean,
   startupMessage: string,
-  page: JSX.Element,
+  page: ReactElement,
   variant:
     | "dashboard"
     | "editor"
@@ -49,7 +53,9 @@ function routeElement(
     | "preprocessing"
     | "settings",
 ) {
-  if (backendReady) {
+  const requiresBackend = variant === "editor" && !isDesktopRuntime();
+
+  if (appReady && (!requiresBackend || remoteBackendReady)) {
     return page;
   }
 
@@ -57,11 +63,12 @@ function routeElement(
 }
 
 function App({
-  backendReady = true,
+  appReady = true,
+  remoteBackendReady = true,
   startupMessage = "",
 }: AppProps) {
   return (
-    <TaskProvider enabled={backendReady}>
+    <TaskProvider enabled={remoteBackendReady}>
       <HashRouter>
         <ExternalNavListener />
         <ToastContainer />
@@ -70,41 +77,41 @@ function App({
             <Routes>
               <Route
                 path="/"
-                element={routeElement(backendReady, startupMessage, <EditorPage />, "editor")}
+                element={routeElement(appReady, remoteBackendReady, startupMessage, <EditorPage />, "editor")}
               />
               <Route
                 path="/editor"
-                element={routeElement(backendReady, startupMessage, <EditorPage />, "editor")}
+                element={routeElement(appReady, remoteBackendReady, startupMessage, <EditorPage />, "editor")}
               />
               <Route
                 path="/dashboard"
-                element={routeElement(backendReady, startupMessage, <DashboardPage />, "dashboard")}
+                element={routeElement(appReady, remoteBackendReady, startupMessage, <DashboardPage />, "dashboard")}
               />
               <Route
                 path="/downloader"
-                element={routeElement(backendReady, startupMessage, <DownloaderPage />, "downloader")}
+                element={routeElement(appReady, remoteBackendReady, startupMessage, <DownloaderPage />, "downloader")}
               />
               <Route
                 path="/transcriber"
-                element={routeElement(backendReady, startupMessage, <TranscriberPage />, "transcriber")}
+                element={routeElement(appReady, remoteBackendReady, startupMessage, <TranscriberPage />, "transcriber")}
               />
               <Route
                 path="/translator"
-                element={routeElement(backendReady, startupMessage, <TranslatorPage />, "translator")}
+                element={routeElement(appReady, remoteBackendReady, startupMessage, <TranslatorPage />, "translator")}
               />
               {ENABLE_EXPERIMENTAL_PREPROCESSING && (
                 <Route
                   path="/preprocessing"
-                  element={routeElement(backendReady, startupMessage, <PreprocessingPage />, "preprocessing")}
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, <PreprocessingPage />, "preprocessing")}
                 />
               )}
               <Route
                 path="/settings"
-                element={routeElement(backendReady, startupMessage, <SettingsPage />, "settings")}
+                element={routeElement(appReady, remoteBackendReady, startupMessage, <SettingsPage />, "settings")}
               />
               <Route
                 path="*"
-                element={routeElement(backendReady, startupMessage, <EditorPage />, "editor")}
+                element={routeElement(appReady, remoteBackendReady, startupMessage, <EditorPage />, "editor")}
               />
             </Routes>
           </ErrorBoundary>

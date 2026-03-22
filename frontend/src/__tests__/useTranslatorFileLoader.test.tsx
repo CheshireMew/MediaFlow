@@ -3,14 +3,8 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { useTranslatorFileLoader } from "../hooks/translator/useTranslatorFileLoader";
 import { useTranslatorStore } from "../stores/translatorStore";
-
-declare global {
-  interface Window {
-    electronAPI?: {
-      readFile: ReturnType<typeof vi.fn>;
-    };
-  }
-}
+import type { ElectronAPI } from "../types/electron-api";
+import { installElectronMock } from "./testUtils/electronMock";
 
 describe("useTranslatorFileLoader", () => {
   beforeEach(() => {
@@ -28,14 +22,15 @@ describe("useTranslatorFileLoader", () => {
       progress: 0,
     });
 
-    window.electronAPI = {
+    installElectronMock({
       readFile: vi.fn(),
-    };
+    });
   });
 
   test("does not restore stale translated subtitles when reloading the same path with changed content", async () => {
     const sourcePath = "E:/subs/demo.srt";
     const translatedPath = "E:/subs/demo_CN.srt";
+    const electronAPI = (window as unknown as Window & { electronAPI: ElectronAPI }).electronAPI;
 
     useTranslatorStore.setState({
       sourceFilePath: sourcePath,
@@ -48,7 +43,7 @@ describe("useTranslatorFileLoader", () => {
       resultMode: "standard",
     });
 
-    window.electronAPI.readFile.mockImplementation(async (path: string) => {
+    vi.mocked(electronAPI.readFile).mockImplementation(async (path: string) => {
       if (path === sourcePath) {
         return "1\n00:00:00,000 --> 00:00:01,000\nnew line\n";
       }
@@ -69,13 +64,19 @@ describe("useTranslatorFileLoader", () => {
     });
 
     expect(useTranslatorStore.getState().targetSegments[0]?.text).toBe("");
+    expect(useTranslatorStore.getState().sourceFileRef).toEqual({
+      path: sourcePath,
+      name: "demo.srt",
+    });
+    expect(useTranslatorStore.getState().targetSubtitleRef).toBeNull();
     expect(useTranslatorStore.getState().resultMode).toBeNull();
-    expect(window.electronAPI.readFile).toHaveBeenCalledTimes(1);
+    expect(electronAPI.readFile).toHaveBeenCalledTimes(1);
   });
 
   test("keeps autoload behavior when reloading the same path with unchanged content", async () => {
     const sourcePath = "E:/subs/demo.srt";
     const translatedPath = "E:/subs/demo_CN.srt";
+    const electronAPI = (window as unknown as Window & { electronAPI: ElectronAPI }).electronAPI;
 
     useTranslatorStore.setState({
       sourceFilePath: sourcePath,
@@ -85,7 +86,7 @@ describe("useTranslatorFileLoader", () => {
       targetSegments: [],
     });
 
-    window.electronAPI.readFile.mockImplementation(async (path: string) => {
+    vi.mocked(electronAPI.readFile).mockImplementation(async (path: string) => {
       if (path === sourcePath) {
         return "1\n00:00:00,000 --> 00:00:01,000\nsame line\n";
       }
@@ -105,6 +106,14 @@ describe("useTranslatorFileLoader", () => {
       expect(useTranslatorStore.getState().targetSegments[0]?.text).toBe("loaded translation");
     });
 
-    expect(window.electronAPI.readFile).toHaveBeenCalledWith(translatedPath);
+    expect(useTranslatorStore.getState().sourceFileRef).toEqual({
+      path: sourcePath,
+      name: "demo.srt",
+    });
+    expect(useTranslatorStore.getState().targetSubtitleRef).toEqual({
+      path: translatedPath,
+      name: "demo_CN.srt",
+    });
+    expect(electronAPI.readFile).toHaveBeenCalledWith(translatedPath);
   });
 });

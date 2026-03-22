@@ -4,12 +4,12 @@
  * Handles: cookies:fetch — opens a visible browser window for user verification,
  * then extracts cookies when the window is closed or times out.
  */
-const { ipcMain, BrowserWindow, session } = require("electron");
+import { BrowserWindow, ipcMain, session, type Cookie, type IpcMainInvokeEvent } from "electron";
 
 export function registerCookieHandlers() {
   ipcMain.handle(
     "cookies:fetch",
-    async (_event: any, targetUrl: string): Promise<any[]> => {
+    async (_event: IpcMainInvokeEvent, targetUrl: string): Promise<Cookie[]> => {
       console.log(`[Cookie Fetch] Starting for: ${targetUrl}`);
 
       return new Promise((resolve, reject) => {
@@ -23,10 +23,6 @@ export function registerCookieHandlers() {
             nodeIntegration: false,
             contextIsolation: true,
           },
-          // Force User-Agent to match what we use in yt-dlp (Chrome 120 on Windows)
-          // Use Mobile UA to bypass desktop captcha/login
-          userAgent:
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
         });
 
         let resolved = false;
@@ -43,7 +39,7 @@ export function registerCookieHandlers() {
             // Get all cookies for this domain
             const cookies = await session.defaultSession.cookies.get({});
             // Filter for the target domain
-            const domainCookies = cookies.filter((c: any) =>
+            const domainCookies = cookies.filter((c) =>
               c.domain.includes(domain),
             );
             console.log(
@@ -68,7 +64,11 @@ export function registerCookieHandlers() {
         }, 300000);
 
         // Navigate to the target URL
-        cookieWindow.loadURL(targetUrl);
+        cookieWindow.loadURL(targetUrl, {
+          // Use Mobile UA to bypass some desktop captcha/login flows.
+          userAgent:
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+        });
       });
     },
   );

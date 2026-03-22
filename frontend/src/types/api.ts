@@ -7,6 +7,12 @@
  */
 
 import type { SubtitleSegment } from "./task";
+import type { MediaReference } from "../services/ui/mediaReference";
+import type {
+  DesktopSynthesizeDirectResult,
+  DesktopTranslateDirectResult,
+  TaskResultShape,
+} from "../contracts/taskContract";
 
 // ─── Generic Response Shapes ────────────────────────────────────
 
@@ -27,9 +33,27 @@ export interface StatusMessageResponse extends MessageResponse {
 
 /** Task creation / pipeline submission response. */
 export interface TaskResponse {
-  task_id: string;
+  task_id?: string;
   status: string;
   message?: string;
+}
+
+/** Explicit task submission receipt returned when a runtime task has been accepted. */
+export interface TaskSubmissionReceipt extends TaskResponse {
+  task_id: string;
+  task_source?: "desktop" | "backend";
+  task_contract_version?: number;
+  persistence_scope?: "runtime" | "history";
+  lifecycle?: import("../contracts/runtimeContracts").TaskLifecycle;
+  queue_state?:
+    | "queued"
+    | "running"
+    | "paused"
+    | "cancelled"
+    | "completed"
+    | "failed"
+    | "idle";
+  queue_position?: number | null;
 }
 
 // ─── Health ─────────────────────────────────────────────────────
@@ -92,6 +116,14 @@ export interface CookieStatusResponse {
   domain: string;
   has_valid_cookies: boolean;
   cookie_path: string | null;
+}
+
+export interface GlossaryTerm {
+  id: string;
+  source: string;
+  target: string;
+  note?: string;
+  category?: string;
 }
 
 // ─── Settings ───────────────────────────────────────────────────
@@ -172,21 +204,31 @@ export interface SynthesizeOptions {
 }
 
 export interface SynthesizeRequest {
-  video_path: string;
-  srt_path: string;
+  video_path?: string | null;
+  video_ref?: MediaReference | null;
+  srt_path?: string | null;
+  srt_ref?: MediaReference | null;
   watermark_path: string | null;
   output_path?: string | null;
+  output_ref?: MediaReference | null;
   options: SynthesizeOptions;
 }
 
-export interface TranscribeSegmentRequest extends SynthesizeRequest {
-  audio_path: string;
+export type SynthesizeResponse = DesktopSynthesizeDirectResult;
+
+export interface TranscribeSegmentRequest {
+  audio_path?: string | null;
+  audio_ref?: MediaReference | null;
   start: number;
   end: number;
   model?: string;
   device?: string;
   language?: string;
   initial_prompt?: string;
+  video_path?: string | null;
+  srt_path?: string | null;
+  watermark_path?: string | null;
+  options?: SynthesizeOptions;
 }
 
 export interface TranscribeSegmentResponse {
@@ -206,12 +248,20 @@ export interface TranslateRequest {
   target_language: string;
   mode?: "standard" | "intelligent" | "proofread";
   context_path?: string | null;
+  context_ref?: MediaReference | null;
 }
 
-export interface TranslateResponse {
-  task_id: string;
+export interface TranslateResponse extends Partial<DesktopTranslateDirectResult> {
+  task_id?: string;
+  status?: string;
+}
+
+export interface TranslationTaskStatus {
+  task_id?: string;
   status: string;
-  segments?: SubtitleSegment[];
+  progress?: number;
+  error?: string;
+  result?: Pick<TaskResultShape, "segments" | "meta">;
 }
 
 // ─── OCR ────────────────────────────────────────────────────────
@@ -224,10 +274,29 @@ export interface OCRTextEvent {
 }
 
 export interface OCRExtractRequest {
-  video_path: string;
+  video_path?: string | null;
+  video_ref?: MediaReference | null;
   roi?: number[];
   engine: "rapid" | "paddle";
   sample_rate?: number;
+  task_id?: string;
+}
+
+export interface EnhanceVideoRequest {
+  video_path: string;
+  video_ref?: MediaReference | null;
+  model?: string;
+  scale?: string;
+  method?: string;
+  task_id?: string;
+}
+
+export interface CleanVideoRequest {
+  video_path: string;
+  video_ref?: MediaReference | null;
+  roi: [number, number, number, number];
+  method?: string;
+  task_id?: string;
 }
 
 export interface OCRExtractResponse {

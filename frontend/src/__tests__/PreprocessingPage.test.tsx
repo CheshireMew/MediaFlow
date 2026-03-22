@@ -3,6 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PreprocessingPage } from "../pages/PreprocessingPage";
 import { usePreprocessingStore } from "../stores/preprocessingStore";
+import { writePendingMediaNavigation } from "../services/ui/pendingMediaNavigation";
 
 const useTaskContextMock = vi.fn();
 
@@ -68,10 +69,20 @@ describe("PreprocessingPage task ownership", () => {
         },
       ],
       preprocessingVideoPath: "E:/video-a.mp4",
+      preprocessingVideoRef: {
+        path: "E:/canonical/video-a.mp4",
+        name: "video-a.mp4",
+        size: 123,
+      },
       preprocessingIsProcessing: true,
       preprocessingActiveTaskId: "task-own",
       preprocessingActiveTaskTool: "extract",
-      preprocessingActiveTaskVideoPath: "E:/video-a.mp4",
+      preprocessingActiveTaskVideoPath: "E:/canonical/video-a.mp4",
+      preprocessingActiveTaskVideoRef: {
+        path: "E:/canonical/video-a.mp4",
+        name: "video-a.mp4",
+        size: 123,
+      },
     });
   });
 
@@ -107,6 +118,11 @@ describe("PreprocessingPage task ownership", () => {
   it("hides the overlay when the active preprocessing task belongs to another file", () => {
     usePreprocessingStore.setState({
       preprocessingActiveTaskVideoPath: "E:/video-b.mp4",
+      preprocessingActiveTaskVideoRef: {
+        path: "E:/canonical/video-b.mp4",
+        name: "video-b.mp4",
+        size: 456,
+      },
     });
 
     useTaskContextMock.mockReturnValue({
@@ -126,5 +142,51 @@ describe("PreprocessingPage task ownership", () => {
 
     expect(screen.queryByText("OCR other file")).toBeNull();
     expect(screen.queryByText("25%")).toBeNull();
+  });
+
+  it("restores preprocessing media from pending navigation using canonical refs", () => {
+    writePendingMediaNavigation({
+      target: "preprocessing",
+      video_path: "E:/workspace/video-c.mp4",
+      video_ref: {
+        path: "E:/canonical/video-c.mp4",
+        name: "video-c.mp4",
+        size: 999,
+      },
+    });
+
+    render(<PreprocessingPage />);
+
+    expect(usePreprocessingStore.getState().preprocessingVideoPath).toBe(
+      "E:/canonical/video-c.mp4",
+    );
+    expect(usePreprocessingStore.getState().preprocessingVideoRef).toEqual({
+      path: "E:/canonical/video-c.mp4",
+      name: "video-c.mp4",
+      size: 999,
+    });
+    expect(sessionStorage.getItem("mediaflow:pending_file")).toBeNull();
+  });
+
+  it("restores preprocessing media from a ref-only pending payload", () => {
+    writePendingMediaNavigation({
+      target: "preprocessing",
+      video_ref: {
+        path: "E:/canonical/video-d.mp4",
+        name: "video-d.mp4",
+        size: 555,
+      },
+    });
+
+    render(<PreprocessingPage />);
+
+    expect(usePreprocessingStore.getState().preprocessingVideoPath).toBe(
+      "E:/canonical/video-d.mp4",
+    );
+    expect(usePreprocessingStore.getState().preprocessingVideoRef).toEqual({
+      path: "E:/canonical/video-d.mp4",
+      name: "video-d.mp4",
+      size: 555,
+    });
   });
 });

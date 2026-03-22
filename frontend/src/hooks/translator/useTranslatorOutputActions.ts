@@ -1,18 +1,37 @@
 import { useCallback } from "react";
 
+import { isDesktopRuntime } from "../../services/domain";
 import { useTranslatorStore } from "../../stores/translatorStore";
-import { NavigationService } from "../../services/ui/navigation";
+import { fileService } from "../../services/fileService";
+import {
+  createNavigationMediaPayload,
+  NavigationService,
+} from "../../services/ui/navigation";
+import type { MediaReference } from "../../services/ui/mediaReference";
 import {
   formatTranslatorTimestamp,
   getTranslatorOutputSuffix,
   stripTranslatorSubtitleExtension,
 } from "./translatorFileHelpers";
 
+export function createTranslatorEditorNavigationPayload(params: {
+  videoPath: string;
+  subtitlePath: string;
+  targetSubtitleRef: MediaReference | null;
+}) {
+  const { videoPath, subtitlePath, targetSubtitleRef } = params;
+  return createNavigationMediaPayload({
+    videoPath,
+    subtitlePath: targetSubtitleRef?.path ?? subtitlePath,
+    subtitleRef: targetSubtitleRef,
+  });
+}
+
 export function useTranslatorOutputActions() {
-  const { sourceFilePath, targetLang, mode, targetSegments } = useTranslatorStore();
+  const { sourceFilePath, targetSubtitleRef, targetLang, mode, targetSegments } = useTranslatorStore();
 
   const exportSRT = useCallback(async () => {
-    if (!sourceFilePath || !window.electronAPI) return;
+    if (!sourceFilePath || !isDesktopRuntime()) return;
 
     const suffix = getTranslatorOutputSuffix(targetLang, mode);
 
@@ -29,7 +48,7 @@ export function useTranslatorOutputActions() {
     defaultPath += `${suffix}.srt`;
 
     try {
-      const savePath = await window.electronAPI.showSaveDialog({
+      const savePath = await fileService.showSaveDialog({
         defaultPath,
         filters: [
           { name: "Subtitles", extensions: ["srt"] },
@@ -50,7 +69,7 @@ export function useTranslatorOutputActions() {
         });
       }
 
-      await window.electronAPI.saveFile(savePath.filePath, content);
+      await fileService.saveFile(savePath.filePath, content);
     } catch (error) {
       console.error(error);
       alert("Failed to save file: " + error);
@@ -58,7 +77,7 @@ export function useTranslatorOutputActions() {
   }, [mode, sourceFilePath, targetLang, targetSegments]);
 
   const handleOpenInEditor = useCallback(async () => {
-    if (!sourceFilePath || targetSegments.length === 0 || !window.electronAPI) {
+    if (!sourceFilePath || targetSegments.length === 0 || !isDesktopRuntime()) {
       return;
     }
 
@@ -66,7 +85,7 @@ export function useTranslatorOutputActions() {
     let videoPath: string | null = null;
     for (const ext of [".mp4", ".mkv", ".avi", ".mov", ".webm"]) {
       try {
-        const size = await window.electronAPI.getFileSize(basePath + ext);
+        const size = await fileService.getFileSize(basePath + ext);
         if (size && size > 0) {
           videoPath = basePath + ext;
           break;
@@ -84,10 +103,11 @@ export function useTranslatorOutputActions() {
     }
 
     const suffix = getTranslatorOutputSuffix(targetLang, mode);
-    let targetSrtPath = sourceFilePath;
-    const lastDot = targetSrtPath.lastIndexOf(".");
-    if (lastDot > 0) targetSrtPath = targetSrtPath.substring(0, lastDot);
-    targetSrtPath += `${suffix}.srt`;
+    let fallbackTargetSrtPath = sourceFilePath;
+    const lastDot = fallbackTargetSrtPath.lastIndexOf(".");
+    if (lastDot > 0) fallbackTargetSrtPath = fallbackTargetSrtPath.substring(0, lastDot);
+    fallbackTargetSrtPath += `${suffix}.srt`;
+    const targetSrtPath = targetSubtitleRef?.path ?? fallbackTargetSrtPath;
 
     try {
       let content = "";
@@ -97,7 +117,7 @@ export function useTranslatorOutputActions() {
         content += `${index + 1}\n${startStr} --> ${endStr}\n${seg.text || ""}\n\n`;
       });
 
-      await window.electronAPI.writeFile(targetSrtPath, content);
+      await fileService.writeFile(targetSrtPath, content);
     } catch (error) {
       console.error("Failed to auto-save translation before opening editor", error);
       alert(
@@ -107,11 +127,15 @@ export function useTranslatorOutputActions() {
     }
 
     const resolvedVideoPath = videoPath || basePath + ".mp4";
-    NavigationService.navigate("editor", {
-      video_path: resolvedVideoPath,
-      subtitle_path: targetSrtPath,
-    });
-  }, [mode, sourceFilePath, targetLang, targetSegments]);
+    NavigationService.navigate(
+      "editor",
+      createTranslatorEditorNavigationPayload({
+        videoPath: resolvedVideoPath,
+        subtitlePath: targetSrtPath,
+        targetSubtitleRef,
+      }),
+    );
+  }, [mode, sourceFilePath, targetLang, targetSegments, targetSubtitleRef]);
 
   return {
     exportSRT,

@@ -1,4 +1,3 @@
-import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TranslatorPage } from "../pages/TranslatorPage";
@@ -45,8 +44,8 @@ vi.mock("../hooks/useTranslator", () => ({
   }),
 }));
 
-vi.mock("../services/translator/translatorService", () => ({
-  translatorService: {
+vi.mock("../services/domain/translationService", () => ({
+  translationService: {
     addTerm: vi.fn(),
     deleteTerm: vi.fn(),
   },

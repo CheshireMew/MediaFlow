@@ -1,12 +1,12 @@
 import { useTranslatorStore } from "../stores/translatorStore";
-import { translatorService } from "../services/translator/translatorService";
+import { glossaryService } from "../services/domain";
 
 export const useGlossary = () => {
   const { glossary, setGlossary } = useTranslatorStore();
 
   const refreshGlossary = async () => {
     try {
-      const terms = await translatorService.listTerms();
+      const terms = await glossaryService.listTerms();
       setGlossary(terms);
     } catch {
       console.error("Failed to load glossary");
@@ -14,12 +14,12 @@ export const useGlossary = () => {
   };
 
   const addTerm = async (source: string, target: string) => {
-    await translatorService.addTerm({ source, target });
+    await glossaryService.addTerm({ source, target });
     await refreshGlossary();
   };
 
   const deleteTerm = async (id: string) => {
-    await translatorService.deleteTerm(id);
+    await glossaryService.deleteTerm(id);
     await refreshGlossary();
   };
 

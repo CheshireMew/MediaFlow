@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { OCRTextEvent } from "../types/api";
+import type { MediaReference } from "../services/ui/mediaReference";
 
 export interface ProjectFile {
   path: string;
@@ -41,10 +42,12 @@ export interface PreprocessingState {
   preprocessingActiveTaskId: string | null;
   preprocessingActiveTaskTool: PreprocessingTool | null;
   preprocessingActiveTaskVideoPath: string | null;
+  preprocessingActiveTaskVideoRef: MediaReference | null;
   setPreprocessingActiveTask: (
     taskId: string,
     tool: PreprocessingTool,
     videoPath: string,
+    videoRef?: MediaReference | null,
   ) => void;
   clearPreprocessingActiveTask: () => void;
 
@@ -58,7 +61,9 @@ export interface PreprocessingState {
   ) => void;
 
   preprocessingVideoPath: string | null;
+  preprocessingVideoRef: MediaReference | null;
   setPreprocessingVideoPath: (path: string | null) => void;
+  setPreprocessingVideoRef: (reference: MediaReference | null) => void;
 }
 
 export const usePreprocessingStore = create<PreprocessingState>()(
@@ -92,11 +97,13 @@ export const usePreprocessingStore = create<PreprocessingState>()(
       preprocessingActiveTaskId: null,
       preprocessingActiveTaskTool: null,
       preprocessingActiveTaskVideoPath: null,
-      setPreprocessingActiveTask: (taskId, tool, videoPath) =>
+      preprocessingActiveTaskVideoRef: null,
+      setPreprocessingActiveTask: (taskId, tool, videoPath, videoRef = null) =>
         set({
           preprocessingActiveTaskId: taskId,
           preprocessingActiveTaskTool: tool,
           preprocessingActiveTaskVideoPath: videoPath,
+          preprocessingActiveTaskVideoRef: videoRef,
           preprocessingIsProcessing: true,
         }),
       clearPreprocessingActiveTask: () =>
@@ -104,6 +111,7 @@ export const usePreprocessingStore = create<PreprocessingState>()(
           preprocessingActiveTaskId: null,
           preprocessingActiveTaskTool: null,
           preprocessingActiveTaskVideoPath: null,
+          preprocessingActiveTaskVideoRef: null,
           preprocessingIsProcessing: false,
         }),
 
@@ -125,6 +133,10 @@ export const usePreprocessingStore = create<PreprocessingState>()(
             state.preprocessingVideoPath === path
               ? null
               : state.preprocessingVideoPath,
+          preprocessingVideoRef:
+            state.preprocessingVideoRef?.path === path
+              ? null
+              : state.preprocessingVideoRef,
         })),
       updatePreprocessingFile: (path, updates) =>
         set((state) => ({
@@ -136,10 +148,46 @@ export const usePreprocessingStore = create<PreprocessingState>()(
       preprocessingVideoPath: null,
       setPreprocessingVideoPath: (path) =>
         set({ preprocessingVideoPath: path }),
+      preprocessingVideoRef: null,
+      setPreprocessingVideoRef: (reference) =>
+        set({ preprocessingVideoRef: reference }),
     }),
     {
       name: "preprocessing-storage",
+      version: 1,
+      migrate: (persistedState) => {
+        const state = (persistedState ?? {}) as Partial<PreprocessingState>;
+        return {
+          preprocessingActiveTool:
+            state.preprocessingActiveTool === "enhance" ||
+            state.preprocessingActiveTool === "clean" ||
+            state.preprocessingActiveTool === "extract"
+              ? state.preprocessingActiveTool
+              : "extract",
+          enhanceModel:
+            typeof state.enhanceModel === "string" ? state.enhanceModel : "RealESRGAN-x4plus",
+          enhanceScale: typeof state.enhanceScale === "string" ? state.enhanceScale : "4x",
+          enhanceMethod:
+            typeof state.enhanceMethod === "string" ? state.enhanceMethod : "realesrgan",
+          cleanMethod: typeof state.cleanMethod === "string" ? state.cleanMethod : "telea",
+          ocrEngine: typeof state.ocrEngine === "string" ? state.ocrEngine : "rapid",
+          ocrResults: Array.isArray(state.ocrResults) ? state.ocrResults : [],
+          preprocessingVideoPath:
+            typeof state.preprocessingVideoPath === "string"
+              ? state.preprocessingVideoPath
+              : null,
+          preprocessingVideoRef:
+            state.preprocessingVideoRef &&
+            typeof state.preprocessingVideoRef === "object"
+              ? (state.preprocessingVideoRef as MediaReference)
+              : null,
+          preprocessingFiles: Array.isArray(state.preprocessingFiles)
+            ? state.preprocessingFiles
+            : [],
+        };
+      },
       partialize: (state) => ({
+        // Snapshot durable workspace context only. Active task execution stays runtime-only.
         preprocessingActiveTool: state.preprocessingActiveTool,
         enhanceModel: state.enhanceModel,
         enhanceScale: state.enhanceScale,
@@ -148,8 +196,7 @@ export const usePreprocessingStore = create<PreprocessingState>()(
         ocrEngine: state.ocrEngine,
         ocrResults: state.ocrResults,
         preprocessingVideoPath: state.preprocessingVideoPath,
-        // We typically don't persist results or files if they are transient,
-        // but editorStore persisted files. logic says yes for files.
+        preprocessingVideoRef: state.preprocessingVideoRef,
         preprocessingFiles: state.preprocessingFiles,
       }),
     },

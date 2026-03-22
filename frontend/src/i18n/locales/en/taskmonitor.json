@@ -1,7 +1,14 @@
 {
   "title": "Task Monitor",
-  "status": { "connected": "Connected", "disconnected": "Disconnected" },
+  "status": {
+    "ready": "Ready",
+    "waiting": "Waiting",
+    "localTasks": "Local tasks",
+    "backendTasks": "Backend tasks"
+  },
   "buttons": {
+    "pauseLocal": { "tooltip": "Pause all active local tasks", "label": "Pause Local" },
+    "pauseBackend": { "tooltip": "Pause all active backend tasks", "label": "Pause Backend" },
     "pauseAll": { "tooltip": "Pause all active tasks", "label": "Pause All" },
     "clearAll": { "tooltip": "Delete all tasks", "label": "Clear All" }
   },
@@ -15,6 +22,9 @@
     "resume": { "tooltip": "Resume task" },
     "delete": { "tooltip": "Delete task" },
     "showFolder": { "tooltip": "Show in folder" }
+  },
+  "badges": {
+    "history": "History"
   },
   "taskTypes": {
     "transcribe": "Transcribe",

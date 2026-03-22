@@ -5,7 +5,9 @@ import {
 } from 'lucide-react';
 
 import { useTranslator } from '../hooks/useTranslator';
-import { translatorService } from '../services/translator/translatorService';
+import { glossaryService } from '../services/domain';
+import { fileService } from '../services/fileService';
+import { getExecutionModeDisplay } from '../services/ui/executionModeDisplay';
 import { SegmentsTable } from '../components/translator/SegmentsTable';
 import { Sidebar } from '../components/translator/Sidebar';
 import type { TranslatorMode } from '../hooks/useTranslator';
@@ -28,6 +30,7 @@ export const TranslatorPage = () => {
         taskStatus,
         progress,
         taskError,
+        executionMode,
         isTranslating,
         updateTargetSegment,
         setTargetLang,
@@ -42,29 +45,33 @@ export const TranslatorPage = () => {
 
     const { t } = useTranslation('translator');
     const hasGeneratedSegments = targetSegments.length > sourceSegments.length;
+    const executionModeDisplay = executionMode
+        ? getExecutionModeDisplay(executionMode)
+        : null;
     
     // UI Local State for Sidebar
     const [showGlossary, setShowGlossary] = useState(false);
 
     // --- Legacy "Open File" Handler to wrap hook ---
     const handleOpenFile = async () => {
-         if (window.electronAPI) {
-            const openFn = window.electronAPI.openSubtitleFile ?? window.electronAPI.openFile;
-            const fileData = await openFn() as ElectronSubtitleFile | null;
+         try {
+            const fileData = await fileService.openSubtitleFile() as ElectronSubtitleFile | null;
             if (fileData && fileData.path) {
                 handleFileUpload(fileData.path);
             }
+         } catch (error) {
+            console.error("Failed to open subtitle file:", error);
          }
     };
     
     // --- Glossary Handlers ---
     const handleAddTerm = async (source: string, target: string) => {
-        await translatorService.addTerm({ source, target });
+        await glossaryService.addTerm({ source, target });
         refreshGlossary();
     };
     
     const handleDeleteTerm = async (id: string) => {
-        await translatorService.deleteTerm(id);
+        await glossaryService.deleteTerm(id);
         refreshGlossary();
     };
 
@@ -243,6 +250,15 @@ export const TranslatorPage = () => {
                  {taskStatus === "failed" && taskError && (
                      <div className="flex-none px-4 py-3 border-b border-rose-500/20 bg-rose-500/10 text-sm text-rose-200">
                         {taskError}
+                     </div>
+                 )}
+
+                 {executionModeDisplay && (
+                     <div className="flex-none px-4 py-2 border-b border-white/5 bg-black/20 flex items-center gap-2 text-xs text-slate-300">
+                        <span className={`px-2 py-1 rounded-md border font-mono ${executionModeDisplay.className}`}>
+                            {executionModeDisplay.label}
+                        </span>
+                        <span>execution mode</span>
                      </div>
                  )}
     

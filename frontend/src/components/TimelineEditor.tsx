@@ -5,7 +5,7 @@ import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 interface TimelineEditorProps {
   mediaUrl: string;
   initialRegions?: { start: number; end: number; content: string; id: string }[];
-  peaks?: unknown;
+  peaks?: Array<Float32Array | number[]>;
   onPeaksGenerated?: (peaks: ReturnType<WaveSurfer["exportPeaks"]>) => void;
 }
 

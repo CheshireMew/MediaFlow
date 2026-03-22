@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useEffect, RefObject } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import type { RefObject } from 'react';
 import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 
 interface VideoControlBarProps {

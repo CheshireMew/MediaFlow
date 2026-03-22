@@ -1,15 +1,15 @@
 from pathlib import Path
 from typing import Optional, Dict, Any
-import re
 from backend.config import settings
 from .progress import ProgressHook
 from backend.services.cookie_manager import CookieManager
 from urllib.parse import urlparse
 from loguru import logger
+from backend.utils.text_normalizer import normalize_filename_component
 
 def _sanitize_filename(name: str) -> str:
     """Remove characters that are invalid in Windows/Linux filenames, keep Unicode."""
-    return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', name).strip() or "download"
+    return normalize_filename_component(name)
 
 class YtDlpConfigBuilder:
     def __init__(self, output_dir: Path):

@@ -3,7 +3,7 @@
  * Use this type to avoid `(file as any).path` casts throughout the codebase.
  */
 export interface ElectronFile extends File {
-  path: string;
+  path?: string;
 }
 
 /**

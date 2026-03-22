@@ -77,6 +77,8 @@
     "reset": "重置",
     "noMediaLoaded": "未加载媒体",
     "subtitlePosition": "（字幕位置）",
-    "startRender": "开始渲染"
+    "startRender": "开始渲染",
+    "rendering": "正在渲染",
+    "preparingSynthesis": "准备合成..."
   }
 }

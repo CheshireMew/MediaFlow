@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 from backend.core.container import container, Services
 from backend.models.schemas import SynthesisRequest
+from backend.services.media_refs import create_media_ref
 import uuid
 
 router = APIRouter(prefix="/editor", tags=["Editor"])
@@ -187,6 +188,10 @@ async def run_synthesis_task(task_id: str, req: SynthesisRequest):
             "files": [{"type": "video", "path": path, "label": "synthesis_output"}],
             "meta": {
                 "video_path": path,
+                "video_ref": create_media_ref(path, "video/mp4", role="output"),
+                "output_ref": create_media_ref(path, "video/mp4", role="output"),
+                "context_ref": req.srt_ref or create_media_ref(req.srt_path, "application/x-subrip", role="context"),
+                "subtitle_ref": req.srt_ref or create_media_ref(req.srt_path, "application/x-subrip", role="context"),
                 "options": req.options
             }
         },
@@ -199,6 +204,11 @@ async def start_synthesis_task(req: SynthesisRequest):
     Start a video synthesis task (burn-in subtitles/watermark).
     This is a long-running process, so we offload it.
     """
+    if not req.video_path:
+        raise HTTPException(status_code=400, detail="synthesis video path is required")
+    if not req.srt_path:
+        raise HTTPException(status_code=400, detail="synthesis subtitle path is required")
+
     if not os.path.exists(req.video_path):
         raise HTTPException(status_code=404, detail=f"Video not found: {req.video_path}")
     
@@ -213,7 +223,7 @@ async def start_synthesis_task(req: SynthesisRequest):
     response = await container.get(Services.TASK_ORCHESTRATOR).submit_task(
         task_type="synthesis",
         task_name=os.path.basename(req.video_path),
-        request_params=req.dict(),
+        request_params=req.model_dump(mode="json"),
         runner_factory=lambda task_id: lambda: run_synthesis_task(task_id, req),
     )
 

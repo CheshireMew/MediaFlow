@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 
 import type { Task } from "../../types/task";
+import { normalizeTaskForRenderer } from "../../context/taskSources/shared";
 
 export type TaskSocketMessage =
   | { type: "snapshot"; tasks: Task[] }
@@ -16,12 +17,21 @@ export function useTaskStore() {
 
   const applyMessage = useCallback((message: TaskSocketMessage) => {
     if (message.type === "snapshot") {
-      setTasks(sortTasks(message.tasks));
+      setTasks(
+        sortTasks(
+          message.tasks
+            .map((task) => normalizeTaskForRenderer(task, "event:snapshot"))
+            .filter((task): task is Task => task !== null),
+        ),
+      );
       return;
     }
 
     if (message.type === "update") {
-      const updatedTask = message.task;
+      const updatedTask = normalizeTaskForRenderer(message.task, "event:update");
+      if (!updatedTask) {
+        return;
+      }
       setTasks((prev) => {
         const index = prev.findIndex((task) => task.id === updatedTask.id);
         if (index === -1) {
@@ -39,12 +49,31 @@ export function useTaskStore() {
   }, []);
 
   const addTask = useCallback((task: Task) => {
-    setTasks((prev) => sortTasks([task, ...prev]));
+    const normalizedTask = normalizeTaskForRenderer(task, "local:add");
+    if (!normalizedTask) {
+      return;
+    }
+    setTasks((prev) => sortTasks([normalizedTask, ...prev]));
+  }, []);
+
+  const deleteTask = useCallback((taskId: string) => {
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+  }, []);
+
+  const clearTasks = useCallback((predicate?: (task: Task) => boolean) => {
+    setTasks((prev) => {
+      if (!predicate) {
+        return [];
+      }
+      return prev.filter((task) => !predicate(task));
+    });
   }, []);
 
   return {
     tasks,
     applyMessage,
     addTask,
+    deleteTask,
+    clearTasks,
   };
 }

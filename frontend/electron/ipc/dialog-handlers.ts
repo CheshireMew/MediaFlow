@@ -5,6 +5,7 @@
  *          dialog:saveFile, fs:readFile, fs:writeFile, fs:getFileSize
  */
 import { ipcMain, dialog, app } from "electron";
+import type { IpcMainInvokeEvent, OpenDialogOptions, SaveDialogOptions } from "electron";
 import path from "path";
 import fs from "fs";
 
@@ -18,10 +19,10 @@ function loadLastOpenDir(): string | undefined {
   try {
     const p = getStorePath();
     if (fs.existsSync(p)) {
-      const data = JSON.parse(fs.readFileSync(p, "utf-8"));
+      const data = JSON.parse(fs.readFileSync(p, "utf-8")) as { lastOpenDir?: string };
       return data.lastOpenDir;
     }
-  } catch (e) {
+  } catch {
     /* ignore */
   }
   return undefined;
@@ -77,10 +78,10 @@ export function registerDialogHandlers() {
   // Open media file
   ipcMain.handle(
     "dialog:openFile",
-    async (_event: any, defaultPath?: string) => {
+    async (_event: IpcMainInvokeEvent, defaultPath?: string) => {
       ensureLoaded();
 
-      const { canceled, filePaths } = await dialog.showOpenDialog({
+      const options: OpenDialogOptions = {
         properties: ["openFile"],
         defaultPath: defaultPath || getDefaultStartPath(),
         filters: [
@@ -97,7 +98,8 @@ export function registerDialogHandlers() {
             extensions: ["*"],
           },
         ],
-      });
+      };
+      const { canceled, filePaths } = await dialog.showOpenDialog(options);
 
       if (canceled || filePaths.length === 0) {
         return null;
@@ -128,7 +130,7 @@ export function registerDialogHandlers() {
   ipcMain.handle("dialog:openSubtitleFile", async () => {
     ensureLoaded();
 
-    const { canceled, filePaths } = await dialog.showOpenDialog({
+    const options: OpenDialogOptions = {
       properties: ["openFile"],
       defaultPath: getDefaultStartPath(),
       filters: [
@@ -141,7 +143,8 @@ export function registerDialogHandlers() {
           extensions: ["*"],
         },
       ],
-    });
+    };
+    const { canceled, filePaths } = await dialog.showOpenDialog(options);
 
     if (canceled || filePaths.length === 0) {
       return null;
@@ -160,10 +163,11 @@ export function registerDialogHandlers() {
   ipcMain.handle("dialog:selectDirectory", async () => {
     ensureLoaded();
 
-    const { canceled, filePaths } = await dialog.showOpenDialog({
+    const options: OpenDialogOptions = {
       properties: ["openDirectory"],
       defaultPath: lastOpenDir || undefined,
-    });
+    };
+    const { canceled, filePaths } = await dialog.showOpenDialog(options);
 
     if (canceled || filePaths.length === 0) {
       return null;
@@ -179,8 +183,8 @@ export function registerDialogHandlers() {
   ipcMain.handle(
     "dialog:saveFile",
     async (
-      _event: any,
-      { defaultPath, filters }: { defaultPath?: string; filters?: any[] },
+      _event: IpcMainInvokeEvent,
+      { defaultPath, filters }: SaveDialogOptions,
     ) => {
       console.log("[Main] dialog:saveFile called with:", {
         defaultPath,
@@ -201,7 +205,7 @@ export function registerDialogHandlers() {
   );
 
   // Read file
-  ipcMain.handle("fs:readFile", async (_event: any, filePath: string) => {
+  ipcMain.handle("fs:readFile", async (_event: IpcMainInvokeEvent, filePath: string) => {
     try {
       if (fs.existsSync(filePath)) {
         return fs.readFileSync(filePath, "utf-8");
@@ -216,7 +220,7 @@ export function registerDialogHandlers() {
   // Write file
   ipcMain.handle(
     "fs:writeFile",
-    async (_event: any, filePath: string, content: string) => {
+    async (_event: IpcMainInvokeEvent, filePath: string, content: string) => {
       try {
         fs.writeFileSync(filePath, content, "utf-8");
         return true;
@@ -228,7 +232,7 @@ export function registerDialogHandlers() {
   );
 
   // Get file size
-  ipcMain.handle("fs:getFileSize", async (_event: any, filePath: string) => {
+  ipcMain.handle("fs:getFileSize", async (_event: IpcMainInvokeEvent, filePath: string) => {
     try {
       if (fs.existsSync(filePath)) {
         const stats = fs.statSync(filePath);
@@ -241,8 +245,38 @@ export function registerDialogHandlers() {
     }
   });
 
+  ipcMain.handle(
+    "fs:resolveExistingPath",
+    async (_event: IpcMainInvokeEvent, filePath: string, fallbackName?: string) => {
+      try {
+        if (filePath && fs.existsSync(filePath)) {
+          return filePath;
+        }
+
+        if (!fallbackName || !filePath) {
+          return null;
+        }
+
+        const candidateDir = path.dirname(filePath);
+        if (!fs.existsSync(candidateDir)) {
+          return null;
+        }
+
+        const exactCandidate = path.join(candidateDir, fallbackName);
+        if (fs.existsSync(exactCandidate)) {
+          return exactCandidate;
+        }
+
+        return null;
+      } catch (e) {
+        console.error("[IPC] resolveExistingPath error:", e);
+        return null;
+      }
+    },
+  );
+
   // Read binary file (returns Buffer → auto-serialized to ArrayBuffer over IPC)
-  ipcMain.handle("fs:readBinaryFile", async (_event: any, filePath: string) => {
+  ipcMain.handle("fs:readBinaryFile", async (_event: IpcMainInvokeEvent, filePath: string) => {
     try {
       if (fs.existsSync(filePath)) {
         return fs.readFileSync(filePath);
@@ -257,7 +291,7 @@ export function registerDialogHandlers() {
   // Write binary file (receives ArrayBuffer from renderer)
   ipcMain.handle(
     "fs:writeBinaryFile",
-    async (_event: any, filePath: string, data: ArrayBuffer) => {
+    async (_event: IpcMainInvokeEvent, filePath: string, data: ArrayBuffer) => {
       try {
         fs.writeFileSync(filePath, Buffer.from(data));
         return true;

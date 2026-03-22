@@ -1,5 +1,5 @@
 import { Book, Settings2, Plus, Trash2 } from 'lucide-react';
-import type { GlossaryTerm } from '../../services/translator/translatorService';
+import type { GlossaryTerm } from '../../services/domain';
 import { useState } from 'react';
 
 interface SidebarProps {

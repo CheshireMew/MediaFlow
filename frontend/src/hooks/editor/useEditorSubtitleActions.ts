@@ -1,6 +1,8 @@
 import { useCallback } from "react";
 import type { SubtitleSegment } from "../../types/task";
+import { isDesktopRuntime } from "../../services/domain";
 import { useEditorStore } from "../../stores/editorStore";
+import { fileService } from "../../services/fileService";
 import { serializeEditorSubtitles } from "./editorFileHelpers";
 
 export function useEditorSubtitleActions() {
@@ -23,8 +25,8 @@ export function useEditorSubtitleActions() {
       let targetPath = currentSubtitlePath || path.replace(/\.[^.]+$/, ".srt");
 
       if (saveAs || !currentSubtitlePath) {
-        if (window.electronAPI?.showSaveDialog) {
-          const result = await window.electronAPI.showSaveDialog({
+        if (isDesktopRuntime()) {
+          const result = await fileService.showSaveDialog({
             defaultPath: targetPath,
             filters: [{ name: "Subtitle Files", extensions: ["srt"] }],
           });
@@ -38,9 +40,9 @@ export function useEditorSubtitleActions() {
         }
       }
 
-      if (window.electronAPI?.writeFile) {
+      if (isDesktopRuntime()) {
         try {
-          await window.electronAPI.writeFile(
+          await fileService.writeFile(
             targetPath,
             serializeEditorSubtitles(regionsToSave),
           );

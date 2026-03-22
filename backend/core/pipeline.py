@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import time
 from typing import Any, Dict, List
 from loguru import logger
@@ -14,6 +15,21 @@ class PipelineRunner:
     def __init__(self, task_manager=None):
         self.task_manager = task_manager or container.get(Services.TASK_MANAGER)
 
+    async def _raise_if_control_requested(self, task_id: str | None) -> None:
+        if not task_id:
+            return
+
+        is_cancelled = getattr(self.task_manager, "is_cancelled", None)
+        if callable(is_cancelled) and is_cancelled(task_id):
+            raise TaskCancelRequested("Pipeline cancelled")
+
+        checker = getattr(self.task_manager, "raise_if_control_requested", None)
+        if callable(checker):
+            result = checker(task_id)
+            if inspect.isawaitable(result):
+                await result
+            return
+
     async def run(self, steps: List[PipelineStepRequest], task_id: str = None) -> Dict[str, Any]:
         ctx = PipelineContext()
         tm = self.task_manager
@@ -27,7 +43,7 @@ class PipelineRunner:
                 logger.info(f"Executing step {i+1}: {step_req.step_name}")
 
                 if task_id:
-                    tm.raise_if_control_requested(task_id)
+                    await self._raise_if_control_requested(task_id)
 
                 try:
                     if task_id:
@@ -59,7 +75,7 @@ class PipelineRunner:
                     raise e
 
             if task_id:
-                tm.raise_if_control_requested(task_id)
+                await self._raise_if_control_requested(task_id)
                 files = []
                 meta = {}
 

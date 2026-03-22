@@ -1,6 +1,9 @@
 import { useCallback } from "react";
 
+import { isDesktopRuntime } from "../../services/domain";
 import type { ElectronFile } from "../../types/electron";
+import { fileService } from "../../services/fileService";
+import { createMediaReference, toElectronFile } from "../../services/ui/mediaReference";
 
 type OpenedElectronFile = {
   path: string;
@@ -12,22 +15,24 @@ type UseTranscriberFileActionsParams = {
   file: ElectronFile | null;
   setFile: (file: ElectronFile | null) => void;
   setResult: (value: null) => void;
+  setActiveTaskId: (taskId: string | null) => void;
 };
 
 export function useTranscriberFileActions({
   file,
   setFile,
   setResult,
+  setActiveTaskId,
 }: UseTranscriberFileActionsParams) {
   const clearResultAndSetFile = useCallback(
     (nextFile: ElectronFile | null) => {
-      if (nextFile !== file) {
+      if (nextFile?.path !== file?.path) {
         setResult(null);
-        localStorage.removeItem("transcriber_result");
+        setActiveTaskId(null);
       }
       setFile(nextFile);
     },
-    [file, setFile, setResult],
+    [file?.path, setActiveTaskId, setFile, setResult],
   );
 
   const handleFileDrop = useCallback(
@@ -40,9 +45,9 @@ export function useTranscriberFileActions({
           droppedFile.type.startsWith("video/") ||
           droppedFile.name.endsWith(".mkv"))
       ) {
-        if (window.electronAPI?.getPathForFile) {
+        if (isDesktopRuntime()) {
           try {
-            const path = window.electronAPI.getPathForFile(droppedFile);
+            const path = fileService.getPathForFile(droppedFile);
             Object.defineProperty(droppedFile, "path", { value: path });
           } catch (err) {
             console.warn("Failed to get path via electronAPI:", err);
@@ -55,15 +60,15 @@ export function useTranscriberFileActions({
   );
 
   const handleFileSelect = useCallback(async () => {
-    if (window.electronAPI) {
-      const fileData = (await window.electronAPI.openFile()) as OpenedElectronFile | null;
+    if (isDesktopRuntime()) {
+      const fileData = (await fileService.openFile()) as OpenedElectronFile | null;
       if (fileData?.path) {
-        clearResultAndSetFile({
-          name: fileData.name,
+        clearResultAndSetFile(toElectronFile(createMediaReference({
           path: fileData.path,
+          name: fileData.name,
           size: fileData.size,
           type: "video/mp4",
-        } as ElectronFile);
+        })));
       }
       return;
     }

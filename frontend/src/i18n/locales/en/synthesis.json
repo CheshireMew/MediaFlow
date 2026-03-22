@@ -77,6 +77,8 @@
     "reset": "Reset",
     "noMediaLoaded": "No Media Loaded",
     "subtitlePosition": "(Subtitle Position)",
-    "startRender": "Start Render"
+    "startRender": "Start Render",
+    "rendering": "Rendering",
+    "preparingSynthesis": "Preparing synthesis..."
   }
 }

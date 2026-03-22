@@ -3,13 +3,13 @@
  *
  * Handles: shell:showInExplorer, window:minimize, window:maximize, window:close
  */
-const { ipcMain, BrowserWindow, shell } = require("electron");
+import { BrowserWindow, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 
 export function registerWindowHandlers() {
   // Show file in system file explorer
   ipcMain.handle(
     "shell:showInExplorer",
-    async (_event: any, filePath: string) => {
+    async (_event: IpcMainInvokeEvent, filePath: string) => {
       if (filePath) {
         shell.showItemInFolder(filePath);
       }

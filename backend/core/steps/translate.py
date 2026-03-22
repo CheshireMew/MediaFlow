@@ -20,17 +20,15 @@ class TranslateStep(PipelineStep):
         segments_data = ctx.get("segments")
         if not segments_data:
             raise ValueError("Translate step requires 'segments' in context (from transcribe step)")
-        
-        # Convert dicts back to Pydantic models if needed
-        # PipelineRunner serialization might turn them into dicts
+
         segments = [SubtitleSegment(**s) if isinstance(s, dict) else s for s in segments_data]
-            
+
         target_language = params.get("target_language")
         if not target_language:
             raise ValueError("Translate step requires 'target_language' param")
-            
+
         mode = params.get("mode", "standard")
-        
+
         # 2. Dependencies
         translator = container.get(Services.LLM_TRANSLATOR)
         tm = container.get(Services.TASK_MANAGER)
@@ -64,7 +62,11 @@ class TranslateStep(PipelineStep):
         # Determine output path based on input specific inputs if available
         # But usually we want it next to the source audio/video
         # Let's use video_path or srt_path from context as base
-        base_path = ctx.get("srt_path") or ctx.get("video_path")
+        base_path = (
+            ctx.get_media_path("subtitle_ref", "srt_path", "subtitle_path", "video_path")
+            or params.get("srt_path")
+            or (params.get("context_ref") or {}).get("path")
+        )
         
         if base_path:
             p = Path(base_path)
@@ -91,13 +93,15 @@ class TranslateStep(PipelineStep):
         saved_path = SubtitleManager.save_srt(translated_segments, str(output_path))
         
         # 5. Update Context
-        ctx.set("translated_srt_path", saved_path)
         ctx.set("translated_segments", [s.dict() for s in translated_segments])
-        
-        # Update "srt_path" to point to the TRANSLATED one for subsequent steps (Synthesis)
-        # This allows the chain: Transcribe -> Translate -> Synthesize
-        # Synthesis breaks if it receives the original language SRT when user wanted translation
-        ctx.set("srt_path", saved_path)
+        ctx.set_media(
+            path_key="srt_path",
+            ref_key="subtitle_ref",
+            path=saved_path,
+            media_type="application/x-subrip",
+            mirror_path_keys=("subtitle_path",),
+            extra_ref_keys=("context_ref", "output_ref"),
+        )
         
         logger.success(f"Step Translate finished. Saved to: {saved_path}")
 

@@ -1,0 +1,13 @@
+{
+  "task_contract_version": 2,
+  "desktop_bridge_contract_version": 1,
+  "desktop_worker_protocol_version": 1,
+  "desktop_task_owner_mode": "desktop",
+  "web_task_owner_mode": "backend",
+  "task_lifecycle": {
+    "runtime_only": "runtime-only",
+    "history_only": "history-only",
+    "resumable": "resumable",
+    "ephemeral_ui": "ephemeral-ui"
+  }
+}

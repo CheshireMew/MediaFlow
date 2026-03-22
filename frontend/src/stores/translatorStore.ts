@@ -1,10 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { SubtitleSegment } from "../types/task";
-import type { GlossaryTerm } from "../services/translator/translatorService";
+import type { GlossaryTerm } from "../services/domain";
+import type { MediaReference } from "../services/ui/mediaReference";
 
 export type TranslatorMode = "standard" | "intelligent" | "proofread";
 export type TranslatorResultMode = TranslatorMode | null;
+export type TranslatorExecutionMode = "task_submission" | "direct_result" | null;
 
 interface TranslatorState {
   // Data
@@ -12,6 +14,8 @@ interface TranslatorState {
   targetSegments: SubtitleSegment[];
   glossary: GlossaryTerm[];
   sourceFilePath: string | null;
+  sourceFileRef: MediaReference | null;
+  targetSubtitleRef: MediaReference | null;
 
   // UI State
   targetLang: string;
@@ -22,6 +26,7 @@ interface TranslatorState {
   taskStatus: string;
   progress: number;
   taskError: string | null;
+  executionMode: TranslatorExecutionMode;
 
   // Computed
   isTranslating: () => boolean;
@@ -32,6 +37,8 @@ interface TranslatorState {
   updateTargetSegment: (index: number, text: string) => void;
   setGlossary: (terms: GlossaryTerm[]) => void;
   setSourceFilePath: (path: string | null) => void;
+  setSourceFileRef: (reference: MediaReference | null) => void;
+  setTargetSubtitleRef: (reference: MediaReference | null) => void;
   setTargetLang: (lang: string) => void;
   setMode: (mode: TranslatorMode) => void;
   setActiveMode: (mode: TranslatorMode | null) => void;
@@ -40,6 +47,7 @@ interface TranslatorState {
   setTaskStatus: (status: string) => void;
   setProgress: (progress: number) => void;
   setTaskError: (error: string | null) => void;
+  setExecutionMode: (mode: TranslatorExecutionMode) => void;
   resetTask: () => void;
 }
 
@@ -51,6 +59,8 @@ export const useTranslatorStore = create<TranslatorState>()(
       targetSegments: [],
       glossary: [],
       sourceFilePath: null,
+      sourceFileRef: null,
+      targetSubtitleRef: null,
       targetLang: "Chinese",
       mode: "standard",
       activeMode: null,
@@ -59,6 +69,7 @@ export const useTranslatorStore = create<TranslatorState>()(
       taskStatus: "",
       progress: 0,
       taskError: null,
+      executionMode: null,
 
       // Computed
       isTranslating: () => {
@@ -81,6 +92,8 @@ export const useTranslatorStore = create<TranslatorState>()(
 
       setGlossary: (terms) => set({ glossary: terms }),
       setSourceFilePath: (path) => set({ sourceFilePath: path }),
+      setSourceFileRef: (sourceFileRef) => set({ sourceFileRef }),
+      setTargetSubtitleRef: (targetSubtitleRef) => set({ targetSubtitleRef }),
       setTargetLang: (lang) => set({ targetLang: lang }),
       setMode: (mode) => set({ mode }),
       setActiveMode: (activeMode) => set({ activeMode }),
@@ -89,6 +102,7 @@ export const useTranslatorStore = create<TranslatorState>()(
       setTaskStatus: (status) => set({ taskStatus: status }),
       setProgress: (progress) => set({ progress }),
       setTaskError: (taskError) => set({ taskError }),
+      setExecutionMode: (executionMode) => set({ executionMode }),
 
       resetTask: () =>
         set({
@@ -96,17 +110,50 @@ export const useTranslatorStore = create<TranslatorState>()(
           taskStatus: "",
           progress: 0,
           taskError: null,
+          executionMode: null,
           activeMode: null,
           resultMode: null,
+          targetSubtitleRef: null,
         }),
     }),
     {
       name: "translator-storage",
+      version: 1,
+      migrate: (persistedState) => {
+        const state = (persistedState ?? {}) as Partial<TranslatorState>;
+        return {
+          sourceSegments: Array.isArray(state.sourceSegments) ? state.sourceSegments : [],
+          targetSegments: Array.isArray(state.targetSegments) ? state.targetSegments : [],
+          sourceFilePath:
+            typeof state.sourceFilePath === "string" ? state.sourceFilePath : null,
+          sourceFileRef:
+            state.sourceFileRef && typeof state.sourceFileRef === "object"
+              ? (state.sourceFileRef as MediaReference)
+              : null,
+          targetSubtitleRef:
+            state.targetSubtitleRef && typeof state.targetSubtitleRef === "object"
+              ? (state.targetSubtitleRef as MediaReference)
+              : null,
+          targetLang: typeof state.targetLang === "string" ? state.targetLang : "Chinese",
+          mode:
+            state.mode === "standard" || state.mode === "intelligent" || state.mode === "proofread"
+              ? state.mode
+              : "standard",
+          resultMode:
+            state.resultMode === "standard" ||
+            state.resultMode === "intelligent" ||
+            state.resultMode === "proofread"
+              ? state.resultMode
+              : null,
+        };
+      },
       partialize: (state) => ({
-        // Only persist data and user preferences, not transient task status
+        // Snapshot only durable document/preference state. Runtime task state stays ephemeral.
         sourceSegments: state.sourceSegments,
         targetSegments: state.targetSegments,
         sourceFilePath: state.sourceFilePath,
+        sourceFileRef: state.sourceFileRef,
+        targetSubtitleRef: state.targetSubtitleRef,
         targetLang: state.targetLang,
         mode: state.mode,
         resultMode: state.resultMode,

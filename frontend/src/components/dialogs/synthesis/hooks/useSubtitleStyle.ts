@@ -4,11 +4,14 @@ import type { SubtitleSegment } from "../../../../types/task";
 import {
   DEFAULT_PRESETS,
   DEFAULT_SUBTITLE_POSITION,
-  loadCustomPresets,
 } from "../types";
 import type { SubtitlePreset } from "../types";
 import { isFontAvailable } from "../fontUtils";
 import { computeDefaultSubtitleFontSize } from "../textShaper";
+import {
+  restoreSubtitleStyleSnapshot,
+  updateSubtitleStyleSnapshot,
+} from "../subtitleStylePersistence";
 
 export interface SubtitleStyleState {
   // Style values
@@ -118,71 +121,25 @@ export function useSubtitleStyle(
     if (!isOpen) return;
     const timer = setTimeout(() => {
       try {
-        const savedFontName = localStorage.getItem("sub_fontName");
-        const savedBold = localStorage.getItem("sub_bold");
-        const savedItalic = localStorage.getItem("sub_italic");
-        const savedOutline = localStorage.getItem("sub_outline");
-        const savedShadow = localStorage.getItem("sub_shadow");
-        const savedOutlineColor = localStorage.getItem("sub_outlineColor");
-        const savedBgEnabled = localStorage.getItem("sub_bgEnabled");
-        const savedBgColor = localStorage.getItem("sub_bgColor");
-        const savedBgOpacity = localStorage.getItem("sub_bgOpacity");
-        const savedBgPadding = localStorage.getItem("sub_bgPadding");
-        const savedAlignment = localStorage.getItem("sub_alignment");
-        const savedMultilineAlign = localStorage.getItem("sub_multilineAlign");
-        const savedFontSize = localStorage.getItem("sub_fontSize");
-        const savedFontColor = localStorage.getItem("sub_fontColor");
-        const savedSubPos = localStorage.getItem("sub_pos");
+        const snapshot = restoreSubtitleStyleSnapshot();
 
-        setCustomPresets(loadCustomPresets());
+        setCustomPresets(snapshot.customPresets);
         lastRecommendedVideoKey.current = null;
-
-        if (savedFontName) setFontName(savedFontName);
-        if (savedBold) setIsBold(savedBold === "true");
-        if (savedItalic) setIsItalic(savedItalic === "true");
-        if (savedOutline) {
-          const v = parseInt(savedOutline);
-          if (!isNaN(v)) setOutlineSize(v);
-        }
-        if (savedShadow) {
-          const v = parseInt(savedShadow);
-          if (!isNaN(v)) setShadowSize(v);
-        }
-        if (savedOutlineColor) setOutlineColor(savedOutlineColor);
-        if (savedBgEnabled) setBgEnabled(savedBgEnabled === "true");
-        if (savedBgColor) setBgColor(savedBgColor);
-        if (savedBgOpacity) {
-          const val = parseFloat(savedBgOpacity);
-          if (!isNaN(val)) setBgOpacity(val);
-        }
-        if (savedBgPadding) {
-          const v = parseInt(savedBgPadding);
-          if (!isNaN(v)) setBgPadding(v);
-        }
-        if (savedAlignment) setAlignment(parseInt(savedAlignment) || 2);
-        if (
-          savedMultilineAlign &&
-          ["bottom", "center", "top"].includes(savedMultilineAlign)
-        ) {
-          setMultilineAlign(savedMultilineAlign as "bottom" | "center" | "top");
-        }
-        if (savedFontSize) {
-          setFontSizeState(parseInt(savedFontSize) || 24);
-        } else {
-          setFontSizeState(computeDefaultSubtitleFontSize(videoHeight));
-        }
-        if (savedFontColor) setFontColor(savedFontColor);
-
-        if (savedSubPos) {
-          try {
-            const pos = JSON.parse(savedSubPos);
-            if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
-              setSubPos(pos);
-            }
-          } catch {
-            /* ignore */
-          }
-        }
+        setFontName(snapshot.fontName);
+        setIsBold(snapshot.isBold);
+        setIsItalic(snapshot.isItalic);
+        setOutlineSize(snapshot.outlineSize);
+        setShadowSize(snapshot.shadowSize);
+        setOutlineColor(snapshot.outlineColor);
+        setBgEnabled(snapshot.bgEnabled);
+        setBgColor(snapshot.bgColor);
+        setBgOpacity(snapshot.bgOpacity);
+        setBgPadding(snapshot.bgPadding);
+        setAlignment(snapshot.alignment);
+        setMultilineAlign(snapshot.multilineAlign);
+        setFontSizeState(snapshot.fontSize);
+        setFontColor(snapshot.fontColor);
+        setSubPos(snapshot.subPos);
       } catch (e) {
         console.error("Failed to restore subtitle styles", e);
       }
@@ -220,26 +177,28 @@ export function useSubtitleStyle(
   // --- Save position ---
   useEffect(() => {
     if (!isInitialized.current) return;
-    localStorage.setItem("sub_pos", JSON.stringify(subPos));
+    updateSubtitleStyleSnapshot({ subPos });
   }, [subPos]);
 
   // --- Save style settings ---
   useEffect(() => {
     if (!isInitialized.current) return;
-    localStorage.setItem("sub_fontName", fontName);
-    localStorage.setItem("sub_bold", String(isBold));
-    localStorage.setItem("sub_italic", String(isItalic));
-    localStorage.setItem("sub_outline", String(outlineSize));
-    localStorage.setItem("sub_shadow", String(shadowSize));
-    localStorage.setItem("sub_outlineColor", outlineColor);
-    localStorage.setItem("sub_bgEnabled", String(bgEnabled));
-    localStorage.setItem("sub_bgColor", bgColor);
-    localStorage.setItem("sub_bgOpacity", String(bgOpacity));
-    localStorage.setItem("sub_bgPadding", String(bgPadding));
-    localStorage.setItem("sub_alignment", String(alignment));
-    localStorage.setItem("sub_multilineAlign", multilineAlign);
-    localStorage.setItem("sub_fontSize", String(fontSize));
-    localStorage.setItem("sub_fontColor", fontColor);
+    updateSubtitleStyleSnapshot({
+      fontName,
+      isBold,
+      isItalic,
+      outlineSize,
+      shadowSize,
+      outlineColor,
+      bgEnabled,
+      bgColor,
+      bgOpacity,
+      bgPadding,
+      alignment,
+      multilineAlign,
+      fontSize,
+      fontColor,
+    });
   }, [
     fontName,
     isBold,
@@ -298,14 +257,14 @@ export function useSubtitleStyle(
     };
     const updated = [...customPresets, newPreset];
     setCustomPresets(updated);
-    localStorage.setItem("sub_customPresets", JSON.stringify(updated));
+    updateSubtitleStyleSnapshot({ customPresets: updated });
     setPresetNameInput(null);
   };
 
   const deletePreset = (label: string) => {
     const updated = customPresets.filter((p) => p.label !== label);
     setCustomPresets(updated);
-    localStorage.setItem("sub_customPresets", JSON.stringify(updated));
+    updateSubtitleStyleSnapshot({ customPresets: updated });
   };
 
   return {

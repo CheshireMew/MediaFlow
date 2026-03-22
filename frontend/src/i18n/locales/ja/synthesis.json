@@ -77,6 +77,8 @@
     "reset": "リセット",
     "noMediaLoaded": "メディア未読み込み",
     "subtitlePosition": "（字幕位置）",
-    "startRender": "レンダリング開始"
+    "startRender": "レンダリング開始",
+    "rendering": "レンダリング中",
+    "preparingSynthesis": "合成を準備中..."
   }
 }

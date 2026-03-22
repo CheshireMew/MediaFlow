@@ -1,9 +1,21 @@
 from typing import Optional
 
+from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
 from backend.models.task_model import Task
+from backend.services.task_media_contract import normalize_task_media_contract
 
 
 class TaskQueueView:
+    @staticmethod
+    def get_persistence_scope(task: Task) -> str:
+        return "runtime" if task.status in {"pending", "running", "paused", "processing_result"} else "history"
+
+    @staticmethod
+    def get_lifecycle(task: Task) -> str:
+        if task.status in {"pending", "running", "paused", "processing_result"}:
+            return TASK_LIFECYCLE["resumable"]
+        return TASK_LIFECYCLE["history_only"]
+
     @staticmethod
     def get_queue_position(task_id: str, queued_ids: set[str], queued_order: list[str]) -> Optional[int]:
         if task_id not in queued_ids:
@@ -41,6 +53,12 @@ class TaskQueueView:
 
         data["queue_state"] = queue_state
         data["queue_position"] = queue_position
+        normalized_from_legacy = normalize_task_media_contract(data)
+        data["task_source"] = "backend"
+        data["task_contract_version"] = TASK_CONTRACT_VERSION
+        data["task_contract_normalized_from_legacy"] = normalized_from_legacy
+        data["persistence_scope"] = self.get_persistence_scope(task)
+        data["lifecycle"] = self.get_lifecycle(task)
         return data
 
     @staticmethod

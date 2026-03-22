@@ -13,10 +13,12 @@ import { useSubtitleStyle } from './synthesis/hooks/useSubtitleStyle';
 import { useWatermark } from './synthesis/hooks/useWatermark';
 import { useOutputSettings } from './synthesis/hooks/useOutputSettings';
 import { useCrop } from './synthesis/hooks/useCrop';
+import { restoreSynthesisSettingsSnapshot, updateSynthesisSettingsSnapshot } from './synthesis/synthesisPersistence';
 import { SubtitleStylePanel } from './synthesis/components/SubtitleStylePanel';
 import { WatermarkPanel } from './synthesis/components/WatermarkPanel';
 import { OutputSettingsPanel } from './synthesis/components/OutputSettingsPanel';
 import { VideoPreview } from './synthesis/components/VideoPreview';
+import { desktopEventsService } from '../../services/desktop';
 
 interface SynthesisDialogProps {
     isOpen: boolean;
@@ -35,40 +37,56 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     isOpen, onClose, regions, videoPath, mediaUrl, onSynthesize
 }) => {
     const { t } = useTranslation('synthesis');
+    const [persistedSettings] = useState(() => restoreSynthesisSettingsSnapshot());
     // --- Shared refs ---
     const videoRef = useRef<HTMLVideoElement>(null);
     const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
     const [currentTime, setCurrentTime] = useState(0);
     const [isSynthesizing, setIsSynthesizing] = useState(false);
+    const [synthesisProgress, setSynthesisProgress] = useState(0);
+    const [synthesisMessage, setSynthesisMessage] = useState('');
 
     // --- Toggle switches with localStorage persistence ---
     const [subtitleEnabled, setSubtitleEnabled] = useState(() => {
-        const saved = localStorage.getItem('synthesis_subtitleEnabled');
-        return saved !== null ? JSON.parse(saved) : true;
+        return persistedSettings.subtitleEnabled;
     });
     const [watermarkEnabled, setWatermarkEnabled] = useState(() => {
-        const saved = localStorage.getItem('synthesis_watermarkEnabled');
-        return saved !== null ? JSON.parse(saved) : true;
+        return persistedSettings.watermarkEnabled;
     });
 
     useEffect(() => {
-        localStorage.setItem('synthesis_subtitleEnabled', JSON.stringify(subtitleEnabled));
-    }, [subtitleEnabled]);
-    useEffect(() => {
-        localStorage.setItem('synthesis_watermarkEnabled', JSON.stringify(watermarkEnabled));
-    }, [watermarkEnabled]);
+        updateSynthesisSettingsSnapshot({
+            subtitleEnabled,
+            watermarkEnabled,
+        });
+    }, [subtitleEnabled, watermarkEnabled]);
 
     // --- Hooks ---
     const style = useSubtitleStyle(isOpen, regions, currentTime, videoSize.h, videoPath);
     const watermark = useWatermark(isOpen, style.isInitialized, videoSize);
-    const output = useOutputSettings(isOpen, videoPath, style.isInitialized);
+    const output = useOutputSettings(isOpen, videoPath, style.isInitialized, persistedSettings);
     const crop = useCrop();
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const unsubscribe = desktopEventsService.onSynthesizeProgress(({ progress, message }) => {
+            setSynthesisProgress(Math.max(0, Math.min(100, Number(progress) || 0)));
+            setSynthesisMessage(message || '');
+        });
+
+        return () => {
+            unsubscribe();
+        };
+    }, [isOpen]);
 
     // --- Synthesize Action (cross-cutting: reads from all 3 hooks) ---
     const handleSynthesize = async () => {
         if (!videoPath) return;
         
         setIsSynthesizing(true);
+        setSynthesisProgress(0);
+        setSynthesisMessage(t('preview.preparingSynthesis'));
         try {
             const marginV = Math.max(0, Math.round((1 - style.subPos.y) * videoSize.h));
 
@@ -158,13 +176,13 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                 await onSynthesize(finalOptions, videoPath, watermarkEnabled ? watermark.watermarkPath : null);
             }
             
-            alert(t('successMessage'));
             onClose();
         } catch (e) {
             console.error(e);
-            alert(t('errorMessage'));
         } finally {
             setIsSynthesizing(false);
+            setSynthesisProgress(0);
+            setSynthesisMessage('');
         }
     };
 
@@ -207,6 +225,8 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                     onClose={onClose}
                     onSynthesizeClick={handleSynthesize}
                     isSynthesizing={isSynthesizing}
+                    synthesisProgress={synthesisProgress}
+                    synthesisMessage={synthesisMessage}
                     videoRef={videoRef}
                     videoSize={videoSize}
                     setVideoSize={setVideoSize}

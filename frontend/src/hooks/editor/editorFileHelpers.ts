@@ -1,5 +1,6 @@
 import { parseSRT } from "../../utils/subtitleParser";
 import type { SubtitleSegment } from "../../types/task";
+import { fileService } from "../../services/fileService";
 
 export const SUPPORTED_EDITOR_SUBTITLE_EXTENSIONS = [".srt"] as const;
 
@@ -17,7 +18,7 @@ export function pathToFileURL(filePath: string): string {
 }
 
 export async function loadEditorSubtitle(path: string) {
-  const content = await window.electronAPI?.readFile?.(path);
+  const content = await fileService.readFile(path);
   if (!content) {
     return [];
   }
@@ -48,7 +49,7 @@ export async function findRelatedVideoForSubtitle(
 
   for (const ext of videoExts) {
     try {
-      const size = await window.electronAPI?.getFileSize?.(basePath + ext);
+      const size = await fileService.getFileSize(basePath + ext);
       if (size && size > 0) {
         return basePath + ext;
       }

@@ -1,6 +1,10 @@
 // ── Watermark State + Upload + Load + Position Presets ──
 import { useState, useEffect } from "react";
-import { apiClient } from "../../../../api/client";
+import { editorService } from "../../../../services/domain";
+import {
+  restoreWatermarkSnapshot,
+  updateWatermarkSnapshot,
+} from "../watermarkPersistence";
 
 export interface WatermarkState {
   watermarkPath: string | null;
@@ -36,19 +40,10 @@ export function useWatermark(
   useEffect(() => {
     if (!isOpen) return;
     const timer = setTimeout(() => {
-      const savedScale = localStorage.getItem("wm_scale");
-      const savedOpacity = localStorage.getItem("wm_opacity");
-      const savedPos = localStorage.getItem("wm_pos");
-
-      if (savedScale) setWmScale(parseFloat(savedScale));
-      if (savedOpacity) setWmOpacity(parseFloat(savedOpacity));
-      if (savedPos) {
-        try {
-          setWmPos(JSON.parse(savedPos));
-        } catch {
-          /* ignore */
-        }
-      }
+      const snapshot = restoreWatermarkSnapshot();
+      setWmScale(snapshot.wmScale);
+      setWmOpacity(snapshot.wmOpacity);
+      setWmPos(snapshot.wmPos);
     }, 0);
 
     return () => clearTimeout(timer);
@@ -59,7 +54,7 @@ export function useWatermark(
     if (!isOpen) return;
     if (watermarkPreviewUrl) return; // Already loaded
 
-    apiClient
+    editorService
       .getLatestWatermark()
       .then((res) => {
         if (res && res.data_url) {
@@ -76,17 +71,17 @@ export function useWatermark(
   // --- Persist scale/opacity/pos ---
   useEffect(() => {
     if (!isInitialized.current) return;
-    localStorage.setItem("wm_scale", wmScale.toString());
+    updateWatermarkSnapshot({ wmScale });
   }, [wmScale, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized.current) return;
-    localStorage.setItem("wm_opacity", wmOpacity.toString());
+    updateWatermarkSnapshot({ wmOpacity });
   }, [wmOpacity, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized.current) return;
-    localStorage.setItem("wm_pos", JSON.stringify(wmPos));
+    updateWatermarkSnapshot({ wmPos });
   }, [wmPos, isInitialized]);
 
   // --- Handle watermark upload ---
@@ -98,7 +93,7 @@ export function useWatermark(
 
       try {
         // Upload to backend for processing (Trimming transparency & Conversion)
-        const res = await apiClient.uploadWatermark(file);
+        const res = await editorService.uploadWatermark(file);
 
         // Set Preview & Path
         setWatermarkPreviewUrl(res.data_url);

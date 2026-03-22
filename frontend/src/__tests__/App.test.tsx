@@ -1,29 +1,16 @@
 import { render, screen } from '@testing-library/react'
-import { expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
+import type { ReactElement, ReactNode } from 'react'
 import App from '../App'
+import { installElectronMock } from './testUtils/electronMock'
 
-type MockElectronAPI = {
-  openFile: ReturnType<typeof vi.fn>
-  readFile: ReturnType<typeof vi.fn>
-  saveFile: ReturnType<typeof vi.fn>
-  onProgress: ReturnType<typeof vi.fn>
-  minimize: ReturnType<typeof vi.fn>
-  maximize: ReturnType<typeof vi.fn>
-  close: ReturnType<typeof vi.fn>
-}
+type MockIconComponent = (props: Record<string, unknown>) => ReactElement
 
-type MockIconComponent = (props: Record<string, unknown>) => JSX.Element
+installElectronMock()
 
-// Mock Electron API
-window.electronAPI = {
-  openFile: vi.fn(),
-  readFile: vi.fn(),
-  saveFile: vi.fn(),
-  onProgress: vi.fn(),
-  minimize: vi.fn(),
-  maximize: vi.fn(),
-  close: vi.fn(),
-} as unknown as MockElectronAPI & Window['electronAPI']
+afterEach(() => {
+  window.location.hash = '#/'
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -54,10 +41,20 @@ vi.mock('lucide-react', () => {
 
 // Mock TaskContext to avoid WebSocket side effects
 vi.mock('../context/taskContext', () => ({
-  TaskProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="task-provider">{children}</div>,
+  TaskProvider: ({ children }: { children: ReactNode }) => <div data-testid="task-provider">{children}</div>,
   useTaskContext: () => ({
     tasks: [],
     connected: false,
+    remoteTasksReady: false,
+    tasksSettled: false,
+      taskOwnerMode: "desktop",
+    pauseLocalTasks: vi.fn(),
+    pauseRemoteTasks: vi.fn(),
+    pauseAllTasks: vi.fn(),
+    pauseTask: vi.fn(),
+    resumeTask: vi.fn(),
+    deleteTask: vi.fn(),
+    clearTasks: vi.fn(),
     cancelTask: vi.fn(),
     addTask: vi.fn()
   })
@@ -74,9 +71,24 @@ vi.mock('../pages/DashboardPage', () => ({ DashboardPage: () => <div data-testid
 vi.mock('../pages/DownloaderPage', () => ({ DownloaderPage: () => <div data-testid="page-downloader">Downloader Page Mock</div> }))
 vi.mock('../pages/TranscriberPage', () => ({ TranscriberPage: () => <div data-testid="page-transcriber">Transcriber Page Mock</div> }))
 vi.mock('../pages/TranslatorPage', () => ({ TranslatorPage: () => <div data-testid="page-translator">Translator Page Mock</div> }))
+vi.mock('../pages/PreprocessingPage', () => ({ PreprocessingPage: () => <div data-testid="page-preprocessing">Preprocessing Page Mock</div> }))
 
 test('renders app with navigation sidebar', () => {
   render(<App />)
   // Check for sidebar items via "Editor" title
   expect(screen.getByTitle(/Editor/i)).toBeInTheDocument()
 })
+
+test('renders preprocessing page without backend readiness gate', () => {
+  window.location.hash = '#/preprocessing'
+  render(<App appReady remoteBackendReady={false} startupMessage="Waiting" />)
+  expect(screen.getByTestId('page-preprocessing')).toBeInTheDocument()
+})
+
+test('allows editor in desktop runtime before backend health is ready', () => {
+  window.location.hash = '#/editor'
+  render(<App appReady remoteBackendReady={false} startupMessage="Waiting" />)
+  expect(screen.getByTestId('page-editor')).toBeInTheDocument()
+})
+
+

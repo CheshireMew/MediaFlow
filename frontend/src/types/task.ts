@@ -1,3 +1,12 @@
+import type {
+  TaskFileRef as FileRef,
+  TaskMediaRef,
+  TaskMetaLegacyPathMirrors,
+  TaskRequestLegacyPathMirrors,
+  TaskResultShape,
+  TaskTraceItem,
+} from "../contracts/taskContract";
+
 export interface SubtitleSegment {
   id: number | string;
   start: number;
@@ -5,43 +14,73 @@ export interface SubtitleSegment {
   text: string;
 }
 
-export interface FileRef {
-  type: string; // "video", "audio", "subtitle", "image"
-  path: string;
-  label?: string;
-  mime_type?: string;
+export interface TaskStep {
+  step_name?: string;
+  action?: string;
+  params?: Record<string, unknown>;
 }
 
-export type TaskMeta = Record<string, unknown>;
+export type { FileRef, TaskMediaRef, TaskMetaLegacyPathMirrors, TaskRequestLegacyPathMirrors, TaskTraceItem };
 
-export type TaskRequestParams = Record<string, unknown>;
-
-export interface TaskResult {
-  success: boolean;
-  files: FileRef[];
-  meta: TaskMeta;
-  error?: string;
+export interface TaskMeta extends TaskMetaLegacyPathMirrors {
+  segments?: SubtitleSegment[];
+  text?: string;
+  transcript?: string;
+  language?: string;
+  video_ref?: TaskMediaRef | null;
+  subtitle_ref?: TaskMediaRef | null;
+  context_ref?: TaskMediaRef | null;
+  output_ref?: TaskMediaRef | null;
+  execution_trace?: TaskTraceItem[];
+  [key: string]: unknown;
 }
+
+export interface TaskRequestParams extends TaskRequestLegacyPathMirrors {
+  video_ref?: TaskMediaRef | null;
+  subtitle_ref?: TaskMediaRef | null;
+  context_ref?: TaskMediaRef | null;
+  output_ref?: TaskMediaRef | null;
+  mode?: string;
+  url?: string;
+  [key: string]: unknown;
+}
+
+export interface TaskResult extends Omit<TaskResultShape, "segments" | "meta"> {
+  files?: FileRef[];
+  segments?: SubtitleSegment[];
+  meta?: TaskMeta;
+}
+
+export type TaskType =
+  | "download"
+  | "transcribe"
+  | "transcribe_segment"
+  | "translate"
+  | "pipeline"
+  | "synthesize"
+  | "synthesis"
+  | "enhancement"
+  | "cleanup"
+  | "extract";
+
+export type TaskStatus =
+  | "pending"
+  | "running"
+  | "processing_result"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "paused";
 
 export interface Task {
   id: string;
-  type:
-    | "download"
-    | "transcribe"
-    | "transcribe_segment"
-    | "translate"
-    | "pipeline"
-    | "synthesis"
-    | "enhancement"
-    | "cleanup"
-    | "extract";
-  status:
-    | "pending"
-    | "running"
-    | "completed"
-    | "failed"
-    | "cancelled"
-    | "paused";
+  type: TaskType;
+  status: TaskStatus;
+  task_source?: "desktop" | "backend";
+  task_contract_version?: number;
+  task_contract_normalized_from_legacy?: boolean;
+  persistence_scope?: "runtime" | "history";
+  lifecycle?: import("../contracts/runtimeContracts").TaskLifecycle;
   progress: number;
   name?: string;
   message?: string;

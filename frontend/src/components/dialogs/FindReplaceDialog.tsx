@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, ArrowUp, ArrowDown, X, Replace } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
+import { findTextMatches, replaceAllLiteral } from './findReplaceUtils';
 
 interface FindReplaceDialogProps {
     isOpen: boolean;
@@ -21,47 +22,6 @@ interface Match {
     id: string; // Region ID
     start: number; // Text index start
     end: number;
-}
-
-export function findTextMatches(
-    text: string,
-    searchTerm: string,
-    matchCase: boolean
-): Array<{ start: number; end: number }> {
-    if (!text || !searchTerm) {
-        return [];
-    }
-
-    const source = matchCase ? text : text.toLowerCase();
-    const term = matchCase ? searchTerm : searchTerm.toLowerCase();
-    const matches: Array<{ start: number; end: number }> = [];
-
-    let pos = source.indexOf(term);
-    while (pos !== -1) {
-        matches.push({
-            start: pos,
-            end: pos + term.length
-        });
-        pos = source.indexOf(term, pos + term.length);
-    }
-
-    return matches;
-}
-
-export function replaceAllLiteral(
-    text: string,
-    searchTerm: string,
-    replaceTerm: string,
-    matchCase: boolean
-): string {
-    if (!text || !searchTerm) {
-        return text;
-    }
-
-    const flag = matchCase ? 'g' : 'gi';
-    const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escapedTerm, flag);
-    return text.replace(regex, () => replaceTerm);
 }
 
 export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
@@ -99,8 +59,11 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
 
     useEffect(() => {
         if (!isOpen) {
-            setReplaceTerm("");
-            setCurrentIndex(-1);
+            const timer = setTimeout(() => {
+                setReplaceTerm("");
+                setCurrentIndex(-1);
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [isOpen]);
     

@@ -29,6 +29,8 @@ interface Props {
     onClose: () => void;
     onSynthesizeClick: () => void;
     isSynthesizing: boolean;
+    synthesisProgress: number;
+    synthesisMessage: string;
     videoRef: React.RefObject<HTMLVideoElement | null>;
     videoSize: { w: number; h: number };
     setVideoSize: (v: { w: number; h: number }) => void;
@@ -41,6 +43,7 @@ export const VideoPreview: React.FC<Props> = ({
     subtitleEnabled, watermarkEnabled,
     onClose,
     onSynthesizeClick, isSynthesizing,
+    synthesisProgress, synthesisMessage,
     videoRef, videoSize, setVideoSize,
     currentTime, onTimeUpdate,
 }) => {
@@ -522,15 +525,36 @@ export const VideoPreview: React.FC<Props> = ({
                 </div>
                 
                 <div className="h-8 w-[1px] bg-white/5 mx-2" />
-                
-                <button 
-                    onClick={onSynthesizeClick}
-                    disabled={isSynthesizing}
-                    className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all active:scale-95"
-                >
-                    {isSynthesizing ? <Settings2 className="animate-spin" size={18}/> : <Download size={18}/>}
-                    <span>{t('preview.startRender')}</span>
-                </button>
+
+                <div className="flex items-center gap-3 min-w-[260px] justify-end">
+                    {isSynthesizing && (
+                        <div className="w-44">
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                                <span className="truncate max-w-[120px]" title={synthesisMessage || t('preview.preparingSynthesis')}>
+                                    {synthesisMessage || t('preview.preparingSynthesis')}
+                                </span>
+                                <span className="font-mono text-slate-300">
+                                    {synthesisProgress.toFixed(0)}%
+                                </span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                <div
+                                    className="h-full bg-indigo-500 transition-all duration-300"
+                                    style={{ width: `${Math.max(0, Math.min(100, synthesisProgress))}%` }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    <button 
+                        onClick={onSynthesizeClick}
+                        disabled={isSynthesizing}
+                        className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all active:scale-95"
+                    >
+                        {isSynthesizing ? <Settings2 className="animate-spin" size={18}/> : <Download size={18}/>}
+                        <span>{isSynthesizing ? t('preview.rendering') : t('preview.startRender')}</span>
+                    </button>
+                </div>
             </div>
         </div>
     );

@@ -7,7 +7,7 @@ export interface UISlice {
 
   setActiveSegmentId: (id: string | null) => void;
   setSelectedIds: (ids: string[]) => void;
-  selectSegment: (id: string, multi: boolean, range: boolean) => void;
+  selectSegment: (id: string, multi?: boolean, range?: boolean) => void;
 }
 
 export const createUISlice: StateCreator<EditorState, [], [], UISlice> = (

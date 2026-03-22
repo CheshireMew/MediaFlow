@@ -1,8 +1,14 @@
 import { useState, useCallback } from "react";
-import { apiClient } from "../api/client";
+import { downloaderService, executionService, isDesktopRuntime, settingsService } from "../services/domain";
+import { desktopBrowserService } from "../services/desktop";
 import type { AnalyzeResult } from "../api/client";
+import { useTaskContext } from "../context/taskContext";
+import {
+  createTaskFromSubmissionReceipt,
+  isTaskExecutionSubmission,
+} from "../services/domain/taskSubmission";
 import { useDownloaderStore } from "../stores/downloaderStore";
-import type { ElectronCookie, PipelineRequest } from "../types/api";
+import type { PipelineRequest } from "../types/api";
 import { useDownloaderTasks } from "./downloader/useDownloaderTasks";
 
 type DownloadQueueItem = {
@@ -17,6 +23,7 @@ type DownloadExtraInfo = Record<string, unknown> & {
 };
 
 export function useDownloaderController() {
+  const { addTask, remoteTasksReady } = useTaskContext();
   const { downloadEntries, activeDownloadCount } = useDownloaderTasks();
   // Global Persistent State
   const {
@@ -46,21 +53,18 @@ export function useDownloaderController() {
 
   // ── Cookie Retry Helper ──────────────────────────────────────
   const handleCookieRetry = async (domain: string): Promise<boolean> => {
-    if (!window.electronAPI?.fetchCookies) {
+    if (!isDesktopRuntime()) {
       setError("需要登录验证，但 Electron API 不可用。请使用桌面版应用。");
       return false;
     }
     setError(`正在打开浏览器，请在新窗口中访问网站，完成后关闭窗口...`);
     try {
-      const cookies = await window.electronAPI.fetchCookies(
-        `https://www.${domain}`,
-      );
-      const cookieList = Array.isArray(cookies) ? (cookies as ElectronCookie[]) : [];
+      const cookieList = await desktopBrowserService.fetchCookies(`https://www.${domain}`);
       if (cookieList.length === 0) {
         setError(`无法获取 ${domain} 的 Cookie。请尝试在浏览器中登录后重试。`);
         return false;
       }
-      await apiClient.saveCookies(domain, cookieList);
+      await downloaderService.saveCookies(domain, cookieList);
       setError(null);
       return true;
     } catch (cookieError: unknown) {
@@ -85,9 +89,10 @@ export function useDownloaderController() {
       setError(null);
 
       for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const currentUrl = item.url;
+
         try {
-          const item = items[i];
-          const currentUrl = item.url;
           let directUrl: string | null = null;
           const finalExtraInfo: DownloadExtraInfo = { ...extraInfo };
           let customFilename: string | undefined = item.title;
@@ -132,11 +137,48 @@ export function useDownloaderController() {
             ],
           };
 
-          // Execute Pipeline
-          const apiResult = await apiClient.runPipeline(basePipeline);
+          if (isDesktopRuntime()) {
+            const settings = await settingsService.getSettings();
+            const submission = await executionService.download(basePipeline, settings);
+            addTask(
+              createTaskFromSubmissionReceipt({
+                receipt: submission,
+                type: "download",
+                name: customFilename,
+                request_params: {
+                  steps: basePipeline.steps,
+                  ...(basePipeline.steps[0]?.params ?? {}),
+                },
+              }),
+            );
+            addToHistory({
+              id: submission.task_id,
+              url: currentUrl,
+              title: customFilename || "Unknown Video",
+              timestamp: Date.now(),
+            });
+            continue;
+          }
 
-          // Add to history
-          if (apiResult && apiResult.task_id) {
+          if (!remoteTasksReady) {
+            setError("下载后端尚未就绪，且本地下载 worker 不可用。");
+            break;
+          }
+
+          const apiResult = await executionService.download(basePipeline);
+
+          if (isTaskExecutionSubmission(apiResult)) {
+            addTask(
+              createTaskFromSubmissionReceipt({
+                receipt: apiResult,
+                type: "download",
+                name: customFilename,
+                request_params: {
+                  steps: basePipeline.steps,
+                  ...(basePipeline.steps[0]?.params ?? {}),
+                },
+              }),
+            );
             addToHistory({
               id: apiResult.task_id,
               url: currentUrl,
@@ -146,6 +188,9 @@ export function useDownloaderController() {
           }
         } catch (error: unknown) {
           console.error("[Downloader] Failed to queue download:", error);
+          if (error instanceof Error && /paused|cancelled/i.test(error.message)) {
+            continue;
+          }
           setError(
             `Failed to queue ${currentUrl}: ${
               error instanceof Error ? error.message : String(error)
@@ -155,7 +200,7 @@ export function useDownloaderController() {
       }
       setLoading(false);
     },
-    [downloadSubs, resolution, codec, lastAnalysis, addToHistory],
+    [remoteTasksReady, downloadSubs, resolution, codec, lastAnalysis, addToHistory],
   );
 
   const handleAnalyzeAndDownload = async () => {
@@ -166,7 +211,7 @@ export function useDownloaderController() {
     setLastAnalysis(null);
 
     try {
-      const analysis = await apiClient.analyzeUrl(url);
+      const analysis = await downloaderService.analyzeUrl(url);
       setLastAnalysis(analysis);
 
       if (
@@ -205,7 +250,7 @@ export function useDownloaderController() {
           const cookieOk = await handleCookieRetry(domain);
           if (cookieOk) {
             // Retry analysis after successful cookie fetch
-            const analysis = await apiClient.analyzeUrl(url);
+            const analysis = await downloaderService.analyzeUrl(url);
             setLastAnalysis(analysis);
             if (
               analysis.type === "playlist" &&

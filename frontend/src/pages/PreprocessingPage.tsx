@@ -1,7 +1,19 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePreprocessingStore } from '../stores/preprocessingStore';
 import { useTaskContext } from '../context/taskContext';
+import { fileService } from '../services/fileService';
+import { createMediaReference } from '../services/ui/mediaReference';
+import {
+    NavigationService,
+    resolveNavigationMediaPayload,
+    type NavigationPayload,
+} from '../services/ui/navigation';
+import {
+    clearPendingMediaNavigation,
+    consumePendingMediaNavigation,
+    readPendingMediaNavigation,
+} from '../services/ui/pendingMediaNavigation';
 import {
     Wand2,
     Upload, Film, Move, MousePointer2, Loader2,
@@ -37,8 +49,9 @@ export const PreprocessingPage = () => {
         preprocessingIsProcessing,
         preprocessingActiveTaskId,
         preprocessingActiveTaskVideoPath,
+        preprocessingActiveTaskVideoRef,
         preprocessingFiles, addPreprocessingFile, removePreprocessingFile, updatePreprocessingFile,
-        preprocessingVideoPath, setPreprocessingVideoPath,
+        preprocessingVideoPath, preprocessingVideoRef, setPreprocessingVideoPath, setPreprocessingVideoRef,
     } = usePreprocessingStore();
 
 
@@ -48,7 +61,7 @@ export const PreprocessingPage = () => {
 
 
     const files = preprocessingFiles;
-    const videoPath = preprocessingVideoPath;
+    const videoPath = preprocessingVideoRef?.path ?? preprocessingVideoPath;
     const setVideoPath = setPreprocessingVideoPath;
 
     // ── Refs ─────────────────────────────────────────────────────
@@ -72,7 +85,7 @@ export const PreprocessingPage = () => {
     const {
         handleStartProcessing,
     } = useOCRProcessor({
-        videoPath, roi, canvasRef, videoResolution,
+        videoPath, videoRef: preprocessingVideoRef, roi, canvasRef, videoResolution,
         activeTool, ocrEngine, enhanceModel, enhanceScale, enhanceMethod, cleanMethod,
     });
 
@@ -82,9 +95,11 @@ export const PreprocessingPage = () => {
             tasks,
             preprocessingActiveTaskId,
             preprocessingActiveTaskVideoPath,
+            preprocessingActiveTaskVideoRef,
             videoPath,
+            preprocessingVideoRef,
         )
-    ), [preprocessingActiveTaskId, preprocessingActiveTaskVideoPath, tasks, videoPath]);
+    ), [preprocessingActiveTaskId, preprocessingActiveTaskVideoPath, preprocessingActiveTaskVideoRef, preprocessingVideoRef, tasks, videoPath]);
     const isCurrentFileProcessing = preprocessingIsProcessing && preprocessingActiveTaskVideoPath === videoPath;
 
     // ── Video Helpers ────────────────────────────────────────────
@@ -128,25 +143,39 @@ export const PreprocessingPage = () => {
         const file = e.dataTransfer.files[0] as DragFileWithPath | undefined;
         if (file) {
             let path = file.path;
-            if (!path && window.electronAPI?.getPathForFile) {
-                path = window.electronAPI.getPathForFile(file);
+            if (!path) {
+                try {
+                    path = fileService.getPathForFile(file);
+                } catch {
+                    path = undefined;
+                }
             }
             if (path) {
                 addPreprocessingFile({ path, name: file.name, size: file.size });
                 setVideoPath(path);
+                setPreprocessingVideoRef(
+                    createMediaReference({ path, name: file.name, size: file.size }),
+                );
                 setOcrResults([]);
                 setRoi(null);
             }
         }
-    }, [addPreprocessingFile, setVideoPath, setOcrResults, setRoi]);
+    }, [addPreprocessingFile, setPreprocessingVideoRef, setVideoPath, setOcrResults, setRoi]);
 
     const handleImportMedia = async () => {
         try {
-            const fileData = await window.electronAPI.openFile() as ElectronMediaFile | null;
+            const fileData = await fileService.openFile() as ElectronMediaFile | null;
 
             if (fileData?.path) {
                 addPreprocessingFile({ path: fileData.path, name: fileData.name, size: fileData.size });
                 setVideoPath(fileData.path);
+                setPreprocessingVideoRef(
+                    createMediaReference({
+                        path: fileData.path,
+                        name: fileData.name,
+                        size: fileData.size,
+                    }),
+                );
                 setOcrResults([]);
                 setRoi(null);
             }
@@ -156,10 +185,60 @@ export const PreprocessingPage = () => {
     };
 
     const handleFileSelect = (path: string) => {
+        const file = files.find((candidate) => candidate.path === path);
         setVideoPath(path);
+        setPreprocessingVideoRef(
+            createMediaReference({
+                path,
+                name: file?.name,
+                size: file?.size,
+            }),
+        );
         setOcrResults([]);
         setRoi(null);
     };
+
+    const applyPreprocessingPayload = useCallback((payload?: NavigationPayload | null) => {
+        if (!payload) {
+            return false;
+        }
+
+        const { videoPath: navigatedVideoPath, videoRef } = resolveNavigationMediaPayload(payload);
+        if (!navigatedVideoPath) {
+            return false;
+        }
+
+        const matchingFile = files.find((candidate) => candidate.path === navigatedVideoPath);
+        setVideoPath(navigatedVideoPath);
+        setPreprocessingVideoRef(
+            videoRef ?? createMediaReference({
+                path: navigatedVideoPath,
+                name: matchingFile?.name,
+                size: matchingFile?.size,
+            }),
+        );
+        setOcrResults([]);
+        setRoi(null);
+        return true;
+    }, [files, setOcrResults, setPreprocessingVideoRef, setRoi, setVideoPath]);
+
+    useEffect(() => {
+        const pendingFile = readPendingMediaNavigation();
+        if (pendingFile && (!pendingFile.target || pendingFile.target === 'preprocessing')) {
+            applyPreprocessingPayload(pendingFile);
+            clearPendingMediaNavigation();
+        }
+
+        const cleanup = NavigationService.subscribe((detail) => {
+            if (detail.destination === 'preprocessing') {
+                if (applyPreprocessingPayload(detail.payload)) {
+                    consumePendingMediaNavigation(detail.payload);
+                }
+            }
+        });
+
+        return cleanup;
+    }, [applyPreprocessingPayload]);
 
     // ── Render ───────────────────────────────────────────────────
     return (

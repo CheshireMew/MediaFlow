@@ -1,12 +1,13 @@
-
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslation } from 'react-i18next';
 import { WaveformPlayer } from "../components/editor/WaveformPlayer";
 import { SubtitleList } from "../components/editor/SubtitleList";
 import { FindReplaceDialog } from "../components/dialogs/FindReplaceDialog";
 import { SynthesisDialog } from "../components/dialogs/SynthesisDialog";
 import { ContextMenu, type ContextMenuItem } from "../components/ui/ContextMenu";
-import { apiClient } from "../api/client";
+import { executionService } from "../services/domain";
+import { useTaskContext } from "../context/taskContext";
+import { createTaskFromSubmissionReceipt } from "../services/domain/taskSubmission";
 
 // Extracted Components
 import { EditorHeader } from "../components/editor/EditorHeader";
@@ -23,13 +24,12 @@ import { useEditorFindReplace } from "../hooks/editor/useEditorFindReplace";
 import { useEditorRegionHandlers } from "../hooks/editor/useEditorRegionHandlers";
 import { useEditorStore } from "../stores/editorStore";
 
-export { getSelectedTextForFindReplace } from "../hooks/editor/useEditorFindReplace";
-
 type WaveformPeaks = Array<Float32Array | number[]> | null;
 
 export function EditorPage() {
   const { t } = useTranslation('editor');
   const videoRef = useRef<HTMLVideoElement>(null);
+  const { addTask } = useTaskContext();
 
   // ── UI State ────────────────────────────────────────────────
   const [autoScroll, setAutoScroll] = useState(true);
@@ -47,6 +47,8 @@ export function EditorPage() {
   const activeSegmentId = useEditorStore(state => state.activeSegmentId);
   const selectedIds = useEditorStore(state => state.selectedIds);
   const currentSubtitlePath = useEditorStore(state => state.currentSubtitlePath);
+  const currentFileRef = useEditorStore(state => state.currentFileRef);
+  const currentSubtitleRef = useEditorStore(state => state.currentSubtitleRef);
   const undo = useEditorStore(state => state.undo);
   const redo = useEditorStore(state => state.redo);
   const deleteSegments = useEditorStore(state => state.deleteSegments);
@@ -78,12 +80,12 @@ export function EditorPage() {
 
   // ── Action Hooks ────────────────────────────────────────────
   const { handleSave, handleTranslate, handleSmartSplit } = useEditorActions({
-      currentFilePath, currentSubtitlePath, regions, saveSubtitleFile,
+      currentFilePath, currentSubtitlePath, currentFileRef, currentSubtitleRef, regions, saveSubtitleFile,
       detectSilence, replaceRegionsWithUndo, videoRef,
   });
 
   const { handleContextMenu } = useContextMenuBuilder({
-      regions, selectedIds, currentFilePath, videoRef,
+      regions, selectedIds, currentFilePath, currentFileRef, videoRef,
       selectSegment, addSegment, addSegments, updateSegments,
       mergeSegments, splitSegment, deleteSegments, setContextMenu,
   });
@@ -278,13 +280,32 @@ export function EditorPage() {
                 }
 
                 const { output_path, ...restOptions } = options;
-                await apiClient.synthesizeVideo({
-                    video_path: currentFilePath,
+                const submission = await executionService.synthesize({
+                    video_path: currentFileRef ? null : currentFilePath,
+                    video_ref: currentFileRef,
                     srt_path: srtPath as string,
+                    srt_ref: currentSubtitleRef,
                     watermark_path: watermarkPath,
                     output_path: output_path,
                     options: restOptions,
                 });
+                addTask(
+                    createTaskFromSubmissionReceipt({
+                        receipt: submission,
+                        type: "synthesize",
+                        name: currentFilePath
+                            ? `Synthesize ${currentFilePath.split(/[\\/]/).pop()}`
+                            : "Synthesize video",
+                        request_params: {
+                            video_ref: currentFileRef,
+                            srt_path: srtPath as string,
+                            subtitle_ref: currentSubtitleRef,
+                            watermark_path: watermarkPath,
+                            output_path: output_path ?? undefined,
+                            ...restOptions,
+                        },
+                    }),
+                );
             }}
         />
     </div>

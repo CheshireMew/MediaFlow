@@ -6,6 +6,7 @@ from backend.core.tasks.registry import TaskHandlerRegistry
 from backend.core.container import container, Services
 from backend.core.task_runner import BackgroundTaskRunner
 from backend.api.v1.preprocessing import EnhanceRequest, CleanRequest
+from backend.services.media_refs import create_media_ref
 from pathlib import Path
 from loguru import logger
 
@@ -27,12 +28,15 @@ class EnhancementHandler(TaskHandler):
             output_path = p.parent / output_filename
 
             def transform_result(path):
+                output_ref = create_media_ref(path, "video/mp4", role="output")
                 return TaskResult(
                     success=True,
                     files=[FileRef(type="video", path=path, label="upscaled_video")],
                     meta={
                         "video_path": path,
                         "original_path": req.video_path,
+                        "video_ref": output_ref,
+                        "output_ref": output_ref,
                         "model": req.model,
                         "scale": scale_val,
                         "method": req.method
@@ -73,10 +77,16 @@ class CleanupHandler(TaskHandler):
             output_path = p.with_name(f"{p.stem}_cleaned_{method}{p.suffix}")
 
             def save_result(out_path):
+                output_ref = create_media_ref(out_path, "video/mp4", role="output")
                 return TaskResult(
                     success=True,
                     files=[FileRef(type="video", path=out_path, label="cleaned")],
-                    meta={"video_path": out_path}
+                    meta={
+                        "video_path": out_path,
+                        "video_ref": output_ref,
+                        "output_ref": output_ref,
+                        "original_path": req.video_path,
+                    }
                 ).dict()
 
             return lambda: BackgroundTaskRunner.run(

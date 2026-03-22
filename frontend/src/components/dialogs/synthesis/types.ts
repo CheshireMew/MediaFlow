@@ -11,10 +11,10 @@ export const FONT_PRESETS = [
   { value: "LXGW WenKai", label: "霞鹜文楷" },
 ];
 
-export const DEFAULT_SUBTITLE_POSITION = {
+export const DEFAULT_SUBTITLE_POSITION: { x: number; y: number } = {
   x: 0.5,
   y: 0.9,
-} as const;
+};
 
 // Subtitle style presets
 export interface SubtitlePreset {
@@ -116,17 +116,6 @@ export const DEFAULT_PRESETS: SubtitlePreset[] = [
     isDefault: true,
   },
 ];
-
-/** Load user custom presets from localStorage */
-export function loadCustomPresets(): SubtitlePreset[] {
-  try {
-    const raw = localStorage.getItem("sub_customPresets");
-    if (raw) return JSON.parse(raw);
-  } catch {
-    /* ignore parse errors */
-  }
-  return [];
-}
 
 /** Convert #RRGGBB to ASS &H00BBGGRR format */
 export function hexToAss(hex: string, alpha: string = "00"): string {

@@ -1,4 +1,3 @@
-import React from "react";
 import { useTranslation } from "react-i18next";
 import { List, X, CheckSquare, Square } from "lucide-react";
 import type { AnalyzeResult } from "../../api/client";

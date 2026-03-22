@@ -57,7 +57,18 @@ export function useTaskSocket({ onMessage, enabled = true }: UseTaskSocketArgs) 
 
   useEffect(() => {
     if (!enabled) {
-      setConnected(false);
+      if (wsRef.current) {
+        wsRef.current.onopen = null;
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
       return;
     }
 
@@ -89,7 +100,7 @@ export function useTaskSocket({ onMessage, enabled = true }: UseTaskSocketArgs) 
   }, []);
 
   return {
-    connected,
+    connected: enabled && connected,
     sendPause,
   };
 }

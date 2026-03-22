@@ -1,26 +1,16 @@
-import { useCallback, useEffect, useRef } from "react";
-import { API_BASE, apiClient } from "../../api/client";
+import { useCallback, useRef } from "react";
+import { editorService } from "../../services/domain";
+import type { MediaReference } from "../../services/ui/mediaReference";
 import { formatSRTTime } from "../../utils/subtitleParser";
 import type { ContextMenuItem } from "../../components/ui/ContextMenu";
-import type { SubtitleSegment, TaskResult } from "../../types/task";
+import type { SubtitleSegment } from "../../types/task";
 import type { TranscribeSegmentResponse } from "../../types/api";
-
-// ─── Types ──────────────────────────────────────────────────────
-type Segment = SubtitleSegment & { id: string };
-
-type EditableSegmentUpdate = Pick<SubtitleSegment, "id" | "text">;
 
 type ContextMenuEvent = MouseEvent | React.MouseEvent;
 
 type SegmentTranscriptionPayload = {
   segments?: Array<Pick<SubtitleSegment, "start" | "end" | "text">>;
   text?: string;
-};
-
-type TaskStatusResponse = {
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
-  error?: string;
-  result?: TaskResult;
 };
 
 interface ContextMenuState {
@@ -30,16 +20,19 @@ interface ContextMenuState {
 }
 
 interface UseContextMenuBuilderArgs {
-  regions: Segment[];
+  regions: SubtitleSegment[];
   selectedIds: string[];
   currentFilePath: string | null;
+  currentFileRef: MediaReference | null;
   videoRef: React.RefObject<HTMLVideoElement | null>;
-  selectSegment: (id: string, multi: boolean, range: boolean) => void;
-  addSegment: (seg: Segment) => void;
-  addSegments: (segs: Segment[]) => void;
-  updateSegments: (updates: EditableSegmentUpdate[]) => void;
+  selectSegment: (id: string, multi?: boolean, range?: boolean) => void;
+  addSegment: (seg: SubtitleSegment) => void;
+  addSegments: (segs: SubtitleSegment[]) => void;
+  updateSegments: (
+    updates: Array<Pick<SubtitleSegment, "id"> & Partial<SubtitleSegment>>,
+  ) => void;
   mergeSegments: (ids: string[]) => void;
-  splitSegment: (time: number, id: string) => void;
+  splitSegment: (time: number, id?: string) => void;
   deleteSegments: (ids: string[]) => void;
   setContextMenu: (menu: ContextMenuState | null) => void;
 }
@@ -49,6 +42,7 @@ export function useContextMenuBuilder({
   regions,
   selectedIds,
   currentFilePath,
+  currentFileRef,
   videoRef,
   selectSegment,
   addSegment,
@@ -66,22 +60,15 @@ export function useContextMenuBuilder({
   selectedIdsRef.current = selectedIds;
   const currentFilePathRef = useRef(currentFilePath);
   currentFilePathRef.current = currentFilePath;
-  const transcribePollersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
-
-  useEffect(() => {
-    return () => {
-      Object.values(transcribePollersRef.current).forEach((poller) => {
-        clearInterval(poller);
-      });
-      transcribePollersRef.current = {};
-    };
-  }, []);
+  const currentFileRefRef = useRef(currentFileRef);
+  currentFileRefRef.current = currentFileRef;
 
   const handleContextMenu = useCallback(
     (e: ContextMenuEvent, id: string, regionData?: { start: number; end: number }) => {
       const currentSelectedIds = selectedIdsRef.current;
       const currentPath = currentFilePathRef.current;
-      const existing = regionsRef.current.find((r) => r.id === id);
+      const currentFile = currentFileRefRef.current;
+      const existing = regionsRef.current.find((r) => String(r.id) === id);
 
       // ── Temporary region (drawn on waveform but not yet a segment) ──
       if (!existing && regionData) {
@@ -105,7 +92,7 @@ export function useContextMenuBuilder({
             {
               label: "🎙️ 识别选中区域 (ASR)",
               onClick: async () => {
-                if (!currentPath) {
+                if (!currentPath && !currentFile?.path) {
                   alert("请先保存或打开一个文件");
                   return;
                 }
@@ -120,7 +107,7 @@ export function useContextMenuBuilder({
                     const { segments, text } = payload;
 
                     if (segments && segments.length > 0) {
-                      const newSegments: Segment[] = segments.map((seg, idx) => ({
+                      const newSegments: SubtitleSegment[] = segments.map((seg, idx) => ({
                         id: String(Date.now() + idx),
                         start: seg.start,
                         end: seg.end,
@@ -142,59 +129,17 @@ export function useContextMenuBuilder({
                     toast.success("识别成功");
                   };
 
-                  const res = await apiClient.transcribeSegment({
-                    video_path: "",
-                    audio_path: currentPath,
-                    srt_path: "",
-                    watermark_path: null,
+                  const res = await editorService.transcribeSegment({
+                    audio_path: currentFile ? null : currentPath,
+                    audio_ref: currentFile,
                     start: regionData.start,
                     end: regionData.end,
-                    options: {},
                   }) as TranscribeSegmentResponse;
 
                   if (res.status === "completed" && res.data) {
                     applyTranscriptionResult(res.data, regionData);
                   } else {
-                    const taskId = res.task_id;
-                    if (!taskId) {
-                      throw new Error("后台任务已创建，但未返回 task_id");
-                    }
-
-                    toast.info(`片段较长，后台处理中... (Task: ${taskId})`, 5000);
-
-                    if (transcribePollersRef.current[taskId]) {
-                      clearInterval(transcribePollersRef.current[taskId]);
-                    }
-
-                    transcribePollersRef.current[taskId] = setInterval(async () => {
-                      try {
-                        const statusRes = await fetch(
-                          `${API_BASE}/tasks/${taskId}`,
-                        ).then((r) => {
-                          if (!r.ok) throw new Error("Failed to get task status");
-                          return r.json() as Promise<TaskStatusResponse>;
-                        });
-
-                        if (statusRes.status === "completed") {
-                          clearInterval(transcribePollersRef.current[taskId]);
-                          delete transcribePollersRef.current[taskId];
-
-                          applyTranscriptionResult(
-                            statusRes.result?.meta || statusRes.result || {},
-                            regionData,
-                          );
-                        } else if (statusRes.status === "failed") {
-                          clearInterval(transcribePollersRef.current[taskId]);
-                          delete transcribePollersRef.current[taskId];
-                          toast.error(
-                            "长片段识别失败: " +
-                              String(statusRes.error || "unknown error"),
-                          );
-                        }
-                      } catch (pollErr) {
-                        console.error("ASR task polling failed:", pollErr);
-                      }
-                    }, 1000);
+                    throw new Error("片段识别未返回同步结果");
                   }
                 } catch (err) {
                   console.error(err);
@@ -249,7 +194,7 @@ export function useContextMenuBuilder({
             toast.info("正在翻译...", 2000);
 
             try {
-              const res = await apiClient.translateSegments({
+              const res = await editorService.translateSegments({
                 segments: selected,
                 target_language: "Chinese",
               });

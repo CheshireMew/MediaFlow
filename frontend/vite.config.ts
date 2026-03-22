@@ -22,6 +22,15 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    environmentMatchGlobs: [
+      ["**/__tests__/**", "jsdom"],
+    ],
+    environmentOptions: {
+      jsdom: {
+        url: "http://localhost/",
+      },
+    },
+    pool: "forks",
     setupFiles: "./src/__tests__/setup.ts",
   },
   esbuild: {

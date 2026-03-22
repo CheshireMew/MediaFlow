@@ -13,15 +13,15 @@ class TranscribeStep(PipelineStep):
         return "transcribe"
 
     async def execute(self, ctx: PipelineContext, params: dict, task_id: str = None):
-        # Try to get path from previous step or params
+        # Try to get path from previous step (download) or params
         audio_path = (
-            params.get("audio_path")
-            or ctx.get("audio_path")
-            or ctx.get("video_path")
+            ctx.get_media_path("audio_ref", "audio_path", "video_path")
+            or params.get("audio_path")
+            or (params.get("audio_ref") or {}).get("path")
         )
         if not audio_path:
             raise ValueError("Transcribe step requires 'audio_path' (or result from download step)")
-        
+
         model = params.get("model", "base")
         device = params.get("device", "cpu")
         language = params.get("language")
@@ -72,12 +72,24 @@ class TranscribeStep(PipelineStep):
         # Extract SRT path
         srt_file = next((f for f in result.files if f.type == "subtitle"), None)
         if srt_file:
-            ctx.set("srt_path", srt_file.path)
+            ctx.set_media(
+                path_key="srt_path",
+                ref_key="subtitle_ref",
+                path=srt_file.path,
+                media_type="application/x-subrip",
+                mirror_path_keys=("subtitle_path",),
+                extra_ref_keys=("context_ref", "output_ref"),
+            )
             
         # Ensure video_path is set for downstream steps (like Synthesize)
         # If we started here (not from download), video_path might be empty.
         if not ctx.get("video_path") and audio_path:
-             ctx.set("video_path", audio_path)
+             ctx.set_media(
+                 path_key="video_path",
+                 ref_key="video_ref",
+                 path=audio_path,
+                 media_type="video/mp4",
+             )
              
         logger.success(f"Step Transcribe finished. Text len: {len(text)}")
 

@@ -1,11 +1,10 @@
-import React from "react";
 import { describe, expect, test } from "vitest";
 import { act, render, renderHook } from "@testing-library/react";
-import { highlightSubtitleText } from "../components/editor/SubtitleList";
+import { highlightSubtitleText } from "../components/editor/subtitleTextHighlight";
 import {
   findTextMatches,
   replaceAllLiteral,
-} from "../components/dialogs/FindReplaceDialog";
+} from "../components/dialogs/findReplaceUtils";
 import { useCrop } from "../components/dialogs/synthesis/hooks/useCrop";
 import { useSubtitleStyle } from "../components/dialogs/synthesis/hooks/useSubtitleStyle";
 import {
@@ -24,15 +23,19 @@ import {
   DEFAULT_SUBTITLE_POSITION,
   hexToAss,
 } from "../components/dialogs/synthesis/types";
-import { resolveSubtitlePathForTranslation } from "../hooks/editor/useEditorActions";
-import { isSupportedEditorSubtitlePath } from "../hooks/editor/useEditorIO";
+import {
+  resolveSubtitleReferenceForTranslation,
+  resolveSubtitlePathForTranslation,
+  resolveTranslationNavigationPayload,
+} from "../hooks/editor/useEditorActions";
+import { isSupportedEditorSubtitlePath } from "../hooks/editor/editorFileHelpers";
 import {
   getTranslatorAutoloadSuffixes,
   getTranslatorOutputSuffix,
   isSupportedTranslatorSubtitlePath,
   stripTranslatorSubtitleExtension,
 } from "../hooks/useFileIO";
-import { getSelectedTextForFindReplace } from "../pages/EditorPage";
+import { getSelectedTextForFindReplace } from "../hooks/editor/useEditorFindReplace";
 import { fixOverlaps } from "../utils/validation";
 
 describe("editor subtitle behaviors", () => {
@@ -121,6 +124,7 @@ describe("editor subtitle behaviors", () => {
       resolveSubtitlePathForTranslation(
         "E:/video/demo.mp4",
         "E:/subs/demo_CN.srt",
+        null,
         "E:/exports/demo_final.srt",
       ),
     ).toBe("E:/exports/demo_final.srt");
@@ -129,9 +133,83 @@ describe("editor subtitle behaviors", () => {
       resolveSubtitlePathForTranslation(
         "E:/video/demo.mp4",
         "E:/subs/demo_CN.srt",
+        null,
         false,
       ),
     ).toBe("E:/subs/demo_CN.srt");
+
+    expect(
+      resolveSubtitlePathForTranslation(
+        "E:/video/demo.mp4",
+        "E:/workspace/demo_CN.srt",
+        {
+          path: "E:/canonical/demo_CN.srt",
+          name: "demo_CN.srt",
+        },
+        false,
+      ),
+    ).toBe("E:/canonical/demo_CN.srt");
+  });
+
+  test("editor translation subtitle adapter keeps canonical refs as the single source", () => {
+    expect(
+      resolveSubtitleReferenceForTranslation({
+        currentFilePath: "E:/video/demo.mp4",
+        currentSubtitlePath: "E:/workspace/demo_CN.srt",
+        currentSubtitleRef: {
+          path: "E:/canonical/demo_CN.srt",
+          name: "demo_CN.srt",
+        },
+        savedPath: false,
+      }),
+    ).toEqual({
+      path: "E:/canonical/demo_CN.srt",
+      name: "demo_CN.srt",
+    });
+
+    expect(
+      resolveSubtitleReferenceForTranslation({
+        currentFilePath: "E:/video/demo.mp4",
+        currentSubtitlePath: "E:/workspace/demo_CN.srt",
+        currentSubtitleRef: {
+          path: "E:/canonical/demo_CN.srt",
+          name: "demo_CN.srt",
+        },
+        savedPath: "E:/exports/demo_final.srt",
+      }),
+    ).toEqual({
+      path: "E:/exports/demo_final.srt",
+      name: "demo_final.srt",
+    });
+  });
+
+  test("editor translation navigation preserves canonical media refs", () => {
+    expect(
+      resolveTranslationNavigationPayload({
+        currentFilePath: "E:/workspace/demo.mp4",
+        currentSubtitlePath: "E:/workspace/demo_CN.srt",
+        currentFileRef: {
+          path: "E:/canonical/demo.mp4",
+          name: "demo.mp4",
+        },
+        currentSubtitleRef: {
+          path: "E:/canonical/demo_CN.srt",
+          name: "demo_CN.srt",
+        },
+        savedPath: false,
+      }),
+    ).toEqual({
+      video_path: null,
+      subtitle_path: null,
+      video_ref: {
+        path: "E:/canonical/demo.mp4",
+        name: "demo.mp4",
+      },
+      subtitle_ref: {
+        path: "E:/canonical/demo_CN.srt",
+        name: "demo_CN.srt",
+      },
+    });
   });
 
   test("find and replace-all use non-overlapping matches consistently", () => {
@@ -183,7 +261,7 @@ describe("editor subtitle behaviors", () => {
       ({
         font: "",
         measureText: (text: string) => ({ width: text === "W" ? 8 : 6 }),
-      }) as CanvasRenderingContext2D) as typeof HTMLCanvasElement.prototype.getContext;
+      }) as unknown as CanvasRenderingContext2D) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
     try {
       expect(
@@ -225,7 +303,7 @@ describe("editor subtitle behaviors", () => {
       ({
         font: "",
         measureText: () => ({ width: 10 }),
-      }) as CanvasRenderingContext2D) as typeof HTMLCanvasElement.prototype.getContext;
+      }) as unknown as CanvasRenderingContext2D) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
     try {
       const { result, rerender } = renderHook(
@@ -254,7 +332,7 @@ describe("editor subtitle behaviors", () => {
       ({
         font: "",
         measureText: () => ({ width: 10 }),
-      }) as CanvasRenderingContext2D) as typeof HTMLCanvasElement.prototype.getContext;
+      }) as unknown as CanvasRenderingContext2D) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
     try {
       const { result, rerender } = renderHook(

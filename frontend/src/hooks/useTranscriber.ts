@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTaskContext } from "../context/taskContext";
 import type { TranscribeResult } from "../types/transcriber";
 import type { ElectronFile } from "../types/electron";
@@ -6,6 +6,7 @@ import {
   selectTaskById,
 } from "./tasks/taskSelectors";
 import {
+  restoreStoredTranscriberSnapshot,
   restoreStoredTranscriberFile,
   restoreStoredTranscriberResult,
   useTranscriberPersistence,
@@ -14,23 +15,41 @@ import { useTranscriberNavigation } from "./transcriber/useTranscriberNavigation
 import { useTranscriberCommands } from "./transcriber/useTranscriberCommands";
 import { useTranscriberTaskSync } from "./transcriber/useTranscriberTaskSync";
 import { useTranscriberFileActions } from "./transcriber/useTranscriberFileActions";
+import { desktopEventsService } from "../services/desktop";
+import { isDesktopRuntime } from "../services/domain";
+import { fileService } from "../services/fileService";
+import { createMediaReference, toElectronFile } from "../services/ui/mediaReference";
+import { normalizeTranscribeResult } from "../services/ui/transcribeResult";
+import { useRuntimeExecutionStore } from "../stores/runtimeExecutionStore";
 
 export function useTranscriber() {
-  const { tasks } = useTaskContext();
+  const { tasks, tasksSettled } = useTaskContext();
+  const persistedSnapshot = restoreStoredTranscriberSnapshot();
+  const setRuntimeExecutionMode = useRuntimeExecutionStore((state) => state.setScopeMode);
 
   // Settings
   const [model, setModel] = useState(
-    () => localStorage.getItem("transcriber_model") || "base",
+    () => persistedSnapshot?.model || "base",
   );
   const [device, setDevice] = useState(
-    () => localStorage.getItem("transcriber_device") || "cpu",
+    () => persistedSnapshot?.device || "cpu",
   );
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSmartSplitting, setIsSmartSplitting] = useState(false);
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(() =>
-    localStorage.getItem("transcriber_activeTaskId"),
+  const [desktopProgress, setDesktopProgress] = useState<{
+    progress: number;
+    message: string;
+    active: boolean;
+  }>({
+    progress: 0,
+    message: "",
+    active: false,
+  });
+  const [executionMode, setExecutionMode] = useState<"task_submission" | "direct_result" | null>(
+    null,
   );
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
   // Persistence
   const [result, setResult] = useState<TranscribeResult | null>(
@@ -43,36 +62,99 @@ export function useTranscriber() {
   useTranscriberPersistence({
     model,
     device,
-    activeTaskId,
     result,
     file,
   });
 
-  useTranscriberNavigation({ setFile, setResult });
-  const { connected } = useTaskContext(); // Get connected state
+  useTranscriberNavigation({ setFile, setResult, setActiveTaskId });
   useTranscriberTaskSync({
     tasks,
-    connected,
+    tasksSettled,
     activeTaskId,
+    fileRef:
+      file?.path
+        ? createMediaReference({
+            path: file.path,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          })
+        : null,
     filePath: file?.path,
+    currentResult: result,
     setActiveTaskId,
     setResult,
+    setExecutionMode,
   });
   const fileActions = useTranscriberFileActions({
     file,
     setFile,
     setResult,
+    setActiveTaskId,
   });
+  const {
+    setFile: setResolvedFile,
+    onFileDrop,
+    onFileSelect,
+  } = fileActions;
   const commands = useTranscriberCommands({
     file,
     model,
     device,
     result,
-    setResult,
+    setResult: (nextResult) => setResult(normalizeTranscribeResult(nextResult, file)),
+    setFile: setResolvedFile,
     setActiveTaskId,
+    setDesktopProgress,
+    setExecutionMode,
     setIsUploading,
     setIsSmartSplitting,
   });
+
+  useEffect(() => {
+    setRuntimeExecutionMode("transcriber", executionMode);
+  }, [executionMode, setRuntimeExecutionMode]);
+
+  useEffect(() => {
+    if (!file?.path || !isDesktopRuntime()) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void fileService.resolveExistingPath(file.path, file.name).then((resolvedPath) => {
+      if (!resolvedPath || resolvedPath === file.path || cancelled) {
+        return;
+      }
+
+      setResolvedFile({
+        ...toElectronFile(createMediaReference({
+          path: resolvedPath,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        })),
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [file, setResolvedFile]);
+
+  useEffect(() => {
+    const unsubscribe = desktopEventsService.onTranscribeProgress(({ progress, message }) => {
+      setDesktopProgress({
+        progress,
+        message,
+        active: true,
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   return {
     state: {
@@ -81,20 +163,22 @@ export function useTranscriber() {
       device,
       isUploading,
       isSmartSplitting,
+      desktopProgress,
+      executionMode,
       activeTaskId,
       result,
       activeTask: selectTaskById(tasks, activeTaskId),
     },
     actions: {
-      setFile: fileActions.setFile,
+      setFile: setResolvedFile,
       setModel,
       setDevice,
       startTranscription: commands.startTranscription,
       smartSplitSegments: commands.smartSplitSegments,
       sendToTranslator: commands.sendToTranslator,
       sendToEditor: commands.sendToEditor,
-      onFileDrop: fileActions.onFileDrop,
-      onFileSelect: fileActions.onFileSelect,
+      onFileDrop,
+      onFileSelect,
     },
   };
 }

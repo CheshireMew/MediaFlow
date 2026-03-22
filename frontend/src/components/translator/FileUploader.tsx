@@ -1,6 +1,8 @@
 import { Upload, FileText } from 'lucide-react';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isDesktopRuntime } from '../../services/domain';
+import { fileService } from '../../services/fileService';
 
 type DragFileWithPath = File & { path?: string };
 
@@ -16,8 +18,8 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         const file = e.dataTransfer.files[0] as DragFileWithPath | undefined;
-        if (file && window.electronAPI) {
-            const filePath = file.path ?? window.electronAPI.getPathForFile?.(file);
+        if (file && isDesktopRuntime()) {
+            const filePath = file.path ?? fileService.getPathForFile(file);
             if (filePath) onFileSelect(filePath);
         }
     };
@@ -29,7 +31,7 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
     const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] as DragFileWithPath | undefined;
         if (file) {
-             const filePath = file.path ?? window.electronAPI?.getPathForFile?.(file);
+             const filePath = file.path ?? (isDesktopRuntime() ? fileService.getPathForFile(file) : undefined);
              if (filePath) onFileSelect(filePath);
         }
     };

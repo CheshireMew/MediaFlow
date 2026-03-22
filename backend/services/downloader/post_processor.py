@@ -3,6 +3,7 @@ from typing import Optional, Tuple
 from loguru import logger
 import shutil
 from backend.utils.subtitle_manager import SubtitleManager
+from backend.utils.text_normalizer import normalize_filename_component
 
 class DownloadPostProcessor:
     def process_subtitles(self, video_path: Path, download_subs: bool) -> Optional[str]:
@@ -56,9 +57,42 @@ class DownloadPostProcessor:
                         
         return subtitle_path
 
+    def normalize_artifact_names(
+        self,
+        media_path: Path,
+        subtitle_path: Optional[str] = None,
+        preferred_stem: Optional[str] = None,
+    ) -> tuple[Path, Optional[str]]:
+        repaired_stem = normalize_filename_component(preferred_stem or media_path.stem)
+        if repaired_stem == media_path.stem:
+            return media_path, subtitle_path
+
+        repaired_media_path = media_path.with_name(f"{repaired_stem}{media_path.suffix}")
+        if repaired_media_path.exists():
+            logger.warning(
+                f"Normalized media filename already exists, keeping original path: {repaired_media_path}"
+            )
+            return media_path, subtitle_path
+
+        logger.info(f"Renaming downloaded media to normalized filename: {repaired_media_path}")
+        media_path.rename(repaired_media_path)
+
+        normalized_subtitle_path = subtitle_path
+        if subtitle_path:
+            subtitle_file = Path(subtitle_path)
+            if subtitle_file.exists() and subtitle_file.stem == media_path.stem:
+                repaired_subtitle_path = subtitle_file.with_name(
+                    f"{repaired_stem}{subtitle_file.suffix}"
+                )
+                if not repaired_subtitle_path.exists():
+                    subtitle_file.rename(repaired_subtitle_path)
+                    normalized_subtitle_path = str(repaired_subtitle_path)
+
+        return repaired_media_path, normalized_subtitle_path
+
     def process_local_file(self, local_source: Path, dest_dir: Path, filename: str) -> Path:
         """Move a local file to the destination directory with the correct name."""
-        safe_name = "".join([c for c in filename if c.isalpha() or c.isdigit() or c in ' -_[]().']).rstrip()
+        safe_name = normalize_filename_component(filename)
         dest_path = dest_dir / f"{safe_name}.mp4"
         
         logger.info(f"Moving local file {local_source} to {dest_path}")

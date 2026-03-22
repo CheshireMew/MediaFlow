@@ -1,7 +1,14 @@
 {
   "title": "任务监控",
-  "status": { "connected": "已连接", "disconnected": "已断开" },
+  "status": {
+    "ready": "就绪",
+    "waiting": "等待中",
+    "localTasks": "本地任务",
+    "backendTasks": "后端任务"
+  },
   "buttons": {
+    "pauseLocal": { "tooltip": "暂停所有本地活动任务", "label": "暂停本地" },
+    "pauseBackend": { "tooltip": "暂停所有后端活动任务", "label": "暂停后端" },
     "pauseAll": { "tooltip": "暂停所有活动任务", "label": "全部暂停" },
     "clearAll": { "tooltip": "删除所有任务", "label": "全部清除" }
   },
@@ -15,6 +22,9 @@
     "resume": { "tooltip": "恢复任务" },
     "delete": { "tooltip": "删除任务" },
     "showFolder": { "tooltip": "在文件夹中显示" }
+  },
+  "badges": {
+    "history": "历史记录"
   },
   "taskTypes": {
     "transcribe": "转录",

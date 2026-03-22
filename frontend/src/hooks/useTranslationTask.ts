@@ -6,28 +6,37 @@ import {
 import { useTaskContext } from "../context/taskContext";
 import { useTranslationTaskSync } from "./translator/useTranslationTaskSync";
 import { useTranslationCommands } from "./translator/useTranslationCommands";
+import { desktopEventsService } from "../services/desktop";
+import { useRuntimeExecutionStore } from "../stores/runtimeExecutionStore";
 
 export const useTranslationTask = () => {
-  const { tasks, connected } = useTaskContext();
+  const { tasks, tasksSettled } = useTaskContext();
+  const setRuntimeExecutionMode = useRuntimeExecutionStore((state) => state.setScopeMode);
   const {
     sourceSegments,
     sourceFilePath,
+    sourceFileRef,
     targetLang,
     mode,
     activeMode,
     taskId,
+    targetSegments,
     taskStatus,
     progress,
     taskError,
+    executionMode,
     setTaskId,
     setTaskStatus,
     setProgress,
     setTaskError,
+    setExecutionMode,
     setTargetSegments,
+    setSourceFileRef,
     setTargetLang,
     setMode,
     setActiveMode,
     setResultMode,
+    setTargetSubtitleRef,
   } = useTranslatorStore();
 
   const previousTranslateModeRef = useRef<"standard" | "intelligent">("standard");
@@ -49,6 +58,23 @@ export const useTranslationTask = () => {
     }
   }, [activeMode, setActiveMode, taskId, taskStatus]);
 
+  useEffect(() => {
+    setRuntimeExecutionMode("translator", executionMode);
+  }, [executionMode, setRuntimeExecutionMode]);
+
+  useEffect(() => {
+    const unsubscribe = desktopEventsService.onTranslateProgress(({ progress }) => {
+      setTaskStatus("running");
+      setProgress(progress);
+      setTaskError(null);
+      setExecutionMode("direct_result");
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [setProgress, setTaskError, setTaskStatus]);
+
   const isTranslating =
     taskStatus === "translating" ||
     taskStatus === "starting" ||
@@ -58,15 +84,20 @@ export const useTranslationTask = () => {
 
   useTranslationTaskSync({
     tasks,
-    connected,
+    tasksSettled,
     sourceFilePath,
+    sourceFileRef,
     mode,
     taskId,
+    currentTargetSegments: targetSegments,
     setTaskId,
     setTaskStatus,
     setProgress,
     setTaskError,
+    setExecutionMode,
     setTargetSegments,
+    setSourceFileRef,
+    setTargetSubtitleRef,
     setActiveMode,
     setResultMode,
     activeTaskModeRef,
@@ -75,12 +106,17 @@ export const useTranslationTask = () => {
   const { startTranslation, proofreadSubtitle } = useTranslationCommands({
     sourceSegments,
     sourceFilePath,
+    sourceFileRef,
     targetLang,
     mode,
     setTaskStatus,
     setProgress,
     setTaskError,
+    setExecutionMode,
     setTaskId,
+    setTargetSegments,
+    setSourceFileRef,
+    setTargetSubtitleRef,
     setMode,
     setActiveMode,
     setResultMode,
@@ -93,6 +129,8 @@ export const useTranslationTask = () => {
     taskStatus,
     progress,
     taskError,
+    executionMode,
+    sourceFileRef,
     targetLang,
     mode,
     activeMode,
@@ -101,5 +139,6 @@ export const useTranslationTask = () => {
     proofreadSubtitle,
     setTargetLang,
     setMode,
+    setExecutionMode,
   };
 };

@@ -1,11 +1,22 @@
 import { useCallback } from "react";
 import type { SubtitleSegment } from "../../types/task";
-import { NavigationService } from "../../services/ui/navigation";
+import {
+  createMediaReference,
+  type MediaReference,
+  resolveMediaReferencePath,
+} from "../../services/ui/mediaReference";
+import {
+  createNavigationMediaPayload,
+  NavigationService,
+  type NavigationPayload,
+} from "../../services/ui/navigation";
 
 // ─── Types ──────────────────────────────────────────────────────
 interface UseEditorActionsArgs {
   currentFilePath: string | null;
   currentSubtitlePath: string | null;
+  currentFileRef: MediaReference | null;
+  currentSubtitleRef: MediaReference | null;
   regions: SubtitleSegment[];
   saveSubtitleFile: (
     regions: SubtitleSegment[],
@@ -22,24 +33,84 @@ interface UseEditorActionsReturn {
   handleSmartSplit: () => Promise<void>;
 }
 
+export function resolveSubtitleReferenceForTranslation(params: {
+  currentFilePath: string;
+  currentSubtitlePath: string | null;
+  currentSubtitleRef: MediaReference | null;
+  savedPath: string | boolean;
+}): MediaReference {
+  const {
+    currentFilePath,
+    currentSubtitlePath,
+    currentSubtitleRef,
+    savedPath,
+  } = params;
+
+  if (typeof savedPath === "string" && savedPath) {
+    return currentSubtitleRef?.path === savedPath
+      ? currentSubtitleRef
+      : createMediaReference({ path: savedPath });
+  }
+
+  if (currentSubtitleRef?.path) {
+    return currentSubtitleRef;
+  }
+
+  const subtitlePath =
+    resolveMediaReferencePath(null, currentSubtitlePath) ??
+    currentFilePath.replace(/\.[^.]+$/, ".srt");
+  return createMediaReference({ path: subtitlePath });
+}
+
 export function resolveSubtitlePathForTranslation(
   currentFilePath: string,
   currentSubtitlePath: string | null,
+  currentSubtitleRef: MediaReference | null,
   savedPath: string | boolean,
 ): string {
-  if (typeof savedPath === "string" && savedPath) {
-    return savedPath;
-  }
-  if (currentSubtitlePath) {
-    return currentSubtitlePath;
-  }
-  return currentFilePath.replace(/\.[^.]+$/, ".srt");
+  return resolveSubtitleReferenceForTranslation({
+    currentFilePath,
+    currentSubtitlePath,
+    currentSubtitleRef,
+    savedPath,
+  }).path;
+}
+
+export function resolveTranslationNavigationPayload(params: {
+  currentFilePath: string;
+  currentSubtitlePath: string | null;
+  currentFileRef: MediaReference | null;
+  currentSubtitleRef: MediaReference | null;
+  savedPath: string | boolean;
+}): NavigationPayload {
+  const {
+    currentFilePath,
+    currentSubtitlePath,
+    currentFileRef,
+    currentSubtitleRef,
+    savedPath,
+  } = params;
+  const subtitleRef = resolveSubtitleReferenceForTranslation({
+    currentFilePath,
+    currentSubtitlePath,
+    currentSubtitleRef,
+    savedPath,
+  });
+
+  return createNavigationMediaPayload({
+    videoPath: currentFilePath,
+    subtitlePath: subtitleRef.path,
+    videoRef: currentFileRef,
+    subtitleRef,
+  });
 }
 
 // ─── Hook ───────────────────────────────────────────────────────
 export function useEditorActions({
   currentFilePath,
   currentSubtitlePath,
+  currentFileRef,
+  currentSubtitleRef,
   regions,
   saveSubtitleFile,
   detectSilence,
@@ -77,16 +148,24 @@ export function useEditorActions({
         return;
     }
 
-    const srtPath = resolveSubtitlePathForTranslation(
-      currentFilePath,
-      currentSubtitlePath,
-      savedPath,
+    NavigationService.navigate(
+      "translator",
+      resolveTranslationNavigationPayload({
+        currentFilePath,
+        currentSubtitlePath,
+        currentFileRef,
+        currentSubtitleRef,
+        savedPath,
+      }),
     );
-    NavigationService.navigate("translator", {
-      video_path: currentFilePath,
-      subtitle_path: srtPath,
-    });
-  }, [currentFilePath, currentSubtitlePath, regions, saveSubtitleFile]);
+  }, [
+    currentFilePath,
+    currentSubtitlePath,
+    currentFileRef,
+    currentSubtitleRef,
+    regions,
+    saveSubtitleFile,
+  ]);
 
   const handleSmartSplit = useCallback(async () => {
     if (

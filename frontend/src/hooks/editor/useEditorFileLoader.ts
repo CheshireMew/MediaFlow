@@ -1,5 +1,8 @@
 import { useCallback } from "react";
+import { isDesktopRuntime } from "../../services/domain";
 import { useEditorStore } from "../../stores/editorStore";
+import { fileService } from "../../services/fileService";
+import { createMediaReference } from "../../services/ui/mediaReference";
 import {
   buildRelatedSubtitleCandidates,
   findRelatedVideoForSubtitle,
@@ -35,6 +38,8 @@ export function useEditorFileLoader({
   const setCurrentSubtitlePath = useEditorStore(
     (state) => state.setCurrentSubtitlePath,
   );
+  const setCurrentFileRef = useEditorStore((state) => state.setCurrentFileRef);
+  const setCurrentSubtitleRef = useEditorStore((state) => state.setCurrentSubtitleRef);
 
   const tryLoadRelatedSubtitle = useCallback(
     async (videoPath: string) => {
@@ -44,6 +49,7 @@ export function useEditorFileLoader({
           if (parsed.length > 0) {
             replaceEditorDocument(parsed);
             setCurrentSubtitlePath(subtitlePath);
+            setCurrentSubtitleRef(createMediaReference({ path: subtitlePath }));
             return;
           }
         } catch {
@@ -51,7 +57,7 @@ export function useEditorFileLoader({
         }
       }
     },
-    [replaceEditorDocument, setCurrentSubtitlePath],
+    [replaceEditorDocument, setCurrentSubtitlePath, setCurrentSubtitleRef],
   );
 
   const loadMediaAndResources = useCallback(
@@ -64,6 +70,8 @@ export function useEditorFileLoader({
       replaceEditorDocument([]);
       setCurrentFilePath(path);
       setCurrentSubtitlePath(null);
+      setCurrentFileRef(createMediaReference({ path }));
+      setCurrentSubtitleRef(null);
       await tryLoadPeaks(path);
       setMediaUrl(pathToFileURL(path));
       await tryLoadRelatedSubtitle(path);
@@ -71,7 +79,9 @@ export function useEditorFileLoader({
     [
       replaceEditorDocument,
       setCurrentFilePath,
+      setCurrentFileRef,
       setCurrentSubtitlePath,
+      setCurrentSubtitleRef,
       setMediaUrl,
       setPeaks,
       tryLoadPeaks,
@@ -91,6 +101,7 @@ export function useEditorFileLoader({
         setPeaks(null);
         await tryLoadPeaks(videoPath);
         setCurrentFilePath(videoPath);
+        setCurrentFileRef(createMediaReference({ path: videoPath }));
         setMediaUrl(pathToFileURL(videoPath));
       }
 
@@ -102,6 +113,7 @@ export function useEditorFileLoader({
         }
         replaceEditorDocument(parsed);
         setCurrentSubtitlePath(path);
+        setCurrentSubtitleRef(createMediaReference({ path }));
       } catch (error) {
         console.error("[EditorIO] Failed to load subtitle:", error);
         alert("Failed to load subtitle file.");
@@ -109,7 +121,9 @@ export function useEditorFileLoader({
     },
     [
       replaceEditorDocument,
+      setCurrentFileRef,
       setCurrentFilePath,
+      setCurrentSubtitleRef,
       setCurrentSubtitlePath,
       setMediaUrl,
       setPeaks,
@@ -118,9 +132,9 @@ export function useEditorFileLoader({
   );
 
   const handleOpenFile = useCallback(async () => {
-    if (window.electronAPI?.openFile) {
+    if (isDesktopRuntime()) {
       try {
-        const result = await window.electronAPI.openFile();
+        const result = await fileService.openFile();
         const path = (result as ElectronMediaFile | null)?.path;
 
         if (path) {
@@ -140,10 +154,12 @@ export function useEditorFileLoader({
       if (file) {
         setMediaUrl(URL.createObjectURL(file));
         setPeaks(null);
+        setCurrentFileRef(null);
+        setCurrentSubtitleRef(null);
       }
     };
     input.click();
-  }, [loadMediaAndResources, setMediaUrl, setPeaks]);
+  }, [loadMediaAndResources, setCurrentFileRef, setCurrentSubtitleRef, setMediaUrl, setPeaks]);
 
   return {
     handleOpenFile,

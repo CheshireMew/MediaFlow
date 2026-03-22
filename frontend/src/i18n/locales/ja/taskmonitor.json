@@ -1,7 +1,14 @@
 {
   "title": "タスクモニター",
-  "status": { "connected": "接続済み", "disconnected": "切断" },
+  "status": {
+    "ready": "準備完了",
+    "waiting": "待機中",
+    "localTasks": "ローカルタスク",
+    "backendTasks": "バックエンドタスク"
+  },
   "buttons": {
+    "pauseLocal": { "tooltip": "すべてのローカル実行中タスクを一時停止", "label": "ローカル停止" },
+    "pauseBackend": { "tooltip": "すべてのバックエンド実行中タスクを一時停止", "label": "バックエンド停止" },
     "pauseAll": { "tooltip": "すべてのタスクを一時停止", "label": "全て一時停止" },
     "clearAll": { "tooltip": "すべてのタスクを削除", "label": "全てクリア" }
   },
@@ -15,6 +22,9 @@
     "resume": { "tooltip": "タスクを再開" },
     "delete": { "tooltip": "タスクを削除" },
     "showFolder": { "tooltip": "フォルダーに表示" }
+  },
+  "badges": {
+    "history": "履歴"
   },
   "taskTypes": {
     "transcribe": "文字起こし",

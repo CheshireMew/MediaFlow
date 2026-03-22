@@ -1,13 +1,13 @@
 import { useCallback, useEffect } from "react";
+import {
+  persistEditorPlaybackTime,
+  restoreEditorPlaybackTime,
+} from "./editorPlaybackPersistence";
 
 type UseEditorPlaybackPersistenceArgs = {
   currentFilePath: string | null;
   videoRef: React.RefObject<HTMLVideoElement | null>;
 };
-
-function getPlaybackStorageKey(currentFilePath: string) {
-  return `playback_pos_${currentFilePath}`;
-}
 
 export function useEditorPlaybackPersistence({
   currentFilePath,
@@ -21,10 +21,7 @@ export function useEditorPlaybackPersistence({
 
     const saveTime = () => {
       if (video.currentTime > 0) {
-        localStorage.setItem(
-          getPlaybackStorageKey(currentFilePath),
-          String(video.currentTime),
-        );
+        persistEditorPlaybackTime(currentFilePath, video.currentTime);
       }
     };
 
@@ -43,12 +40,12 @@ export function useEditorPlaybackPersistence({
       return;
     }
 
-    const saved = localStorage.getItem(getPlaybackStorageKey(currentFilePath));
-    if (!saved) {
+    const savedTime = restoreEditorPlaybackTime(currentFilePath);
+    if (!savedTime) {
       return;
     }
 
-    const time = parseFloat(saved);
+    const time = savedTime;
     if (!isNaN(time) && time > 0 && time < videoRef.current.duration) {
       videoRef.current.currentTime = time;
     }

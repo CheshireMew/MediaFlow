@@ -1,37 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTaskContext } from '../context/taskContext';
-import type { FileRef, Task, TaskResult } from '../types/task';
+import type { Task, TaskResult } from '../types/task';
+import { fileService } from '../services/fileService';
+import { isDesktopRuntime } from '../services/desktop';
 import { CheckCircle, AlertCircle, Loader, Clock, Pause, Play, Trash2, FolderOpen, ChevronDown, ChevronUp, Activity, Download, FileAudio, Languages, Video } from 'lucide-react';
 import { TaskTraceView } from './TaskTraceView';
 import { NavigationService } from '../services/ui/navigation';
+import { getExecutionModeDisplay } from '../services/ui/executionModeDisplay';
+import {
+    hasTaskSubtitleMedia,
+    hasTaskVideoMedia,
+    resolveTaskMediaPaths,
+    resolveTaskNavigationPayload,
+} from '../services/ui/taskMedia';
+import { createTaskDiagnostic } from '../services/debug/runtimeDiagnostics';
+import { useRuntimeExecutionStore } from '../stores/runtimeExecutionStore';
+import {
+    getTaskSourceDiagnosticState,
+    subscribeTaskSourceDiagnostics,
+} from '../context/taskSources/diagnostics';
 
-type TaskStep = {
-    step_name?: string;
-    action?: string;
-};
-
-type TaskRequestParams = {
-    steps?: TaskStep[];
-    video_path?: string;
-    audio_path?: string;
-    file_path?: string;
-    context_path?: string;
-    srt_path?: string;
-    subtitle_path?: string;
-    output_path?: string;
-    [key: string]: unknown;
-};
-
-type TaskWithDetails = Task & {
-    request_params?: TaskRequestParams;
-    result?: TaskResult;
-};
+type TaskWithDetails = Task & { result?: TaskResult };
 
 export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes }) => {
     const { t } = useTranslation('taskmonitor');
-    const { tasks, pauseTask, connected } = useTaskContext();
+    const desktopRuntime = isDesktopRuntime();
+    const {
+        tasks,
+        pauseLocalTasks,
+        pauseRemoteTasks,
+        pauseAllTasks,
+        pauseTask,
+        resumeTask,
+        deleteTask,
+        clearTasks,
+        connected,
+        remoteTasksReady,
+        taskOwnerMode,
+    } = useTaskContext();
     const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+    const runtimeExecutionScopes = useRuntimeExecutionStore((state) => state.scopes);
+    const taskFeedDiagnostics = useSyncExternalStore(
+        subscribeTaskSourceDiagnostics,
+        getTaskSourceDiagnosticState,
+        getTaskSourceDiagnosticState,
+    );
+
+    const renderSourceStatus = (label: string, ready: boolean) => (
+        <span className={`text-[10px] font-medium flex items-center gap-1.5 ${ready ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${ready ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${ready ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+            </span>
+            {label}: {ready ? t('status.ready') : t('status.waiting')}
+        </span>
+    );
 
     const filteredTasks = React.useMemo(() => {
         if (!filterTypes || filterTypes.length === 0) return tasks;
@@ -63,6 +87,17 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
         return counts;
     }, [filteredTasks]);
 
+    const executionSummary = React.useMemo(() => {
+        const activeModes = Object.values(runtimeExecutionScopes).filter(
+            (mode): mode is "task_submission" | "direct_result" => mode === "task_submission" || mode === "direct_result",
+        );
+
+        return {
+            taskSubmission: activeModes.filter((mode) => mode === "task_submission").length,
+            directResult: activeModes.filter((mode) => mode === "direct_result").length,
+        };
+    }, [runtimeExecutionScopes]);
+
     const toggleExpand = (taskId: string) => {
         setExpandedTasks(prev => {
             const next = new Set(prev);
@@ -70,6 +105,32 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
             else next.add(taskId);
             return next;
         });
+    };
+
+    const resolveTaskPaths = React.useCallback(async (task: TaskWithDetails) => {
+        return await resolveTaskMediaPaths(task);
+    }, []);
+
+    const renderCompatUsageSummary = (task: TaskWithDetails) => {
+        const diagnostic = createTaskDiagnostic(task, executionSummary);
+
+        if (
+            !diagnostic.task_contract_normalized_from_legacy
+        ) {
+            return null;
+        }
+
+        return (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+                {diagnostic.task_contract_normalized_from_legacy && (
+                    <span
+                        className="px-1.5 py-0.5 rounded border border-rose-400/20 bg-rose-400/10 text-[10px] text-rose-200 font-mono"
+                    >
+                        contract: legacy-normalized
+                    </span>
+                )}
+            </div>
+        );
     };
 
     // if (filteredTasks.length === 0) {
@@ -113,6 +174,13 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
     };
 
     const renderQueueBadge = (task: TaskWithDetails) => {
+        if (task.persistence_scope === 'history') {
+            return (
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-emerald-400/10 text-emerald-300 border-emerald-400/20">
+                    {t('badges.history')}
+                </span>
+            );
+        }
         if (task.queue_state === 'queued' || task.status === 'pending') {
             return (
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-amber-400/10 text-amber-300 border-amber-400/20">
@@ -148,7 +216,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                     {t('title')}
                 </h3>
                 {/* ... existing header controls ... */}
-                 <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4">
                     <div className="hidden md:flex items-center gap-2 text-[10px] text-slate-400">
                         <span className="px-2 py-1 rounded-md bg-amber-400/10 text-amber-300 border border-amber-400/20">
                             Queue {summary.pending}
@@ -160,25 +228,68 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                             Paused {summary.paused}
                         </span>
                     </div>
-                    <span className={`text-[10px] font-medium flex items-center gap-1.5 ${connected ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        <span className={`relative flex h-2 w-2`}>
-                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${connected ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
-                          <span className={`relative inline-flex rounded-full h-2 w-2 ${connected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                    <div className="flex items-center gap-3">
+                        <span className="px-2 py-1 rounded-md bg-cyan-400/10 text-cyan-300 border border-cyan-400/20 text-[10px] font-mono">
+                            owner {taskOwnerMode}
                         </span>
-                        {connected ? t('status.connected') : t('status.disconnected')}
-                    </span>
+                        {renderSourceStatus(t('status.localTasks'), connected)}
+                        {!desktopRuntime && renderSourceStatus(t('status.backendTasks'), remoteTasksReady)}
+                    </div>
+                    {(executionSummary.taskSubmission > 0 || executionSummary.directResult > 0) && (
+                        <div className="hidden lg:flex items-center gap-2 text-[10px]">
+                            {executionSummary.taskSubmission > 0 && (
+                                <span className={`px-2 py-1 rounded-md border font-mono ${getExecutionModeDisplay("task_submission").className}`}>
+                                    {getExecutionModeDisplay("task_submission").label} {executionSummary.taskSubmission}
+                                </span>
+                            )}
+                            {executionSummary.directResult > 0 && (
+                                <span className={`px-2 py-1 rounded-md border font-mono ${getExecutionModeDisplay("direct_result").className}`}>
+                                    {getExecutionModeDisplay("direct_result").label} {executionSummary.directResult}
+                                </span>
+                            )}
+                        </div>
+                    )}
                     
                     <div className="flex gap-2">
+                        <button
+                            onClick={() => {
+                                if (confirm(t('buttons.pauseLocal.tooltip'))) {
+                                    pauseLocalTasks().catch(err => console.error(err));
+                                }
+                            }}
+                            disabled={!connected}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-[10px] transition-all hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={t('buttons.pauseLocal.tooltip')}
+                        >
+                            <Pause size={12} />
+                            {t('buttons.pauseLocal.label')}
+                        </button>
+
+                        {!desktopRuntime && (
+                            <button
+                                onClick={() => {
+                                    if (confirm(t('buttons.pauseBackend.tooltip'))) {
+                                        pauseRemoteTasks().catch(err => console.error(err));
+                                    }
+                                }}
+                                disabled={!remoteTasksReady}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-[10px] transition-all hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={t('buttons.pauseBackend.tooltip')}
+                            >
+                                <Pause size={12} />
+                                {t('buttons.pauseBackend.label')}
+                            </button>
+                        )}
+
                         {/* Pause All */}
                         <button 
                             onClick={() => {
                                 if (confirm(t('buttons.pauseAll.tooltip'))) {
-                                    import('../api/client').then(({ apiClient }) => {
-                                        apiClient.pauseAllTasks().catch(err => console.error(err));
-                                    });
+                                    pauseAllTasks().catch(err => console.error(err));
                                 }
                             }}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-[10px] transition-all hover:text-white"
+                            disabled={desktopRuntime ? !connected : (!connected && !remoteTasksReady)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-[10px] transition-all hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
                             title={t('buttons.pauseAll.tooltip')}
                         >
                             <Pause size={12} />
@@ -189,9 +300,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                         <button 
                             onClick={() => {
                                 if (confirm(t('confirm.deleteAllTasks'))) {
-                                    import('../api/client').then(({ apiClient }) => {
-                                        apiClient.deleteAllTasks().catch(err => console.error(err));
-                                    });
+                                    clearTasks().catch(err => console.error(err));
                                 }
                             }}
                             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-[10px] transition-all hover:text-rose-300"
@@ -203,6 +312,12 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                     </div>
                 </div>
             </div>
+            {taskFeedDiagnostics.lastIssue && (
+                <div className="px-4 py-2 border-b border-amber-500/10 bg-amber-500/10 text-[11px] text-amber-200">
+                    Ignored incompatible task feed item.
+                    {` reason=${taskFeedDiagnostics.lastIssue.reason}, expected=${taskFeedDiagnostics.lastIssue.expected}, received=${taskFeedDiagnostics.lastIssue.received}, ignored=${taskFeedDiagnostics.ignoredTaskCount}`}
+                </div>
+            )}
             
             {/* Task List */}
             <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
@@ -212,7 +327,8 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                         <p className="text-sm">{t('emptyState.message')}</p>
                     </div>
                 ) : (
-                    filteredTasks.map(task => (
+                    filteredTasks.map(task => {
+                        return (
                         <div key={task.id} className="p-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors group relative">
                             <div className="flex items-start gap-4">
                                 {/* Status Icon - Top aligned with slight offset */}
@@ -244,7 +360,9 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             {task.status === 'running' || task.status === 'pending' ? (
                                                 <button 
-                                                    onClick={() => pauseTask(task.id)}
+                                                    onClick={() => {
+                                                        void pauseTask(task.id);
+                                                    }}
                                                     className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
                                                     title={t('actions.pause.tooltip')}
                                                 >
@@ -252,12 +370,10 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                                                 </button>
                                             ) : null}
 
-                                            {(task.status === 'cancelled' || task.status === 'failed' || task.status === 'paused') && (
+                                            {task.status === 'paused' && (
                                                 <button 
                                                     onClick={() => {
-                                                        import('../api/client').then(({ apiClient }) => {
-                                                            apiClient.resumeTask(task.id).catch(err => console.error(err));
-                                                        });
+                                                        void Promise.resolve(resumeTask(task.id)).catch(err => console.error(err));
                                                     }}
                                                     className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-500 transition-colors"
                                                     title={t('actions.resume.tooltip')}
@@ -269,9 +385,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                                              <button
                                                 onClick={() => {
                                                     if (confirm(t('confirm.deleteTask'))) {
-                                                        import('../api/client').then(({ apiClient }) => {
-                                                            apiClient.deleteTask(task.id).catch(err => console.error(err));
-                                                        });
+                                                        void Promise.resolve(deleteTask(task.id)).catch(err => console.error(err));
                                                     }
                                                 }}
                                                 className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-500 transition-colors"
@@ -282,40 +396,23 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                                             
                                             {/* Unified Actions based on available data */}
                                             {task.status === 'completed' && (() => {
-                                                const result = task.result;
-                                                const params = task.request_params || {};
-                                                const meta = result?.meta || {};
-                                                
-                                                // Helper to find file by type
-                                                const findFile = (type: string) => result?.files?.find((f: FileRef) => f.type === type)?.path;
-
-                                                // Resolve paths
-                                                // Video: FileRef > Meta > Params
-                                                const videoPath = findFile('video') || findFile('audio') || meta.video_path || meta.path || params.video_path || params.audio_path || params.file_path || params.context_path;
-                                                
-                                                // Subtitle: FileRef > Meta > Params
-                                                let srtPath = findFile('subtitle') || meta.srt_path || meta.subtitle_path || params.srt_path || params.subtitle_path;
-                                                
-                                                // Detailed fallback for Translate: scan params for .srt if srtPath is missing
-                                                if (!srtPath && task.type === 'translate') {
-                                                     const candidates = Object.values(params).filter((v): v is string => typeof v === 'string' && v.endsWith('.srt'));
-                                                     if (candidates.length > 0) srtPath = candidates[0];
-                                                }
-                                                
-                                                // Context for "Show in Folder"
-                                                const contextPath = videoPath || srtPath || meta.file_path || params.output_path;
+                                                const hasTaskVideoPath = hasTaskVideoMedia(task);
+                                                const hasTaskSubtitlePath = hasTaskSubtitleMedia(task);
 
                                                 return (
                                                     <div className="flex items-center gap-1 ml-2">
                                                         <div className="w-px h-3 bg-white/10 mx-1" />
                                                         
                                                         {/* Show in Folder */}
-                                                        {contextPath && (
+                                                        {(hasTaskVideoPath || hasTaskSubtitlePath) && (
                                                             <button
                                                                 onClick={() => {
-                                                                     if (window.electronAPI) {
-                                                                         window.electronAPI.showInExplorer(contextPath);
-                                                                     }
+                                                                     void resolveTaskPaths(task).then(({ contextPath }) => {
+                                                                        if (!contextPath) {
+                                                                            return;
+                                                                        }
+                                                                        return fileService.showInExplorer(contextPath);
+                                                                     });
                                                                 }}
                                                                 className="p-1.5 rounded-lg hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-colors"
                                                                 title={t('actions.showFolder.tooltip')}
@@ -325,12 +422,17 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                                                         )}
 
                                                         {/* Send to Transcribe (Needs Video/Audio) */}
-                                                        {videoPath && task.type !== 'transcribe' && (
+                                                        {hasTaskVideoPath && task.type !== 'transcribe' && (
                                                             <button
                                                                 onClick={() => {
-                                                                    NavigationService.navigate('transcriber', {
-                                                                        video_path: videoPath,
-                                                                        subtitle_path: srtPath,
+                                                                    void resolveTaskNavigationPayload(task).then((payload) => {
+                                                                        if (!payload.video_ref?.path) {
+                                                                            return;
+                                                                        }
+                                                                        NavigationService.navigate(
+                                                                            'transcriber',
+                                                                            payload,
+                                                                        );
                                                                     });
                                                                 }}
                                                                 className="p-1.5 rounded-lg hover:bg-purple-500/20 text-slate-400 hover:text-purple-400 transition-colors"
@@ -341,12 +443,17 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                                                         )}
 
                                                         {/* Send to Translate (Needs SRT) */}
-                                                        {srtPath && task.type !== 'translate' && (
+                                                        {hasTaskSubtitlePath && task.type !== 'translate' && (
                                                             <button
                                                                 onClick={() => {
-                                                                    NavigationService.navigate('translator', {
-                                                                        video_path: videoPath,
-                                                                        subtitle_path: srtPath,
+                                                                    void resolveTaskNavigationPayload(task).then((payload) => {
+                                                                        if (!payload.subtitle_ref?.path) {
+                                                                            return;
+                                                                        }
+                                                                        NavigationService.navigate(
+                                                                            'translator',
+                                                                            payload,
+                                                                        );
                                                                     });
                                                                 }}
                                                                 className="p-1.5 rounded-lg hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 transition-colors"
@@ -357,12 +464,17 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                                                         )}
                                                         
                                                         {/* Send to Editor (Edit Video) - Needs Video */}
-                                                        {videoPath && (
+                                                        {hasTaskVideoPath && (
                                                              <button
                                                                 onClick={() => {
-                                                                    NavigationService.navigate('editor', {
-                                                                        video_path: videoPath,
-                                                                        subtitle_path: srtPath,
+                                                                    void resolveTaskNavigationPayload(task).then((payload) => {
+                                                                        if (!payload.video_ref?.path) {
+                                                                            return;
+                                                                        }
+                                                                        NavigationService.navigate(
+                                                                            'editor',
+                                                                            payload,
+                                                                        );
                                                                     });
                                                                 }}
                                                                 className="p-1.5 rounded-lg hover:bg-pink-500/20 text-slate-400 hover:text-pink-400 transition-colors"
@@ -430,14 +542,13 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                                     {import.meta.env.DEV && (
                                         <details className="mt-2 text-[10px] text-slate-600 cursor-pointer">
                                             <summary className="hover:text-slate-400">Debug Info</summary>
+                                            {renderCompatUsageSummary(task)}
                                             <pre className="mt-1 p-2 bg-black/50 rounded overflow-auto max-h-40 whitespace-pre-wrap">
-                                                {JSON.stringify({ 
-                                                    type: task.type, 
-                                                    status: task.status, 
-                                                    params_keys: Object.keys(task.request_params || {}),
-                                                    result_files: task.result?.files,
-                                                    result_meta: task.result?.meta
-                                                }, null, 2)}
+                                                {JSON.stringify(
+                                                    createTaskDiagnostic(task, executionSummary),
+                                                    null,
+                                                    2,
+                                                )}
                                             </pre>
                                         </details>
                                     )}
@@ -453,7 +564,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                                 </div>
                             )}
                         </div>
-                    ))
+                    )})
                 )}
             </div>
             

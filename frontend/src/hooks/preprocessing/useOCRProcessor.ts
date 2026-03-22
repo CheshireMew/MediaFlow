@@ -1,17 +1,21 @@
 import { useEffect, useCallback } from "react";
 import { useTaskContext } from "../../context/taskContext";
-import { apiClient } from "../../api/client";
-import { ocrService } from "../../services/ocrService";
-import { preprocessingService } from "../../services/preprocessingService";
-import type { OCRTextEvent } from "../../services/ocrService";
+import { preprocessingService } from "../../services/domain";
+import { createTaskFromSubmissionReceipt } from "../../services/domain/taskSubmission";
+import type { OCRTextEvent } from "../../types/api";
 import type { ROIRect } from "./useROIInteraction";
 import type { TaskResult } from "../../types/task";
 import { usePreprocessingStore } from "../../stores/preprocessingStore";
-import { getActivePreprocessingTask } from "./taskSelectors";
+import {
+  findRecoverablePreprocessingTask,
+  getActivePreprocessingTask,
+} from "./taskSelectors";
+import type { MediaReference } from "../../services/ui/mediaReference";
 
 // ─── Types ──────────────────────────────────────────────────────
 interface UseOCRProcessorArgs {
   videoPath: string | null;
+  videoRef: MediaReference | null;
   roi: ROIRect | null;
   /** Ref to the canvas div for coordinate conversion */
   canvasRef: React.RefObject<HTMLDivElement | null>;
@@ -42,6 +46,7 @@ interface OCRTaskResult extends TaskResult {
 // ─── Hook ───────────────────────────────────────────────────────
 export function useOCRProcessor({
   videoPath,
+  videoRef,
   roi,
   canvasRef,
   videoResolution,
@@ -52,7 +57,8 @@ export function useOCRProcessor({
   enhanceMethod,
   cleanMethod,
 }: UseOCRProcessorArgs): UseOCRProcessorReturn {
-  const { tasks } = useTaskContext();
+  const { addTask, tasks } = useTaskContext();
+  const resolvedVideoPath = videoRef?.path ?? videoPath;
   const isProcessing = usePreprocessingStore(
     (state) => state.preprocessingIsProcessing,
   );
@@ -73,17 +79,23 @@ export function useOCRProcessor({
   const activeTaskVideoPath = usePreprocessingStore(
     (state) => state.preprocessingActiveTaskVideoPath,
   );
+  const activeTaskVideoRef = usePreprocessingStore(
+    (state) => state.preprocessingActiveTaskVideoRef,
+  );
 
   // ── Auto-load saved results ──────────────────────────────────
   useEffect(() => {
-    if (!videoPath) {
+    if (!resolvedVideoPath) {
       setTimeout(() => setOcrResults([]), 0);
       return;
     }
 
     let isMounted = true;
-    apiClient
-      .getOcrResults(videoPath)
+    preprocessingService
+      .getOcrResults({
+        video_path: videoPath,
+        video_ref: videoRef,
+      })
       .then((res) => {
         if (isMounted && res.events && res.events.length > 0) {
           console.log("Loaded saved OCR results:", res.events.length);
@@ -95,11 +107,11 @@ export function useOCRProcessor({
     return () => {
       isMounted = false;
     };
-  }, [videoPath, setOcrResults]);
+  }, [resolvedVideoPath, setOcrResults]);
 
   // ── OCR Extraction ──────────────────────────────────────────
   const handleStartOCR = useCallback(async () => {
-    if (!videoPath) return;
+    if (!resolvedVideoPath) return;
 
     // Convert display ROI to video-space coordinates
     let videoROI: [number, number, number, number] | undefined;
@@ -117,23 +129,43 @@ export function useOCRProcessor({
 
     setIsProcessing(true);
     try {
-      const res = await ocrService.extractText({
-        video_path: videoPath,
+      const res = await preprocessingService.extractText({
+        video_path: videoRef ? null : resolvedVideoPath,
+        video_ref: videoRef,
         roi: videoROI,
         engine: ocrEngine as "rapid" | "paddle",
       });
-      setActiveTask(res.task_id, "extract", videoPath);
+      if (res.task_id) {
+        addTask(
+          createTaskFromSubmissionReceipt({
+            receipt: {
+              ...res,
+              task_id: res.task_id,
+            },
+            type: "extract",
+            name: "Extract text",
+            request_params: {
+              video_ref: videoRef,
+              roi: videoROI,
+              engine: ocrEngine,
+            },
+          }),
+        );
+        setActiveTask(res.task_id, "extract", resolvedVideoPath, videoRef);
+      }
       setOcrResults([]); // Clear while processing
     } catch (error) {
       console.error("OCR Failed", error);
       setIsProcessing(false);
     }
   }, [
-    videoPath,
+    resolvedVideoPath,
     roi,
     canvasRef,
     videoResolution,
     ocrEngine,
+    videoRef,
+    addTask,
     setActiveTask,
     setIsProcessing,
     setOcrResults,
@@ -141,13 +173,18 @@ export function useOCRProcessor({
 
   // ── Watch for task completion ────────────────────────────────
   useEffect(() => {
-    if (!activeTaskId) return;
-    const task = getActivePreprocessingTask(
-      tasks,
-      activeTaskId,
-      activeTaskVideoPath,
-      videoPath,
-    );
+    const task =
+      (activeTaskId
+        ? getActivePreprocessingTask(
+            tasks,
+            activeTaskId,
+            activeTaskVideoPath,
+            activeTaskVideoRef,
+            resolvedVideoPath,
+            videoRef,
+          )
+        : null) ??
+      findRecoverablePreprocessingTask(tasks, resolvedVideoPath, videoRef);
     if (!task) return;
 
     if (task.status === "completed") {
@@ -168,43 +205,88 @@ export function useOCRProcessor({
         console.error("OCR Task Failed:", task.error);
       }
     } else {
-      setTimeout(() => setIsProcessing(true), 0);
+      setTimeout(() => {
+        if (!activeTaskId && resolvedVideoPath) {
+          setActiveTask(task.id, task.type === "enhancement" ? "enhance" : task.type === "cleanup" ? "clean" : "extract", resolvedVideoPath, videoRef);
+        }
+        setIsProcessing(true);
+      }, 0);
     }
   }, [
     tasks,
     activeTaskId,
     activeTaskVideoPath,
-    videoPath,
+    activeTaskVideoRef,
+    resolvedVideoPath,
+    videoRef,
     clearActiveTask,
+    setActiveTask,
     setIsProcessing,
     setOcrResults,
   ]);
 
   // ── General Processing (enhance / clean / extract) ──────────
   const handleStartProcessing = useCallback(async () => {
-    if (!videoPath) return;
+    if (!resolvedVideoPath) return;
     setIsProcessing(true);
     try {
       if (activeTool === "enhance") {
         const res = await preprocessingService.enhanceVideo({
-          video_path: videoPath,
+          video_path: videoRef ? null : resolvedVideoPath,
+          video_ref: videoRef,
           model: enhanceModel,
           scale: enhanceScale,
           method: enhanceMethod,
         });
         console.log("Enhance started:", res);
-        if (res.task_id) setActiveTask(res.task_id, "enhance", videoPath);
+        if (res.task_id) {
+          addTask(
+            createTaskFromSubmissionReceipt({
+              receipt: {
+                ...res,
+                task_id: res.task_id,
+              },
+              type: "enhancement",
+              name: "Enhance video",
+              request_params: {
+                video_ref: videoRef,
+                model: enhanceModel,
+                scale: enhanceScale,
+                method: enhanceMethod,
+              },
+            }),
+          );
+          setActiveTask(res.task_id, "enhance", resolvedVideoPath, videoRef);
+        }
       } else if (activeTool === "clean") {
         const cleanRoi: [number, number, number, number] = roi
           ? [roi.x, roi.y, roi.w, roi.h]
           : [0, 0, 0, 0];
         const res = await preprocessingService.cleanVideo({
-          video_path: videoPath,
+          video_path: videoRef ? null : resolvedVideoPath,
+          video_ref: videoRef,
           roi: cleanRoi,
           method: cleanMethod,
         });
         console.log("Clean started:", res);
-        if (res.task_id) setActiveTask(res.task_id, "clean", videoPath);
+        if (res.task_id) {
+          addTask(
+            createTaskFromSubmissionReceipt({
+              receipt: {
+                ...res,
+                task_id: res.task_id,
+              },
+              type: "cleanup",
+              name: "Clean video",
+              request_params: {
+                video_ref: videoRef,
+                roi: cleanRoi,
+                method: cleanMethod,
+              },
+            }),
+          );
+          setActiveTask(res.task_id, "clean", resolvedVideoPath, videoRef);
+        }
       } else if (activeTool === "extract") {
         await handleStartOCR();
       }
@@ -213,8 +295,10 @@ export function useOCRProcessor({
       setIsProcessing(false);
     }
   }, [
-    videoPath,
+    resolvedVideoPath,
+    videoRef,
     activeTool,
+    addTask,
     roi,
     handleStartOCR,
     enhanceModel,

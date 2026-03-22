@@ -20,4 +20,25 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/services/**/*.ts', 'src/**/__tests__/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/services/domain/*'],
+              message: 'Import domain services from `services/domain` barrel exports.',
+            },
+            {
+              group: ['**/services/desktop/*'],
+              message: 'Import desktop services from `services/desktop` barrel exports.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ])

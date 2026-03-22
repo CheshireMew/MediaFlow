@@ -1,4 +1,6 @@
 import { useCallback } from "react";
+import { isDesktopRuntime } from "../../services/domain";
+import { fileService } from "../../services/fileService";
 import { isSupportedEditorSubtitlePath } from "./editorFileHelpers";
 
 type DragFileWithPath = File & { path?: string };
@@ -12,7 +14,10 @@ function resolveDragFilePath(file: DragFileWithPath): string | undefined {
   if (file.path) {
     return file.path;
   }
-  return window.electronAPI?.getPathForFile?.(file);
+  if (!isDesktopRuntime()) {
+    return undefined;
+  }
+  return fileService.getPathForFile(file);
 }
 
 export function useEditorDragDrop({

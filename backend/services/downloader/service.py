@@ -12,6 +12,7 @@ from backend.config import settings
 from backend.models.schemas import TaskResult, FileRef
 from backend.services.platforms.factory import PlatformFactory
 from backend.utils.subtitle_manager import SubtitleManager
+from backend.utils.text_normalizer import normalize_external_text
 
 from .config_builder import YtDlpConfigBuilder
 from .post_processor import DownloadPostProcessor
@@ -69,7 +70,7 @@ class DownloaderService:
                             logger.info(f"Resolved direct URL: {result.direct_src[:50]}...")
                             final_url = result.direct_src
                         if result.title and not final_title:
-                            final_title = result.title
+                            final_title = normalize_external_text(result.title)
             except Exception as e:
                 logger.error(f"Platform analysis failed, falling back to default: {e}")
 
@@ -152,24 +153,45 @@ class DownloaderService:
             return TaskResult(success=False, error=f"Download failed: {e}")
 
         duration = info.get('duration', 0)
-        title = info.get('title', "Unknown Title")
+        title = normalize_external_text(info.get('title', "Unknown Title")) or "Unknown Title"
 
         # Robustness: Check if file exists vs what yt-dlp predicted (e.g. .NA extension issue)
         dpath = Path(downloaded_path)
         if not dpath.exists():
             logger.warning(f"File not found at expected path: {dpath}. Searching for alternatives...")
+            media_id = info.get("id")
+            if media_id:
+                id_candidates = list(dpath.parent.glob(f"*{media_id}*.*"))
+                if id_candidates:
+                    preferred_suffixes = {".mp4", ".mkv", ".webm", ".m4a", ".mp3", ".wav", ".mov"}
+                    id_candidates.sort(
+                        key=lambda p: (
+                            p.suffix.lower() in preferred_suffixes,
+                            p.stat().st_mtime,
+                        ),
+                        reverse=True,
+                    )
+                    downloaded_path = str(id_candidates[0])
+                    dpath = Path(downloaded_path)
+                    logger.info(f"Recovered downloaded file by media id: {downloaded_path}")
             # Search in same dir for files with same name but different extension
-            candidates = list(dpath.parent.glob(f"{dpath.stem}.*"))
+            candidates = list(dpath.parent.glob(f"{dpath.stem}.*")) if not dpath.exists() else []
             if candidates:
                 # Prefer video/audio extensions
                 candidates.sort(key=lambda p: p.suffix in ['.mp4', '.mkv', '.webm', '.m4a', '.mp3'], reverse=True)
                 downloaded_path = str(candidates[0])
                 logger.info(f"Found actual file at: {downloaded_path}")
-            else:
+            elif not dpath.exists():
                 return TaskResult(success=False, error=f"File not found: {dpath}")
 
         # 4. Post Processing
         subtitle_path = self.post_processor.process_subtitles(Path(downloaded_path), download_subs)
+        normalized_media_path, subtitle_path = self.post_processor.normalize_artifact_names(
+            Path(downloaded_path),
+            subtitle_path,
+            preferred_stem=filename or title,
+        )
+        downloaded_path = str(normalized_media_path)
 
         logger.success(f"Download complete: {downloaded_path}")
 
@@ -190,7 +212,7 @@ class DownloaderService:
                 "id": task_id or str(uuid.uuid4()),
                 "title": title,
                 "duration": duration,
-                "filename": Path(downloaded_path).name,
+                "filename": normalize_external_text(Path(downloaded_path).name) or Path(downloaded_path).name,
                 "source_url": url
             }
         )

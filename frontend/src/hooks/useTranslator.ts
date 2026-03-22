@@ -1,13 +1,14 @@
 import {
   useTranslatorStore,
   type TranslatorMode,
+  type TranslatorExecutionMode,
   type TranslatorResultMode,
 } from "../stores/translatorStore";
 import { useTranslationTask } from "./useTranslationTask";
 import { useGlossary } from "./useGlossary";
 import { useFileIO } from "./useFileIO";
 import type { SubtitleSegment } from "../types/task";
-import type { GlossaryTerm } from "../services/translator/translatorService";
+import type { GlossaryTerm } from "../services/domain";
 
 // --- Types ---
 export type { TranslatorMode };
@@ -27,6 +28,8 @@ interface UseTranslatorReturn {
   taskId: string | null;
   taskStatus: string;
   progress: number;
+  taskError: string | null;
+  executionMode: TranslatorExecutionMode;
   isTranslating: boolean;
 
   // Actions
@@ -75,6 +78,8 @@ export const useTranslator = (): UseTranslatorReturn => {
     taskId: task.taskId,
     taskStatus: task.taskStatus,
     progress: task.progress,
+    taskError: task.taskError,
+    executionMode: task.executionMode,
     isTranslating: task.isTranslating,
 
     // Actions

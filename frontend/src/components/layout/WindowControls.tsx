@@ -1,16 +1,17 @@
 import { Minus, Square, X } from "lucide-react";
+import { windowService } from "../../services/desktop";
 
 export function WindowControls() {
   const handleMinimize = () => {
-    window.electronAPI?.minimize();
+    windowService.minimize();
   };
 
   const handleMaximize = () => {
-    window.electronAPI?.maximize();
+    windowService.maximize();
   };
 
   const handleClose = () => {
-    window.electronAPI?.close();
+    windowService.close();
   };
 
   return (

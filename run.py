@@ -4,6 +4,12 @@ import uvicorn
 from backend.config import settings
 
 def main():
+    if "--desktop-worker" in sys.argv:
+        from backend.desktop_worker import main as worker_main
+
+        worker_main()
+        return
+
     # Critical: Force ProactorEventLoop on Windows BEFORE uvicorn starts
     if sys.platform == "win32":
         print(" [System] Enforcing WindowsProactorEventLoopPolicy for Playwright compatibility...")

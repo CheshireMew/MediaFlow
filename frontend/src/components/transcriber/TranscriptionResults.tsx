@@ -1,5 +1,9 @@
 import { FileText, Clapperboard, ArrowRight, FolderOpen, Scissors } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { isDesktopRuntime } from "../../services/domain";
+import { fileService } from "../../services/fileService";
+import { createNavigationMediaPayload } from "../../services/ui/navigation";
+import { normalizeTranscribeResult } from "../../services/ui/transcribeResult";
 import type { TranscribeResult } from "../../types/transcriber";
 
 interface TranscriptionResultsProps {
@@ -7,12 +11,15 @@ interface TranscriptionResultsProps {
   isSmartSplitting: boolean;
   onSmartSplit: () => void | Promise<void>;
   onSendToEditor: () => void;
-  onSendToTranslator: (payload: { video_path: string; subtitle_path: string }) => void;
+  onSendToTranslator: (payload: {
+    video_ref?: TranscribeResult["video_ref"] | null;
+    subtitle_ref?: TranscribeResult["subtitle_ref"] | null;
+  }) => void;
 }
 
 type TranslatorPayload = {
-  video_path: string;
-  subtitle_path: string;
+  video_ref?: TranscribeResult["video_ref"] | null;
+  subtitle_ref?: TranscribeResult["subtitle_ref"] | null;
 };
 
 export function TranscriptionResults({
@@ -23,6 +30,7 @@ export function TranscriptionResults({
   onSendToTranslator,
 }: TranscriptionResultsProps) {
   const { t } = useTranslation("transcriber");
+  const normalizedResult = normalizeTranscribeResult(result);
 
   return (
     <div className="h-full flex flex-col bg-[#1a1a1a] border border-white/5 rounded-2xl shadow-2xl overflow-hidden">
@@ -80,27 +88,29 @@ export function TranscriptionResults({
       </div>
 
       {/* Footer Actions */}
-      {result && (
+      {normalizedResult && (
         <div className="p-4 border-t border-white/5 bg-white/[0.02] flex justify-between items-center gap-4">
-             {result.srt_path && (
+             {normalizedResult.subtitle_ref?.path && (
                  <button 
-                  onClick={() => window.electronAPI && window.electronAPI.showInExplorer(result.srt_path!)}
+                  onClick={() => isDesktopRuntime() && void fileService.showInExplorer(normalizedResult.subtitle_ref!.path)}
                   className="text-xs text-slate-500 hover:text-indigo-400 flex items-center gap-1.5 transition-colors px-3 py-2 rounded-lg hover:bg-white/5"
                  >
                    <FolderOpen className="w-3.5 h-3.5" />
-                   <span className="truncate max-w-[200px]">{result.srt_path}</span>
+                   <span className="truncate max-w-[200px]">{normalizedResult.subtitle_ref.path}</span>
                  </button>
              )}
 
             <div className="flex gap-3">
                 <button
                 onClick={() => {
-                    const payload: Partial<TranslatorPayload> = {
-                        video_path: result.video_path || result.audio_path,
-                        subtitle_path: result.srt_path || result.subtitle_path
-                    };
-                    if (payload.video_path && payload.subtitle_path) {
-                            onSendToTranslator(payload as TranslatorPayload); 
+                    const payload: TranslatorPayload = createNavigationMediaPayload({
+                        videoPath: null,
+                        subtitlePath: null,
+                        videoRef: normalizedResult.video_ref ?? null,
+                        subtitleRef: normalizedResult.subtitle_ref ?? null,
+                    });
+                    if (payload.video_ref?.path && payload.subtitle_ref?.path) {
+                            onSendToTranslator(payload); 
                     } else {
                         alert(t("results.missingSubtitleAlert"));
                     }

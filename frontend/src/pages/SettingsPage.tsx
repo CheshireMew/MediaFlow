@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "i18next";
-import { apiClient } from "../api/client";
 import type { LLMProvider, UserSettings, ToolUpdateResponse } from "../types/api";
+import { settingsService } from "../services/domain";
+import { fileService } from "../services/fileService";
 import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay, Globe, Wrench } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "../i18n";
 
@@ -84,7 +85,7 @@ const SettingsPage: React.FC = () => {
 
     const fetchSettings = async () => {
         try {
-            const data = await apiClient.getSettings();
+            const data = await settingsService.getSettings();
             setSettings(data);
         } catch (error) {
             console.error("Failed to load settings:", error);
@@ -94,7 +95,7 @@ const SettingsPage: React.FC = () => {
 
     useEffect(() => {
         let cancelled = false;
-        apiClient.getSettings()
+        settingsService.getSettings()
             .then((data) => {
                 if (!cancelled) setSettings(data);
             })
@@ -130,7 +131,7 @@ const SettingsPage: React.FC = () => {
         }
 
         try {
-            const res = await apiClient.updateSettings({ ...settings, llm_providers: newProviders });
+            const res = await settingsService.updateSettings({ ...settings, llm_providers: newProviders });
             setSettings(res);
             setOpenModal(false);
             showNotification(t("llm.providerSaved"));
@@ -157,7 +158,7 @@ const SettingsPage: React.FC = () => {
         
         const newProviders = remainingProviders;
         try {
-            const res = await apiClient.updateSettings({ ...settings, llm_providers: newProviders });
+            const res = await settingsService.updateSettings({ ...settings, llm_providers: newProviders });
             setSettings(res);
             if (provider.is_active) {
                 showNotification(
@@ -175,7 +176,7 @@ const SettingsPage: React.FC = () => {
     
     const handleSetActive = async (id: string) => {
         try {
-            await apiClient.setActiveProvider(id);
+            await settingsService.setActiveProvider(id);
             await fetchSettings(); // Reload to see update
             showNotification(t("llm.activeUpdated"));
         } catch {
@@ -244,7 +245,7 @@ const SettingsPage: React.FC = () => {
 
         setIsTestingConnection(true);
         try {
-            const res = await apiClient.testProviderConnection({
+            const res = await settingsService.testProviderConnection({
                 name,
                 base_url,
                 api_key,
@@ -262,7 +263,7 @@ const SettingsPage: React.FC = () => {
     const handleUpdateYtDlp = async () => {
         setIsUpdatingYtDlp(true);
         try {
-            const result = await apiClient.updateYtDlp();
+            const result = await settingsService.updateYtDlp();
             setYtDlpUpdateInfo(result);
             showNotification(t("general.ytDlpUpdateSuccess"));
         } catch (error) {
@@ -405,7 +406,7 @@ const SettingsPage: React.FC = () => {
                                             if (!settings) return;
                                             const lang = e.target.value;
                                             try {
-                                                const res = await apiClient.updateSettings({ ...settings, language: lang });
+                                                const res = await settingsService.updateSettings({ ...settings, language: lang });
                                                 setSettings(res);
                                                 i18n.changeLanguage(lang);
                                             } catch {
@@ -436,7 +437,7 @@ const SettingsPage: React.FC = () => {
                                             if (!settings) return;
                                             const targetLanguage = e.target.value;
                                             try {
-                                                const res = await apiClient.updateSettings({
+                                                const res = await settingsService.updateSettings({
                                                     ...settings,
                                                     translation_target_language: targetLanguage,
                                                 });
@@ -472,7 +473,7 @@ const SettingsPage: React.FC = () => {
                                             if (!settings) return;
                                             const transcriptionModel = e.target.value;
                                             try {
-                                                const res = await apiClient.updateSettings({
+                                                const res = await settingsService.updateSettings({
                                                     ...settings,
                                                     transcription_model: transcriptionModel,
                                                 });
@@ -508,7 +509,7 @@ const SettingsPage: React.FC = () => {
                                             if (!settings) return;
                                             const newVal = !settings.auto_execute_flow;
                                             try {
-                                                const res = await apiClient.updateSettings({ ...settings, auto_execute_flow: newVal });
+                                                const res = await settingsService.updateSettings({ ...settings, auto_execute_flow: newVal });
                                                 setSettings(res);
                                                 showNotification(newVal ? t("general.autoExecuteEnabled") : t("general.autoExecuteDisabled"));
                                             } catch {
@@ -541,10 +542,10 @@ const SettingsPage: React.FC = () => {
                                     <div className="flex items-center gap-2 shrink-0">
                                         <button
                                             onClick={async () => {
-                                                const dir = await window.electronAPI?.selectDirectory?.();
+                                                const dir = await fileService.selectDirectory();
                                                 if (!settings || !dir) return;
                                                 try {
-                                                    const res = await apiClient.updateSettings({
+                                                    const res = await settingsService.updateSettings({
                                                         ...settings,
                                                         default_download_path: dir,
                                                     });
@@ -562,7 +563,7 @@ const SettingsPage: React.FC = () => {
                                             onClick={async () => {
                                                 if (!settings) return;
                                                 try {
-                                                    const res = await apiClient.updateSettings({
+                                                    const res = await settingsService.updateSettings({
                                                         ...settings,
                                                         default_download_path: null,
                                                     });

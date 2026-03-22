@@ -1,21 +1,10 @@
 // ── Output Settings State + Persistence ──
 import { useState, useEffect } from "react";
-
-const readStoredQuality = (): "high" | "balanced" | "small" => {
-  const saved = localStorage.getItem("synthesis_quality");
-  return saved === "high" || saved === "balanced" || saved === "small"
-    ? saved
-    : "balanced";
-};
-
-const readStoredGpuPreference = (): boolean => {
-  const saved = localStorage.getItem("synthesis_use_gpu");
-  return saved === null ? true : saved === "true";
-};
-
-const readStoredTargetResolution = (): string => {
-  return localStorage.getItem("synthesis_target_resolution") ?? "original";
-};
+import { fileService } from "../../../../services/fileService";
+import {
+  updateSynthesisSettingsSnapshot,
+  type SynthesisSettingsSnapshot,
+} from "../synthesisPersistence";
 
 export interface OutputSettingsState {
   quality: "high" | "balanced" | "small";
@@ -41,17 +30,18 @@ export function useOutputSettings(
   isOpen: boolean,
   videoPath: string | null,
   isInitialized: React.MutableRefObject<boolean>,
+  persistedSettings: SynthesisSettingsSnapshot,
 ): OutputSettingsState {
   const [quality, setQuality] = useState<"high" | "balanced" | "small">(
-    readStoredQuality,
+    () => persistedSettings.quality,
   );
   const [isQualityMenuOpen, setIsQualityMenuOpen] = useState(false);
   const [outputFilename, setOutputFilename] = useState("");
   const [outputDir, setOutputDir] = useState<string | null>(null);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
-  const [useGpu, setUseGpu] = useState(readStoredGpuPreference);
-  const [targetResolution, setTargetResolution] = useState(readStoredTargetResolution);
+  const [useGpu, setUseGpu] = useState(() => persistedSettings.useGpu);
+  const [targetResolution, setTargetResolution] = useState(() => persistedSettings.targetResolution);
 
   // Reset trim when video changes or dialog opens
   useEffect(() => {
@@ -66,20 +56,13 @@ export function useOutputSettings(
   // --- Persist quality ---
   useEffect(() => {
     if (!isInitialized.current) return;
-    localStorage.setItem("synthesis_quality", quality);
-  }, [quality, isInitialized]);
-
-  // --- Persist GPU preference ---
-  useEffect(() => {
-    if (!isInitialized.current) return;
-    localStorage.setItem("synthesis_use_gpu", String(useGpu));
-  }, [useGpu, isInitialized]);
-
-  // --- Persist Resolution preference ---
-  useEffect(() => {
-    if (!isInitialized.current) return;
-    localStorage.setItem("synthesis_target_resolution", targetResolution);
-  }, [targetResolution, isInitialized]);
+    updateSynthesisSettingsSnapshot({
+      quality,
+      useGpu,
+      targetResolution,
+      lastOutputDir: outputDir,
+    });
+  }, [isInitialized, outputDir, quality, targetResolution, useGpu]);
 
   // --- Initialize output path from video path ---
   useEffect(() => {
@@ -92,27 +75,27 @@ export function useOutputSettings(
     const defaultName = `${baseName}_synthesized${ext}`;
 
     // Directory: last used or current video directory
-    const lastDir = localStorage.getItem("last_synthesis_dir");
     const currentDir = videoPath.substring(
       0,
       Math.max(videoPath.lastIndexOf("\\"), videoPath.lastIndexOf("/")),
     );
-    const nextDir = lastDir || currentDir;
+    const nextDir = persistedSettings.lastOutputDir || currentDir;
     const timer = setTimeout(() => {
       setOutputFilename(defaultName);
       setOutputDir(nextDir);
     }, 0);
     return () => clearTimeout(timer);
-  }, [isOpen, videoPath]);
+  }, [isOpen, persistedSettings.lastOutputDir, videoPath]);
 
   // --- Select output folder ---
   const handleSelectOutputFolder = async () => {
-    if (window.electronAPI?.selectDirectory) {
-      const path = await window.electronAPI.selectDirectory();
+    try {
+      const path = await fileService.selectDirectory();
       if (path) {
         setOutputDir(path);
-        localStorage.setItem("last_synthesis_dir", path);
       }
+    } catch {
+      // Browser mode: no-op
     }
   };
 

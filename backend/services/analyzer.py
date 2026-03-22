@@ -10,6 +10,7 @@ from backend.models.schemas import AnalyzeResult, PlaylistItem
 from backend.services.cookie_manager import CookieManager
 from urllib.parse import urlparse
 from backend.core.container import container, Services
+from backend.utils.text_normalizer import normalize_external_text
 
 
 
@@ -97,7 +98,7 @@ class AnalyzerService:
                     if entry:  # Skip None entries
                         items.append(PlaylistItem(
                             index=i + 1,
-                            title=entry.get('title', f'Video {i+1}'),
+                            title=normalize_external_text(entry.get('title', f'Video {i+1}')) or f'Video {i+1}',
                             url=entry.get('url') or entry.get('webpage_url', ''),
                             duration=entry.get('duration'),
                             uploader=entry.get('uploader')
@@ -106,7 +107,7 @@ class AnalyzerService:
                 logger.success(f"Detected playlist with {len(items)} items: {info.get('title')}")
                 return AnalyzeResult(
                     type="playlist",
-                    title=info.get('title', 'Unknown Playlist'),
+                    title=normalize_external_text(info.get('title', 'Unknown Playlist')) or 'Unknown Playlist',
                     url=url,
                     thumbnail=info.get('thumbnail'),
                     count=len(items),
@@ -119,7 +120,7 @@ class AnalyzerService:
                 logger.success(f"Detected single video: {info.get('title')}")
                 return AnalyzeResult(
                     type="single",
-                    title=info.get('title', 'Unknown Video'),
+                    title=normalize_external_text(info.get('title', 'Unknown Video')) or 'Unknown Video',
                     url=url,
                     thumbnail=info.get('thumbnail'),
                     duration=info.get('duration'),

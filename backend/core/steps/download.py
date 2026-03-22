@@ -68,16 +68,34 @@ class DownloadStep(PipelineStep):
 
         # Store result in context
         if media_file.type == "audio":
-            ctx.set("audio_path", media_file.path)
+            ctx.set_media(
+                path_key="audio_path",
+                ref_key="audio_ref",
+                path=media_file.path,
+                media_type="audio/mpeg",
+            )
         else:
-            ctx.set("video_path", media_file.path)
+            ctx.set_media(
+                path_key="video_path",
+                ref_key="video_ref",
+                path=media_file.path,
+                media_type="video/mp4",
+                extra_ref_keys=("output_ref",),
+            )
         ctx.set("media_filename", result.meta.get("filename", "unknown.mp4"))
         ctx.set("title", result.meta.get("title", "Unknown"))
         
         # Check for subtitles
         subtitle_file = next((f for f in result.files if f.type == "subtitle"), None)
         if subtitle_file:
-            ctx.set("subtitle_path", subtitle_file.path)
+            ctx.set_media(
+                path_key="subtitle_path",
+                ref_key="subtitle_ref",
+                path=subtitle_file.path,
+                media_type="application/x-subrip",
+                mirror_path_keys=("srt_path",),
+                extra_ref_keys=("context_ref",),
+            )
             
         logger.success(f"Step Download finished. Path: {media_file.path}")
 

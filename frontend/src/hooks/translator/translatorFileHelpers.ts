@@ -1,4 +1,6 @@
+import { isDesktopRuntime } from "../../services/domain";
 import { parseSubtitleContent } from "../../utils/subtitleParser";
+import { fileService } from "../../services/fileService";
 
 export const TRANSLATOR_SUBTITLE_EXTENSIONS = [
   ".srt",
@@ -52,8 +54,8 @@ export function getTranslatorAutoloadSuffixes(
 }
 
 export async function loadTranslatorSubtitle(path: string) {
-  if (!window.electronAPI) return null;
-  const content = await window.electronAPI.readFile(path);
+  if (!isDesktopRuntime()) return null;
+  const content = await fileService.readFile(path);
   if (!content) {
     throw new Error("File content is empty");
   }

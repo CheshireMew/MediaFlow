@@ -1,6 +1,10 @@
 import { useCallback, useEffect } from "react";
-import { apiClient } from "../../api/client";
+import { editorService } from "../../services/domain";
 import { useEditorStore } from "../../stores/editorStore";
+import {
+  createMediaReference,
+  type MediaReference,
+} from "../../services/ui/mediaReference";
 import {
   consumePendingMediaNavigation,
   clearPendingMediaNavigation,
@@ -9,9 +13,9 @@ import {
 import {
   NavigationService,
   type NavigationPayload,
+  resolveNavigationMediaPayload,
 } from "../../services/ui/navigation";
 import {
-  isSupportedEditorSubtitlePath,
   loadEditorSubtitle,
   pathToFileURL,
 } from "./editorFileHelpers";
@@ -35,10 +39,18 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
   const setCurrentSubtitlePath = useEditorStore(
     (state) => state.setCurrentSubtitlePath,
   );
+  const setCurrentFileRef = useEditorStore((state) => state.setCurrentFileRef);
+  const setCurrentSubtitleRef = useEditorStore((state) => state.setCurrentSubtitleRef);
 
-  const fetchPeaks = useCallback(async (videoPath: string) => {
+  const fetchPeaks = useCallback(async (params: {
+    videoPath: string;
+    videoRef?: MediaReference | null;
+  }) => {
     try {
-      const buffer = await apiClient.getPeaks(videoPath);
+      const buffer = await editorService.getPeaks({
+        video_path: params.videoPath,
+        video_ref: params.videoRef ?? null,
+      });
       if (buffer && buffer.byteLength > 0) {
         return [new Float32Array(buffer)] as WaveformPeaks;
       }
@@ -48,8 +60,8 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
     return null;
   }, []);
 
-  const tryLoadPeaks = useCallback(async (videoPath: string) => {
-    const peaks = await fetchPeaks(videoPath);
+  const tryLoadPeaks = useCallback(async (videoPath: string, videoRef?: MediaReference | null) => {
+    const peaks = await fetchPeaks({ videoPath, videoRef });
     setPeaks(peaks);
     return peaks;
   }, [fetchPeaks, setPeaks]);
@@ -67,27 +79,38 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
 
   useEffect(() => {
     const applyEditorPayload = async (payload?: NavigationPayload | null) => {
-      if (!payload?.video_path) {
+      const { videoPath, subtitlePath, videoRef, subtitleRef } = resolveNavigationMediaPayload(payload);
+
+      if (!videoPath) {
         return false;
       }
 
       try {
-        setCurrentFilePath(payload.video_path);
-        await tryLoadPeaks(payload.video_path);
-        setMediaUrl(pathToFileURL(payload.video_path));
+        setCurrentFilePath(videoPath);
+        setCurrentFileRef(
+          videoRef ?? createMediaReference({ path: videoPath }),
+        );
+        setCurrentSubtitlePath(null);
+        setCurrentSubtitleRef(null);
+        await tryLoadPeaks(videoPath, videoRef);
+        setMediaUrl(pathToFileURL(videoPath));
 
-        if (payload.subtitle_path) {
+        if (subtitlePath) {
           try {
-            const parsed = await loadEditorSubtitle(payload.subtitle_path);
+            const parsed = await loadEditorSubtitle(subtitlePath);
             if (parsed.length > 0) {
               replaceEditorDocument(parsed);
-              setCurrentSubtitlePath(payload.subtitle_path);
+              setCurrentSubtitlePath(subtitlePath);
+              setCurrentSubtitleRef(
+                subtitleRef ??
+                  createMediaReference({ path: subtitlePath }),
+              );
             }
           } catch (e) {
             console.error("[EditorIO] Failed to load pending subtitle", e);
           }
         } else {
-          await tryLoadRelatedSubtitle(payload.video_path);
+          await tryLoadRelatedSubtitle(videoPath);
         }
         return true;
       } catch (e) {
@@ -109,7 +132,7 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
       }
 
       if (currentFilePath) {
-        await tryLoadPeaks(currentFilePath);
+        await tryLoadPeaks(currentFilePath, null);
       }
     };
     void restoreSession();
@@ -124,7 +147,17 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
       }
     });
     return cleanup;
-  }, [currentFilePath, replaceEditorDocument, setCurrentFilePath, setCurrentSubtitlePath, setMediaUrl, tryLoadPeaks, tryLoadRelatedSubtitle]);
+  }, [
+    currentFilePath,
+    replaceEditorDocument,
+    setCurrentFilePath,
+    setCurrentFileRef,
+    setCurrentSubtitlePath,
+    setCurrentSubtitleRef,
+    setMediaUrl,
+    tryLoadPeaks,
+    tryLoadRelatedSubtitle,
+  ]);
 
   const detectSilence = useCallback(
     async (threshold = "-30dB", minDuration = 0.5) => {
@@ -132,7 +165,7 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
       if (!path) throw new Error("No file loaded");
 
       try {
-        const res = await apiClient.detectSilence({
+        const res = await editorService.detectSilence({
           file_path: path,
           threshold,
           min_duration: minDuration,

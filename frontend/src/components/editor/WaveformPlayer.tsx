@@ -61,6 +61,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
     const onRegionUpdateRef = useRef(onRegionUpdate);
     const onInteractStartRef = useRef(onInteractStart);
     const onPeaksGeneratedRef = useRef(onPeaksGenerated);
+    const peaksRef = useRef(peaks);
 
     useEffect(() => {
         latestRegionsRef.current = regions;
@@ -86,14 +87,23 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
         onPeaksGeneratedRef.current = onPeaksGenerated;
     }, [onPeaksGenerated]);
 
+    useEffect(() => {
+        peaksRef.current = peaks;
+    }, [peaks]);
+
     const [scrollWidth, setScrollWidth] = useState(0);
     const [duration, setDuration] = useState(0); // Added duration back
     const [zoom, setZoom] = useState(80);  
     const [isReady, setIsReady] = useState(false);
     const [hasError, setHasError] = useState(false);
     const [loadProgress, setLoadProgress] = useState(0);
+    const zoomRef = useRef(zoom);
     
     const isScrolling = useRef<'top' | 'wave' | null>(null);
+
+    useEffect(() => {
+        zoomRef.current = zoom;
+    }, [zoom]);
 
     // Sync Scroll: Top scrollbar -> WaveSurfer (via setScroll API)
     const onTopScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -156,7 +166,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
         peaksReportedRef.current = false;
 
         const reportGeneratedPeaks = () => {
-            if (peaks || peaksReportedRef.current || !onPeaksGeneratedRef.current) return;
+            if (peaksRef.current || peaksReportedRef.current || !onPeaksGeneratedRef.current) return;
             const exported = wavesurfer.current?.exportPeaks();
             if (exported && exported.length > 0) {
                 peaksReportedRef.current = true;
@@ -171,7 +181,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
             cursorColor: '#38bdf8', // Cyan Playhead
             cursorWidth: 2,
             height: containerRef.current.clientHeight,
-            minPxPerSec: zoom,
+            minPxPerSec: zoomRef.current,
             media: videoRef.current,
             hideScrollbar: true, // Hide native bottom scrollbar, we use our own top scrollbar
             dragToSeek: false, // Critical: Disable drag-seeking so regions plugin can handle drag selection
@@ -188,8 +198,8 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
             ]
         };
 
-        if (peaks) {
-            options.peaks = peaks;
+        if (peaksRef.current) {
+            options.peaks = peaksRef.current;
         }
 
         const ws = WaveSurfer.create(options);

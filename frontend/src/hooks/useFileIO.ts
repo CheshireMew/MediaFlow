@@ -1,16 +1,16 @@
 import { useCallback, useEffect } from "react";
 import { useTranslatorStore } from "../stores/translatorStore";
-import { NavigationService } from "../services/ui/navigation";
+import {
+  NavigationService,
+  type NavigationPayload,
+  resolveNavigationMediaPayload,
+} from "../services/ui/navigation";
 import {
   consumePendingMediaNavigation,
   clearPendingMediaNavigation,
   readPendingMediaNavigation,
 } from "../services/ui/pendingMediaNavigation";
 import {
-  getTranslatorAutoloadSuffixes,
-  getTranslatorOutputSuffix,
-  isSupportedTranslatorSubtitlePath,
-  stripTranslatorSubtitleExtension,
 } from "./translator/translatorFileHelpers";
 import { useTranslatorFileLoader } from "./translator/useTranslatorFileLoader";
 import { useTranslatorOutputActions } from "./translator/useTranslatorOutputActions";
@@ -31,24 +31,16 @@ export const useFileIO = () => {
   const { handleFileUpload } = useTranslatorFileLoader();
   const { exportSRT, handleOpenInEditor } = useTranslatorOutputActions();
 
-  const applyTranslatorPayload = useCallback((payload?: {
-    subtitle_path?: string | null;
-    video_path?: string | null;
-  } | null) => {
+  const applyTranslatorPayload = useCallback((payload?: NavigationPayload | null) => {
     if (!payload) {
       return false;
     }
 
     try {
-      if (payload.subtitle_path) {
-        void handleFileUpload(payload.subtitle_path);
-        return true;
-      }
-      if (
-        payload.video_path &&
-        isSupportedTranslatorSubtitlePath(payload.video_path)
-      ) {
-        void handleFileUpload(payload.video_path);
+      const { subtitleRef, subtitlePath } = resolveNavigationMediaPayload(payload);
+
+      if (subtitlePath) {
+        void handleFileUpload(subtitleRef ?? subtitlePath);
         return true;
       }
     } catch (error) {

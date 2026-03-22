@@ -12,6 +12,7 @@ from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils.segment_refiner import SegmentRefiner
 from backend.core.adapters.faster_whisper import FasterWhisperAdapter, FasterWhisperConfig
 from backend.core.task_control import TaskControlRequested
+from backend.services.media_refs import create_media_ref
 
 from .model_manager import ModelManager
 from .core_strategies import CoreStrategies
@@ -153,6 +154,11 @@ class ASRService:
         files = [
             FileRef(type="subtitle", path=str(srt_path), label="transcription")
         ]
+        subtitle_ref = create_media_ref(
+            str(srt_path),
+            "application/x-subrip",
+            role="output",
+        )
 
         return TaskResult(
             success=True,
@@ -162,7 +168,10 @@ class ASRService:
                 "language": language or "auto",
                 "duration": duration,
                 "segments": [s.model_dump() for s in final_segments],
-                "text": full_text
+                "text": full_text,
+                "srt_path": str(srt_path),
+                "subtitle_ref": subtitle_ref,
+                "output_ref": subtitle_ref,
             }
         )
 
