@@ -1,13 +1,11 @@
-import React, { useState, useSyncExternalStore } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTaskContext } from '../context/taskContext';
 import type { Task, TaskResult } from '../types/task';
 import { fileService } from '../services/fileService';
-import { isDesktopRuntime } from '../services/desktop';
 import { CheckCircle, AlertCircle, Loader, Clock, Pause, Play, Trash2, FolderOpen, ChevronDown, ChevronUp, Activity, Download, FileAudio, Languages, Video } from 'lucide-react';
 import { TaskTraceView } from './TaskTraceView';
 import { NavigationService } from '../services/ui/navigation';
-import { getExecutionModeDisplay } from '../services/ui/executionModeDisplay';
 import {
     hasTaskSubtitleMedia,
     hasTaskVideoMedia,
@@ -15,19 +13,16 @@ import {
     resolveTaskNavigationPayload,
 } from '../services/ui/taskMedia';
 import { createTaskDiagnostic } from '../services/debug/runtimeDiagnostics';
-import { useRuntimeExecutionStore } from '../stores/runtimeExecutionStore';
-import {
-    getTaskSourceDiagnosticState,
-    subscribeTaskSourceDiagnostics,
-} from '../context/taskSources/diagnostics';
+import { useTaskMonitorOverview } from './task-monitor/useTaskMonitorOverview';
 
 type TaskWithDetails = Task & { result?: TaskResult };
 
-export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes }) => {
+export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?: boolean }> = ({
+    filterTypes,
+    showHeaderOverview = true,
+}) => {
     const { t } = useTranslation('taskmonitor');
-    const desktopRuntime = isDesktopRuntime();
     const {
-        tasks,
         pauseLocalTasks,
         pauseRemoteTasks,
         pauseAllTasks,
@@ -35,68 +30,19 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
         resumeTask,
         deleteTask,
         clearTasks,
-        connected,
-        remoteTasksReady,
-        taskOwnerMode,
     } = useTaskContext();
     const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
-    const runtimeExecutionScopes = useRuntimeExecutionStore((state) => state.scopes);
-    const taskFeedDiagnostics = useSyncExternalStore(
-        subscribeTaskSourceDiagnostics,
-        getTaskSourceDiagnosticState,
-        getTaskSourceDiagnosticState,
-    );
-
-    const renderSourceStatus = (label: string, ready: boolean) => (
-        <span className={`text-[10px] font-medium flex items-center gap-1.5 ${ready ? 'text-emerald-400' : 'text-rose-400'}`}>
-            <span className="relative flex h-2 w-2">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${ready ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${ready ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-            </span>
-            {label}: {ready ? t('status.ready') : t('status.waiting')}
-        </span>
-    );
-
-    const filteredTasks = React.useMemo(() => {
-        if (!filterTypes || filterTypes.length === 0) return tasks;
-        return tasks.filter(t => {
-            if (filterTypes.includes(t.type)) return true;
-            
-            // Special handling for pipelines: check if they contain relevant steps
-            if (t.type === 'pipeline' && filterTypes.includes('download')) {
-                const isDownloadPipeline = t.name?.toLowerCase().includes('download') || 
-                    t.request_params?.steps?.some((s) => s.step_name === 'download' || s.action === 'download');
-                if (isDownloadPipeline) return true;
-            }
-            
-            return false;
-        });
-    }, [tasks, filterTypes]);
-
-    const summary = React.useMemo(() => {
-        const counts = {
-            pending: 0,
-            running: 0,
-            paused: 0,
-        };
-        for (const task of filteredTasks) {
-            if (task.status === 'pending') counts.pending += 1;
-            else if (task.status === 'running') counts.running += 1;
-            else if (task.status === 'paused') counts.paused += 1;
-        }
-        return counts;
-    }, [filteredTasks]);
-
-    const executionSummary = React.useMemo(() => {
-        const activeModes = Object.values(runtimeExecutionScopes).filter(
-            (mode): mode is "task_submission" | "direct_result" => mode === "task_submission" || mode === "direct_result",
-        );
-
-        return {
-            taskSubmission: activeModes.filter((mode) => mode === "task_submission").length,
-            directResult: activeModes.filter((mode) => mode === "direct_result").length,
-        };
-    }, [runtimeExecutionScopes]);
+    const {
+        connected,
+        desktopRuntime,
+        executionBadges,
+        executionSummary,
+        filteredTasks,
+        remoteTasksReady,
+        summary,
+        taskFeedDiagnostics,
+        taskOwnerMode,
+    } = useTaskMonitorOverview(filterTypes);
 
     const toggleExpand = (taskId: string) => {
         setExpandedTasks(prev => {
@@ -211,12 +157,14 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
             <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02] flex-none">
                  {/* ... header content ... */}
                  {/* Re-implementing Header for context match, but simplified since I use ReplaceFileContent with strict blocks */}
-                 <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <h3 className="text-base font-semibold text-white flex items-center gap-2">
                     <Activity className="w-4 h-4 text-indigo-400" />
                     {t('title')}
                 </h3>
                 {/* ... existing header controls ... */}
                 <div className="flex items-center gap-4">
+                    {showHeaderOverview && (
+                        <>
                     <div className="hidden md:flex items-center gap-2 text-[10px] text-slate-400">
                         <span className="px-2 py-1 rounded-md bg-amber-400/10 text-amber-300 border border-amber-400/20">
                             Queue {summary.pending}
@@ -232,22 +180,33 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[] }> = ({ filterTypes 
                         <span className="px-2 py-1 rounded-md bg-cyan-400/10 text-cyan-300 border border-cyan-400/20 text-[10px] font-mono">
                             owner {taskOwnerMode}
                         </span>
-                        {renderSourceStatus(t('status.localTasks'), connected)}
-                        {!desktopRuntime && renderSourceStatus(t('status.backendTasks'), remoteTasksReady)}
+                        <span className={`text-[10px] font-medium flex items-center gap-1.5 ${connected ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <span className="relative flex h-2 w-2">
+                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${connected ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                                <span className={`relative inline-flex rounded-full h-2 w-2 ${connected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                            </span>
+                            {t('status.localTasks')}: {connected ? t('status.ready') : t('status.waiting')}
+                        </span>
+                        {!desktopRuntime && (
+                            <span className={`text-[10px] font-medium flex items-center gap-1.5 ${remoteTasksReady ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                <span className="relative flex h-2 w-2">
+                                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${remoteTasksReady ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                                    <span className={`relative inline-flex rounded-full h-2 w-2 ${remoteTasksReady ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                </span>
+                                {t('status.backendTasks')}: {remoteTasksReady ? t('status.ready') : t('status.waiting')}
+                            </span>
+                        )}
                     </div>
-                    {(executionSummary.taskSubmission > 0 || executionSummary.directResult > 0) && (
+                    {executionBadges.length > 0 && (
                         <div className="hidden lg:flex items-center gap-2 text-[10px]">
-                            {executionSummary.taskSubmission > 0 && (
-                                <span className={`px-2 py-1 rounded-md border font-mono ${getExecutionModeDisplay("task_submission").className}`}>
-                                    {getExecutionModeDisplay("task_submission").label} {executionSummary.taskSubmission}
+                            {executionBadges.map((badge) => (
+                                <span key={badge.key} className={`px-2 py-1 rounded-md border font-mono ${badge.className}`}>
+                                    {badge.label} {badge.count}
                                 </span>
-                            )}
-                            {executionSummary.directResult > 0 && (
-                                <span className={`px-2 py-1 rounded-md border font-mono ${getExecutionModeDisplay("direct_result").className}`}>
-                                    {getExecutionModeDisplay("direct_result").label} {executionSummary.directResult}
-                                </span>
-                            )}
+                            ))}
                         </div>
+                    )}
+                        </>
                     )}
                     
                     <div className="flex gap-2">

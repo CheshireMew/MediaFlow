@@ -2,8 +2,12 @@ from pathlib import Path
 from typing import Optional, Tuple
 from loguru import logger
 import shutil
+import re
 from backend.utils.subtitle_manager import SubtitleManager
-from backend.utils.text_normalizer import normalize_filename_component
+
+def sanitize_filename(name: str) -> str:
+    if not name: return "download"
+    return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
 
 class DownloadPostProcessor:
     def process_subtitles(self, video_path: Path, download_subs: bool) -> Optional[str]:
@@ -63,7 +67,7 @@ class DownloadPostProcessor:
         subtitle_path: Optional[str] = None,
         preferred_stem: Optional[str] = None,
     ) -> tuple[Path, Optional[str]]:
-        repaired_stem = normalize_filename_component(preferred_stem or media_path.stem)
+        repaired_stem = sanitize_filename(preferred_stem or media_path.stem) or "download"
         if repaired_stem == media_path.stem:
             return media_path, subtitle_path
 
@@ -92,7 +96,7 @@ class DownloadPostProcessor:
 
     def process_local_file(self, local_source: Path, dest_dir: Path, filename: str) -> Path:
         """Move a local file to the destination directory with the correct name."""
-        safe_name = normalize_filename_component(filename)
+        safe_name = sanitize_filename(filename) or "download"
         dest_path = dest_dir / f"{safe_name}.mp4"
         
         logger.info(f"Moving local file {local_source} to {dest_path}")

@@ -3,7 +3,6 @@ from typing import Optional
 from loguru import logger
 from backend.services.platforms.base import BasePlatform
 from backend.models.schemas import AnalyzeResult, PlaylistItem
-from backend.core.container import container, Services
 
 
 class DouyinPlatform(BasePlatform):
@@ -20,6 +19,10 @@ class DouyinPlatform(BasePlatform):
     
     DOMAIN = "douyin.com"
 
+    def __init__(self, browser_service, sniffer):
+        self._browser_service = browser_service
+        self._sniffer = sniffer
+
     async def match(self, url: str) -> bool:
         """Match douyin.com URLs."""
         return "douyin.com" in url
@@ -35,15 +38,12 @@ class DouyinPlatform(BasePlatform):
         logger.info(f"[Douyin] Extracted ID: {video_id}")
 
         # 2. Use Playwright to sniff the real video URL
-        browser_service = container.get(Services.BROWSER)
-        sniffer = container.get(Services.SNIFFER)
-        
         logger.info(f"[Douyin] Sniffing video URL via Playwright...")
         try:
             # Ensure browser is started (it checks internally)
-            await browser_service.start()
+            await self._browser_service.start()
             
-            sniff_result = await sniffer.sniff(url)
+            sniff_result = await self._sniffer.sniff(url)
             
             if not sniff_result or not sniff_result.get("url"):
                 raise Exception("Failed to sniff video URL from Douyin.")
@@ -67,7 +67,7 @@ class DouyinPlatform(BasePlatform):
             )
         finally:
             # Always stop the browser to free memory
-            await browser_service.stop()
+            await self._browser_service.stop()
     
     def _extract_video_id(self, url: str) -> Optional[str]:
         """从 URL 中提取视频 ID"""

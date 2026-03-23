@@ -142,7 +142,7 @@ class RealESRGANService:
             # CAUTION: Using PIPE without reading can cause deadlocks if buffer fills up.
             # We use file counting for progress, so we can redirect logs to a file or DEVNULL.
             log_file = task_temp_dir / "realesrgan.log"
-            with open(log_file, "w") as f_log:
+            with open(log_file, "w", encoding="utf-8") as f_log:
                 process = subprocess.Popen(
                     cmd,
                     stdout=f_log,
@@ -197,7 +197,7 @@ class RealESRGANService:
             detected_fps = "30"
             try:
                 probe_cmd = [settings.FFPROBE_PATH, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=r_frame_rate", "-of", "default=noprint_wrappers=1:nokey=1", input_path]
-                fps_str = subprocess.check_output(probe_cmd, text=True).strip()
+                fps_str = subprocess.check_output(probe_cmd, text=True, encoding="utf-8", errors="replace").strip()
                 if fps_str:
                     detected_fps = fps_str
             except Exception:

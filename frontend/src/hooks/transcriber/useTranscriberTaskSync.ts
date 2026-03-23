@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import type { Task } from "../../types/task";
 import type { TranscribeResult } from "../../types/transcriber";
+import type { NullableExecutionMode } from "../../services/domain";
 import {
   findCompletedTranscribeTask,
   findActiveTranscribeTask,
@@ -18,7 +19,7 @@ type UseTranscriberTaskSyncParams = {
   currentResult: TranscribeResult | null;
   setActiveTaskId: (taskId: string | null) => void;
   setResult: (result: TranscribeResult | null) => void;
-  setExecutionMode: (mode: "task_submission" | "direct_result" | null) => void;
+  setExecutionMode: (mode: NullableExecutionMode) => void;
 };
 
 export function useTranscriberTaskSync({

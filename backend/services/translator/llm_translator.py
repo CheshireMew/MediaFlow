@@ -13,6 +13,7 @@ from backend.config import settings
 
 class TranslatorSegment(BaseModel):
     id: str = Field(..., description="Original subtitle ID — must match input exactly")
+    source_text: str = Field(..., description="Original source subtitle text — must match input exactly")
     text: str = Field(..., description="Translated text")
 
 class IntelligentSegment(BaseModel):
@@ -33,10 +34,6 @@ class IntelligentTranslationResponse(BaseModel):
 CACHE_DIR = settings.TEMP_DIR / "translation_cache"
 CACHE_MAX_AGE_DAYS = 7
 CONTEXT_OVERLAP = 3  # Number of lines from previous batch to include as context
-
-MAX_CORRECTION_ROUNDS = 2  # 1 initial + 2 corrections = 3 total LLM calls
-MAX_CONSECUTIVE_BATCH_FAILURES = 2
-
 
 class TranslationCache:
     """Disk-based translation cache keyed by content hash + model + language."""
@@ -90,19 +87,18 @@ class TranslationCache:
 # --- Translator ---
 
 class LLMTranslator:
-    def __init__(self):
+    def __init__(self, *, settings_manager, glossary_service):
         self._cache = TranslationCache()
         self.model = settings.LLM_MODEL
+        self._settings_manager = settings_manager
+        self._glossary_service = glossary_service
 
     def _get_client(self):
         """Dynamically construct the OpenAI client based on active settings."""
         import instructor
         from openai import OpenAI
 
-        from backend.core.container import container, Services
-        settings_manager = container.get(Services.SETTINGS_MANAGER)
-
-        provider = settings_manager.get_active_llm_provider()
+        provider = self._settings_manager.get_active_llm_provider()
         if not provider:
             logger.error("No active LLM provider found in settings.")
             return None, None
@@ -119,21 +115,68 @@ class LLMTranslator:
         self, resp: TranslationResponse, segments: List[SubtitleSegment]
     ) -> tuple[bool, str, List[SubtitleSegment]]:
         expected_ids = [str(s.id) for s in segments]
-        id_to_text = {s.id: s.text for s in resp.segments}
+        expected_source_texts = [s.text for s in segments]
+        response_ids = [str(s.id) for s in resp.segments]
+        response_source_texts = [s.source_text for s in resp.segments]
+        duplicate_ids = sorted({segment_id for segment_id in response_ids if response_ids.count(segment_id) > 1})
 
-        if set(id_to_text.keys()) == set(expected_ids) and len(resp.segments) == len(segments):
-            result = [self._map_seg(orig, id_to_text[str(orig.id)]) for orig in segments]
+        if duplicate_ids:
+            error = (
+                f"Expected unique segment IDs matching {expected_ids}, "
+                f"but received duplicate IDs: {duplicate_ids}."
+            )
+            return False, error, []
+
+        empty_text_ids = [
+            str(segment.id)
+            for segment in resp.segments
+            if not isinstance(segment.text, str) or not segment.text.strip()
+        ]
+        if empty_text_ids:
+            error = (
+                f"Translated text must not be empty. Empty translations for IDs: {empty_text_ids}. "
+                f"You MUST return non-empty translated text for each input segment."
+            )
+            return False, error, []
+
+        source_mismatch_ids = [
+            expected_ids[index]
+            for index, (expected_text, returned_text) in enumerate(
+                zip(expected_source_texts, response_source_texts, strict=False)
+            )
+            if expected_text != returned_text
+        ]
+        if len(response_source_texts) != len(expected_source_texts):
+            source_mismatch_ids = expected_ids
+
+        if response_ids == expected_ids and len(resp.segments) == len(segments):
+            if source_mismatch_ids:
+                error = (
+                    "Returned source_text values did not match the input exactly. "
+                    f"Mismatched IDs: {source_mismatch_ids}. "
+                    "This usually means the response content has shifted across segments."
+                )
+                return False, error, []
+            result = [
+                self._map_seg(orig, translated.text)
+                for orig, translated in zip(segments, resp.segments, strict=False)
+            ]
             return True, "", result
 
-        missing = [id for id in expected_ids if id not in id_to_text]
-        extra = [id for id in id_to_text if id not in expected_ids]
+        missing = [segment_id for segment_id in expected_ids if segment_id not in response_ids]
+        extra = [segment_id for segment_id in response_ids if segment_id not in expected_ids]
         error = f"Expected {len(segments)} segments but got {len(resp.segments)}."
-        if len(resp.segments) == len(segments):
-            error += " Segment IDs/order did not match the input."
+        if response_ids != expected_ids:
+            error += (
+                f" Segment IDs/order did not match the input. "
+                f"Expected order: {expected_ids}. Received order: {response_ids}."
+            )
         if missing:
             error += f" Missing IDs: {missing}."
         if extra:
             error += f" Extra IDs: {extra}."
+        if source_mismatch_ids:
+            error += f" source_text mismatch IDs: {source_mismatch_ids}."
         error += f" You MUST return exactly {len(segments)} segments with IDs: {expected_ids}."
         return False, error, []
 
@@ -142,6 +185,26 @@ class LLMTranslator:
         new = original.model_copy()
         new.text = translated_text
         return new
+
+    @staticmethod
+    def _log_llm_messages(mode_label: str, messages: List[Dict[str, str]]) -> None:
+        try:
+            logger.debug(
+                f"[LLM IO] {mode_label} request messages:\n"
+                f"{json.dumps(messages, ensure_ascii=False, indent=2)}"
+            )
+        except Exception as exc:
+            logger.warning(f"[LLM IO] Failed to serialize {mode_label} request messages: {exc}")
+
+    @staticmethod
+    def _log_llm_response(mode_label: str, response_model: BaseModel) -> None:
+        try:
+            logger.debug(
+                f"[LLM IO] {mode_label} response payload:\n"
+                f"{response_model.model_dump_json(indent=2)}"
+            )
+        except Exception as exc:
+            logger.warning(f"[LLM IO] Failed to serialize {mode_label} response payload: {exc}")
 
     # --- Single-line fallback ---
 
@@ -153,24 +216,41 @@ class LLMTranslator:
         result = []
         for seg in segments:
             try:
+                messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            f"Translate the following subtitle line to {target_language}.\n"
+                            "Return exactly one segment.\n"
+                            "You MUST preserve the original id exactly.\n"
+                            "You MUST copy source_text exactly from the input.\n"
+                            "Translated text must not be empty.\n"
+                            "Do not merge, split, or rewrite surrounding lines."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": json.dumps(
+                            [{"id": str(seg.id), "source_text": seg.text}],
+                            ensure_ascii=False,
+                        ),
+                    }
+                ]
+                self._log_llm_messages(f"{mode_label} single [{seg.id}]", messages)
                 resp = client.chat.completions.create(
                     model=model_name,
                     response_model=TranslationResponse,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                f"Translate the following subtitle line to {target_language}.\n"
-                                "Return exactly one segment.\n"
-                                "You MUST preserve the original id exactly.\n"
-                                "Do not merge, split, or rewrite surrounding lines."
-                            ),
-                        },
-                        {"role": "user", "content": json.dumps({str(seg.id): seg.text}, ensure_ascii=False)}
-                    ],
+                    messages=messages,
                     temperature=0.3
                 )
-                if len(resp.segments) == 1 and str(resp.segments[0].id) == str(seg.id):
+                self._log_llm_response(f"{mode_label} single [{seg.id}]", resp)
+                if (
+                    len(resp.segments) == 1
+                    and str(resp.segments[0].id) == str(seg.id)
+                    and resp.segments[0].source_text == seg.text
+                    and isinstance(resp.segments[0].text, str)
+                    and resp.segments[0].text.strip()
+                ):
                     result.append(self._map_seg(seg, resp.segments[0].text))
                 else:
                     logger.warning(f"[LLM] Single-line returned invalid id/count for [{seg.id}], keeping source text")
@@ -192,43 +272,34 @@ class LLMTranslator:
         target_language: str,
         mode_label: str = "Standard",
     ) -> List[SubtitleSegment]:
-        """
-        LLM call → validate → if mismatch, send error back → retry.
-        After MAX_CORRECTION_ROUNDS failures, fall back to single-line translation.
-        """
+        """Try one structured batch call, then immediately fall back to single-line translation."""
         n = len(segments)
-        ids = [str(s.id) for s in segments]
-
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": input_json_str}
+            {"role": "user", "content": input_json_str},
         ]
-
-        last_resp = None
-        for round_idx in range(1 + MAX_CORRECTION_ROUNDS):
+        self._log_llm_messages(mode_label, messages)
+        try:
             resp = client.chat.completions.create(
                 model=model_name,
                 response_model=TranslationResponse,
                 messages=messages,
                 temperature=0.3
             )
-            last_resp = resp
-            logger.info(f"[LLM IO] {mode_label} round {round_idx}: input {n}, output {len(resp.segments)}")
+        except Exception as e:
+            logger.warning(
+                f"[LLM] {mode_label}: batch request failed, falling back to single-line for all {n} segments: {e}"
+            )
+            return self._translate_single_fallback(client, model_name, segments, target_language, mode_label)
 
-            is_valid, error_msg, mapped = self._validate_response(resp, segments)
-            if is_valid:
-                return mapped
+        self._log_llm_response(mode_label, resp)
+        logger.info(f"[LLM IO] {mode_label}: input {n}, output {len(resp.segments)}")
 
-            logger.warning(f"[LLM] {mode_label} validation failed (round {round_idx}): {error_msg}")
-            messages.append({"role": "assistant", "content": resp.model_dump_json()})
-            messages.append({
-                "role": "user",
-                "content": f"Error: {error_msg}\n\nFix the errors and output exactly {n} segments with IDs: {ids}"
-            })
+        is_valid, error_msg, mapped = self._validate_response(resp, segments)
+        if is_valid:
+            return mapped
 
-        # Correction rounds exhausted → entire batch goes to single-line fallback
-        # Do NOT use partial mapping: LLM may have merged segments, making those entries unreliable
-        logger.warning(f"[LLM] {mode_label}: correction exhausted, falling back to single-line for all {n} segments")
+        logger.warning(f"[LLM] {mode_label}: validation failed, falling back to single-line: {error_msg}")
         return self._translate_single_fallback(client, model_name, segments, target_language, mode_label)
 
     # --- Mode dispatching ---
@@ -245,7 +316,11 @@ class LLMTranslator:
         if not client:
             raise ValueError("LLM Client not initialized (Check Settings)")
 
-        subtitle_dict = {str(s.id): s.text for s in segments}
+        subtitle_rows = [
+            {"id": str(s.id), "source_text": s.text}
+            for s in segments
+        ]
+        subtitle_dict = {row["id"]: row["source_text"] for row in subtitle_rows}
         n = len(segments)
 
         # --- Cache check ---
@@ -256,20 +331,23 @@ class LLMTranslator:
 
         # --- Build user content with optional context ---
         if context_before and mode != "intelligent":
-            context_lines = {str(s.id): s.text for s in context_before}
+            context_lines = [
+                {"id": str(s.id), "source_text": s.text}
+                for s in context_before
+            ]
             user_content = (
                 f"[CONTEXT — previous lines for reference only, do NOT translate these]\n"
                 f"{json.dumps(context_lines, ensure_ascii=False)}\n\n"
                 f"[TRANSLATE — translate these {n} entries]\n"
-                f"{json.dumps(subtitle_dict, ensure_ascii=False)}"
+                f"{json.dumps(subtitle_rows, ensure_ascii=False)}"
             )
         else:
-            user_content = json.dumps(subtitle_dict, ensure_ascii=False)
+            user_content = json.dumps(subtitle_rows, ensure_ascii=False)
 
         # --- Glossary ---
-        from backend.core.container import container, Services
-        glossary_service = container.get(Services.GLOSSARY)
-        relevant_terms = glossary_service.get_relevant_terms(" ".join(subtitle_dict.values()))
+        relevant_terms = self._glossary_service.get_relevant_terms(
+            " ".join(subtitle_dict.values())
+        )
 
         system_prompt = f"You are a professional subtitle translator translating to {target_language}."
         system_prompt += "\nThe source text is transcribed from audio and may contain errors. Use context to correct errors during translation."
@@ -288,15 +366,20 @@ class LLMTranslator:
             system_prompt += f"""
 MODE: STANDARD (Strict 1-to-1)
 Rules:
-1. Input is a JSON dict with {n} entries. You MUST output exactly {n} segments.
+1. Input is a JSON array with {n} entries. You MUST output exactly {n} segments.
 2. Preserve the exact 'id' from input — do NOT renumber.
-3. Translate ONLY the text. Never merge or split lines, even if incomplete.
-4. Fragments stay as fragments.
+3. Copy 'source_text' exactly from input into output. Do not edit it.
+4. Translate ONLY the text field. Never merge or split lines, even if incomplete.
+5. Every translated 'text' must be non-empty.
+6. Fragments stay as fragments.
+7. NEVER pull meaning from the next or previous segment into the current segment.
+8. If two neighboring lines read better as one sentence, you MUST still keep them separate.
+9. Do not complete a sentence using words that belong to another segment.
 {ctx_note}
 Example:
-Input: {{"1": "Hello everyone", "2": "welcome to", "3": "our channel"}}
-Correct output has 3 segments: {{"1": "大家好", "2": "欢迎来到", "3": "我们的频道"}}
-Wrong (merged): {{"1": "大家好，欢迎来到我们的频道"}} ← NEVER do this
+Input: [{{"id":"1","source_text":"Hello everyone"}}, {{"id":"2","source_text":"welcome to"}}, {{"id":"3","source_text":"our channel"}}]
+Correct output has 3 segments with unchanged source_text values.
+Wrong: any reordered, merged, empty, or source_text-edited output.
 """
             result = self._translate_with_correction(
                 client, model_name, system_prompt, segments, user_content, target_language, "Standard"
@@ -314,7 +397,11 @@ Rules:
 1. The source is a speech transcription with potential typos, wrong words, or missing punctuation.
 2. CORRECT the text (grammar, spelling, punctuation) while keeping the MEANING and LANGUAGE the same.
 3. Input has {n} entries. You MUST output exactly {n} segments with the same IDs.
-4. Do NOT translate. Keep the original language.
+4. Copy 'source_text' exactly from input into output. Do not edit it.
+5. Output 'text' must be non-empty.
+6. Do NOT translate. Keep the original language.
+7. NEVER merge semantic content from neighboring segments into the current one.
+8. If a line is incomplete, keep it incomplete instead of borrowing completion from the next line.
 {ctx_note}"""
             result = self._translate_with_correction(
                 client, model_name, system_prompt, segments, user_content, target_language, "Proofread"
@@ -332,16 +419,19 @@ Rules:
 3. Goal: readability and natural flow in {target_language}.
 4. For each segment, provide 'time_percentage' (0.0-1.0) representing its portion of total duration.
 """
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ]
+            self._log_llm_messages("Intelligent", messages)
             resp = client.chat.completions.create(
                 model=model_name,
                 response_model=IntelligentTranslationResponse,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content}
-                ],
+                messages=messages,
                 temperature=0.7
             )
 
+            self._log_llm_response("Intelligent", resp)
             logger.info(f"[LLM IO] Intelligent: input {len(segments)} -> output {len(resp.segments)}")
 
             total_start = segments[0].start
@@ -390,9 +480,6 @@ Rules:
         translated_segments = []
         total_batches = (len(segments) + batch_size - 1) // batch_size
         effective_mode = mode if mode in ["standard", "intelligent", "proofread"] else "standard"
-        consecutive_failures = 0
-        last_batch_error: Exception | None = None
-
         logger.info(f"Starting translation: {len(segments)} segments, mode={effective_mode}, batch_size={batch_size}, batches={total_batches}")
 
         prev_batch: Optional[List[SubtitleSegment]] = None
@@ -413,19 +500,11 @@ Rules:
             try:
                 result = self._translate_batch_struct(batch, target_language, effective_mode, context_before=context)
                 translated_segments.extend(result)
-                consecutive_failures = 0
-                last_batch_error = None
             except Exception as e:
-                logger.error(f"[Translate] Batch {batch_num} failed: {e}. Falling back to source text.")
-                translated_segments.extend(batch)
-                consecutive_failures += 1
-                last_batch_error = e
-
-                if consecutive_failures >= MAX_CONSECUTIVE_BATCH_FAILURES or total_batches == 1:
-                    raise RuntimeError(
-                        "Translation failed after consecutive LLM batch errors. "
-                        f"Last error: {e}"
-                    ) from e
+                raise RuntimeError(
+                    "Translation failed before single-line fallback could complete. "
+                    f"Batch {batch_num}/{total_batches}. Last error: {e}"
+                ) from e
 
             prev_batch = batch
 

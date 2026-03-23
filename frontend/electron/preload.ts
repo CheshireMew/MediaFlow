@@ -35,8 +35,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("fs:writeBinaryFile", filePath, data),
   getFileSize: (filePath: string) =>
     ipcRenderer.invoke("fs:getFileSize", filePath),
-  resolveExistingPath: (filePath: string, fallbackName?: string) =>
-    ipcRenderer.invoke("fs:resolveExistingPath", filePath, fallbackName),
+  resolveExistingPath: (filePath: string, fallbackName?: string, expectedSize?: number) =>
+    ipcRenderer.invoke("fs:resolveExistingPath", filePath, fallbackName, expectedSize),
   saveFile: (filePath: string, content: string) =>
     ipcRenderer.invoke("fs:writeFile", filePath, content),
   getDesktopRuntimeInfo: () => ipcRenderer.invoke("desktop:get-runtime-info"),
@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       role?: string;
       origin?: string;
     } | null;
+    engine?: "builtin" | "cli";
     model: string;
     device: string;
     language?: string | null;
@@ -129,6 +130,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     audio_path: string;
     start: number;
     end: number;
+    engine?: "builtin" | "cli";
     model?: string;
     device?: string;
     language?: string;

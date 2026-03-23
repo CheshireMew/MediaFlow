@@ -3,10 +3,11 @@ import { persist } from "zustand/middleware";
 import type { SubtitleSegment } from "../types/task";
 import type { GlossaryTerm } from "../services/domain";
 import type { MediaReference } from "../services/ui/mediaReference";
+import type { NullableExecutionMode } from "../services/domain";
 
 export type TranslatorMode = "standard" | "intelligent" | "proofread";
 export type TranslatorResultMode = TranslatorMode | null;
-export type TranslatorExecutionMode = "task_submission" | "direct_result" | null;
+export type TranslatorExecutionMode = NullableExecutionMode;
 
 interface TranslatorState {
   // Data

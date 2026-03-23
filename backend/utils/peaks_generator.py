@@ -8,11 +8,16 @@ enabling instant waveform rendering without client-side audio decoding.
 import struct
 import subprocess
 import hashlib
+import threading
 import time
 import os
 from pathlib import Path
 from loguru import logger
 from backend.config import settings
+
+
+_inflight_lock = threading.Lock()
+_inflight_generations: dict[str, threading.Event] = {}
 
 
 def _get_cache_dir() -> Path:
@@ -80,10 +85,31 @@ def generate_peaks(
         # User requested managed path -> Trigger cleanup
         _cleanup_old_files() 
         output_path = str(get_peaks_path(media_path))
-    
-    if Path(output_path).exists():
+
+    output = Path(output_path)
+    if output.exists():
         logger.debug(f"[PeaksGen] Peaks file already exists: {output_path}")
         return output_path
+
+    is_leader = False
+    generation_event: threading.Event | None = None
+    with _inflight_lock:
+        if output.exists():
+            logger.debug(f"[PeaksGen] Peaks file already exists: {output_path}")
+            return output_path
+        generation_event = _inflight_generations.get(output_path)
+        if generation_event is None:
+            generation_event = threading.Event()
+            _inflight_generations[output_path] = generation_event
+            is_leader = True
+
+    if not is_leader:
+        logger.debug(f"[PeaksGen] Waiting for in-flight peaks generation: {output_path}")
+        generation_event.wait(timeout=310)
+        if output.exists():
+            return output_path
+        logger.warning(f"[PeaksGen] In-flight peaks generation did not produce output: {output_path}")
+        return None
 
     # Step 1: Extract raw audio samples via ffmpeg (mono, downsampled)
     # Using a moderate sample rate for extraction, then we'll compute peaks from chunks
@@ -134,10 +160,12 @@ def generate_peaks(
         peak_bytes = struct.pack(f"<{len(peaks)}f", *peaks)
         
         # Ensure dir exists again just in case
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(output_path, "wb") as f:
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        temp_output = output.with_suffix(f"{output.suffix}.{threading.get_ident()}.tmp")
+        with open(temp_output, "wb") as f:
             f.write(peak_bytes)
+        os.replace(temp_output, output)
 
         file_size_kb = len(peak_bytes) / 1024
         logger.success(
@@ -151,33 +179,27 @@ def generate_peaks(
     except Exception as e:
         logger.error(f"[PeaksGen] Failed to generate peaks: {e}")
         return None
+    finally:
+        if is_leader and generation_event is not None:
+            with _inflight_lock:
+                _inflight_generations.pop(output_path, None)
+            generation_event.set()
 
 
-def generate_multi_resolution_peaks(
+def start_peaks_warmup(
     media_path: str,
-    hi_samples_per_second: int = 100,
-    lo_samples_per_second: int = 10,
-) -> tuple[str | None, str | None]:
-    """
-    Generate both high-resolution and low-resolution peaks files.
+    samples_per_second: int = 100,
+) -> None:
+    """Start a background warmup for the canonical peaks cache."""
 
-    Returns:
-        Tuple of (hi_res_path, lo_res_path). Either may be None on failure.
-    """
-    # High-res
-    # Note: if output_path is None, generate_peaks uses the cache logic
-    hi_path = generate_peaks(media_path, samples_per_second=hi_samples_per_second)
-
-    # Low-res
-    # We need a different suffix for low-res but same hash logic
-    # But generate_peaks only accepts output_path override for that.
-    # So we construct it manually using our helper
-    lo_path_obj = get_peaks_path(media_path, suffix=".peaks.low.bin")
-    
-    lo_path = generate_peaks(
-        media_path,
-        output_path=str(lo_path_obj),
-        samples_per_second=lo_samples_per_second,
+    worker = threading.Thread(
+        target=generate_peaks,
+        kwargs={
+            "media_path": media_path,
+            "output_path": None,
+            "samples_per_second": samples_per_second,
+        },
+        name=f"peaks-warmup-{Path(media_path).stem}",
+        daemon=True,
     )
-
-    return hi_path, lo_path
+    worker.start()

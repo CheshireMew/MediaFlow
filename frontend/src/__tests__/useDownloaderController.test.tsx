@@ -1,5 +1,6 @@
+/* @vitest-environment jsdom */
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { downloaderService } from "../services/domain/downloaderService";
 import { executionService } from "../services/domain/executionService";
@@ -67,14 +68,18 @@ describe("useDownloaderController", () => {
     });
     vi.mocked(executionService.download).mockResolvedValue({
       execution_mode: "task_submission",
-      task_id: "task-123",
-      status: "pending",
-      message: "Task queued",
-      task_source: "backend",
-      task_contract_version: 2,
-      persistence_scope: "runtime",
-      queue_state: "queued",
-      queue_position: null,
+      result: null,
+      submission: {
+        execution_mode: "task_submission",
+        task_id: "task-123",
+        status: "pending",
+        message: "Task queued",
+        task_source: "backend",
+        task_contract_version: 2,
+        persistence_scope: "runtime",
+        queue_state: "queued",
+        queue_position: null,
+      },
     });
 
     const { result } = renderHook(() => useDownloaderController());

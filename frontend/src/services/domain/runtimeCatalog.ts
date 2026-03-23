@@ -28,16 +28,35 @@ export const domainRuntimeCatalog = {
     getLatestWatermark: "desktop-primary",
   },
   settingsService: {
-    getSettings: "desktop-primary",
-    updateSettings: "desktop-primary",
-    setActiveProvider: "desktop-primary",
-    testProviderConnection: "desktop-primary",
-    updateYtDlp: "desktop-primary",
+    getSettings: "backend-fallback",
+    updateSettings: "backend-fallback",
+    setActiveProvider: "backend-fallback",
+    testProviderConnection: "backend-fallback",
+    updateYtDlp: "backend-fallback",
   },
   glossaryService: {
-    listTerms: "desktop-primary",
-    addTerm: "desktop-primary",
-    deleteTerm: "desktop-primary",
+    listTerms: "backend-fallback",
+    addTerm: "backend-fallback",
+    deleteTerm: "backend-fallback",
+  },
+  translationService: {
+    startTranslation: "backend-fallback",
+    getTaskStatus: "backend-fallback",
+  },
+} satisfies Record<string, OperationCatalog>;
+
+export const domainBackendFallbackCatalog = {
+  settingsService: {
+    getSettings: "backend-fallback",
+    updateSettings: "backend-fallback",
+    setActiveProvider: "backend-fallback",
+    testProviderConnection: "backend-fallback",
+    updateYtDlp: "backend-fallback",
+  },
+  glossaryService: {
+    listTerms: "backend-fallback",
+    addTerm: "backend-fallback",
+    deleteTerm: "backend-fallback",
   },
   translationService: {
     startTranslation: "backend-fallback",
@@ -72,4 +91,3 @@ export function getRuntimeStrategy<
 >(catalog: TCatalog, service: TService, operation: TOperation): TCatalog[TService][TOperation] {
   return catalog[service][operation];
 }
-

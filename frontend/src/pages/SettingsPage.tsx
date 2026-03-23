@@ -83,6 +83,18 @@ const SettingsPage: React.FC = () => {
         setTimeout(() => setNotification(null), 3000);
     };
 
+    const updateSettingsField = async (nextSettings: UserSettings, successMessage?: string) => {
+        try {
+            const res = await settingsService.updateSettings(nextSettings);
+            setSettings(res);
+            showNotification(successMessage || t("general.updateSuccess"));
+            return res;
+        } catch {
+            showNotification(t("general.updateFailed"), "error");
+            return null;
+        }
+    };
+
     const fetchSettings = async () => {
         try {
             const data = await settingsService.getSettings();
@@ -405,12 +417,9 @@ const SettingsPage: React.FC = () => {
                                         onChange={async (e) => {
                                             if (!settings) return;
                                             const lang = e.target.value;
-                                            try {
-                                                const res = await settingsService.updateSettings({ ...settings, language: lang });
-                                                setSettings(res);
+                                            const res = await updateSettingsField({ ...settings, language: lang });
+                                            if (res) {
                                                 i18n.changeLanguage(lang);
-                                            } catch {
-                                                showNotification(t("general.updateFailed"), "error");
                                             }
                                         }}
                                         className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
@@ -436,16 +445,10 @@ const SettingsPage: React.FC = () => {
                                         onChange={async (e) => {
                                             if (!settings) return;
                                             const targetLanguage = e.target.value;
-                                            try {
-                                                const res = await settingsService.updateSettings({
-                                                    ...settings,
-                                                    translation_target_language: targetLanguage,
-                                                });
-                                                setSettings(res);
-                                                showNotification(t("general.updateSuccess"));
-                                            } catch {
-                                                showNotification(t("general.updateFailed"), "error");
-                                            }
+                                            await updateSettingsField({
+                                                ...settings,
+                                                translation_target_language: targetLanguage,
+                                            });
                                         }}
                                         className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
                                     >
@@ -472,16 +475,10 @@ const SettingsPage: React.FC = () => {
                                         onChange={async (e) => {
                                             if (!settings) return;
                                             const transcriptionModel = e.target.value;
-                                            try {
-                                                const res = await settingsService.updateSettings({
-                                                    ...settings,
-                                                    transcription_model: transcriptionModel,
-                                                });
-                                                setSettings(res);
-                                                showNotification(t("general.updateSuccess"));
-                                            } catch {
-                                                showNotification(t("general.updateFailed"), "error");
-                                            }
+                                            await updateSettingsField({
+                                                ...settings,
+                                                transcription_model: transcriptionModel,
+                                            });
                                         }}
                                         className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
                                     >
@@ -508,13 +505,10 @@ const SettingsPage: React.FC = () => {
                                         onClick={async () => {
                                             if (!settings) return;
                                             const newVal = !settings.auto_execute_flow;
-                                            try {
-                                                const res = await settingsService.updateSettings({ ...settings, auto_execute_flow: newVal });
-                                                setSettings(res);
-                                                showNotification(newVal ? t("general.autoExecuteEnabled") : t("general.autoExecuteDisabled"));
-                                            } catch {
-                                                showNotification(t("general.updateFailed"), "error");
-                                            }
+                                            await updateSettingsField(
+                                                { ...settings, auto_execute_flow: newVal },
+                                                newVal ? t("general.autoExecuteEnabled") : t("general.autoExecuteDisabled"),
+                                            );
                                         }}
                                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-[#1a1a1a] ${
                                             settings?.auto_execute_flow ? 'bg-indigo-600' : 'bg-white/10'
@@ -544,16 +538,10 @@ const SettingsPage: React.FC = () => {
                                             onClick={async () => {
                                                 const dir = await fileService.selectDirectory();
                                                 if (!settings || !dir) return;
-                                                try {
-                                                    const res = await settingsService.updateSettings({
-                                                        ...settings,
-                                                        default_download_path: dir,
-                                                    });
-                                                    setSettings(res);
-                                                    showNotification(t("general.updateSuccess"));
-                                                } catch {
-                                                    showNotification(t("general.updateFailed"), "error");
-                                                }
+                                                await updateSettingsField({
+                                                    ...settings,
+                                                    default_download_path: dir,
+                                                });
                                             }}
                                             className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors"
                                         >
@@ -562,16 +550,84 @@ const SettingsPage: React.FC = () => {
                                         <button
                                             onClick={async () => {
                                                 if (!settings) return;
-                                                try {
-                                                    const res = await settingsService.updateSettings({
+                                                await updateSettingsField({
+                                                    ...settings,
+                                                    default_download_path: null,
+                                                });
+                                            }}
+                                            className="px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            {t("general.clearFolder")}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors gap-6">
+                                    <div className="space-y-1 min-w-0 flex-1">
+                                        <h4 className="text-base font-medium text-white flex items-center gap-2">
+                                            <Cpu size={18} className="text-indigo-400" />
+                                            {t("general.cliPath")}
+                                        </h4>
+                                        <p className="text-sm text-slate-500">
+                                            {t("general.cliPathDesc")}
+                                        </p>
+                                        <input
+                                            value={settings?.faster_whisper_cli_path || ""}
+                                            onChange={(e) => {
+                                                if (!settings) return;
+                                                setSettings({
+                                                    ...settings,
+                                                    faster_whisper_cli_path: e.target.value,
+                                                });
+                                            }}
+                                            placeholder={t("general.cliPathPlaceholder")}
+                                            className="mt-3 w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0 self-end">
+                                        <button
+                                            onClick={async () => {
+                                                const input = document.createElement("input");
+                                                input.type = "file";
+                                                input.accept = ".exe";
+                                                input.onchange = async (event) => {
+                                                    const target = event.target as HTMLInputElement;
+                                                    const selected = target.files?.[0];
+                                                    if (!selected || !settings) return;
+                                                    const filePath = fileService.getPathForFile(selected);
+                                                    if (!filePath) return;
+                                                    const nextSettings = {
                                                         ...settings,
-                                                        default_download_path: null,
-                                                    });
-                                                    setSettings(res);
-                                                    showNotification(t("general.updateSuccess"));
-                                                } catch {
-                                                    showNotification(t("general.updateFailed"), "error");
-                                                }
+                                                        faster_whisper_cli_path: filePath,
+                                                    };
+                                                    setSettings(nextSettings);
+                                                    await updateSettingsField(nextSettings);
+                                                };
+                                                input.click();
+                                            }}
+                                            className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors"
+                                        >
+                                            {t("general.chooseFile")}
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (!settings) return;
+                                                await updateSettingsField({
+                                                    ...settings,
+                                                    faster_whisper_cli_path: settings.faster_whisper_cli_path?.trim() || null,
+                                                });
+                                            }}
+                                            className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors"
+                                        >
+                                            {t("general.savePath")}
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (!settings) return;
+                                                await updateSettingsField({
+                                                    ...settings,
+                                                    faster_whisper_cli_path: null,
+                                                });
                                             }}
                                             className="px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
                                         >

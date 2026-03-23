@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { ReactElement, ReactNode } from 'react'
 import App from '../App'
@@ -10,6 +10,7 @@ installElectronMock()
 
 afterEach(() => {
   window.location.hash = '#/'
+  localStorage.clear()
 })
 
 vi.mock('react-i18next', () => ({
@@ -77,6 +78,21 @@ test('renders app with navigation sidebar', () => {
   render(<App />)
   // Check for sidebar items via "Editor" title
   expect(screen.getByTitle(/Editor/i)).toBeInTheDocument()
+})
+
+test('opens downloader on first launch', async () => {
+  render(<App />)
+  await waitFor(() => {
+    expect(screen.getByTestId('page-downloader')).toBeInTheDocument()
+  })
+})
+
+test('restores the last opened page from localStorage', async () => {
+  localStorage.setItem('mediaflow:last-route', 'translator')
+  render(<App />)
+  await waitFor(() => {
+    expect(screen.getByTestId('page-translator')).toBeInTheDocument()
+  })
 })
 
 test('renders preprocessing page without backend readiness gate', () => {

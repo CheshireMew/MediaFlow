@@ -9,11 +9,13 @@ import {
   toElectronFile,
 } from "../../services/ui/mediaReference";
 import { normalizeTranscribeResult } from "../../services/ui/transcribeResult";
+import { attachElectronFileSource } from "../../services/ui/electronFileSource";
 
 const TRANSCRIBER_SNAPSHOT_KEY = "transcriber_snapshot";
 const TRANSCRIBER_SNAPSHOT_VERSION = 1;
 
 type TranscriberSnapshotPayload = {
+  engine: "builtin" | "cli";
   model: string;
   device: string;
   result: TranscribeResult | null;
@@ -21,6 +23,7 @@ type TranscriberSnapshotPayload = {
 };
 
 const TRANSCRIBER_SNAPSHOT_LIFECYCLE = {
+  engine: TASK_LIFECYCLE.history_only,
   model: TASK_LIFECYCLE.history_only,
   device: TASK_LIFECYCLE.history_only,
   file: TASK_LIFECYCLE.history_only,
@@ -34,6 +37,7 @@ export function restoreStoredTranscriberSnapshot(): TranscriberSnapshotPayload |
   );
   return snapshot
     ? {
+        engine: snapshot.engine ?? "builtin",
         model: snapshot.model,
         device: snapshot.device,
         result: snapshot.result,
@@ -45,7 +49,9 @@ export function restoreStoredTranscriberSnapshot(): TranscriberSnapshotPayload |
 export function restoreStoredTranscriberFile(): ElectronFile | null {
   const snapshot = restoreStoredTranscriberSnapshot();
   const reference = snapshot?.file;
-  return reference ? toElectronFile(reference) : null;
+  return reference
+    ? attachElectronFileSource(toElectronFile(reference), "transcriber_snapshot")
+    : null;
 }
 
 export function restoreStoredTranscriberResult(): TranscribeResult | null {
@@ -54,12 +60,13 @@ export function restoreStoredTranscriberResult(): TranscribeResult | null {
 }
 
 export function useTranscriberPersistence(params: {
+  engine: "builtin" | "cli";
   model: string;
   device: string;
   result: TranscribeResult | null;
   file: ElectronFile | null;
 }) {
-  const { model, device, result, file } = params;
+  const { engine, model, device, result, file } = params;
 
   useEffect(() => {
     const fileReference = mediaReferenceFromElectronFile(file);
@@ -68,6 +75,7 @@ export function useTranscriberPersistence(params: {
       serializeVersionedSnapshot(
         TRANSCRIBER_SNAPSHOT_VERSION,
         {
+          engine,
           model,
           device,
           result,
@@ -76,5 +84,5 @@ export function useTranscriberPersistence(params: {
         TRANSCRIBER_SNAPSHOT_LIFECYCLE,
       ),
     );
-  }, [device, file, model, result]);
+  }, [device, engine, file, model, result]);
 }

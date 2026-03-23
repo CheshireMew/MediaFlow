@@ -11,5 +11,19 @@
   "placeholder": {
     "metrics": "Additional Metrics (Coming Soon)",
     "storage": "Storage Stats (Coming Soon)"
+  },
+  "taskOverview": {
+    "title": "Task Overview",
+    "subtitle": "Queue and runtime load",
+    "queue": "Queue",
+    "running": "Running",
+    "paused": "Paused"
+  },
+  "runtimeOverview": {
+    "title": "Runtime Status",
+    "subtitle": "Sources and execution modes",
+    "owner": "Task owner",
+    "sources": "Task sources",
+    "execution": "Execution modes"
   }
 }

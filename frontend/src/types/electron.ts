@@ -4,6 +4,13 @@
  */
 export interface ElectronFile extends File {
   path?: string;
+  __mediaflow_source?:
+    | "file-selection"
+    | "file-drop"
+    | "pending_file"
+    | "transcriber_snapshot"
+    | "task_navigation"
+    | "unknown";
 }
 
 /**

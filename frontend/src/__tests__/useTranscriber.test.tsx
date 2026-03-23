@@ -125,12 +125,13 @@ describe("useTranscriber", () => {
           step_name: "transcribe",
           params: {
             audio_path: null,
-            audio_ref: {
+            audio_ref: expect.objectContaining({
               path: "E:/sample.mp4",
               name: "sample.mp4",
               size: 1024,
               type: "video/mp4",
-            },
+            }),
+            engine: "builtin",
             model: "base",
             device: "cpu",
             vad_filter: true,
@@ -153,13 +154,14 @@ describe("useTranscriber", () => {
             expect.objectContaining({
               step_name: "transcribe",
               params: expect.objectContaining({
-                audio_path: "E:/sample.mp4",
-                audio_ref: {
+                audio_path: null,
+                audio_ref: expect.objectContaining({
                   path: "E:/sample.mp4",
                   name: "sample.mp4",
                   size: 1024,
                   type: "video/mp4",
-                },
+                }),
+                engine: "builtin",
               }),
             }),
           ],
@@ -216,12 +218,13 @@ describe("useTranscriber", () => {
 
     expect(desktopTranscribe).toHaveBeenCalledWith({
       audio_path: null,
-      audio_ref: {
+      audio_ref: expect.objectContaining({
         path: "E:/sample.mp4",
         name: "sample.mp4",
         size: 1024,
         type: "video/mp4",
-      },
+      }),
+      engine: "builtin",
       model: "base",
       device: "cpu",
     });
@@ -296,12 +299,13 @@ describe("useTranscriber", () => {
 
     expect(desktopTranscribe).toHaveBeenCalledWith({
       audio_path: null,
-      audio_ref: {
+      audio_ref: expect.objectContaining({
         path: "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
         name: "Patient Investor - “AI Won’t Replace Software!.mp4",
         size: 1024,
         type: "video/mp4",
-      },
+      }),
+      engine: "builtin",
       model: "base",
       device: "cpu",
     });
@@ -504,12 +508,13 @@ describe("useTranscriber", () => {
 
     expect(desktopTranscribe).toHaveBeenCalledWith({
       audio_path: null,
-      audio_ref: {
+      audio_ref: expect.objectContaining({
         path: "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
         name: "Patient Investor - “AI Won’t Replace Software!.mp4",
         size: 1024,
         type: "video/mp4",
-      },
+      }),
+      engine: "builtin",
       model: "base",
       device: "cpu",
     });

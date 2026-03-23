@@ -49,6 +49,7 @@ export interface ElectronAPI {
   resolveExistingPath?: (
     filePath: string,
     fallbackName?: string,
+    expectedSize?: number,
   ) => Promise<string | null>;
   saveFile: (filePath: string, content: string) => Promise<void>;
   getDesktopRuntimeInfo?: () => Promise<DesktopRuntimeInfo>;
@@ -57,6 +58,7 @@ export interface ElectronAPI {
   desktopTranscribe?: (payload: {
     audio_path?: string | null;
     audio_ref?: import("../services/ui/mediaReference").MediaReference | null;
+    engine?: import("./api").TranscriptionEngine;
     model: string;
     device: string;
     language?: string | null;

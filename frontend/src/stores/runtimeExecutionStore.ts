@@ -1,11 +1,11 @@
 import { create } from "zustand";
+import type { NullableExecutionMode } from "../services/domain";
 
-export type RuntimeExecutionMode = "task_submission" | "direct_result";
 export type RuntimeExecutionScope = "transcriber" | "translator";
 
 type RuntimeExecutionState = {
-  scopes: Partial<Record<RuntimeExecutionScope, RuntimeExecutionMode | null>>;
-  setScopeMode: (scope: RuntimeExecutionScope, mode: RuntimeExecutionMode | null) => void;
+  scopes: Partial<Record<RuntimeExecutionScope, NullableExecutionMode>>;
+  setScopeMode: (scope: RuntimeExecutionScope, mode: NullableExecutionMode) => void;
 };
 
 export const useRuntimeExecutionStore = create<RuntimeExecutionState>((set) => ({

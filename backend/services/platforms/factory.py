@@ -5,23 +5,26 @@ from backend.services.platforms.douyin import DouyinPlatform
 from backend.services.platforms.kuaishou import KuaishouPlatform
 
 class PlatformFactory:
-    _handlers: List[BasePlatform] = []
+    def __init__(self, handlers: Optional[List[BasePlatform]] = None):
+        self._handlers: List[BasePlatform] = handlers or []
 
-    @classmethod
-    def register_handler(cls, handler: BasePlatform):
-        cls._handlers.append(handler)
+    def register_handler(self, handler: BasePlatform):
+        self._handlers.append(handler)
 
-    @classmethod
-    async def get_handler(cls, url: str) -> Optional[BasePlatform]:
+    async def get_handler(self, url: str) -> Optional[BasePlatform]:
         """Find the first handler that matches the URL."""
-        # Initialize handlers if empty (Simple lazy init)
-        if not cls._handlers:
-            cls.register_handler(BilibiliPlatform())
-            cls.register_handler(DouyinPlatform())
-            cls.register_handler(KuaishouPlatform())
-
         url_str = str(url)  # Ensure url is a string (handles HttpUrl from Pydantic)
-        for handler in cls._handlers:
+        for handler in self._handlers:
             if await handler.match(url_str):
                 return handler
         return None  # No specific handler found (caller should fallback to yt-dlp)
+
+
+def create_default_platform_factory(browser_service, sniffer) -> PlatformFactory:
+    return PlatformFactory(
+        handlers=[
+            BilibiliPlatform(),
+            DouyinPlatform(browser_service, sniffer),
+            KuaishouPlatform(browser_service, sniffer),
+        ]
+    )

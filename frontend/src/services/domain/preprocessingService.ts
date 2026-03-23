@@ -1,10 +1,12 @@
-import { apiClient } from "../../api/client";
 import type { OCRExtractRequest, OCRTextEvent } from "../../types/api";
-import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop/bridge";
-import { createDesktopTaskSubmissionReceipt } from "./taskSubmission";
+import type { ExecutionOutcome } from "./taskSubmission";
 import type { MediaReference } from "../ui/mediaReference";
 import { resolveMediaInputPath } from "./mediaInput";
-import { normalizeExecutionPayload } from "./executionPayload";
+import { prepareExecutionPayload } from "./executionPayload";
+import {
+  executeBackendDirectCall,
+  executeDesktopTaskSubmission,
+} from "./executionExecutor";
 
 export const preprocessingService = {
   async extractText(
@@ -12,33 +14,31 @@ export const preprocessingService = {
       video_path?: string | null;
       video_ref?: MediaReference | null;
     },
-  ) {
-    const normalizedPayload = normalizeExecutionPayload(payload, [
-      {
-        pathKey: "video_path",
-        refKey: "video_ref",
-        label: "Preprocessing video",
-        required: true,
-      },
-    ]);
-
-    if (isDesktopRuntime()) {
-      const taskId =
-        typeof normalizedPayload.task_id === "string" && normalizedPayload.task_id.length > 0
-          ? normalizedPayload.task_id
-          : `desktop-extract-${Date.now()}`;
-      void requireDesktopApiMethod(
-        "desktopExtract",
-        "Desktop preprocessing worker is unavailable.",
-      )({
-        ...normalizedPayload,
-        task_id: taskId,
-      }).catch((error) => {
-        console.error("Desktop OCR failed", error);
-      });
-      return createDesktopTaskSubmissionReceipt(taskId, "OCR task started");
-    }
-    return apiClient.extractText(normalizedPayload);
+  ): Promise<ExecutionOutcome<never>> {
+    return await executeDesktopTaskSubmission({
+      payload,
+      normalizePayload: (nextPayload) =>
+        prepareExecutionPayload({
+          payload: nextPayload,
+          specs: [
+            {
+              pathKey: "video_path",
+              refKey: "video_ref",
+              label: "Preprocessing video",
+              required: true,
+            },
+          ],
+        }),
+      desktopMethod: "desktopExtract",
+      desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
+      desktopTaskIdPrefix: "desktop-extract",
+      desktopSubmissionMessage: "OCR task started",
+      desktopFailureLogLabel: "Desktop OCR failed",
+      backendSubmit: (normalizedPayload) =>
+        import("../../api/client").then(({ apiClient }) =>
+          apiClient.extractText(normalizedPayload),
+        ),
+    });
   },
 
   async getOcrResults(payload: {
@@ -53,13 +53,13 @@ export const preprocessingService = {
       "Preprocessing video",
     );
 
-    if (isDesktopRuntime()) {
-      return await requireDesktopApiMethod(
-        "getDesktopOcrResults",
-        "Desktop preprocessing worker is unavailable.",
-      )(videoPath);
-    }
-    return apiClient.getOcrResults(videoPath);
+    return await executeBackendDirectCall({
+      payload: videoPath,
+      desktopMethod: "getDesktopOcrResults",
+      desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
+      backendCall: (resolvedVideoPath) =>
+        import("../../api/client").then(({ apiClient }) => apiClient.getOcrResults(resolvedVideoPath)),
+    });
   },
 
   async enhanceVideo(payload: {
@@ -69,33 +69,31 @@ export const preprocessingService = {
     scale?: string;
     method?: string;
     task_id?: string;
-  }) {
-    const normalizedPayload = normalizeExecutionPayload(payload, [
-      {
-        pathKey: "video_path",
-        refKey: "video_ref",
-        label: "Preprocessing video",
-        required: true,
-      },
-    ]);
-
-    if (isDesktopRuntime()) {
-      const taskId =
-        typeof normalizedPayload.task_id === "string" && normalizedPayload.task_id.length > 0
-          ? normalizedPayload.task_id
-          : `desktop-enhance-${Date.now()}`;
-      void requireDesktopApiMethod(
-        "desktopEnhance",
-        "Desktop preprocessing worker is unavailable.",
-      )({
-        ...normalizedPayload,
-        task_id: taskId,
-      }).catch((error) => {
-        console.error("Desktop enhancement failed", error);
-      });
-      return createDesktopTaskSubmissionReceipt(taskId, "Enhancement started");
-    }
-    return apiClient.enhanceVideo(normalizedPayload);
+  }): Promise<ExecutionOutcome<never>> {
+    return await executeDesktopTaskSubmission({
+      payload,
+      normalizePayload: (nextPayload) =>
+        prepareExecutionPayload({
+          payload: nextPayload,
+          specs: [
+            {
+              pathKey: "video_path",
+              refKey: "video_ref",
+              label: "Preprocessing video",
+              required: true,
+            },
+          ],
+        }),
+      desktopMethod: "desktopEnhance",
+      desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
+      desktopTaskIdPrefix: "desktop-enhance",
+      desktopSubmissionMessage: "Enhancement started",
+      desktopFailureLogLabel: "Desktop enhancement failed",
+      backendSubmit: (normalizedPayload) =>
+        import("../../api/client").then(({ apiClient }) =>
+          apiClient.enhanceVideo(normalizedPayload),
+        ),
+    });
   },
 
   async cleanVideo(payload: {
@@ -104,32 +102,30 @@ export const preprocessingService = {
     roi: [number, number, number, number];
     method?: string;
     task_id?: string;
-  }) {
-    const normalizedPayload = normalizeExecutionPayload(payload, [
-      {
-        pathKey: "video_path",
-        refKey: "video_ref",
-        label: "Preprocessing video",
-        required: true,
-      },
-    ]);
-
-    if (isDesktopRuntime()) {
-      const taskId =
-        typeof normalizedPayload.task_id === "string" && normalizedPayload.task_id.length > 0
-          ? normalizedPayload.task_id
-          : `desktop-clean-${Date.now()}`;
-      void requireDesktopApiMethod(
-        "desktopClean",
-        "Desktop preprocessing worker is unavailable.",
-      )({
-        ...normalizedPayload,
-        task_id: taskId,
-      }).catch((error) => {
-        console.error("Desktop cleanup failed", error);
-      });
-      return createDesktopTaskSubmissionReceipt(taskId, "Cleanup started");
-    }
-    return apiClient.cleanVideo(normalizedPayload);
+  }): Promise<ExecutionOutcome<never>> {
+    return await executeDesktopTaskSubmission({
+      payload,
+      normalizePayload: (nextPayload) =>
+        prepareExecutionPayload({
+          payload: nextPayload,
+          specs: [
+            {
+              pathKey: "video_path",
+              refKey: "video_ref",
+              label: "Preprocessing video",
+              required: true,
+            },
+          ],
+        }),
+      desktopMethod: "desktopClean",
+      desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
+      desktopTaskIdPrefix: "desktop-clean",
+      desktopSubmissionMessage: "Cleanup started",
+      desktopFailureLogLabel: "Desktop cleanup failed",
+      backendSubmit: (normalizedPayload) =>
+        import("../../api/client").then(({ apiClient }) =>
+          apiClient.cleanVideo(normalizedPayload),
+        ),
+    });
   },
 };

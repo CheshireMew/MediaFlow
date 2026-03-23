@@ -16,27 +16,16 @@ from backend.services.media_refs import create_media_ref
 
 from .model_manager import ModelManager
 from .core_strategies import CoreStrategies
-from backend.utils.peaks_generator import generate_multi_resolution_peaks
+from backend.utils.peaks_generator import start_peaks_warmup
 
 class ASRService:
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
     def __init__(self):
-        """Initialized via Container."""
-        if getattr(self, "_initialized", False):
-            return
         self.executor = ThreadPoolExecutor(max_workers=settings.ASR_MAX_WORKERS)
         self.model_manager = ModelManager()
         self.adapter = FasterWhisperAdapter()
         self.core_strategies = CoreStrategies(self.executor)
-        self._initialized = True
 
-    def transcribe(self, audio_path: str, model_name: str = "base", device: str = "cpu", language: str = None, task_id: str = None, initial_prompt: str = None, progress_callback=None, generate_peaks: bool = True) -> TaskResult:
+    def transcribe(self, audio_path: str, model_name: str = "base", device: str = "cpu", language: str = None, task_id: str = None, initial_prompt: str = None, progress_callback=None, generate_peaks: bool = True, engine: str = "builtin") -> TaskResult:
         """
         Main entry point for transcription. Dispatches to specific strategies.
         """
@@ -52,11 +41,22 @@ class ASRService:
             logger.error(f"Failed to get duration: {e}")
             duration = 0.0
 
-        # Check for CLI tool
-        use_cli = False
-        if hasattr(settings, 'FASTER_WHISPER_CLI_PATH') and os.path.exists(settings.FASTER_WHISPER_CLI_PATH):
-            use_cli = True
-            logger.info("Faster-Whisper CLI found. Using CLI for best segmentation results.")
+        # Engine selection is request-driven. Do not silently switch engines.
+        cli_available = (
+            hasattr(settings, "FASTER_WHISPER_CLI_PATH")
+            and os.path.exists(settings.FASTER_WHISPER_CLI_PATH)
+        )
+        use_cli = engine == "cli"
+        if use_cli and not cli_available:
+            return TaskResult(success=False, error="CLI transcription engine is unavailable")
+        if use_cli:
+            logger.info("Faster-Whisper CLI enabled. Using CLI transcription path.")
+
+        if generate_peaks:
+            try:
+                start_peaks_warmup(audio_path)
+            except Exception as e:
+                logger.warning(f"Peaks warmup failed to start (non-critical): {e}")
         
         final_segments = []
         
@@ -84,7 +84,7 @@ class ASRService:
                     model_dir=settings.ASR_MODEL_DIR,
                     language=language,
                     initial_prompt=initial_prompt,
-                    device=device
+                    device=device,
                 )
 
                 final_segments = self.adapter.execute(config, progress_callback)
@@ -92,8 +92,8 @@ class ASRService:
             except TaskControlRequested:
                 raise
             except Exception as e:
-                logger.error(f"CLI Transcription failed: {e}. Falling back to internal engine.")
-                use_cli = False # Fallback
+                logger.error(f"CLI Transcription failed: {e}.")
+                return TaskResult(success=False, error=f"CLI transcription failed: {e}")
             finally:
                 # Cleanup temp output
                 if output_dir.exists():
@@ -127,8 +127,7 @@ class ASRService:
         # Unified post-processing for both CLI and Python API paths
         logger.info("Applying smart segment merging...")
         if final_segments:
-            final_segments = SegmentRefiner.merge_segments(final_segments)
-            final_segments = SegmentRefiner.optimize_timing(final_segments)
+            final_segments = SegmentRefiner.normalize_segments(final_segments)
         else:
             final_segments = []
 
@@ -142,15 +141,6 @@ class ASRService:
         srt_path = SubtitleWriter.save_srt(final_segments, audio_path)
         logger.success(f"SRT file saved to: {srt_path}")
 
-        if generate_peaks:
-            # 6. Pre-generate waveform peaks for the editor (non-blocking best-effort)
-            try:
-                hi_path, lo_path = generate_multi_resolution_peaks(audio_path)
-                if hi_path:
-                    logger.success(f"Waveform peaks generated: {hi_path}")
-            except Exception as e:
-                logger.warning(f"Peaks generation failed (non-critical): {e}")
-        
         files = [
             FileRef(type="subtitle", path=str(srt_path), label="transcription")
         ]
@@ -183,6 +173,7 @@ class ASRService:
         model_name: str = "base",
         device: str = "cpu",
         language: str = None,
+        engine: str = "builtin",
         task_id: str = None,
         progress_callback=None,
     ) -> TaskResult:
@@ -207,9 +198,10 @@ class ASRService:
                 model_name=model_name,
                 device=device,
                 language=language,
+                engine=engine,
                 task_id=task_id or f"seg_{temp_id}",
                 progress_callback=progress_callback,
-                generate_peaks=False  # Disable redundant peak generation
+                generate_peaks=False,  # Disable redundant peak generation
             )
             
             # 3. Adjust timestamps relative to original audio

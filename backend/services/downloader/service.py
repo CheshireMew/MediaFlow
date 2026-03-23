@@ -10,9 +10,9 @@ from loguru import logger
 
 from backend.config import settings
 from backend.models.schemas import TaskResult, FileRef
+from backend.services.cookie_manager import CookieManager
 from backend.services.platforms.factory import PlatformFactory
 from backend.utils.subtitle_manager import SubtitleManager
-from backend.utils.text_normalizer import normalize_external_text
 
 from .config_builder import YtDlpConfigBuilder
 from .post_processor import DownloadPostProcessor
@@ -27,10 +27,16 @@ def _infer_media_file_type(path: str) -> str:
 
 
 class DownloaderService:
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        platform_factory: PlatformFactory,
+        cookie_manager: CookieManager,
+    ):
         self.output_dir = settings.WORKSPACE_DIR
-        self.config_builder = YtDlpConfigBuilder(self.output_dir)
+        self._cookie_manager = cookie_manager
         self.post_processor = DownloadPostProcessor()
+        self._platform_factory = platform_factory
 
     async def download(
         self,
@@ -56,7 +62,7 @@ class DownloaderService:
         url = str(url)
         
         # 1. Strategy Analysis
-        handler = await PlatformFactory.get_handler(url)
+        handler = await self._platform_factory.get_handler(url)
         final_url = url
         final_title = filename
         
@@ -70,7 +76,7 @@ class DownloaderService:
                             logger.info(f"Resolved direct URL: {result.direct_src[:50]}...")
                             final_url = result.direct_src
                         if result.title and not final_title:
-                            final_title = normalize_external_text(result.title)
+                            final_title = result.title
             except Exception as e:
                 logger.error(f"Platform analysis failed, falling back to default: {e}")
 
@@ -126,7 +132,10 @@ class DownloaderService:
         target_output_dir = Path(output_dir) if output_dir else self.output_dir
         target_output_dir.mkdir(parents=True, exist_ok=True)
         progress_hook = ProgressHook(progress_callback, check_cancel_callback)
-        ydl_opts = YtDlpConfigBuilder(target_output_dir).build(
+        ydl_opts = YtDlpConfigBuilder(
+            target_output_dir,
+            cookie_manager=self._cookie_manager,
+        ).build(
             url=url,
             start_url=start_url,
             proxy=proxy,
@@ -153,7 +162,7 @@ class DownloaderService:
             return TaskResult(success=False, error=f"Download failed: {e}")
 
         duration = info.get('duration', 0)
-        title = normalize_external_text(info.get('title', "Unknown Title")) or "Unknown Title"
+        title = info.get('title') or "Unknown Title"
 
         # Robustness: Check if file exists vs what yt-dlp predicted (e.g. .NA extension issue)
         dpath = Path(downloaded_path)
@@ -212,7 +221,7 @@ class DownloaderService:
                 "id": task_id or str(uuid.uuid4()),
                 "title": title,
                 "duration": duration,
-                "filename": normalize_external_text(Path(downloaded_path).name) or Path(downloaded_path).name,
+                "filename": Path(downloaded_path).name,
                 "source_url": url
             }
         )

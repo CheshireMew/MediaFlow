@@ -10,4 +10,4 @@ def test_truncation(path_str):
     print(f"Suffix: {path.suffix}")
     print(f"Result: {srt_path}")
 
-test_truncation(r"C:\Users\Dylan\Videos\Shay Boloor - Former $GOOGL ... electricity... [2023035630335508480].mp4")
+test_truncation(r".\temp\sample-video.with.dots [1234567890].mp4")

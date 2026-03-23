@@ -21,7 +21,7 @@ class AudioProcessor:
                 audio_path
             ]
             # Security: shell=False is default but explicit is better.
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=False)
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True, shell=False)
             return float(result.stdout.strip())
         except Exception as e:
             logger.error(f"Failed to get duration: {e}")

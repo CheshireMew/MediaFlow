@@ -80,12 +80,12 @@ export const fileService = {
     )(path);
   },
 
-  async resolveExistingPath(path: string, fallbackName?: string) {
+  async resolveExistingPath(path: string, fallbackName?: string, expectedSize?: number) {
     const api = getDesktopApi();
 
     try {
       if (api?.resolveExistingPath) {
-        const resolved = await api.resolveExistingPath(path, fallbackName);
+        const resolved = await api.resolveExistingPath(path, fallbackName, expectedSize);
         return resolved || replaceBasename(path, fallbackName);
       }
     } catch (error) {

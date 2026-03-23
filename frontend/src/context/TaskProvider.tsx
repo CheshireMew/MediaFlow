@@ -213,9 +213,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
     applyMessage,
     backendSource,
     clearLocalTasks,
-      backendTaskSyncEnabled,
-      remoteSnapshotReady,
-      shouldPollRemoteTasks,
+    backendTaskSyncEnabled,
+    remoteSnapshotReady,
+    shouldPollRemoteTasks,
+    taskOwnerMode,
   ]);
 
   useEffect(() => {

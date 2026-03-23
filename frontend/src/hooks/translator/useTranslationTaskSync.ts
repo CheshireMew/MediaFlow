@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import type { Task } from "../../types/task";
 import type { SubtitleSegment } from "../../types/task";
 import type { TranslatorMode } from "../../stores/translatorStore";
+import type { NullableExecutionMode } from "../../services/domain";
 import {
   findCompletedTranslationTask,
   findActiveTranslationTask,
@@ -25,7 +26,7 @@ type UseTranslationTaskSyncParams = {
   setTaskStatus: (status: string) => void;
   setProgress: (progress: number) => void;
   setTaskError: (error: string | null) => void;
-  setExecutionMode: (mode: "task_submission" | "direct_result" | null) => void;
+  setExecutionMode: (mode: NullableExecutionMode) => void;
   setTargetSegments: (segments: SubtitleSegment[]) => void;
   setSourceFileRef: (reference: MediaReference | null) => void;
   setTargetSubtitleRef: (reference: MediaReference | null) => void;

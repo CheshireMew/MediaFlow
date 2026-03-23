@@ -4,9 +4,9 @@ import { desktopBrowserService } from "../services/desktop";
 import type { AnalyzeResult } from "../api/client";
 import { useTaskContext } from "../context/taskContext";
 import {
-  createTaskFromSubmissionReceipt,
-  isTaskExecutionSubmission,
-} from "../services/domain/taskSubmission";
+  createTaskFromExecutionOutcome,
+  resolveExecutionOutcomeBranch,
+} from "../services/domain";
 import { useDownloaderStore } from "../stores/downloaderStore";
 import type { PipelineRequest } from "../types/api";
 import { useDownloaderTasks } from "./downloader/useDownloaderTasks";
@@ -139,10 +139,14 @@ export function useDownloaderController() {
 
           if (isDesktopRuntime()) {
             const settings = await settingsService.getSettings();
-            const submission = await executionService.download(basePipeline, settings);
+            const executionResult = await executionService.download(basePipeline, settings);
+            const outcome = resolveExecutionOutcomeBranch(executionResult);
+            if (outcome.kind !== "submission") {
+              throw new Error("Download should return a task submission");
+            }
             addTask(
-              createTaskFromSubmissionReceipt({
-                receipt: submission,
+              createTaskFromExecutionOutcome({
+                outcome: executionResult,
                 type: "download",
                 name: customFilename,
                 request_params: {
@@ -152,7 +156,7 @@ export function useDownloaderController() {
               }),
             );
             addToHistory({
-              id: submission.task_id,
+              id: outcome.submission.task_id,
               url: currentUrl,
               title: customFilename || "Unknown Video",
               timestamp: Date.now(),
@@ -165,27 +169,28 @@ export function useDownloaderController() {
             break;
           }
 
-          const apiResult = await executionService.download(basePipeline);
-
-          if (isTaskExecutionSubmission(apiResult)) {
-            addTask(
-              createTaskFromSubmissionReceipt({
-                receipt: apiResult,
-                type: "download",
-                name: customFilename,
-                request_params: {
-                  steps: basePipeline.steps,
-                  ...(basePipeline.steps[0]?.params ?? {}),
-                },
+          const executionResult = await executionService.download(basePipeline);
+          const outcome = resolveExecutionOutcomeBranch(executionResult);
+          if (outcome.kind !== "submission") {
+            throw new Error("Download should return a task submission");
+          }
+          addTask(
+            createTaskFromExecutionOutcome({
+              outcome: executionResult,
+              type: "download",
+              name: customFilename,
+              request_params: {
+                steps: basePipeline.steps,
+                ...(basePipeline.steps[0]?.params ?? {}),
+              },
               }),
             );
-            addToHistory({
-              id: apiResult.task_id,
-              url: currentUrl,
-              title: customFilename || "Unknown Video",
-              timestamp: Date.now(),
-            });
-          }
+          addToHistory({
+            id: outcome.submission.task_id,
+            url: currentUrl,
+            title: customFilename || "Unknown Video",
+            timestamp: Date.now(),
+          });
         } catch (error: unknown) {
           console.error("[Downloader] Failed to queue download:", error);
           if (error instanceof Error && /paused|cancelled/i.test(error.message)) {
@@ -200,7 +205,7 @@ export function useDownloaderController() {
       }
       setLoading(false);
     },
-    [remoteTasksReady, downloadSubs, resolution, codec, lastAnalysis, addToHistory],
+    [addTask, remoteTasksReady, downloadSubs, resolution, codec, lastAnalysis, addToHistory],
   );
 
   const handleAnalyzeAndDownload = async () => {

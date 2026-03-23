@@ -32,9 +32,11 @@ def test_calculate_split_points():
     # Based on silence intervals, first point should be around 600 (middle of 590-610 is 600)
     assert abs(points[0] - 600) < 1.0
 
-def test_asr_service_singleton(asr_service):
-    service2 = ASRService()
-    assert asr_service is service2
+def test_asr_service_initializes_processing_dependencies(asr_service):
+    assert asr_service.executor is not None
+    assert asr_service.model_manager is not None
+    assert asr_service.adapter is not None
+    assert asr_service.core_strategies is not None
 
 def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypatch, tmp_path):
     audio_path = tmp_path / "sample.mp3"
@@ -60,6 +62,7 @@ def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypa
             device="cpu",
             language="en",
             initial_prompt=None,
+            engine="cli",
             generate_peaks=False,
         )
 
@@ -147,6 +150,24 @@ def test_merge_segments_rescues_sentence_continuations():
     assert merged[0].text.endswith("of my peers.")
 
 
+def test_normalize_segments_rebalances_overlong_english_cue():
+    segments = [
+        SubtitleSegment(
+            id="1",
+            start=0.0,
+            end=6.0,
+            text="This is a very long subtitle line, and it keeps going because the speaker does not pause naturally at all.",
+        )
+    ]
+
+    normalized = SegmentRefiner.normalize_segments(segments)
+
+    assert len(normalized) == 2
+    assert normalized[0].text.endswith(",")
+    assert normalized[1].text.startswith("and ")
+    assert all(SegmentRefiner._count_words(seg.text) <= SegmentRefiner.HARD_WORD_LIMIT_ENGLISH for seg in normalized)
+
+
 def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, monkeypatch, tmp_path):
     audio_path = tmp_path / "sample.mp4"
     audio_path.write_bytes(b"fake-audio")
@@ -175,6 +196,7 @@ def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, m
             audio_path=str(audio_path),
             model_name="base",
             device="cuda",
+            engine="cli",
             generate_peaks=False,
         )
 

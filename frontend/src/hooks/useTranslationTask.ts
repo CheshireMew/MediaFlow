@@ -7,11 +7,11 @@ import { useTaskContext } from "../context/taskContext";
 import { useTranslationTaskSync } from "./translator/useTranslationTaskSync";
 import { useTranslationCommands } from "./translator/useTranslationCommands";
 import { desktopEventsService } from "../services/desktop";
-import { useRuntimeExecutionStore } from "../stores/runtimeExecutionStore";
+import { useExecutionModeState } from "./execution/useExecutionModeState";
 
 export const useTranslationTask = () => {
   const { tasks, tasksSettled } = useTaskContext();
-  const setRuntimeExecutionMode = useRuntimeExecutionStore((state) => state.setScopeMode);
+  const { executionMode, setExecutionMode } = useExecutionModeState("translator");
   const {
     sourceSegments,
     sourceFilePath,
@@ -24,12 +24,10 @@ export const useTranslationTask = () => {
     taskStatus,
     progress,
     taskError,
-    executionMode,
     setTaskId,
     setTaskStatus,
     setProgress,
     setTaskError,
-    setExecutionMode,
     setTargetSegments,
     setSourceFileRef,
     setTargetLang,
@@ -59,10 +57,6 @@ export const useTranslationTask = () => {
   }, [activeMode, setActiveMode, taskId, taskStatus]);
 
   useEffect(() => {
-    setRuntimeExecutionMode("translator", executionMode);
-  }, [executionMode, setRuntimeExecutionMode]);
-
-  useEffect(() => {
     const unsubscribe = desktopEventsService.onTranslateProgress(({ progress }) => {
       setTaskStatus("running");
       setProgress(progress);
@@ -73,7 +67,7 @@ export const useTranslationTask = () => {
     return () => {
       unsubscribe();
     };
-  }, [setProgress, setTaskError, setTaskStatus]);
+  }, [setExecutionMode, setProgress, setTaskError, setTaskStatus]);
 
   const isTranslating =
     taskStatus === "translating" ||

@@ -29,7 +29,9 @@ def test_test_provider_connection_uses_openai_client(monkeypatch):
             calls["client_kwargs"] = kwargs
             self.chat = FakeChat()
 
-    monkeypatch.setattr("backend.api.v1.settings.OpenAI", FakeClient)
+    import openai
+
+    monkeypatch.setattr(openai, "OpenAI", FakeClient)
 
     _test_provider_connection(
         ProviderConnectionRequest(

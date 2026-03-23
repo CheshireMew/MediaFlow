@@ -29,6 +29,11 @@
   },
   "config": {
     "title": "Configuration",
+    "engineLabel": "Engine",
+    "engines": {
+      "builtin": "Built-in",
+      "cli": "CLI"
+    },
     "modelSizeLabel": "Model Size",
     "models": {
       "tiny": "Tiny (Fastest)",

@@ -1,11 +1,11 @@
 from collections.abc import Awaitable, Callable
 from backend.models.schemas import TaskResult, FileRef
 from backend.models.task_model import Task
+from backend.core.runtime_access import RuntimeServices
 from backend.core.tasks.base import TaskHandler
 from backend.core.tasks.registry import TaskHandlerRegistry
-from backend.core.container import container, Services
 from backend.core.task_runner import BackgroundTaskRunner
-from backend.api.v1.preprocessing import EnhanceRequest, CleanRequest
+from backend.models.schemas import CleanRequest, EnhanceRequest
 from backend.services.media_refs import create_media_ref
 from pathlib import Path
 from loguru import logger
@@ -17,7 +17,7 @@ class EnhancementHandler(TaskHandler):
     def build_runner(self, task: Task) -> Callable[[], Awaitable[None]]:
         try:
             req = EnhanceRequest(**task.request_params)
-            enhancer = container.get(Services.ENHANCER)
+            enhancer = RuntimeServices.enhancer()
             
             p = Path(req.video_path)
             try:
@@ -69,8 +69,7 @@ class CleanupHandler(TaskHandler):
     def build_runner(self, task: Task) -> Callable[[], Awaitable[None]]:
         try:
             req = CleanRequest(**task.request_params)
-            # Assuming CLEANER service exists in container
-            cleaner = container.get(Services.CLEANER)
+            cleaner = RuntimeServices.cleaner()
             
             p = Path(req.video_path)
             method = req.method or "telea"

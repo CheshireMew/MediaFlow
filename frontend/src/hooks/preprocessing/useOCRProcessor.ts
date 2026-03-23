@@ -1,7 +1,10 @@
 import { useEffect, useCallback } from "react";
 import { useTaskContext } from "../../context/taskContext";
-import { preprocessingService } from "../../services/domain";
-import { createTaskFromSubmissionReceipt } from "../../services/domain/taskSubmission";
+import {
+  preprocessingService,
+  createTaskFromExecutionOutcome,
+  resolveExecutionOutcomeBranch,
+} from "../../services/domain";
 import type { OCRTextEvent } from "../../types/api";
 import type { ROIRect } from "./useROIInteraction";
 import type { TaskResult } from "../../types/task";
@@ -107,7 +110,7 @@ export function useOCRProcessor({
     return () => {
       isMounted = false;
     };
-  }, [resolvedVideoPath, setOcrResults]);
+  }, [resolvedVideoPath, setOcrResults, videoPath, videoRef]);
 
   // ── OCR Extraction ──────────────────────────────────────────
   const handleStartOCR = useCallback(async () => {
@@ -135,13 +138,11 @@ export function useOCRProcessor({
         roi: videoROI,
         engine: ocrEngine as "rapid" | "paddle",
       });
-      if (res.task_id) {
+      const outcome = resolveExecutionOutcomeBranch(res);
+      if (outcome.kind === "submission") {
         addTask(
-          createTaskFromSubmissionReceipt({
-            receipt: {
-              ...res,
-              task_id: res.task_id,
-            },
+          createTaskFromExecutionOutcome({
+            outcome: res,
             type: "extract",
             name: "Extract text",
             request_params: {
@@ -151,7 +152,7 @@ export function useOCRProcessor({
             },
           }),
         );
-        setActiveTask(res.task_id, "extract", resolvedVideoPath, videoRef);
+        setActiveTask(outcome.submission.task_id, "extract", resolvedVideoPath, videoRef);
       }
       setOcrResults([]); // Clear while processing
     } catch (error) {
@@ -238,14 +239,15 @@ export function useOCRProcessor({
           scale: enhanceScale,
           method: enhanceMethod,
         });
-        console.log("Enhance started:", res);
-        if (res.task_id) {
+        const outcome = resolveExecutionOutcomeBranch(res);
+        if (outcome.kind !== "submission") {
+          throw new Error("Enhancement should return a task submission");
+        }
+        console.log("Enhance started:", outcome.submission);
+        if (outcome.submission.task_id) {
           addTask(
-            createTaskFromSubmissionReceipt({
-              receipt: {
-                ...res,
-                task_id: res.task_id,
-              },
+            createTaskFromExecutionOutcome({
+              outcome: res,
               type: "enhancement",
               name: "Enhance video",
               request_params: {
@@ -256,7 +258,7 @@ export function useOCRProcessor({
               },
             }),
           );
-          setActiveTask(res.task_id, "enhance", resolvedVideoPath, videoRef);
+          setActiveTask(outcome.submission.task_id, "enhance", resolvedVideoPath, videoRef);
         }
       } else if (activeTool === "clean") {
         const cleanRoi: [number, number, number, number] = roi
@@ -268,14 +270,15 @@ export function useOCRProcessor({
           roi: cleanRoi,
           method: cleanMethod,
         });
-        console.log("Clean started:", res);
-        if (res.task_id) {
+        const outcome = resolveExecutionOutcomeBranch(res);
+        if (outcome.kind !== "submission") {
+          throw new Error("Cleanup should return a task submission");
+        }
+        console.log("Clean started:", outcome.submission);
+        if (outcome.submission.task_id) {
           addTask(
-            createTaskFromSubmissionReceipt({
-              receipt: {
-                ...res,
-                task_id: res.task_id,
-              },
+            createTaskFromExecutionOutcome({
+              outcome: res,
               type: "cleanup",
               name: "Clean video",
               request_params: {
@@ -285,7 +288,7 @@ export function useOCRProcessor({
               },
             }),
           );
-          setActiveTask(res.task_id, "clean", resolvedVideoPath, videoRef);
+          setActiveTask(outcome.submission.task_id, "clean", resolvedVideoPath, videoRef);
         }
       } else if (activeTool === "extract") {
         await handleStartOCR();

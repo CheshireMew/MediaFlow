@@ -2,7 +2,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from backend.application.pipeline_submission_service import PipelineSubmissionService
 from backend.application.task_orchestrator import TaskOrchestrator
+from backend.application.task_request_deduplicator import TaskRequestDeduplicator
+from backend.application.task_resume_service import TaskResumeService
 from backend.core.tasks.registry import TaskHandlerRegistry
 from backend.models.schemas import PipelineRequest
 
@@ -41,6 +44,11 @@ def create_orchestrator(task_manager):
         task_manager=task_manager,
         pipeline_runner=SimpleNamespace(run=lambda *args, **kwargs: None),
         settings_manager=DummySettingsManager(),
+        download_workflow_service=None,
+        transcriber_workflow_service=None,
+        task_request_deduplicator=TaskRequestDeduplicator(),
+        task_resume_service=TaskResumeService(),
+        pipeline_submission_service=PipelineSubmissionService(),
     )
 
 

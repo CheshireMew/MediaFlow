@@ -1,12 +1,21 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
 from backend.services.analyzer import AnalyzerService
-from backend.models.schemas import AnalyzeResult
+from backend.services.cookie_manager import CookieManager
+from backend.services.platforms.factory import PlatformFactory
+
+
+def make_analyzer() -> AnalyzerService:
+    return AnalyzerService(
+        platform_factory=PlatformFactory(),
+        cookie_manager=CookieManager(),
+    )
 
 @pytest.mark.asyncio
 async def test_analyze_single_video():
     with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
-        analyzer_service = AnalyzerService()
+        analyzer_service = make_analyzer()
         mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
         mock_ydl.extract_info.return_value = {
             "_type": "video",
@@ -27,7 +36,7 @@ async def test_analyze_single_video():
 @pytest.mark.asyncio
 async def test_analyze_playlist():
     with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
-        analyzer_service = AnalyzerService()
+        analyzer_service = make_analyzer()
         mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
         mock_ydl.extract_info.return_value = {
             "_type": "playlist",
@@ -51,7 +60,7 @@ async def test_analyze_playlist():
 @pytest.mark.asyncio
 async def test_analyze_normalizes_mojibake_titles():
     with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
-        analyzer_service = AnalyzerService()
+        analyzer_service = make_analyzer()
         mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
         mock_ydl.extract_info.return_value = {
             "_type": "video",

@@ -13,7 +13,6 @@ export {
   hasSupportedTaskContract,
   isDesktopTask,
   normalizeTaskForRenderer,
-  REMOTE_ACTIVE_TASK_STATUSES,
   SUPPORTED_TASK_CONTRACT_VERSION,
   getTaskSourceOwnerMode,
   isTaskAllowedInOwnerMode,
@@ -21,3 +20,13 @@ export {
 } from "./taskSources/shared";
 export { createDesktopTaskSource } from "./taskSources/desktopSource";
 export { createBackendTaskSource } from "./taskSources/backendSource";
+export {
+  ACTIVE_TASK_STATUSES,
+  isTaskActive,
+  isTaskHistoryEntry,
+  isTaskPaused,
+  isTaskQueued,
+  isTaskRecoverable,
+  isTaskRunning,
+  isTaskTerminal,
+} from "../services/tasks/taskRuntimeState";

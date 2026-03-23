@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 import time
 from typing import Any, Dict, List
@@ -7,13 +6,13 @@ from loguru import logger
 from backend.core.task_control import TaskCancelRequested, TaskPauseRequested
 from backend.models.schemas import PipelineStepRequest, TaskResult, FileRef
 from backend.core.context import PipelineContext
+from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
 from backend.core.steps import StepRegistry
-from backend.core.container import container, Services
 
 
 class PipelineRunner:
-    def __init__(self, task_manager=None):
-        self.task_manager = task_manager or container.get(Services.TASK_MANAGER)
+    def __init__(self, *, task_manager):
+        self.task_manager = task_manager
 
     async def _raise_if_control_requested(self, task_id: str | None) -> None:
         if not task_id:
@@ -32,12 +31,12 @@ class PipelineRunner:
 
     async def run(self, steps: List[PipelineStepRequest], task_id: str = None) -> Dict[str, Any]:
         ctx = PipelineContext()
-        tm = self.task_manager
+        runtime = TaskRuntimeContext.for_task(task_id, task_manager=self.task_manager)
         logger.info(f"Starting pipeline with {len(steps)} steps. TaskID: {task_id}")
 
         try:
             if task_id:
-                await tm.update_task(task_id, status="running", cancelled=False, message="Starting pipeline...")
+                await runtime.update(status="running", cancelled=False, message="Starting pipeline...")
 
             for i, step_req in enumerate(steps):
                 logger.info(f"Executing step {i+1}: {step_req.step_name}")
@@ -47,7 +46,7 @@ class PipelineRunner:
 
                 try:
                     if task_id:
-                        await tm.update_task(task_id, message=f"Executing step: {step_req.step_name}")
+                        await runtime.update(message=f"Executing step: {step_req.step_name}")
 
                     start_time = time.time()
                     status = "success"
@@ -71,7 +70,11 @@ class PipelineRunner:
                 except Exception as e:
                     logger.error(f"Pipeline failed at step {step_req.step_name}: {e}")
                     if task_id:
-                        await tm.update_task(task_id, status="failed", error=str(e), message=f"Failed at {step_req.step_name}")
+                        await runtime.update(
+                            status="failed",
+                            error=str(e),
+                            message=f"Failed at {step_req.step_name}",
+                        )
                     raise e
 
             if task_id:
@@ -101,8 +104,7 @@ class PipelineRunner:
 
                 task_result = TaskResult(success=True, files=files, meta=meta)
 
-                await tm.update_task(
-                    task_id,
+                await runtime.update(
                     status="completed",
                     cancelled=False,
                     progress=100.0,
@@ -117,11 +119,11 @@ class PipelineRunner:
             }
         except TaskPauseRequested as e:
             if task_id:
-                await tm.mark_controlled_stop(task_id, "pause", str(e))
+                await runtime.mark_controlled_stop("pause", str(e))
             return {"status": "paused", "history": ctx.history, "final_data": ctx.data}
         except TaskCancelRequested as e:
             if task_id:
-                await tm.mark_controlled_stop(task_id, "cancel", str(e))
+                await runtime.mark_controlled_stop("cancel", str(e))
             return {"status": "cancelled", "history": ctx.history, "final_data": ctx.data}
 
 # Note: PipelineRunner is registered via container in main.py.

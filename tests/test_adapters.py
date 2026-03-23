@@ -44,7 +44,13 @@ class TestFasterWhisperAdapter:
         assert "--vad_filter" in cmd
         assert "True" in cmd # checking string conversion
         assert "--max_line_width" not in cmd
-        assert "--max_line_count" not in cmd
+        assert "--max_line_count" in cmd
+        assert "1" in cmd
+        assert "--sentence" in cmd
+        assert "--max_comma" in cmd
+        assert "20" in cmd
+        assert "--max_comma_cent" in cmd
+        assert "50" in cmd
 
     def test_build_command_auto_language(self, tmp_path):
         audio = tmp_path / "test.wav"
@@ -96,3 +102,15 @@ class TestFasterWhisperAdapter:
         assert "50" in cmd
         assert "--max_line_count" in cmd
         assert "2" in cmd
+
+    def test_validation_rejects_invalid_max_comma_cent(self, tmp_path):
+        audio = tmp_path / "test.wav"
+        audio.touch()
+
+        with pytest.raises(ValueError, match="max_comma_cent must be one of"):
+            FasterWhisperConfig(
+                audio_path=audio,
+                output_dir=tmp_path / "out",
+                model_dir=Path("/models"),
+                max_comma_cent=35,
+            )

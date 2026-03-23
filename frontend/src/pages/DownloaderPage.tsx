@@ -10,7 +10,7 @@ export function DownloaderPage() {
   const { t } = useTranslation('downloader');
   const {
     // State
-    url, loading, analyzing, error, playlistInfo, showPlaylistDialog, selectedItems, canDownloadCurrent, downloadSubs, resolution, codec, downloadEntries, activeDownloadCount,
+    url, loading, analyzing, error, playlistInfo, showPlaylistDialog, selectedItems, canDownloadCurrent, downloadSubs, resolution, codec,
     // Actions
     setUrl, setResolution, setCodec, setDownloadSubs, setShowPlaylistDialog, setSelectedItems,
     analyzeAndDownload, downloadPlaylist, toggleItemSelection
@@ -81,49 +81,6 @@ export function DownloaderPage() {
                   <p className="leading-relaxed">{error}</p>
                 </div>
               )}
-
-              <div className="mt-6 rounded-xl border border-white/5 bg-white/[0.02] overflow-hidden">
-                <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-white">{t('recentDownloads.title')}</h3>
-                  <span className="text-[11px] text-slate-400">
-                    {t('recentDownloads.activeCount', { count: activeDownloadCount })}
-                  </span>
-                </div>
-                {downloadEntries.length === 0 ? (
-                  <div className="px-4 py-4 text-sm text-slate-500">{t('recentDownloads.empty')}</div>
-                ) : (
-                  <div className="divide-y divide-white/5">
-                    {downloadEntries.slice(0, 4).map((entry) => {
-                      const status = entry.task?.queue_state || entry.task?.status || 'idle';
-                      const statusTone =
-                        status === 'running'
-                          ? 'text-indigo-300 bg-indigo-400/10 border-indigo-400/20'
-                          : status === 'queued' || status === 'pending'
-                            ? 'text-amber-300 bg-amber-400/10 border-amber-400/20'
-                            : status === 'paused'
-                              ? 'text-slate-300 bg-slate-400/10 border-slate-400/20'
-                              : status === 'completed'
-                                ? 'text-emerald-300 bg-emerald-400/10 border-emerald-400/20'
-                                : status === 'failed' || status === 'cancelled'
-                                  ? 'text-rose-300 bg-rose-400/10 border-rose-400/20'
-                                  : 'text-slate-400 bg-white/5 border-white/10';
-
-                      return (
-                        <div key={entry.id} className="px-4 py-3 flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-sm text-white truncate">{entry.title}</div>
-                            <div className="text-xs text-slate-500 truncate">{entry.url}</div>
-                          </div>
-                          <span className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] border ${statusTone}`}>
-                            {t(`recentDownloads.status.${status}`, { defaultValue: status })}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
               <div className="mt-auto pt-6 border-t border-white/5">
                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t('supportedPlatforms')}</h3>
                  <div className="flex flex-wrap gap-2">
@@ -139,7 +96,7 @@ export function DownloaderPage() {
 
         {/* Right Column: Task Monitor */}
         <div className="flex-1 min-w-0 h-full flex flex-col">
-            <TaskMonitor filterTypes={['download']} />
+            <TaskMonitor filterTypes={['download']} showHeaderOverview={false} />
         </div>
       </div>
 

@@ -4,9 +4,9 @@ from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
 import os
-from backend.core.container import container, Services
+from backend.application.synthesis_service import submit_synthesis_task
+from backend.core.runtime_access import RuntimeServices
 from backend.models.schemas import SynthesisRequest
-from backend.services.media_refs import create_media_ref
 import uuid
 
 router = APIRouter(prefix="/editor", tags=["Editor"])
@@ -42,7 +42,7 @@ async def upload_watermark_for_preview(file: UploadFile):
             shutil.copyfileobj(file.file, buffer)
             
         # Process (Trim & Convert) -> Returns path to trimmed PNG
-        png_path = container.get(Services.VIDEO_SYNTHESIZER).process_watermark(str(temp_input_path))
+        png_path = RuntimeServices.video_synthesizer().process_watermark(str(temp_input_path))
         
         # Move to Persistent 'latest.png'
         persistent_path = watermarks_dir / "latest.png"
@@ -162,42 +162,6 @@ async def get_current_watermark():
         # If file is corrupted, return nothing
         return None
 
-async def run_synthesis_task(task_id: str, req: SynthesisRequest):
-    """
-    Execute synthesis task using BackgroundTaskRunner for real-time progress.
-    """
-    from backend.core.task_runner import BackgroundTaskRunner
-    from loguru import logger
-    import json
-    logger.info(f"Synthesis Options: {json.dumps(req.options, indent=2)}")
-    
-    await BackgroundTaskRunner.run(
-        task_id=task_id,
-        worker_fn=container.get(Services.VIDEO_SYNTHESIZER).burn_in_subtitles,
-        worker_kwargs={
-            "video_path": req.video_path,
-            "srt_path": req.srt_path,
-            "output_path": req.output_path,
-            "watermark_path": req.watermark_path,
-            "options": req.options,
-        },
-        start_message="Preparing synthesis...",
-        success_message="Synthesis completed!",
-        result_transformer=lambda path: {
-            "success": True,
-            "files": [{"type": "video", "path": path, "label": "synthesis_output"}],
-            "meta": {
-                "video_path": path,
-                "video_ref": create_media_ref(path, "video/mp4", role="output"),
-                "output_ref": create_media_ref(path, "video/mp4", role="output"),
-                "context_ref": req.srt_ref or create_media_ref(req.srt_path, "application/x-subrip", role="context"),
-                "subtitle_ref": req.srt_ref or create_media_ref(req.srt_path, "application/x-subrip", role="context"),
-                "options": req.options
-            }
-        },
-    )
-
-
 @router.post("/synthesize")
 async def start_synthesis_task(req: SynthesisRequest):
     """
@@ -220,11 +184,6 @@ async def start_synthesis_task(req: SynthesisRequest):
         base, ext = os.path.splitext(req.video_path)
         req.output_path = f"{base}_burned.mp4"
 
-    response = await container.get(Services.TASK_ORCHESTRATOR).submit_task(
-        task_type="synthesis",
-        task_name=os.path.basename(req.video_path),
-        request_params=req.model_dump(mode="json"),
-        runner_factory=lambda task_id: lambda: run_synthesis_task(task_id, req),
-    )
+    response = await submit_synthesis_task(req)
 
     return {"task_id": response["task_id"], "status": response["status"]}

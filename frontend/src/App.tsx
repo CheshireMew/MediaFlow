@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { ReactElement } from "react";
-import { HashRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { HashRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import "./App.css";
 import { Layout } from "./components/layout/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -15,6 +15,10 @@ import { PreprocessingPage } from "./pages/PreprocessingPage";
 import SettingsPage from "./pages/SettingsPage";
 import { ENABLE_EXPERIMENTAL_PREPROCESSING } from "./config/features";
 import { isDesktopRuntime } from "./services/domain";
+import {
+  persistNavigationDestination,
+  resolveLaunchDestination,
+} from "./services/ui/navigationPersistence";
 
 import { TaskProvider } from "./context/taskContext";
 
@@ -36,6 +40,22 @@ function ExternalNavListener() {
     window.addEventListener('mediaflow:navigate', handleNav);
     return () => window.removeEventListener('mediaflow:navigate', handleNav);
   }, [navigate]);
+  return null;
+}
+
+function NavigationStateSync() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (location.pathname === "/") {
+      navigate(`/${resolveLaunchDestination()}`, { replace: true });
+      return;
+    }
+
+    persistNavigationDestination(location.pathname);
+  }, [location.pathname, navigate]);
+
   return null;
 }
 
@@ -77,7 +97,7 @@ function App({
             <Routes>
               <Route
                 path="/"
-                element={routeElement(appReady, remoteBackendReady, startupMessage, <EditorPage />, "editor")}
+                element={null}
               />
               <Route
                 path="/editor"
@@ -111,11 +131,12 @@ function App({
               />
               <Route
                 path="*"
-                element={routeElement(appReady, remoteBackendReady, startupMessage, <EditorPage />, "editor")}
+                element={routeElement(appReady, remoteBackendReady, startupMessage, <DownloaderPage />, "downloader")}
               />
             </Routes>
           </ErrorBoundary>
         </Layout>
+        <NavigationStateSync />
       </HashRouter>
     </TaskProvider>
   );

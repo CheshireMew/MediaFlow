@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import App from "../../App";
-import { apiClient } from "../../api/client";
 import { isDesktopRuntime, settingsService } from "../../services/domain";
 import { getDesktopRuntimeInfo, hasDesktopCapability } from "../../services/desktop";
 import { createDesktopRuntimeDiagnostic } from "../../services/debug/runtimeDiagnostics";
@@ -91,9 +90,10 @@ export function BootApp() {
             await loadUserSettings();
             updateState({
               appReady: true,
-              message: getStartupText("checkingHealth"),
+              remoteBackendReady: true,
+              message: getStartupText("ready"),
             });
-            break;
+            return;
           } catch (error) {
             console.log("[Init] Desktop worker not ready yet...", error);
             updateState({
@@ -111,24 +111,6 @@ export function BootApp() {
                 ? error.message
                 : getStartupText("retryingGeneric"),
           });
-        }
-
-        await sleep(1000);
-      }
-
-      while (!cancelled) {
-        try {
-          await apiClient.checkHealth();
-          console.log("[Init] Backend is ready!");
-          updateState({
-            appReady: true,
-            remoteBackendReady: true,
-            message: getStartupText("ready"),
-          });
-          return;
-        } catch (error) {
-          console.log("[Init] Backend not healthy yet...", error);
-          updateState({ message: getStartupText("retryingHealth") });
         }
 
         await sleep(1000);

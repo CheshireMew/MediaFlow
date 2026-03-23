@@ -41,15 +41,16 @@ class DesktopDownloadFlowRequest(BaseModel):
 class DesktopDownloadFlowService:
     def __init__(
         self,
-        downloader: DownloaderService | None = None,
-        asr_service: ASRService | None = None,
-        translator: LLMTranslator | None = None,
-        synthesizer: VideoSynthesizer | None = None,
+        *,
+        downloader: DownloaderService,
+        asr_service: ASRService,
+        translator: LLMTranslator,
+        synthesizer: VideoSynthesizer,
     ):
-        self._downloader = downloader or DownloaderService()
-        self._asr_service = asr_service or ASRService()
-        self._translator = translator or LLMTranslator()
-        self._synthesizer = synthesizer or VideoSynthesizer()
+        self._downloader = downloader
+        self._asr_service = asr_service
+        self._translator = translator
+        self._synthesizer = synthesizer
 
     async def execute(
         self,

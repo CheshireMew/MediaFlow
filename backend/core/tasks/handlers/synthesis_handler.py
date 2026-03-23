@@ -1,9 +1,9 @@
 from collections.abc import Awaitable, Callable
 from backend.models.schemas import SynthesisRequest
 from backend.models.task_model import Task
+from backend.application.synthesis_service import run_synthesis_task
 from backend.core.tasks.base import TaskHandler
 from backend.core.tasks.registry import TaskHandlerRegistry
-from backend.api.v1.editor import run_synthesis_task
 from loguru import logger
 
 @TaskHandlerRegistry.register("synthesis")

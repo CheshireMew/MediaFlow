@@ -5,8 +5,8 @@ import queue
 import threading
 from pathlib import Path
 from fastapi.testclient import TestClient
-from backend.services.task_manager import task_manager
 from backend.core.container import container, Services
+from backend.core.runtime_access import RuntimeServices
 from backend.models.schemas import FileRef, TaskResult
 
 
@@ -109,10 +109,10 @@ def _wait_for_queue_idle(client, timeout_s: float = 3.0):
         time.sleep(0.1)
     raise AssertionError(f"Queue did not become idle. Last payload: {last_payload}")
 
-def test_websocket_connection(client: TestClient):
-    with client.websocket_connect("/api/v1/ws/tasks") as websocket:
+def test_websocket_connection(isolated_api_client: TestClient):
+    with isolated_api_client.websocket_connect("/api/v1/ws/tasks") as websocket:
         # 1. Connection established
-        notifier = container.get(Services.WS_NOTIFIER)
+        notifier = RuntimeServices.ws_notifier()
         assert len(notifier.active_connections) == 1
         
         # 2. Simulate task update broadcast
@@ -127,7 +127,7 @@ def test_websocket_connection(client: TestClient):
         # 3. Disconnect
         websocket.close()
 
-    notifier = container.get(Services.WS_NOTIFIER)
+    notifier = RuntimeServices.ws_notifier()
     for _ in range(10):
         if len(notifier.active_connections) == 0:
             break
@@ -135,7 +135,7 @@ def test_websocket_connection(client: TestClient):
     assert len(notifier.active_connections) == 0
 
 @pytest.mark.asyncio
-async def test_task_update_broadcast():
+async def test_task_update_broadcast(isolated_api_client: TestClient):
     # This test verifies the TaskManager's logic specifically not the full WS transport
     # which is harder to test async without a running server.
     
@@ -150,7 +150,9 @@ async def test_task_update_broadcast():
             self.sent_messages.append(data)
             
     mock_ws = MockWS()
-    await task_manager.connect(mock_ws)
+    notifier = RuntimeServices.ws_notifier()
+    task_manager = RuntimeServices.task_manager()
+    await notifier.connect(mock_ws)
     
     from backend.models.task_model import Task
     import time
@@ -172,7 +174,7 @@ async def test_task_update_broadcast():
     assert msg["task"]["id"] == "test_task"
     assert msg["task"]["status"] == "running"
     
-    task_manager.disconnect(mock_ws)
+    notifier.disconnect(mock_ws)
 
 
 def test_websocket_pushes_queue_position_and_pause_resume_updates(isolated_api_client):

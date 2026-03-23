@@ -200,8 +200,8 @@ describe("TaskMonitor integration", () => {
 
     render(<TaskMonitor />);
 
-    expect(screen.getByText("task_submission 1")).toBeTruthy();
-    expect(screen.getByText("direct_result 1")).toBeTruthy();
+    expect(screen.getByText("queued task 1")).toBeTruthy();
+    expect(screen.getByText("direct result 1")).toBeTruthy();
   });
 
   it("calls pauseAllTasks after confirming bulk pause", async () => {

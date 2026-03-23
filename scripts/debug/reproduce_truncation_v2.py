@@ -22,10 +22,10 @@ def test_truncation(path_str):
     print(f"Translate Result (with_suffix): {save_path.with_suffix('.srt')}")
 
 print("=== Standard File ===")
-test_truncation(r"C:\Users\Dylan\Videos\Movie.mp4")
+test_truncation(r".\temp\Movie.mp4")
 
 print("\n=== File with Dots ===")
-test_truncation(r"C:\Users\Dylan\Videos\Shay Boloor... electricity... [2023].mp4")
+test_truncation(r".\temp\sample-video... electricity... [2023].mp4")
 
 print("\n=== File with Dots and No Extension (Hypothetical) ===")
-test_truncation(r"C:\Users\Dylan\Videos\Shay Boloor... electricity... [2023]")
+test_truncation(r".\temp\sample-video... electricity... [2023]")

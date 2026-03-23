@@ -9,6 +9,10 @@ import {
   toElectronFile,
 } from "../../services/ui/mediaReference";
 import {
+  attachElectronFileSource,
+  toNavigationFileSource,
+} from "../../services/ui/electronFileSource";
+import {
   NavigationService,
   type NavigationPayload,
   resolveNavigationMediaPayload,
@@ -33,10 +37,14 @@ export function useTranscriberNavigation(params: {
     ) => {
       if (!videoPath) return;
 
+      let resolvedVideoPath = videoPath;
       let fileSize = 0;
       if (isDesktopRuntime()) {
         try {
-          fileSize = await fileService.getFileSize(videoPath);
+          resolvedVideoPath =
+            (await fileService.resolveExistingPath(videoPath, videoRef?.name, videoRef?.size)) ||
+            videoPath;
+          fileSize = await fileService.getFileSize(resolvedVideoPath);
         } catch (error) {
           console.warn("[Transcriber] Could not get file size:", error);
         }
@@ -44,16 +52,21 @@ export function useTranscriberNavigation(params: {
 
       setActiveTaskId(null);
       setResult(null);
-      setFile(toElectronFile(createMediaReference({
-        path: videoPath,
-        name: videoRef?.name,
-        size: videoRef?.size ?? fileSize,
-        type: videoRef?.type ?? "video/mp4",
-        media_id: videoRef?.media_id,
-        media_kind: videoRef?.media_kind,
-        role: videoRef?.role,
-        origin: videoRef?.origin,
-      })));
+      setFile(
+        attachElectronFileSource(
+          toElectronFile(createMediaReference({
+            path: resolvedVideoPath,
+            name: videoRef?.name,
+            size: videoRef?.size ?? fileSize,
+            type: videoRef?.type ?? "video/mp4",
+            media_id: videoRef?.media_id,
+            media_kind: videoRef?.media_kind,
+            role: videoRef?.role,
+            origin: videoRef?.origin,
+          })),
+          toNavigationFileSource(videoRef),
+        ),
+      );
     },
     [setActiveTaskId, setFile, setResult],
   );

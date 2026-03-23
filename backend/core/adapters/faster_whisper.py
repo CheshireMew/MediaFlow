@@ -24,7 +24,7 @@ class FasterWhisperConfig(BaseModel):
     initial_prompt: Optional[str] = None
     vad_filter: bool = True
     max_line_width: Optional[int] = Field(default=None, ge=10, le=200)
-    max_line_count: Optional[int] = None
+    max_line_count: Optional[int] = 1
     device: str = "cpu"
     # Sentence segmentation (faster-whisper-xxl)
     sentence: bool = True
@@ -43,6 +43,16 @@ class FasterWhisperConfig(BaseModel):
     def validate_output_dir(cls, v: Path) -> Path:
         # We allow creation if not exists, but parent must exist? 
         # For simplicity, we just ensure it's a valid path structure.
+        return v
+
+    @field_validator("max_comma_cent")
+    @classmethod
+    def validate_max_comma_cent(cls, v: int) -> int:
+        allowed = {20, 30, 40, 50, 60, 70, 80, 90, 100}
+        if v not in allowed:
+            raise ValueError(
+                f"max_comma_cent must be one of {sorted(allowed)}, got {v}"
+            )
         return v
 
 class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment]]):
@@ -76,8 +86,8 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
             "--device", config.device
         ]
 
-        # Preserve sentence-level cues by default. Hard line-width limits here
-        # make the CLI split one spoken sentence across multiple subtitle cues.
+        # Keep line layout controls opt-in. The default cue shaping should come
+        # from sentence segmentation rather than forced in-cue line wrapping.
         if config.max_line_width is not None:
             cmd.extend(["--max_line_width", str(config.max_line_width)])
         if config.max_line_count is not None:

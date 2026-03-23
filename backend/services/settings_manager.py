@@ -18,25 +18,23 @@ class LLMProvider(BaseModel):
 class UserSettings(BaseModel):
     llm_providers: List[LLMProvider] = []
     default_download_path: Optional[str] = None
+    faster_whisper_cli_path: Optional[str] = None
     language: str = "zh"
     translation_target_language: str = "Chinese"
     transcription_model: str = "base"
     auto_execute_flow: bool = False
 
 class SettingsManager:
-    _instance = None
     _legacy_file_path = settings.BASE_DIR / "data" / "user_settings.json"
     _file_path = settings.USER_DATA_DIR / "user_settings.json"
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(SettingsManager, cls).__new__(cls)
-            cls._instance.initialize()
-        return cls._instance
-
-    def initialize(self):
+    def __init__(self):
         self._settings = UserSettings()
         self._load()
+
+    @staticmethod
+    def _apply_runtime_settings(user_settings: UserSettings) -> None:
+        settings.FASTER_WHISPER_CLI_PATH = user_settings.faster_whisper_cli_path or ""
 
     @staticmethod
     def _normalize_settings(user_settings: UserSettings) -> UserSettings:
@@ -61,14 +59,22 @@ class SettingsManager:
                 with open(self._file_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     data = self._deserialize_settings_data(data)
+                    data.setdefault(
+                        "faster_whisper_cli_path",
+                        settings.FASTER_WHISPER_CLI_PATH or None,
+                    )
                                 
                     self._settings = self._normalize_settings(UserSettings(**data))
+                    self._apply_runtime_settings(self._settings)
                 logger.info(f"Loaded settings from {self._file_path}")
             except Exception as e:
                 logger.error(f"Failed to load settings: {e}")
                 self._settings = UserSettings()
         else:
             # First run — start with empty defaults, user configures via UI
+            self._settings = UserSettings(
+                faster_whisper_cli_path=settings.FASTER_WHISPER_CLI_PATH or None,
+            )
             self.save()
 
     def _migrate_legacy_settings_file(self):
@@ -143,6 +149,7 @@ class SettingsManager:
 
     def update_settings(self, new_settings: UserSettings):
         self._settings = self._normalize_settings(new_settings)
+        self._apply_runtime_settings(self._settings)
         self.save()
         logger.info("Settings updated and saved.")
 

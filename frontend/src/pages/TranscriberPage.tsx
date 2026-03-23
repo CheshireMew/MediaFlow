@@ -70,6 +70,8 @@ export const TranscriberPage = () => {
 
               <div className="flex flex-col gap-6 shrink-0">
                 <TranscriptionConfig 
+                  engine={state.engine}
+                  setEngine={actions.setEngine}
                   model={state.model}
                   setModel={actions.setModel}
                   device={state.device}

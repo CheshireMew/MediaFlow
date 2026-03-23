@@ -5,7 +5,12 @@ from pathlib import Path
 from backend.core.container import Services, container
 from backend.models.task_model import Task
 from backend.models.schemas import FileRef, TaskResult
+from backend.services.task_control_service import TaskControlService
+from backend.services.task_event_publisher import TaskEventPublisher
 from backend.services.task_manager import TaskManager
+from backend.services.task_queue_view import TaskQueueView
+from backend.services.task_repository import TaskRepository
+from backend.services.task_runtime_state import TaskRuntimeState
 
 
 class SlowMockASR:
@@ -37,6 +42,16 @@ class SlowMockASR:
             files=[FileRef(type="subtitle", path=output_path, label="transcription")],
             meta={"segments": [], "text": "ok", "language": language or "en"},
         )
+
+
+def create_task_manager() -> TaskManager:
+    return TaskManager(
+        repository=TaskRepository(),
+        event_publisher=TaskEventPublisher(),
+        queue_view=TaskQueueView(),
+        control_service=TaskControlService(),
+        runtime_state=TaskRuntimeState(),
+    )
 
 
 def _create_audio_file(name: str) -> Path:
@@ -244,7 +259,7 @@ def test_load_tasks_marks_interrupted_work_as_paused_and_snapshot_reflects_it(mo
         fake_load_all,
     )
 
-    tm = TaskManager()
+    tm = create_task_manager()
 
     import asyncio
 

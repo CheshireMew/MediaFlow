@@ -36,6 +36,10 @@ class SegmentRefiner:
         # 中文语气词
         "的", "了", "着", "过", "吗", "呢", "吧", "啊", "呀", "嘛", "啦",
     }
+    HARD_CHAR_LIMIT_CJK = 28
+    HARD_WORD_LIMIT_ENGLISH = 18
+    MIN_SPLIT_UNIT_CJK = 8
+    MIN_SPLIT_UNIT_ENGLISH = 4
 
     @staticmethod
     def _is_mainly_cjk(text: str) -> bool:
@@ -54,6 +58,119 @@ class SegmentRefiner:
             return len([c for c in text if not c.isspace()])
         else:
             return len(text.split())
+
+    @staticmethod
+    def _max_unit_count(text: str) -> int:
+        return (
+            SegmentRefiner.HARD_CHAR_LIMIT_CJK
+            if SegmentRefiner._is_mainly_cjk(text)
+            else SegmentRefiner.HARD_WORD_LIMIT_ENGLISH
+        )
+
+    @staticmethod
+    def _min_split_unit(text: str) -> int:
+        return (
+            SegmentRefiner.MIN_SPLIT_UNIT_CJK
+            if SegmentRefiner._is_mainly_cjk(text)
+            else SegmentRefiner.MIN_SPLIT_UNIT_ENGLISH
+        )
+
+    @staticmethod
+    def _join_text(left: str, right: str) -> str:
+        if not left:
+            return right
+        if not right:
+            return left
+        return left + right if SegmentRefiner._is_mainly_cjk(left) else f"{left} {right}"
+
+    @staticmethod
+    def _candidate_split_score(text: str, split_at: int) -> int:
+        left = text[:split_at].strip()
+        right = text[split_at:].strip()
+        if not left or not right:
+            return -10**9
+
+        left_units = SegmentRefiner._count_words(left)
+        right_units = SegmentRefiner._count_words(right)
+        min_units = SegmentRefiner._min_split_unit(text)
+        if left_units < min_units or right_units < min_units:
+            return -10**8
+
+        score = -abs(left_units - right_units)
+        prev_char = text[split_at - 1] if split_at > 0 else ""
+        next_char = text[split_at] if split_at < len(text) else ""
+        next_word = right.split(maxsplit=1)[0].strip(" ,.!?;:，。！？；：\"'()[]{}").lower()
+
+        if prev_char in "。！？.!?":
+            score += 12
+        elif prev_char in "，；：,;:":
+            score += 8
+        elif prev_char.isspace():
+            score += 2
+
+        if next_word in SegmentRefiner.PREFIX_SPLIT_WORDS:
+            score += 5
+
+        return score
+
+    @staticmethod
+    def _find_text_split_index(text: str) -> int | None:
+        max_units = SegmentRefiner._max_unit_count(text)
+        total_units = SegmentRefiner._count_words(text)
+        if total_units <= max_units:
+            return None
+
+        candidate_indexes = []
+        for idx, char in enumerate(text):
+            if char in "。！？.!?，；：,;:":
+                candidate_indexes.append(idx + 1)
+            elif char.isspace():
+                candidate_indexes.append(idx + 1)
+
+        if not candidate_indexes:
+            midpoint = len(text) // 2
+            return midpoint if 0 < midpoint < len(text) else None
+
+        best_index = None
+        best_score = -10**9
+        for candidate in candidate_indexes:
+            score = SegmentRefiner._candidate_split_score(text, candidate)
+            if score > best_score:
+                best_score = score
+                best_index = candidate
+
+        if best_score <= -10**8:
+            midpoint = len(text) // 2
+            return midpoint if 0 < midpoint < len(text) else None
+        return best_index
+
+    @staticmethod
+    def _rebalance_long_segment(segment: SubtitleSegment) -> List[SubtitleSegment]:
+        text = (segment.text or "").strip()
+        if not text:
+            return []
+
+        split_index = SegmentRefiner._find_text_split_index(text)
+        if split_index is None:
+            return [segment]
+
+        left_text = text[:split_index].strip()
+        right_text = text[split_index:].strip()
+        if not left_text or not right_text:
+            return [segment]
+
+        duration = max(segment.end - segment.start, 0.001)
+        total_len = max(len(left_text) + len(right_text), 1)
+        ratio = len(left_text) / total_len
+        midpoint = round(segment.start + duration * ratio, 3)
+
+        left = SubtitleSegment(id=segment.id, start=segment.start, end=midpoint, text=left_text)
+        right = SubtitleSegment(id=segment.id, start=midpoint, end=segment.end, text=right_text)
+
+        result: List[SubtitleSegment] = []
+        for part in (left, right):
+            result.extend(SegmentRefiner._rebalance_long_segment(part))
+        return result
 
     @staticmethod
     def refine_segments(segments, max_chars=70) -> List[SubtitleSegment]:
@@ -210,7 +327,7 @@ class SegmentRefiner:
                 
                 # Metadata
                 time_gap = curr.start - prev.end
-                combined_text = prev.text + " " + curr.text
+                combined_text = SegmentRefiner._join_text(prev.text, curr.text)
                 combined_len = len(combined_text)
                 combined_duration = curr.end - prev.start
                 
@@ -263,14 +380,7 @@ class SegmentRefiner:
                 if should_merge:
                     # Execute Merge with smart separator
                     is_prev_cjk = SegmentRefiner._is_mainly_cjk(prev.text)
-                    separator = "" if is_prev_cjk else " "
-                    
-                    # If prev ends with punctuation and we are merging, we might want to strip it?
-                    # Usually no, Whisper puts punctuation at the end of the *utterance*. 
-                    # If we merge "Hello." + "World.", it becomes "Hello. World." -> Fine.
-                    # If we merge "making a grave" + "mistake.", it becomes "making a grave mistake." -> Fine.
-                    
-                    prev.text = prev.text + separator + curr.text
+                    prev.text = SegmentRefiner._join_text(prev.text, curr.text)
                     prev.end = curr.end
                 else:
                     merged.append(curr)
@@ -306,3 +416,26 @@ class SegmentRefiner:
                 nxt.start = round(mid, 3)
 
         return segments
+
+    @staticmethod
+    def rebalance_segment_lengths(segments: List[SubtitleSegment]) -> List[SubtitleSegment]:
+        balanced: List[SubtitleSegment] = []
+        for segment in segments:
+            balanced.extend(SegmentRefiner._rebalance_long_segment(segment))
+
+        for i, seg in enumerate(balanced):
+            seg.id = str(i + 1)
+        return balanced
+
+    @staticmethod
+    def normalize_segments(segments: List[SubtitleSegment]) -> List[SubtitleSegment]:
+        if not segments:
+            return []
+
+        merged = SegmentRefiner.merge_segments(segments)
+        balanced = SegmentRefiner.rebalance_segment_lengths(merged)
+        timed = SegmentRefiner.optimize_timing(balanced)
+
+        for i, seg in enumerate(timed):
+            seg.id = str(i + 1)
+        return timed

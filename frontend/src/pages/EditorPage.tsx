@@ -5,9 +5,12 @@ import { SubtitleList } from "../components/editor/SubtitleList";
 import { FindReplaceDialog } from "../components/dialogs/FindReplaceDialog";
 import { SynthesisDialog } from "../components/dialogs/SynthesisDialog";
 import { ContextMenu, type ContextMenuItem } from "../components/ui/ContextMenu";
-import { executionService } from "../services/domain";
+import {
+  createTaskFromExecutionOutcome,
+  executionService,
+  resolveExecutionOutcomeBranch,
+} from "../services/domain";
 import { useTaskContext } from "../context/taskContext";
-import { createTaskFromSubmissionReceipt } from "../services/domain/taskSubmission";
 
 // Extracted Components
 import { EditorHeader } from "../components/editor/EditorHeader";
@@ -280,7 +283,7 @@ export function EditorPage() {
                 }
 
                 const { output_path, ...restOptions } = options;
-                const submission = await executionService.synthesize({
+                const executionResult = await executionService.synthesize({
                     video_path: currentFileRef ? null : currentFilePath,
                     video_ref: currentFileRef,
                     srt_path: srtPath as string,
@@ -289,9 +292,13 @@ export function EditorPage() {
                     output_path: output_path,
                     options: restOptions,
                 });
+                const outcome = resolveExecutionOutcomeBranch(executionResult);
+                if (outcome.kind !== "submission") {
+                    throw new Error("Synthesis should return a task submission");
+                }
                 addTask(
-                    createTaskFromSubmissionReceipt({
-                        receipt: submission,
+                    createTaskFromExecutionOutcome({
+                        outcome: executionResult,
                         type: "synthesize",
                         name: currentFilePath
                             ? `Synthesize ${currentFilePath.split(/[\\/]/).pop()}`

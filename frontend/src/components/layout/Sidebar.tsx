@@ -62,22 +62,22 @@ export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation('sidebar');
-  const activeTab = location.pathname.substring(1) || 'editor'; // default to editor if root
+  const activeTab = location.pathname.substring(1) || 'downloader';
 
   const { tasks } = useTaskContext();
   const activeTaskCount = tasks.filter(t => t.status === 'running' || t.status === 'pending').length;
 
   const menuItems = [
     { id: 'dashboard', labelKey: 'monitor', icon: LayoutDashboard, badge: activeTaskCount},
-    { id: 'editor', labelKey: 'editor', icon: Pencil },
     { id: 'downloader', labelKey: 'download', icon: Download },
     { id: 'transcriber', labelKey: 'transcribe', icon: FileAudio },
     { id: 'translator', labelKey: 'translate', icon: Languages },
+    { id: 'editor', labelKey: 'editor', icon: Pencil },
     { id: 'settings', labelKey: 'settings', icon: Settings },
   ];
 
   if (ENABLE_EXPERIMENTAL_PREPROCESSING) {
-    menuItems.splice(2, 0, {
+    menuItems.splice(4, 0, {
       id: 'preprocessing',
       labelKey: 'preprocess',
       icon: Wand2,

@@ -11,5 +11,19 @@
   "placeholder": {
     "metrics": "更多指标（即将推出）",
     "storage": "存储统计（即将推出）"
+  },
+  "taskOverview": {
+    "title": "任务概览",
+    "subtitle": "排队与运行态势",
+    "queue": "Queue",
+    "running": "Running",
+    "paused": "Paused"
+  },
+  "runtimeOverview": {
+    "title": "运行状态",
+    "subtitle": "来源与执行模式",
+    "owner": "任务归属",
+    "sources": "任务来源",
+    "execution": "执行模式"
   }
 }

@@ -140,6 +140,7 @@ export interface LLMProvider {
 export interface UserSettings {
   llm_providers: LLMProvider[];
   default_download_path: string | null;
+  faster_whisper_cli_path: string | null;
   language: string;
   translation_target_language: string;
   transcription_model: string;
@@ -221,6 +222,7 @@ export interface TranscribeSegmentRequest {
   audio_ref?: MediaReference | null;
   start: number;
   end: number;
+  engine?: "builtin" | "cli";
   model?: string;
   device?: string;
   language?: string;
@@ -241,6 +243,8 @@ export interface TranscribeSegmentResponse {
   message?: string;
 }
 
+export type TranscriptionEngine = "builtin" | "cli";
+
 // ─── Translate ──────────────────────────────────────────────────
 
 export interface TranslateRequest {
@@ -254,6 +258,7 @@ export interface TranslateRequest {
 export interface TranslateResponse extends Partial<DesktopTranslateDirectResult> {
   task_id?: string;
   status?: string;
+  srt_path?: string | null;
 }
 
 export interface TranslationTaskStatus {
@@ -283,7 +288,7 @@ export interface OCRExtractRequest {
 }
 
 export interface EnhanceVideoRequest {
-  video_path: string;
+  video_path?: string | null;
   video_ref?: MediaReference | null;
   model?: string;
   scale?: string;
@@ -292,7 +297,7 @@ export interface EnhanceVideoRequest {
 }
 
 export interface CleanVideoRequest {
-  video_path: string;
+  video_path?: string | null;
   video_ref?: MediaReference | null;
   roi: [number, number, number, number];
   method?: string;

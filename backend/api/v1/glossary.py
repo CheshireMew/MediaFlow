@@ -1,45 +1,37 @@
-
 from fastapi import APIRouter, HTTPException
 from typing import List
-from backend.models.schemas import GlossaryTerm
-from backend.core.container import container, Services
 
-def _get_glossary_service():
-    return container.get(Services.GLOSSARY)
-from pydantic import BaseModel
+from backend.application.glossary_service import (
+    CreateGlossaryTermRequest,
+    GlossaryApplicationService,
+    UpdateGlossaryTermRequest,
+)
+from backend.models.schemas import GlossaryTerm
+from backend.core.runtime_access import RuntimeServices
+
+def _glossary_application():
+    return GlossaryApplicationService(RuntimeServices.glossary())
 
 router = APIRouter(prefix="/glossary", tags=["Glossary"])
 
-class CreateTermRequest(BaseModel):
-    source: str
-    target: str
-    note: str | None = None
-    category: str = "general"
-
-class UpdateTermRequest(BaseModel):
-    source: str | None = None
-    target: str | None = None
-    note: str | None = None
-    category: str | None = None
-
 @router.get("/", response_model=List[GlossaryTerm])
 def list_terms():
-    return _get_glossary_service().list_terms()
+    return _glossary_application().list_terms()
 
 @router.post("/", response_model=GlossaryTerm)
-def add_term(req: CreateTermRequest):
-    return _get_glossary_service().add_term(req.source, req.target, req.note, req.category)
+def add_term(req: CreateGlossaryTermRequest):
+    return _glossary_application().add_term(req)
 
 @router.patch("/{term_id}", response_model=GlossaryTerm)
-def update_term(term_id: str, req: UpdateTermRequest):
-    updated = _get_glossary_service().update_term(term_id, req.dict(exclude_unset=True))
-    if not updated:
-        raise HTTPException(status_code=404, detail="Term not found")
-    return updated
+def update_term(term_id: str, req: UpdateGlossaryTermRequest):
+    try:
+        return _glossary_application().update_term(term_id, req)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 @router.delete("/{term_id}")
 def delete_term(term_id: str):
-    success = _get_glossary_service().delete_term(term_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Term not found")
-    return {"status": "ok"}
+    try:
+        return _glossary_application().delete_term(term_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

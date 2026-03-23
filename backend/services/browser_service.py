@@ -1,24 +1,13 @@
-from playwright.async_api import async_playwright, Browser, Page
-import asyncio
-import os
 import random
-import json
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from loguru import logger
-from typing import Optional, List, Dict
-import urllib.parse
+from typing import Optional
 from backend.services.utils.user_agents import get_random_user_agent
-from backend.core.container import container, Services
 
 class BrowserService:
-    _instance = None
-    _browser: Optional[Browser] = None
-    _playwright = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(BrowserService, cls).__new__(cls)
-        return cls._instance
+    def __init__(self):
+        self._browser: Optional[Browser] = None
+        self._playwright = None
 
     async def start(self):
         """Start the browser with stealth settings."""

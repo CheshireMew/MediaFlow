@@ -14,13 +14,10 @@ import {
   type MediaReference,
   resolveMediaReferencePath,
 } from "../../services/ui/mediaReference";
-
-const TRANSLATION_ACTIVE_STATUSES = [
-  "running",
-  "pending",
-  "processing_result",
-  "paused",
-] as const;
+import {
+  isTaskActive,
+  isTaskRecoverable,
+} from "../../services/tasks/taskRuntimeState";
 
 export const isTranslatorMode = (value: unknown): value is TranslatorMode =>
   value === "standard" || value === "intelligent" || value === "proofread";
@@ -93,7 +90,7 @@ export const getActiveDownloadTasks = (tasks: Task[]): Task[] =>
   tasks.filter(
     (task) =>
       isDownloadTask(task) &&
-      ["pending", "running", "paused"].includes(task.status),
+      isTaskActive(task),
   );
 
 export const findActiveTranslationTask = (
@@ -103,11 +100,7 @@ export const findActiveTranslationTask = (
 ): Task | undefined =>
   tasks.find((task) => {
     if (task.type !== "translate") return false;
-    if (
-      !TRANSLATION_ACTIVE_STATUSES.includes(
-        task.status as (typeof TRANSLATION_ACTIVE_STATUSES)[number],
-      )
-      ) {
+    if (!isTaskRecoverable(task)) {
       return false;
     }
 
@@ -146,7 +139,7 @@ export const findActiveTranscribeTask = (
   filePath: string | null | undefined,
 ): Task | undefined =>
   tasks.find((task) => {
-    if (!["running", "pending", "paused"].includes(task.status)) return false;
+    if (!isTaskRecoverable(task)) return false;
     if (!hasTranscribeStep(task)) return false;
 
     const mediaIdentity = resolveMediaReferencePath(fileRef, filePath);

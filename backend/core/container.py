@@ -1,73 +1,93 @@
 """
-Service Container - Lightweight dependency injection for MediaFlow.
+Service Container - lightweight dependency injection for MediaFlow.
 Provides centralized service registration and lazy instantiation.
 """
-from typing import Dict, Any, Callable, TypeVar
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, TypeVar
 from loguru import logger
 
 T = TypeVar('T')
 
 
+@dataclass(frozen=True)
+class ServiceKey:
+    name: str
+
+    def __str__(self) -> str:
+        return self.name
+
+
+def _service_name(key: "ServiceKey | str") -> str:
+    return key.name if isinstance(key, ServiceKey) else key
+
+
 class ServiceContainer:
     """
     Lightweight dependency injection container.
-    
+
     Features:
     - Lazy instantiation (services created on first access)
     - Singleton lifecycle (one instance per service)
     - Override support for testing
-    
+
     Usage:
-        container.register("task_manager", TaskManager)
-        tm = container.get("task_manager")  # Creates instance on first call
+        assembly = build_service_assembly()
+        assembly.register_into(container)
+        task_manager = container.get(Services.TASK_MANAGER)
     """
-    
+
     def __init__(self):
         self._factories: Dict[str, Callable[[], Any]] = {}
         self._instances: Dict[str, Any] = {}
-    
-    def register(self, name: str, factory: Callable[[], T]) -> None:
+
+    def register(self, name: "ServiceKey | str", factory: Callable[[], T]) -> None:
         """
         Register a service factory function.
-        
+
         Args:
-            name: Service identifier (e.g., "task_manager")
+            name: Service key declared by the assembly/runtime boundary
             factory: Callable that creates the service instance
         """
-        if name in self._factories:
-            existing_factory = self._factories[name]
+        service_name = _service_name(name)
+        if service_name in self._factories:
+            existing_factory = self._factories[service_name]
             if existing_factory is factory:
-                logger.warning(f"[Container] Duplicate registration ignored for service: {name}")
+                logger.warning(f"[Container] Duplicate registration ignored for service: {service_name}")
                 return
-            raise RuntimeError(f"Service '{name}' already registered")
+            raise RuntimeError(f"Service '{service_name}' already registered")
 
-        self._factories[name] = factory
-        logger.debug(f"[Container] Registered service: {name}")
-    
-    def get(self, name: str) -> Any:
+        self._factories[service_name] = factory
+        logger.debug(f"[Container] Registered service: {service_name}")
+
+    def get(self, name: "ServiceKey | str") -> Any:
         """
         Get or create a service instance (singleton pattern).
-        
+
         Args:
-            name: Service identifier
-            
+            name: Service key declared by the assembly/runtime boundary
+
         Returns:
             The service instance
-            
+
         Raises:
             KeyError: If service not registered
         """
-        if name not in self._instances:
-            if name not in self._factories:
-                raise KeyError(f"Service '{name}' not registered. "
+        service_name = _service_name(name)
+        if service_name not in self._instances:
+            if service_name not in self._factories:
+                raise KeyError(f"Service '{service_name}' not registered. "
                              f"Available: {list(self._factories.keys())}")
-            self._instances[name] = self._factories[name]()
-            logger.debug(f"[Container] Instantiated service: {name}")
-        return self._instances[name]
-    
-    def has(self, name: str) -> bool:
+            self._instances[service_name] = self._factories[service_name]()
+            logger.debug(f"[Container] Instantiated service: {service_name}")
+        return self._instances[service_name]
+
+    def has(self, name: "ServiceKey | str") -> bool:
         """Check if a service is registered."""
-        return name in self._factories
+        return _service_name(name) in self._factories
+
+    def is_instantiated(self, name: "ServiceKey | str") -> bool:
+        """Check if a service instance has already been created."""
+        return _service_name(name) in self._instances
     
     def reset(self) -> None:
         """
@@ -83,87 +103,43 @@ class ServiceContainer:
         self._instances.clear()
         logger.debug("[Container] Cleared all factories and instances")
     
-    def override(self, name: str, instance: Any) -> None:
+    def override(self, name: "ServiceKey | str", instance: Any) -> None:
         """
         Override a service with a custom instance (for testing/mocking).
-        
+
         Args:
-            name: Service identifier
+            name: Service key declared by the assembly/runtime boundary
             instance: The mock/custom instance to use
         """
-        self._instances[name] = instance
-        logger.debug(f"[Container] Overrode service: {name}")
+        service_name = _service_name(name)
+        self._instances[service_name] = instance
+        logger.debug(f"[Container] Overrode service: {service_name}")
 
 
 # Global container instance
 container = ServiceContainer()
 
 
-# Service name constants (prevents typos)
+# Service keys shared by assembly and runtime access.
 class Services:
-    TASK_MANAGER = "task_manager"
-    TASK_ORCHESTRATOR = "task_orchestrator"
-    TASK_REQUEST_DEDUPLICATOR = "task_request_deduplicator"
-    TASK_RESUME_SERVICE = "task_resume_service"
-    DOWNLOAD_WORKFLOW = "download_workflow"
-    TRANSCRIBER_WORKFLOW = "transcriber_workflow"
-    WS_NOTIFIER = "ws_notifier"
-    ASR = "asr"
-    DOWNLOADER = "downloader"
-    LLM_TRANSLATOR = "llm_translator"
-    BROWSER = "browser"
-    SNIFFER = "sniffer"
-    SETTINGS_MANAGER = "settings_manager"
-    GLOSSARY = "glossary"
-    COOKIE_MANAGER = "cookie_manager"
-    ANALYZER = "analyzer"
-    PIPELINE = "pipeline"
-    VIDEO_SYNTHESIZER = "video_synthesizer"
-    ENHANCER = "enhancer"
-    CLEANER = "cleaner"
-
-
-# ─── Typed Accessors ─────────────────────────────────────────────
-# Optional convenience wrappers: return correct types for IDE support.
-# The TYPE_CHECKING imports are erased at runtime → no circular imports.
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from backend.services.task_manager import TaskManager
-    from backend.core.ws_notifier import WebSocketNotifier
-    from backend.services.asr import ASRService
-    from backend.services.downloader.service import DownloaderService
-    from backend.services.settings_manager import SettingsManager
-    from backend.services.video_synthesizer import VideoSynthesizer
-    from backend.core.pipeline import PipelineRunner
-    from backend.services.enhancer import RealESRGANService
-    from backend.services.cleaner import CleanerService
-
-
-def get_task_manager() -> "TaskManager":
-    return container.get(Services.TASK_MANAGER)
-
-def get_ws_notifier() -> "WebSocketNotifier":
-    return container.get(Services.WS_NOTIFIER)
-
-def get_asr() -> "ASRService":
-    return container.get(Services.ASR)
-
-def get_downloader() -> "DownloaderService":
-    return container.get(Services.DOWNLOADER)
-
-def get_settings_manager() -> "SettingsManager":
-    return container.get(Services.SETTINGS_MANAGER)
-
-def get_video_synthesizer() -> "VideoSynthesizer":
-    return container.get(Services.VIDEO_SYNTHESIZER)
-
-def get_pipeline() -> "PipelineRunner":
-    return container.get(Services.PIPELINE)
-
-def get_enhancer() -> "RealESRGANService":
-    return container.get(Services.ENHANCER)
-
-def get_cleaner() -> "CleanerService":
-    return container.get(Services.CLEANER)
+    TASK_MANAGER = ServiceKey("task_manager")
+    TASK_ORCHESTRATOR = ServiceKey("task_orchestrator")
+    TASK_REQUEST_DEDUPLICATOR = ServiceKey("task_request_deduplicator")
+    TASK_RESUME_SERVICE = ServiceKey("task_resume_service")
+    DOWNLOAD_WORKFLOW = ServiceKey("download_workflow")
+    TRANSCRIBER_WORKFLOW = ServiceKey("transcriber_workflow")
+    WS_NOTIFIER = ServiceKey("ws_notifier")
+    ASR = ServiceKey("asr")
+    DOWNLOADER = ServiceKey("downloader")
+    LLM_TRANSLATOR = ServiceKey("llm_translator")
+    BROWSER = ServiceKey("browser")
+    SNIFFER = ServiceKey("sniffer")
+    SETTINGS_MANAGER = ServiceKey("settings_manager")
+    GLOSSARY = ServiceKey("glossary")
+    COOKIE_MANAGER = ServiceKey("cookie_manager")
+    ANALYZER = ServiceKey("analyzer")
+    PLATFORM_FACTORY = ServiceKey("platform_factory")
+    PIPELINE = ServiceKey("pipeline")
+    VIDEO_SYNTHESIZER = ServiceKey("video_synthesizer")
+    ENHANCER = ServiceKey("enhancer")
+    CLEANER = ServiceKey("cleaner")

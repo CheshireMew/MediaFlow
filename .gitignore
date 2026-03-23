@@ -15,6 +15,9 @@ temp/
 .benchmarks/
 .pytest_cache/
 models/
+!backend/models/
+backend/models/*
+!backend/models/schemas.py
 example/
 output/
 bin/
@@ -63,3 +66,4 @@ generated*.txt
 original*.txt
 test_ffmpeg.py
 temp_sub*.ass
+scripts/debug/*.txt

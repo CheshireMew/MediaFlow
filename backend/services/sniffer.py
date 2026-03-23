@@ -2,7 +2,6 @@ import asyncio
 import random
 from loguru import logger
 from typing import Optional, Dict
-from backend.core.container import container, Services
 
 # Configuration Constants
 MIN_VIDEO_URL_LENGTH = 50       # Minimum length for valid video URLs
@@ -18,12 +17,15 @@ class NetworkSniffer:
     Singleton lifecycle managed by ServiceContainer — do NOT add __new__ here.
     """
 
+    def __init__(self, browser_service):
+        self._browser_service = browser_service
+
     async def get_page_info(self, url: str, custom_js: str = None, user_agent: str = None, timeout: int = 15) -> dict:
         """
         Navigate to a URL and extract information using custom JavaScript.
         """
         # Get context from browser service
-        context = await container.get(Services.BROWSER).get_stealth_context(user_agent)
+        context = await self._browser_service.get_stealth_context(user_agent)
         page = await context.new_page()
         
         result = {}
@@ -63,7 +65,7 @@ class NetworkSniffer:
         """
         found_url = None
         extracted_title = "Video" # Default title
-        context = await container.get(Services.BROWSER).get_stealth_context() 
+        context = await self._browser_service.get_stealth_context() 
         page = await context.new_page()
         viewport = context.pages[0].viewport_size if context.pages else None
 

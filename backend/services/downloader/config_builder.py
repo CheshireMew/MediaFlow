@@ -5,15 +5,17 @@ from .progress import ProgressHook
 from backend.services.cookie_manager import CookieManager
 from urllib.parse import urlparse
 from loguru import logger
-from backend.utils.text_normalizer import normalize_filename_component
+import re
 
 def _sanitize_filename(name: str) -> str:
     """Remove characters that are invalid in Windows/Linux filenames, keep Unicode."""
-    return normalize_filename_component(name)
+    if not name: return "download"
+    return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
 
 class YtDlpConfigBuilder:
-    def __init__(self, output_dir: Path):
+    def __init__(self, output_dir: Path, *, cookie_manager: CookieManager):
         self.output_dir = output_dir
+        self._cookie_manager = cookie_manager
 
     def build(
         self,
@@ -38,18 +40,17 @@ class YtDlpConfigBuilder:
         if not cookie_file:
             try:
                 domain = urlparse(url).netloc
-                cm = CookieManager()
                 detected_cookie = None
                 
                 # Special handling for X/Twitter domain sharing
                 if "x.com" in domain or "twitter.com" in domain:
-                    if cm.has_valid_cookies("x.com"):
-                        detected_cookie = cm.get_cookie_path("x.com")
-                    elif cm.has_valid_cookies("twitter.com"):
-                        detected_cookie = cm.get_cookie_path("twitter.com")
+                    if self._cookie_manager.has_valid_cookies("x.com"):
+                        detected_cookie = self._cookie_manager.get_cookie_path("x.com")
+                    elif self._cookie_manager.has_valid_cookies("twitter.com"):
+                        detected_cookie = self._cookie_manager.get_cookie_path("twitter.com")
                 # Generic handling
-                elif cm.has_valid_cookies(domain):
-                     detected_cookie = cm.get_cookie_path(domain)
+                elif self._cookie_manager.has_valid_cookies(domain):
+                     detected_cookie = self._cookie_manager.get_cookie_path(domain)
                 
                 if detected_cookie:
                     cookie_file = str(detected_cookie)

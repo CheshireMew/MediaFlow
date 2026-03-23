@@ -35,6 +35,23 @@ async function pathExists(candidate: string): Promise<boolean> {
   }
 }
 
+async function resolveExistingMediaPath(candidate: string): Promise<string | null> {
+  if (!isDesktopRuntime()) {
+    return candidate;
+  }
+
+  try {
+    const resolved = await fileService.resolveExistingPath(candidate);
+    if (!resolved) {
+      return null;
+    }
+    await fileService.getFileSize(resolved);
+    return resolved;
+  } catch {
+    return null;
+  }
+}
+
 export async function resolvePreferredMediaPath(
   candidates: Array<unknown>,
 ): Promise<string | null> {
@@ -44,6 +61,11 @@ export async function resolvePreferredMediaPath(
   }
 
   for (const candidate of paths) {
+    const resolved = await resolveExistingMediaPath(candidate);
+    if (resolved) {
+      return resolved;
+    }
+
     if (await pathExists(candidate)) {
       return candidate;
     }

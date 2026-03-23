@@ -1,14 +1,14 @@
 import type { SubtitleSegment } from "../../types/task";
 import type { TranslatorMode } from "../../stores/translatorStore";
 import { useTaskContext } from "../../context/taskContext";
-import { executionService, isDesktopRuntime } from "../../services/domain";
+import {
+  applyExecutionOutcome,
+  enqueueExecutionTask,
+  executionService,
+  type NullableExecutionMode,
+} from "../../services/domain";
 import { createMediaReference, type MediaReference } from "../../services/ui/mediaReference";
 import { normalizeTranslateResult } from "../../services/ui/translateResult";
-import {
-  createTaskFromSubmissionReceipt,
-  isDirectExecutionResult,
-  isTaskExecutionSubmission,
-} from "../../services/domain/taskSubmission";
 
 type UseTranslationCommandsParams = {
   sourceSegments: SubtitleSegment[];
@@ -19,7 +19,7 @@ type UseTranslationCommandsParams = {
   setTaskStatus: (status: string) => void;
   setProgress: (progress: number) => void;
   setTaskError: (error: string | null) => void;
-  setExecutionMode: (mode: "task_submission" | "direct_result" | null) => void;
+  setExecutionMode: (mode: NullableExecutionMode) => void;
   setTaskId: (id: string | null) => void;
   setTargetSegments: (segments: SubtitleSegment[]) => void;
   setSourceFileRef: (reference: MediaReference | null) => void;
@@ -68,23 +68,27 @@ export function useTranslationCommands({
       activeTaskModeRef.current = effectiveMode;
       setResultMode(null);
       setSourceFileRef(contextRef);
-      if (isDesktopRuntime()) {
-        setActiveMode(effectiveMode);
-        const executionResult = await executionService.translate({
-          segments: sourceSegments,
-          target_language: targetLang,
-          mode: effectiveMode,
-          context_path: contextPath,
-          context_ref: contextRef,
-        });
-        if (!isDirectExecutionResult(executionResult)) {
-          throw new Error("Desktop translation returned a task submission");
-        }
-        const normalizedResult = normalizeTranslateResult(executionResult.result, contextRef);
+      setActiveMode(effectiveMode);
+      const executionResult = await executionService.translate({
+        segments: sourceSegments,
+        target_language: targetLang,
+        mode: effectiveMode,
+        context_path: contextPath,
+        context_ref: contextRef,
+      });
+      const outcome = applyExecutionOutcome({
+        outcome: executionResult,
+        setExecutionMode,
+      });
+
+      if (outcome.kind === "result") {
+        const normalizedResult = normalizeTranslateResult(
+          outcome.result,
+          contextRef,
+        );
         if (mode === "proofread") {
           setMode(effectiveMode);
         }
-        setExecutionMode("direct_result");
         setTargetSegments(normalizedResult?.segments ?? []);
         setTargetSubtitleRef(normalizedResult?.subtitle_ref ?? null);
         setTaskId(null);
@@ -99,24 +103,13 @@ export function useTranslationCommands({
         return;
       }
 
-      const executionResult = await executionService.translate({
-        segments: sourceSegments,
-        target_language: targetLang,
-        mode: effectiveMode,
-        context_path: contextPath,
-        context_ref: contextRef,
-      });
       if (mode === "proofread") {
         setMode(effectiveMode);
       }
-      setActiveMode(effectiveMode);
-      setExecutionMode("task_submission");
-      if (!isTaskExecutionSubmission(executionResult) || !executionResult.task_id) {
-        throw new Error("Translation task id was not returned");
-      }
-      addTask(
-        createTaskFromSubmissionReceipt({
-          receipt: executionResult,
+      const submission = enqueueExecutionTask({
+        addTask,
+        outcome: executionResult,
+        descriptor: {
           type: "translate",
           name: contextPath ? `Translate ${contextPath.split(/[\\/]/).pop()}` : "Translate subtitles",
           request_params: {
@@ -125,9 +118,9 @@ export function useTranslationCommands({
             target_language: targetLang,
             mode: effectiveMode,
           },
-        }),
-      );
-      setTaskId(executionResult.task_id);
+        },
+      });
+      setTaskId(submission.task_id);
       setTaskStatus("pending");
     } catch (e) {
       console.error(e);
@@ -158,19 +151,23 @@ export function useTranslationCommands({
       setActiveMode("proofread");
       setResultMode("proofread");
       setSourceFileRef(contextRef);
-      if (isDesktopRuntime()) {
-        const executionResult = await executionService.translate({
-          segments: sourceSegments,
-          target_language: targetLang,
-          mode: "proofread",
-          context_path: contextPath,
-          context_ref: contextRef,
-        });
-        if (!isDirectExecutionResult(executionResult)) {
-          throw new Error("Desktop proofread returned a task submission");
-        }
-        const normalizedResult = normalizeTranslateResult(executionResult.result, contextRef);
-        setExecutionMode("direct_result");
+      const executionResult = await executionService.translate({
+        segments: sourceSegments,
+        target_language: targetLang,
+        mode: "proofread",
+        context_path: contextPath,
+        context_ref: contextRef,
+      });
+      const outcome = applyExecutionOutcome({
+        outcome: executionResult,
+        setExecutionMode,
+      });
+
+      if (outcome.kind === "result") {
+        const normalizedResult = normalizeTranslateResult(
+          outcome.result,
+          contextRef,
+        );
         setTargetSegments(normalizedResult?.segments ?? []);
         setTargetSubtitleRef(normalizedResult?.subtitle_ref ?? null);
         setTaskId(null);
@@ -184,20 +181,10 @@ export function useTranslationCommands({
         return;
       }
 
-      const executionResult = await executionService.translate({
-        segments: sourceSegments,
-        target_language: targetLang,
-        mode: "proofread",
-        context_path: contextPath,
-        context_ref: contextRef,
-      });
-      setExecutionMode("task_submission");
-      if (!isTaskExecutionSubmission(executionResult) || !executionResult.task_id) {
-        throw new Error("Proofread task id was not returned");
-      }
-      addTask(
-        createTaskFromSubmissionReceipt({
-          receipt: executionResult,
+      const submission = enqueueExecutionTask({
+        addTask,
+        outcome: executionResult,
+        descriptor: {
           type: "translate",
           name: contextPath ? `Proofread ${contextPath.split(/[\\/]/).pop()}` : "Proofread subtitles",
           request_params: {
@@ -206,9 +193,9 @@ export function useTranslationCommands({
             target_language: targetLang,
             mode: "proofread",
           },
-        }),
-      );
-      setTaskId(executionResult.task_id);
+        },
+      });
+      setTaskId(submission.task_id);
       setTaskStatus("pending");
     } catch (e) {
       console.error(e);

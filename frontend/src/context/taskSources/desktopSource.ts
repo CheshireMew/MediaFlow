@@ -2,6 +2,7 @@ import { desktopEventsService, desktopTaskService } from "../../services/desktop
 import type { TaskSocketMessage } from "../../hooks/tasks/useTaskStore";
 import type { TaskSource } from "./types";
 import { isDesktopTask } from "./shared";
+import { isTaskQueued, isTaskRunning } from "../../services/tasks/taskRuntimeState";
 
 export function createDesktopTaskSource(ready: boolean): TaskSource {
   return {
@@ -15,7 +16,7 @@ export function createDesktopTaskSource(ready: boolean): TaskSource {
     pauseTask: (taskId) => desktopTaskService.pauseTask(taskId),
     pauseAll: async (tasks) => {
       const desktopTasks = tasks.filter(
-        (task) => isDesktopTask(task) && (task.status === "running" || task.status === "pending"),
+        (task) => isDesktopTask(task) && (isTaskRunning(task) || isTaskQueued(task)),
       );
       await Promise.all(desktopTasks.map((task) => desktopTaskService.pauseTask(task.id)));
     },

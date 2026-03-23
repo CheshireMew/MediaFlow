@@ -17,3 +17,28 @@ export {
   getRuntimeStrategy,
 } from "./runtimeCatalog";
 export type { RuntimeStrategy } from "./runtimeCatalog";
+export type {
+  ExecutionOutcomeBranch,
+  ExecutionMode,
+  ExecutionOutcome,
+  NullableExecutionMode,
+  TaskExecutionSubmission,
+} from "./taskSubmission";
+export {
+  createDesktopTaskExecutionOutcome,
+  createDesktopTaskSubmissionReceipt,
+  createDirectExecutionOutcome,
+  createDirectExecutionResult,
+  createExecutionOutcomeFromSubmission,
+  createTaskExecutionOutcome,
+  createTaskExecutionSubmissionReceipt,
+  createTaskFromExecutionOutcome,
+  createTaskFromSubmissionReceipt,
+  getRequiredExecutionResult,
+  getRequiredExecutionSubmission,
+  hasExecutionResult,
+  hasExecutionSubmission,
+  isTaskExecutionSubmission,
+  resolveExecutionOutcomeBranch,
+} from "./taskSubmission";
+export { applyExecutionOutcome, enqueueExecutionTask } from "./executionFlow";

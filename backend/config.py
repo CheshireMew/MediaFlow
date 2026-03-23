@@ -104,6 +104,7 @@ class Settings:
         self.FFMPEG_PATH = "ffmpeg"
         self.FFPROBE_PATH = "ffprobe"
         self.FASTER_WHISPER_CLI_PATH = ""
+        self.ENABLE_FASTER_WHISPER_CLI = False
 
         self.ASR_MAX_WORKERS = 2
         self.ASR_MODEL_DIR = self.MODEL_DIR / "faster-whisper"
@@ -142,6 +143,10 @@ class Settings:
         self.FASTER_WHISPER_CLI_PATH = env.get(
             "FASTER_WHISPER_CLI_PATH",
             self.FASTER_WHISPER_CLI_PATH,
+        )
+        self.ENABLE_FASTER_WHISPER_CLI = _parse_bool(
+            env.get("ENABLE_FASTER_WHISPER_CLI"),
+            self.ENABLE_FASTER_WHISPER_CLI,
         )
 
         self.ASR_MAX_WORKERS = _parse_int(env.get("ASR_MAX_WORKERS"), self.ASR_MAX_WORKERS)

@@ -7,7 +7,7 @@ import threading
 from typing import Callable, Any, Optional, Dict
 from loguru import logger
 
-from backend.core.container import container, Services
+from backend.core.runtime_access import TaskRuntimeContext
 from backend.core.task_control import TaskCancelRequested, TaskPauseRequested
 
 
@@ -61,23 +61,23 @@ class BackgroundTaskRunner:
                     continue
 
         try:
-            task_manager = container.get(Services.TASK_MANAGER)
+            runtime = TaskRuntimeContext.for_task(task_id)
             # 1. Update status to running
-            await task_manager.update_task(
-                task_id, 
+            await runtime.update(
                 status="running", 
                 cancelled=False,
                 message=start_message
             )
             
             # 2. Create thread-safe progress callback
-            loop = asyncio.get_running_loop()
+            loop = runtime.loop
+            task_manager = runtime.task_manager
             
             def progress_callback(progress: int, message: str):
                 with progress_gate:
                     if not accept_progress_updates:
                         return
-                    task_manager.raise_if_control_requested(task_id)
+                    runtime.checkpoint()
                     if loop.is_closed():
                         return
                     future = task_manager.submit_threadsafe_update(
@@ -93,10 +93,7 @@ class BackgroundTaskRunner:
             worker_kwargs[progress_key] = progress_callback
             
             # 3. Run blocking function in executor
-            result = await loop.run_in_executor(
-                None,
-                lambda: worker_fn(**worker_kwargs)
-            )
+            result = await runtime.run_blocking(lambda: worker_fn(**worker_kwargs))
 
             await flush_progress_updates()
             
@@ -111,8 +108,7 @@ class BackgroundTaskRunner:
                 final_result = result.dict()
             
             # 5. Update task as completed
-            await container.get(Services.TASK_MANAGER).update_task(
-                task_id,
+            await runtime.update(
                 status="completed",
                 cancelled=False,
                 progress=100.0,
@@ -124,21 +120,23 @@ class BackgroundTaskRunner:
         except TaskPauseRequested as e:
             await flush_progress_updates()
             logger.info(f"Task {task_id} paused: {e}")
-            await container.get(Services.TASK_MANAGER).mark_controlled_stop(task_id, "pause", str(e))
+            runtime = TaskRuntimeContext.for_task(task_id)
+            await runtime.mark_controlled_stop("pause", str(e))
         except TaskCancelRequested as e:
             await flush_progress_updates()
             logger.info(f"Task {task_id} cancelled: {e}")
-            await container.get(Services.TASK_MANAGER).mark_controlled_stop(task_id, "cancel", str(e))
+            runtime = TaskRuntimeContext.for_task(task_id)
+            await runtime.mark_controlled_stop("cancel", str(e))
         except Exception as e:
-            control_request = container.get(Services.TASK_MANAGER).get_stop_request(task_id)
+            runtime = TaskRuntimeContext.for_task(task_id)
+            control_request = runtime.get_stop_request()
             if control_request in {"pause", "cancel"}:
                 await flush_progress_updates()
                 logger.info(f"Task {task_id} stopped cooperatively during failure path: {e}")
-                await container.get(Services.TASK_MANAGER).mark_controlled_stop(task_id, control_request, str(e))
+                await runtime.mark_controlled_stop(control_request, str(e))
                 return
             logger.error(f"Task {task_id} failed: {e}")
-            await container.get(Services.TASK_MANAGER).update_task(
-                task_id,
+            await runtime.update(
                 status="failed",
                 message=str(e),
                 error=str(e)

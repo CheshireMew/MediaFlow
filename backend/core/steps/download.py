@@ -1,10 +1,9 @@
-import asyncio
 from loguru import logger
 
 from backend.core.steps.base import PipelineStep
 from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
-from backend.core.container import container, Services
+from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
 
 
 class DownloadStep(PipelineStep):
@@ -17,19 +16,11 @@ class DownloadStep(PipelineStep):
         if not url:
             raise ValueError("Download step requires 'url' param")
         
-        loop = asyncio.get_running_loop()
-        tm = container.get(Services.TASK_MANAGER)
+        runtime = TaskRuntimeContext.for_task(task_id)
+        tm = runtime.task_manager
         
         # Callbacks for sync code
-        def progress_cb(percent, msg):
-            if task_id:
-                tm.raise_if_control_requested(task_id)
-                tm.submit_threadsafe_update(
-                    loop,
-                    task_id,
-                    progress=percent,
-                    message=msg,
-                )
+        progress_cb = runtime.build_progress_callback()
 
         def check_cancel_cb():
             if task_id:
@@ -37,7 +28,7 @@ class DownloadStep(PipelineStep):
             return False
 
         # Run download async (it handles thread pool internally)
-        downloader = container.get(Services.DOWNLOADER)
+        downloader = RuntimeServices.downloader()
         result = await downloader.download(
             url, 
             proxy=params.get("proxy"),
@@ -55,8 +46,7 @@ class DownloadStep(PipelineStep):
         )
         
         if not result.success:
-            if task_id:
-                tm.raise_if_control_requested(task_id)
+            runtime.checkpoint()
             raise Exception(result.error or "Download failed with unknown error")
 
         media_file = next(

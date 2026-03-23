@@ -1,10 +1,9 @@
-import asyncio
 from loguru import logger
 
 from backend.core.steps.base import PipelineStep
 from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
-from backend.core.container import container, Services
+from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
 
 
 class TranscribeStep(PipelineStep):
@@ -28,22 +27,11 @@ class TranscribeStep(PipelineStep):
         initial_prompt = params.get("initial_prompt")
         
         # Also run transcribe in executor because it blocks!
-        loop = asyncio.get_running_loop()
-        asr_service = container.get(Services.ASR)
-        tm = container.get(Services.TASK_MANAGER)
-
-        def progress_cb(percent, msg):
-            if task_id:
-                tm.raise_if_control_requested(task_id)
-                tm.submit_threadsafe_update(
-                    loop,
-                    task_id,
-                    progress=percent,
-                    message=msg,
-                )
+        runtime = TaskRuntimeContext.for_task(task_id)
+        asr_service = RuntimeServices.asr()
+        progress_cb = runtime.build_progress_callback()
         
-        result = await loop.run_in_executor(
-            None,
+        result = await runtime.run_blocking(
             lambda: asr_service.transcribe(
                 audio_path=audio_path,
                 model_name=model,
@@ -56,8 +44,7 @@ class TranscribeStep(PipelineStep):
         )
         
         if not result.success:
-            if task_id:
-                tm.raise_if_control_requested(task_id)
+            runtime.checkpoint()
             raise Exception(result.error or "Transcription failed")
 
         text = result.meta.get("text", "")

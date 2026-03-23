@@ -14,8 +14,8 @@ from backend.utils.subtitle_manager import SubtitleManager
 
 
 class VideoSynthesizer:
-    def __init__(self):
-        pass
+    def __init__(self, enhancer_service=None):
+        self._enhancer_service = enhancer_service
 
 
 
@@ -68,10 +68,12 @@ class VideoSynthesizer:
                         sr_scale = int(parts[1].replace('x', ''))
                     except (ValueError, TypeError): pass
 
-            from backend.services.enhancer import EnhancerService  # Lazy: avoids circular import
-            enhancer = EnhancerService()
+            enhancer = self._enhancer_service
 
-            if not enhancer.is_available(method):
+            if enhancer is None:
+                logger.warning("Enhancer service is unavailable, falling back to original resolution")
+                options['target_resolution'] = 'original'
+            elif not enhancer.is_available(method):
                 logger.warning(f"{method} enhancer not available, falling back to original resolution")
                 options['target_resolution'] = 'original'
             else:

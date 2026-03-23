@@ -29,6 +29,11 @@
   },
   "config": {
     "title": "配置",
+    "engineLabel": "转写引擎",
+    "engines": {
+      "builtin": "内置",
+      "cli": "CLI"
+    },
     "modelSizeLabel": "模型大小",
     "models": {
       "tiny": "Tiny（最快）",

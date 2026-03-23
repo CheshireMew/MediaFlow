@@ -1,12 +1,10 @@
-
-import asyncio
 from pathlib import Path
 from loguru import logger
 
 from backend.core.steps.base import PipelineStep
 from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
-from backend.core.container import container, Services
+from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
 from backend.utils.subtitle_manager import SubtitleManager
 from backend.models.schemas import SubtitleSegment, FileRef
 
@@ -30,28 +28,16 @@ class TranslateStep(PipelineStep):
         mode = params.get("mode", "standard")
 
         # 2. Dependencies
-        translator = container.get(Services.LLM_TRANSLATOR)
-        tm = container.get(Services.TASK_MANAGER)
-        loop = asyncio.get_running_loop()
+        translator = RuntimeServices.translator()
+        runtime = TaskRuntimeContext.for_task(task_id)
 
         # 3. Execution
-        def progress_cb(percent, msg):
-            if task_id:
-                tm.raise_if_control_requested(task_id)
-                tm.submit_threadsafe_update(
-                    loop,
-                    task_id,
-                    progress=percent,
-                    message=msg,
-                )
-
-        translated_segments = await loop.run_in_executor(
-            None,
+        translated_segments = await runtime.run_blocking(
             lambda: translator.translate_segments(
                 segments, 
                 target_language=target_language,
                 mode=mode,
-                progress_callback=progress_cb
+                progress_callback=runtime.build_progress_callback()
             )
         )
         

@@ -1,4 +1,6 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useTaskContext } from "../../context/taskContext";
+import { findCompletedTranscribeTask } from "../tasks/taskSelectors";
 import { editorService } from "../../services/domain";
 import { useEditorStore } from "../../stores/editorStore";
 import {
@@ -29,6 +31,7 @@ type WaveformPeaks = Array<Float32Array | number[]> | null;
 export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
   const mediaUrl = useEditorStore((state) => state.mediaUrl);
   const currentFilePath = useEditorStore((state) => state.currentFilePath);
+  const currentFileRef = useEditorStore((state) => state.currentFileRef);
   const replaceEditorDocument = useEditorStore(
     (state) => state.replaceEditorDocument,
   );
@@ -41,6 +44,8 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
   );
   const setCurrentFileRef = useEditorStore((state) => state.setCurrentFileRef);
   const setCurrentSubtitleRef = useEditorStore((state) => state.setCurrentSubtitleRef);
+  const { tasks } = useTaskContext();
+  const refreshedPeaksTaskIdRef = useRef<string | null>(null);
 
   const fetchPeaks = useCallback(async (params: {
     videoPath: string;
@@ -148,6 +153,7 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
     });
     return cleanup;
   }, [
+    currentFileRef,
     currentFilePath,
     replaceEditorDocument,
     setCurrentFilePath,
@@ -158,6 +164,26 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
     tryLoadPeaks,
     tryLoadRelatedSubtitle,
   ]);
+
+  useEffect(() => {
+    const completedTranscribeTask = findCompletedTranscribeTask(
+      tasks,
+      currentFileRef,
+      currentFilePath,
+    );
+    if (!completedTranscribeTask) {
+      return;
+    }
+    if (!currentFilePath) {
+      return;
+    }
+    if (refreshedPeaksTaskIdRef.current === completedTranscribeTask.id) {
+      return;
+    }
+
+    refreshedPeaksTaskIdRef.current = completedTranscribeTask.id;
+    void tryLoadPeaks(currentFilePath, currentFileRef);
+  }, [currentFilePath, currentFileRef, tasks, tryLoadPeaks]);
 
   const detectSilence = useCallback(
     async (threshold = "-30dB", minDuration = 0.5) => {

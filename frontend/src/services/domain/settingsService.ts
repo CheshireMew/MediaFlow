@@ -1,4 +1,4 @@
-import { apiClient } from "../../api/client";
+import { callBackendFallback } from "./backendFallback";
 import type {
   ActiveProviderResponse,
   ProviderConnectionRequest,
@@ -16,7 +16,9 @@ export const settingsService = {
         "Desktop settings worker is unavailable.",
       )();
     }
-    return apiClient.getSettings();
+    return callBackendFallback("settingsService", "getSettings", () =>
+      import("../../api/client").then(({ apiClient }) => apiClient.getSettings()),
+    );
   },
 
   updateSettings(settings: UserSettings): Promise<UserSettings> {
@@ -26,7 +28,9 @@ export const settingsService = {
         "Desktop settings worker is unavailable.",
       )(settings);
     }
-    return apiClient.updateSettings(settings);
+    return callBackendFallback("settingsService", "updateSettings", () =>
+      import("../../api/client").then(({ apiClient }) => apiClient.updateSettings(settings)),
+    );
   },
 
   setActiveProvider(providerId: string): Promise<ActiveProviderResponse> {
@@ -36,7 +40,9 @@ export const settingsService = {
         "Desktop settings worker is unavailable.",
       )(providerId);
     }
-    return apiClient.setActiveProvider(providerId);
+    return callBackendFallback("settingsService", "setActiveProvider", () =>
+      import("../../api/client").then(({ apiClient }) => apiClient.setActiveProvider(providerId)),
+    );
   },
 
   testProviderConnection(
@@ -48,7 +54,9 @@ export const settingsService = {
         "Desktop settings worker is unavailable.",
       )(provider);
     }
-    return apiClient.testProviderConnection(provider);
+    return callBackendFallback("settingsService", "testProviderConnection", () =>
+      import("../../api/client").then(({ apiClient }) => apiClient.testProviderConnection(provider)),
+    );
   },
 
   updateYtDlp(): Promise<ToolUpdateResponse> {
@@ -58,6 +66,8 @@ export const settingsService = {
         "Desktop settings worker is unavailable.",
       )();
     }
-    return apiClient.updateYtDlp();
+    return callBackendFallback("settingsService", "updateYtDlp", () =>
+      import("../../api/client").then(({ apiClient }) => apiClient.updateYtDlp()),
+    );
   },
 };

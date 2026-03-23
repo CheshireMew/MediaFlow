@@ -13,24 +13,21 @@ class TaskOrchestrator:
         task_manager,
         pipeline_runner,
         settings_manager,
-        download_workflow_service=None,
-        transcriber_workflow_service=None,
-        task_request_deduplicator=None,
-        task_resume_service=None,
-        pipeline_submission_service=None,
+        *,
+        download_workflow_service,
+        transcriber_workflow_service,
+        task_request_deduplicator,
+        task_resume_service,
+        pipeline_submission_service,
     ):
         self._task_manager = task_manager
         self._pipeline_runner = pipeline_runner
         self._settings_manager = settings_manager
         self._download_workflow_service = download_workflow_service
         self._transcriber_workflow_service = transcriber_workflow_service
-        self._task_request_deduplicator = (
-            task_request_deduplicator or TaskRequestDeduplicator()
-        )
-        self._task_resume_service = task_resume_service or TaskResumeService()
-        self._pipeline_submission_service = (
-            pipeline_submission_service or PipelineSubmissionService()
-        )
+        self._task_request_deduplicator = task_request_deduplicator
+        self._task_resume_service = task_resume_service
+        self._pipeline_submission_service = pipeline_submission_service
 
     def prepare_pipeline_request(self, req: PipelineRequest) -> PipelineRequest:
         if req.pipeline_id not in {"downloader_tool", "transcriber_tool"} or not req.steps:

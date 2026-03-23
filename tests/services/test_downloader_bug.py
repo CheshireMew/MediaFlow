@@ -1,6 +1,16 @@
-from backend.services.downloader.service import DownloaderService
 from pathlib import Path
 import os
+
+from backend.services.cookie_manager import CookieManager
+from backend.services.downloader.service import DownloaderService
+from backend.services.platforms.factory import PlatformFactory
+
+
+def make_downloader() -> DownloaderService:
+    return DownloaderService(
+        platform_factory=PlatformFactory(),
+        cookie_manager=CookieManager(),
+    )
 
 def test_clean_subtitles_skips_digits(tmp_path):
     """
@@ -19,7 +29,7 @@ Normal Text
     vtt_path = tmp_path / "test.vtt"
     vtt_path.write_text(vtt_content, encoding='utf-8')
     
-    DownloaderService()._clean_subtitles(str(vtt_path))
+    make_downloader()._clean_subtitles(str(vtt_path))
     
     srt_path = tmp_path / "test.srt"
     assert srt_path.exists()
@@ -41,7 +51,7 @@ Short Video Text
     vtt_path = tmp_path / "short.vtt"
     vtt_path.write_text(vtt_content, encoding='utf-8')
     
-    DownloaderService()._clean_subtitles(str(vtt_path))
+    make_downloader()._clean_subtitles(str(vtt_path))
     
     srt_path = tmp_path / "short.srt"
     assert srt_path.exists()

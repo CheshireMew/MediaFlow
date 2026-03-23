@@ -29,6 +29,11 @@
   },
   "config": {
     "title": "設定",
+    "engineLabel": "転写エンジン",
+    "engines": {
+      "builtin": "内蔵",
+      "cli": "CLI"
+    },
     "modelSizeLabel": "モデルサイズ",
     "models": {
       "tiny": "Tiny（最速）",

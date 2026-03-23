@@ -8,6 +8,7 @@ import { ipcMain, dialog, app } from "electron";
 import type { IpcMainInvokeEvent, OpenDialogOptions, SaveDialogOptions } from "electron";
 import path from "path";
 import fs from "fs";
+import { resolvePathFromDirectoryEntries } from "../../src/services/filesystem/pathRepair";
 
 // ─── Preferences Persistence ────────────────────────────────────
 
@@ -73,6 +74,43 @@ function getDefaultStartPath(): string | undefined {
   return startPath;
 }
 
+function resolveExistingPathOnDisk(filePath: string, fallbackName?: string, expectedSize?: number) {
+  if (!filePath) {
+    return null;
+  }
+
+  const candidateDir = path.dirname(filePath);
+  if (!fs.existsSync(candidateDir)) {
+    return fs.existsSync(filePath) ? filePath : null;
+  }
+
+  const directoryEntries = fs.readdirSync(candidateDir);
+  const resolved = resolvePathFromDirectoryEntries(filePath, directoryEntries, fallbackName);
+  if (resolved && fs.existsSync(resolved)) {
+    return resolved;
+  }
+
+  if (typeof expectedSize === "number" && expectedSize >= 0) {
+    const extension = path.extname(filePath).toLowerCase();
+    const sizeMatches = directoryEntries.filter((entry) => {
+      const candidatePath = path.join(candidateDir, entry);
+      if (!fs.existsSync(candidatePath) || !fs.statSync(candidatePath).isFile()) {
+        return false;
+      }
+      if (extension && path.extname(entry).toLowerCase() !== extension) {
+        return false;
+      }
+      return fs.statSync(candidatePath).size === expectedSize;
+    });
+
+    if (sizeMatches.length === 1) {
+      return path.join(candidateDir, sizeMatches[0]);
+    }
+  }
+
+  return fs.existsSync(filePath) ? filePath : null;
+}
+
 // ─── Handler Registration ───────────────────────────────────────
 export function registerDialogHandlers() {
   // Open media file
@@ -105,7 +143,8 @@ export function registerDialogHandlers() {
         return null;
       }
 
-      const filePath = filePaths[0];
+      const selectedPath = filePaths[0];
+      const filePath = resolveExistingPathOnDisk(selectedPath) ?? selectedPath;
       lastOpenDir = path.dirname(filePath);
       if (lastOpenDir) saveLastOpenDir(lastOpenDir);
       try {
@@ -150,7 +189,8 @@ export function registerDialogHandlers() {
       return null;
     }
 
-    const filePath = filePaths[0];
+    const selectedPath = filePaths[0];
+    const filePath = resolveExistingPathOnDisk(selectedPath) ?? selectedPath;
     lastOpenDir = path.dirname(filePath);
     if (lastOpenDir) saveLastOpenDir(lastOpenDir);
     return {
@@ -247,27 +287,18 @@ export function registerDialogHandlers() {
 
   ipcMain.handle(
     "fs:resolveExistingPath",
-    async (_event: IpcMainInvokeEvent, filePath: string, fallbackName?: string) => {
+    async (
+      _event: IpcMainInvokeEvent,
+      filePath: string,
+      fallbackName?: string,
+      expectedSize?: number,
+    ) => {
       try {
-        if (filePath && fs.existsSync(filePath)) {
-          return filePath;
-        }
-
-        if (!fallbackName || !filePath) {
+        if (!filePath) {
           return null;
         }
 
-        const candidateDir = path.dirname(filePath);
-        if (!fs.existsSync(candidateDir)) {
-          return null;
-        }
-
-        const exactCandidate = path.join(candidateDir, fallbackName);
-        if (fs.existsSync(exactCandidate)) {
-          return exactCandidate;
-        }
-
-        return null;
+        return resolveExistingPathOnDisk(filePath, fallbackName, expectedSize);
       } catch (e) {
         console.error("[IPC] resolveExistingPath error:", e);
         return null;

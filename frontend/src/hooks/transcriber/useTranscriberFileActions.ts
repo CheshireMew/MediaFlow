@@ -4,6 +4,7 @@ import { isDesktopRuntime } from "../../services/domain";
 import type { ElectronFile } from "../../types/electron";
 import { fileService } from "../../services/fileService";
 import { createMediaReference, toElectronFile } from "../../services/ui/mediaReference";
+import { attachElectronFileSource } from "../../services/ui/electronFileSource";
 
 type OpenedElectronFile = {
   path: string;
@@ -53,7 +54,9 @@ export function useTranscriberFileActions({
             console.warn("Failed to get path via electronAPI:", err);
           }
         }
-        clearResultAndSetFile(droppedFile as ElectronFile);
+        clearResultAndSetFile(
+          attachElectronFileSource(droppedFile as ElectronFile, "file-drop"),
+        );
       }
     },
     [clearResultAndSetFile],
@@ -63,12 +66,17 @@ export function useTranscriberFileActions({
     if (isDesktopRuntime()) {
       const fileData = (await fileService.openFile()) as OpenedElectronFile | null;
       if (fileData?.path) {
-        clearResultAndSetFile(toElectronFile(createMediaReference({
-          path: fileData.path,
-          name: fileData.name,
-          size: fileData.size,
-          type: "video/mp4",
-        })));
+        clearResultAndSetFile(
+          attachElectronFileSource(
+            toElectronFile(createMediaReference({
+              path: fileData.path,
+              name: fileData.name,
+              size: fileData.size,
+              type: "video/mp4",
+            })),
+            "file-selection",
+          ),
+        );
       }
       return;
     }
@@ -79,7 +87,9 @@ export function useTranscriberFileActions({
     input.onchange = (e) => {
       const files = (e.target as HTMLInputElement).files;
       if (files && files.length > 0) {
-        clearResultAndSetFile(files[0] as ElectronFile);
+        clearResultAndSetFile(
+          attachElectronFileSource(files[0] as ElectronFile, "file-selection"),
+        );
       }
     };
     input.click();

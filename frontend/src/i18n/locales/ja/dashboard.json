@@ -11,5 +11,19 @@
   "placeholder": {
     "metrics": "追加メトリクス（近日公開）",
     "storage": "ストレージ統計（近日公開）"
+  },
+  "taskOverview": {
+    "title": "タスク概要",
+    "subtitle": "キューと実行状況",
+    "queue": "Queue",
+    "running": "Running",
+    "paused": "Paused"
+  },
+  "runtimeOverview": {
+    "title": "実行状態",
+    "subtitle": "ソースと実行モード",
+    "owner": "タスク所有者",
+    "sources": "タスクソース",
+    "execution": "実行モード"
   }
 }

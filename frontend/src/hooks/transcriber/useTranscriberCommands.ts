@@ -6,7 +6,13 @@ import {
   createNavigationMediaPayload,
   NavigationService,
 } from "../../services/ui/navigation";
-import { executionService, isDesktopRuntime } from "../../services/domain";
+import {
+  applyExecutionOutcome,
+  enqueueExecutionTask,
+  executionService,
+  isDesktopRuntime,
+  type NullableExecutionMode,
+} from "../../services/domain";
 import { fileService } from "../../services/fileService";
 import {
   createMediaReference,
@@ -14,19 +20,19 @@ import {
   toElectronFile,
 } from "../../services/ui/mediaReference";
 import { normalizeTranscribeResult } from "../../services/ui/transcribeResult";
-import type { ElectronFile } from "../../types/electron";
-import type { TranscribeResult } from "../../types/transcriber";
 import {
-  createTaskFromSubmissionReceipt,
-  isDirectExecutionResult,
-  isTaskExecutionSubmission,
-} from "../../services/domain/taskSubmission";
+  attachElectronFileSource,
+  getElectronFileSource,
+} from "../../services/ui/electronFileSource";
+import type { ElectronFile } from "../../types/electron";
+import type { TranscribeResult, TranscriptionEngine } from "../../types/transcriber";
 import { toSRT } from "../../utils/subtitleParser";
 import { smartSplitTranscriptionResult } from "../../utils/transcriberSmartSplit";
 import { toast } from "../../utils/toast";
 
 type UseTranscriberCommandsArgs = {
   file: ElectronFile | null;
+  engine: TranscriptionEngine;
   model: string;
   device: string;
   result: TranscribeResult | null;
@@ -38,7 +44,7 @@ type UseTranscriberCommandsArgs = {
     message: string;
     active: boolean;
   }) => void;
-  setExecutionMode: (value: "task_submission" | "direct_result" | null) => void;
+  setExecutionMode: (value: NullableExecutionMode) => void;
   setIsUploading: (value: boolean) => void;
   setIsSmartSplitting: (value: boolean) => void;
 };
@@ -79,6 +85,7 @@ export function createTranscriberEditorNavigationPayload(params: {
 
 export function useTranscriberCommands({
   file,
+  engine,
   model,
   device,
   result,
@@ -112,18 +119,21 @@ export function useTranscriberCommands({
       }
 
       if (filePath && isDesktopRuntime()) {
-        const resolvedPath = await fileService.resolveExistingPath(filePath, file.name);
+        const resolvedPath = await fileService.resolveExistingPath(filePath, file.name, file.size);
         if (resolvedPath && resolvedPath !== filePath) {
           filePath = resolvedPath;
           const source = mediaReferenceFromElectronFile(file);
           setFile(
-            toElectronFile(
-              createMediaReference({
-                path: resolvedPath,
-                name: source?.name ?? file.name,
-                size: source?.size ?? file.size,
-                type: source?.type ?? file.type,
-              }),
+            attachElectronFileSource(
+              toElectronFile(
+                createMediaReference({
+                  path: resolvedPath,
+                  name: source?.name ?? file.name,
+                  size: source?.size ?? file.size,
+                  type: source?.type ?? file.type,
+                }),
+              ),
+              getElectronFileSource(file),
             ),
           );
         }
@@ -142,30 +152,40 @@ export function useTranscriberCommands({
         type: file.type,
       });
 
-      if (isDesktopRuntime()) {
+      console.info("[Transcriber] desktop:transcribe payload", {
+        source: getElectronFileSource(file),
+        engine,
+        audio_ref: submissionAudioRef.path,
+        file_path: file.path ?? null,
+        resolved_path: filePath,
+      });
+
+      const executionResult = await executionService.transcribe({
+        audio_path: null,
+        audio_ref: submissionAudioRef,
+        engine,
+        model,
+        device,
+      });
+      const outcome = applyExecutionOutcome({
+        outcome: executionResult,
+        setExecutionMode,
+      });
+
+      if (outcome.kind === "result") {
         setDesktopProgress({
           progress: 0,
           message: t("progressCard.processingMessage"),
           active: true,
         });
 
-        const executionResult = await executionService.transcribe({
-          audio_path: submissionAudioRef ? null : filePath,
-          audio_ref: submissionAudioRef,
-          model,
-          device,
-        });
-        if (!isDirectExecutionResult<TranscribeResult>(executionResult)) {
-          throw new Error("Desktop transcription returned a task submission");
-        }
-        setExecutionMode("direct_result");
         const completedResult =
-          normalizeTranscribeResult(executionResult.result, {
+          normalizeTranscribeResult(outcome.result, {
           path: submissionAudioRef.path,
           name: submissionAudioRef.name,
           size: submissionAudioRef.size,
           type: submissionAudioRef.type,
-          }) ?? executionResult.result;
+          }) ?? outcome.result;
 
         setResult({
           ...completedResult,
@@ -184,22 +204,10 @@ export function useTranscriberCommands({
         return;
       }
 
-      const executionResult = await executionService.transcribe({
-        audio_path: submissionAudioRef ? null : filePath,
-        audio_ref: submissionAudioRef,
-        model,
-        device,
-      });
-      if (!isTaskExecutionSubmission(executionResult)) {
-        throw new Error("Transcription did not return a task submission");
-      }
-      setExecutionMode("task_submission");
-      if (!executionResult.task_id) {
-        throw new Error("Transcription task id was not returned");
-      }
-      addTask(
-        createTaskFromSubmissionReceipt({
-          receipt: executionResult,
+      const submission = enqueueExecutionTask({
+        addTask,
+        outcome: executionResult,
+        descriptor: {
           type: "pipeline",
           name: `Transcribe ${file.name}`,
           request_params: {
@@ -208,8 +216,9 @@ export function useTranscriberCommands({
               {
                 step_name: "transcribe",
                 params: {
-                  audio_path: filePath,
+                  audio_path: null,
                   audio_ref: submissionAudioRef,
+                  engine,
                   model,
                   device,
                   vad_filter: true,
@@ -218,9 +227,9 @@ export function useTranscriberCommands({
             ],
             video_ref: submissionAudioRef,
           },
-        }),
-      );
-      setActiveTaskId(executionResult.task_id);
+        },
+      });
+      setActiveTaskId(submission.task_id);
     } catch (err: unknown) {
       console.error("[Transcriber] Error submitting task:", err);
       if (err instanceof Error && /paused|cancelled/i.test(err.message)) {
@@ -244,11 +253,14 @@ export function useTranscriberCommands({
     }
   }, [
     device,
+    engine,
     file,
     model,
+    addTask,
     setActiveTaskId,
     setDesktopProgress,
     setFile,
+    setExecutionMode,
     setIsUploading,
     setResult,
     t,

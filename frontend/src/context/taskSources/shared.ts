@@ -7,14 +7,10 @@ import {
   type TaskOwnerMode,
 } from "../../contracts/runtimeContracts";
 import { reportTaskSourceIssue } from "./diagnostics";
+import { normalizeLegacyTaskMediaContract } from "../../services/tasks/taskMediaResolver";
+import { isTaskActive } from "../../services/tasks/taskRuntimeState";
 
 export const SUPPORTED_TASK_CONTRACT_VERSION = TASK_CONTRACT_VERSION;
-export const REMOTE_ACTIVE_TASK_STATUSES = new Set([
-  "pending",
-  "running",
-  "paused",
-  "processing_result",
-]);
 const warnedTaskContracts = new Set<string>();
 
 export function isDesktopTask(task: Task) {
@@ -27,7 +23,7 @@ export function isDesktopTask(task: Task) {
 }
 
 export function hasActiveRemoteTasks(tasks: Task[]) {
-  return tasks.some((task) => !isDesktopTask(task) && REMOTE_ACTIVE_TASK_STATUSES.has(task.status));
+  return tasks.some((task) => !isDesktopTask(task) && isTaskActive(task));
 }
 
 export function hasSupportedTaskContract(task: Task) {
@@ -35,18 +31,24 @@ export function hasSupportedTaskContract(task: Task) {
 }
 
 export function normalizeTaskContract(task: Task): Task {
-  const taskSource = task.task_source ?? (isDesktopTask(task) ? "desktop" : "backend");
-  const persistenceScope = task.persistence_scope ?? "runtime";
+  const { task: legacyNormalizedTask, normalizedFromLegacy } =
+    normalizeLegacyTaskMediaContract(task);
+  const taskSource =
+    legacyNormalizedTask.task_source ??
+    (isDesktopTask(legacyNormalizedTask) ? "desktop" : "backend");
+  const persistenceScope = legacyNormalizedTask.persistence_scope ?? "runtime";
   return {
-    ...task,
+    ...legacyNormalizedTask,
     task_source: taskSource,
-    task_contract_version: task.task_contract_version ?? SUPPORTED_TASK_CONTRACT_VERSION,
+    task_contract_version:
+      legacyNormalizedTask.task_contract_version ?? SUPPORTED_TASK_CONTRACT_VERSION,
+    task_contract_normalized_from_legacy: normalizedFromLegacy,
     lifecycle:
-      task.lifecycle ??
+      legacyNormalizedTask.lifecycle ??
       getTaskLifecycle({
         taskSource,
         persistenceScope,
-        status: task.status,
+        status: legacyNormalizedTask.status,
       }),
   };
 }

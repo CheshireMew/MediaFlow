@@ -20,12 +20,13 @@ import { isDesktopRuntime } from "../services/domain";
 import { fileService } from "../services/fileService";
 import { createMediaReference, toElectronFile } from "../services/ui/mediaReference";
 import { normalizeTranscribeResult } from "../services/ui/transcribeResult";
-import { useRuntimeExecutionStore } from "../stores/runtimeExecutionStore";
+import { attachElectronFileSource } from "../services/ui/electronFileSource";
+import { useExecutionModeState } from "./execution/useExecutionModeState";
 
 export function useTranscriber() {
   const { tasks, tasksSettled } = useTaskContext();
   const persistedSnapshot = restoreStoredTranscriberSnapshot();
-  const setRuntimeExecutionMode = useRuntimeExecutionStore((state) => state.setScopeMode);
+  const { executionMode, setExecutionMode } = useExecutionModeState("transcriber");
 
   // Settings
   const [model, setModel] = useState(
@@ -33,6 +34,9 @@ export function useTranscriber() {
   );
   const [device, setDevice] = useState(
     () => persistedSnapshot?.device || "cpu",
+  );
+  const [engine, setEngine] = useState<"builtin" | "cli">(
+    () => persistedSnapshot?.engine || "builtin",
   );
 
   const [isUploading, setIsUploading] = useState(false);
@@ -46,9 +50,6 @@ export function useTranscriber() {
     message: "",
     active: false,
   });
-  const [executionMode, setExecutionMode] = useState<"task_submission" | "direct_result" | null>(
-    null,
-  );
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
   // Persistence
@@ -60,6 +61,7 @@ export function useTranscriber() {
   );
 
   useTranscriberPersistence({
+    engine,
     model,
     device,
     result,
@@ -99,6 +101,7 @@ export function useTranscriber() {
   } = fileActions;
   const commands = useTranscriberCommands({
     file,
+    engine,
     model,
     device,
     result,
@@ -112,29 +115,28 @@ export function useTranscriber() {
   });
 
   useEffect(() => {
-    setRuntimeExecutionMode("transcriber", executionMode);
-  }, [executionMode, setRuntimeExecutionMode]);
-
-  useEffect(() => {
     if (!file?.path || !isDesktopRuntime()) {
       return;
     }
 
     let cancelled = false;
 
-    void fileService.resolveExistingPath(file.path, file.name).then((resolvedPath) => {
+    void fileService.resolveExistingPath(file.path, file.name, file.size).then((resolvedPath) => {
       if (!resolvedPath || resolvedPath === file.path || cancelled) {
         return;
       }
 
-      setResolvedFile({
-        ...toElectronFile(createMediaReference({
-          path: resolvedPath,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-        })),
-      });
+      setResolvedFile(
+        attachElectronFileSource(
+          toElectronFile(createMediaReference({
+            path: resolvedPath,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          })),
+          file.__mediaflow_source ?? "unknown",
+        ),
+      );
     });
 
     return () => {
@@ -159,6 +161,7 @@ export function useTranscriber() {
   return {
     state: {
       file,
+      engine,
       model,
       device,
       isUploading,
@@ -171,6 +174,7 @@ export function useTranscriber() {
     },
     actions: {
       setFile: setResolvedFile,
+      setEngine,
       setModel,
       setDevice,
       startTranscription: commands.startTranscription,

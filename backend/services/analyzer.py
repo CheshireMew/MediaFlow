@@ -2,20 +2,25 @@
 URL Analyzer Service - Detects playlists and extracts metadata using yt-dlp.
 """
 import yt_dlp
-from typing import Optional, List, Union
-from pydantic import BaseModel
 from loguru import logger
 from backend.services.platforms.factory import PlatformFactory
 from backend.models.schemas import AnalyzeResult, PlaylistItem
 from backend.services.cookie_manager import CookieManager
 from urllib.parse import urlparse
-from backend.core.container import container, Services
-from backend.utils.text_normalizer import normalize_external_text
 
 
 
 class AnalyzerService:
     """Analyzes URLs to detect if they contain playlists."""
+
+    def __init__(
+        self,
+        *,
+        platform_factory: PlatformFactory,
+        cookie_manager: CookieManager,
+    ):
+        self._platform_factory = platform_factory
+        self._cookie_manager = cookie_manager
 
     async def analyze(self, url: str) -> AnalyzeResult:
         """
@@ -25,7 +30,7 @@ class AnalyzerService:
         logger.info(f"Analyzing URL: {url}")
 
         # 1. Try Custom Platform Logic
-        platform_handler = await PlatformFactory.get_handler(url)
+        platform_handler = await self._platform_factory.get_handler(url)
         if platform_handler:
             logger.info(f"Using Custom Platform Handler: {platform_handler.__class__.__name__}")
             result = await platform_handler.analyze(url)
@@ -56,23 +61,22 @@ class AnalyzerService:
         # Apply Cookies
         try:
             domain = urlparse(url).netloc
-            cookie_manager = CookieManager()
             # Handle x.com / twitter.com specifically
             if "x.com" in domain or "twitter.com" in domain:
                 # Try to find valid cookies for either domain
                 cookie_path = None
-                if cookie_manager.has_valid_cookies("x.com"):
-                    cookie_path = cookie_manager.get_cookie_path("x.com")
-                elif cookie_manager.has_valid_cookies("twitter.com"):
-                    cookie_path = cookie_manager.get_cookie_path("twitter.com")
+                if self._cookie_manager.has_valid_cookies("x.com"):
+                    cookie_path = self._cookie_manager.get_cookie_path("x.com")
+                elif self._cookie_manager.has_valid_cookies("twitter.com"):
+                    cookie_path = self._cookie_manager.get_cookie_path("twitter.com")
                 
                 if cookie_path:
                     logger.info(f"Using Cookies: {cookie_path}")
                     ydl_opts['cookiefile'] = str(cookie_path)
             else:
                 # Generic domain cookie support
-                if cookie_manager.has_valid_cookies(domain):
-                    cookie_path = cookie_manager.get_cookie_path(domain)
+                if self._cookie_manager.has_valid_cookies(domain):
+                    cookie_path = self._cookie_manager.get_cookie_path(domain)
                     ydl_opts['cookiefile'] = str(cookie_path)
                     logger.info(f"Using Cookies: {cookie_path}")
         except Exception as e:
@@ -98,7 +102,7 @@ class AnalyzerService:
                     if entry:  # Skip None entries
                         items.append(PlaylistItem(
                             index=i + 1,
-                            title=normalize_external_text(entry.get('title', f'Video {i+1}')) or f'Video {i+1}',
+                            title=entry.get('title') or f'Video {i+1}',
                             url=entry.get('url') or entry.get('webpage_url', ''),
                             duration=entry.get('duration'),
                             uploader=entry.get('uploader')
@@ -107,7 +111,7 @@ class AnalyzerService:
                 logger.success(f"Detected playlist with {len(items)} items: {info.get('title')}")
                 return AnalyzeResult(
                     type="playlist",
-                    title=normalize_external_text(info.get('title', 'Unknown Playlist')) or 'Unknown Playlist',
+                    title=info.get('title') or 'Unknown Playlist',
                     url=url,
                     thumbnail=info.get('thumbnail'),
                     count=len(items),
@@ -120,7 +124,7 @@ class AnalyzerService:
                 logger.success(f"Detected single video: {info.get('title')}")
                 return AnalyzeResult(
                     type="single",
-                    title=normalize_external_text(info.get('title', 'Unknown Video')) or 'Unknown Video',
+                    title=info.get('title') or 'Unknown Video',
                     url=url,
                     thumbnail=info.get('thumbnail'),
                     duration=info.get('duration'),

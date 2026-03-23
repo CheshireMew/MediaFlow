@@ -4,10 +4,8 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from loguru import logger
-from sqlmodel import delete, select
 
 from backend.config import settings
-from backend.core.container import Services, container
 from backend.core.database import get_session_context, init_db
 from backend.core.task_control import (
     TaskCancelRequested,
@@ -28,19 +26,24 @@ if TYPE_CHECKING:
 class TaskManager:
     def __init__(
         self,
-        repository: TaskRepository | None = None,
-        event_publisher: TaskEventPublisher | None = None,
-        queue_view: TaskQueueView | None = None,
-        control_service: TaskControlService | None = None,
-        runtime_state: TaskRuntimeState | None = None,
+        *,
+        repository: TaskRepository,
+        event_publisher: TaskEventPublisher,
+        queue_view: TaskQueueView,
+        control_service: TaskControlService,
+        runtime_state: TaskRuntimeState,
+        notifier: Optional["WebSocketNotifier"] = None,
     ):
         self.tasks: Dict[str, Task] = {}
-        self._notifier: Optional["WebSocketNotifier"] = None
-        self._repository = repository or TaskRepository()
-        self._event_publisher = event_publisher or TaskEventPublisher()
-        self._queue_view = queue_view or TaskQueueView()
-        self._control_service = control_service or TaskControlService()
-        self._runtime_state = runtime_state or TaskRuntimeState()
+        resolved_notifier = notifier
+        if resolved_notifier is None and event_publisher is not None:
+            resolved_notifier = getattr(event_publisher, "_notifier", None)
+        self._notifier: Optional["WebSocketNotifier"] = resolved_notifier
+        self._repository = repository
+        self._event_publisher = event_publisher
+        self._queue_view = queue_view
+        self._control_service = control_service
+        self._runtime_state = runtime_state
         self._queue: asyncio.Queue[str] = asyncio.Queue()
         self._queued_ids = self._runtime_state.queued_ids
         self._queued_order = self._runtime_state.queued_order
@@ -53,32 +56,6 @@ class TaskManager:
         self._accept_threadsafe_updates = True
         self._max_concurrent = max(1, settings.TASK_MAX_CONCURRENT)
         self._startup_load_task: asyncio.Task | None = None
-
-    def set_notifier(self, notifier: "WebSocketNotifier"):
-        """Inject WebSocket notifier (set by lifespan after both are created)."""
-        self._notifier = notifier
-        self._event_publisher.set_notifier(notifier)
-
-    @property
-    def active_connections(self):
-        """Backward-compatible access to websocket connections."""
-        notifier = self._notifier
-        if not notifier and container.has(Services.WS_NOTIFIER):
-            notifier = container.get(Services.WS_NOTIFIER)
-            self._notifier = notifier
-        return notifier.active_connections if notifier else []
-
-    async def connect(self, websocket):
-        """Backward-compatible websocket API delegated to notifier."""
-        if not self._notifier:
-            self._notifier = container.get(Services.WS_NOTIFIER)
-            self._event_publisher.set_notifier(self._notifier)
-        await self._notifier.connect(websocket)
-
-    def disconnect(self, websocket):
-        """Backward-compatible websocket API delegated to notifier."""
-        if self._notifier:
-            self._notifier.disconnect(websocket)
 
     async def init_async(self):
         """Initialize DB, load tasks, and start queue workers."""
@@ -372,11 +349,3 @@ class TaskManager:
     def is_cancelled(self, task_id: str) -> bool:
         task = self.tasks.get(task_id)
         return task.cancelled if task else False
-
-class _TaskManagerProxy:
-    def __getattr__(self, item):
-        return getattr(container.get(Services.TASK_MANAGER), item)
-
-
-# Backward-compatible proxy export for legacy imports/tests without startup side effects.
-task_manager = _TaskManagerProxy()

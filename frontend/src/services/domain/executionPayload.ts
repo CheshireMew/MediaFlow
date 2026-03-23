@@ -1,6 +1,6 @@
 import { getBasenameFromPath, type MediaReference } from "../ui/mediaReference";
 
-type ExecutionMediaFieldSpec = {
+export type ExecutionMediaFieldSpec = {
   pathKey: string;
   refKey: string;
   label: string;
@@ -46,6 +46,19 @@ export function normalizeExecutionPayload<T extends Record<string, unknown>>(
   }
 
   return normalizedPayload as T;
+}
+
+export function prepareExecutionPayload<TInput extends Record<string, unknown>, TOutput = TInput>(args: {
+  payload: TInput;
+  specs?: ExecutionMediaFieldSpec[];
+  map?: (payload: TInput) => TOutput;
+}): TOutput {
+  const normalizedPayload =
+    args.specs && args.specs.length > 0
+      ? normalizeExecutionPayload(args.payload, args.specs)
+      : args.payload;
+
+  return args.map ? args.map(normalizedPayload) : (normalizedPayload as unknown as TOutput);
 }
 
 export function getExecutionMediaDisplayName(args: {

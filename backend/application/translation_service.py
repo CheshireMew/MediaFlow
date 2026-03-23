@@ -4,10 +4,11 @@ from typing import List, Optional
 from loguru import logger
 from pydantic import BaseModel
 
-from backend.core.container import Services, container
+from backend.core.runtime_access import RuntimeServices
 from backend.core.task_runner import BackgroundTaskRunner
 from backend.models.schemas import FileRef, MediaReference, SubtitleSegment, TaskResult
 from backend.services.media_refs import create_media_ref
+from backend.utils.media_inputs import MediaInputModel
 
 
 LANGUAGE_SUFFIX_MAP = {
@@ -31,18 +32,13 @@ def get_translation_output_suffix(target_language: str, mode: str) -> str:
     return get_language_suffix(target_language)
 
 
-class TranslationRequest(BaseModel):
+class TranslationRequest(MediaInputModel):
+    MEDIA_INPUT_SPECS = (("context_path", "context_ref"),)
     segments: List[SubtitleSegment]
     target_language: str = "Chinese"
     mode: str = "standard"
     context_path: Optional[str] = None
     context_ref: Optional[MediaReference] = None
-
-    @property
-    def resolved_context_path(self) -> Optional[str]:
-        if self.context_ref and self.context_ref.path:
-            return self.context_ref.path
-        return self.context_path
 
 
 def build_translation_task_result(
@@ -101,7 +97,7 @@ def build_translation_task_result(
 
 
 async def run_translation_task(task_id: str, req: TranslationRequest) -> None:
-    llm_translator = container.get(Services.LLM_TRANSLATOR)
+    llm_translator = RuntimeServices.translator()
 
     await BackgroundTaskRunner.run(
         task_id=task_id,
@@ -118,7 +114,46 @@ async def run_translation_task(task_id: str, req: TranslationRequest) -> None:
             segments,
             target_language=req.target_language,
             mode=req.mode,
-            context_path=req.resolved_context_path,
+            context_path=req.context_path,
             context_ref=req.context_ref,
         ).model_dump(mode="json"),
+    )
+
+
+def execute_translation(
+    req: TranslationRequest,
+    *,
+    progress_callback=None,
+):
+    translated_segments = RuntimeServices.translator().translate_segments(
+        segments=req.segments,
+        target_language=req.target_language,
+        mode=req.mode,
+        batch_size=10,
+        progress_callback=progress_callback,
+    )
+    result = build_translation_task_result(
+        translated_segments,
+        target_language=req.target_language,
+        mode=req.mode,
+        context_path=req.context_path,
+        context_ref=req.context_ref,
+    )
+    return {
+        "segments": result.meta.get("segments", []),
+        "language": req.target_language,
+        "context_ref": result.meta.get("context_ref"),
+        "subtitle_ref": result.meta.get("subtitle_ref"),
+        "output_ref": result.meta.get("output_ref"),
+        "mode": req.mode,
+    }
+
+
+async def submit_translation_task(req: TranslationRequest) -> dict:
+    source_name = Path(req.context_path or "").name if req.context_path else "Subtitles"
+    return await RuntimeServices.task_orchestrator().submit_task(
+        task_type="translate",
+        task_name=f"{source_name} ({req.target_language})",
+        request_params=req.model_dump(mode="json"),
+        runner_factory=lambda task_id: lambda: run_translation_task(task_id, req),
     )

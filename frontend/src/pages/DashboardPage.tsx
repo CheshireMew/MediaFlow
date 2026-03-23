@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next';
 import { TaskMonitor } from '../components/TaskMonitor';
 import { Activity, Server } from 'lucide-react';
+import { TaskMonitorOverviewCards } from '../components/task-monitor/TaskMonitorOverviewCards';
 
 export const DashboardPage = () => {
     const { t } = useTranslation('dashboard');
@@ -38,23 +39,12 @@ export const DashboardPage = () => {
                     </div>
                 </div>
                 
-                {/* Placeholder Widget 1 */}
-                <div className="bg-[#1a1a1a] p-4 rounded-xl border border-white/5 shadow-xl opacity-40 border-dashed">
-                     <div className="h-full flex items-center justify-center text-slate-600 text-xs">
-                        {t('placeholder.metrics')}
-                     </div>
-                </div>
-                 {/* Placeholder Widget 2 */}
-                 <div className="bg-[#1a1a1a] p-4 rounded-xl border border-white/5 shadow-xl opacity-40 border-dashed">
-                     <div className="h-full flex items-center justify-center text-slate-600 text-xs">
-                        {t('placeholder.storage')}
-                     </div>
-                </div>
+                <TaskMonitorOverviewCards />
             </div>
 
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                 {/* Global Monitor - Shows all tasks */}
-                <TaskMonitor />
+                <TaskMonitor showHeaderOverview={false} />
             </div>
         </div>
     );

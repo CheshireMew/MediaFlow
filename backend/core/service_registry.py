@@ -1,24 +1,21 @@
 """
-Service Registration — single place to import and register all services.
-
-Extracted from main.py lifespan() (Issue #13) so that:
-  1. main.py stays focused on app lifecycle (startup/shutdown).
-  2. Service list is easy to scan and modify.
-  3. Late imports that were scattered in main.py now live here.
+Declarative service assembly for runtime wiring.
 """
 
 from backend.config import settings
-from backend.core.container import container, Services
+from backend.core.container import Services
+from backend.core.service_assembly import ServiceAssembly, ServiceProvider
 
 
-def _create_pipeline_runner():
+def _create_pipeline_runner(container):
     from backend.core.pipeline import PipelineRunner
 
-    return PipelineRunner(container.get(Services.TASK_MANAGER))
+    return PipelineRunner(task_manager=container.get(Services.TASK_MANAGER))
 
 
-def _create_task_orchestrator():
+def _create_task_orchestrator(container):
     from backend.application.task_orchestrator import TaskOrchestrator
+    from backend.application.pipeline_submission_service import PipelineSubmissionService
 
     return TaskOrchestrator(
         task_manager=container.get(Services.TASK_MANAGER),
@@ -28,100 +25,135 @@ def _create_task_orchestrator():
         transcriber_workflow_service=container.get(Services.TRANSCRIBER_WORKFLOW),
         task_request_deduplicator=container.get(Services.TASK_REQUEST_DEDUPLICATOR),
         task_resume_service=container.get(Services.TASK_RESUME_SERVICE),
+        pipeline_submission_service=PipelineSubmissionService(),
     )
 
 
-def _create_task_manager():
+def _create_task_manager(container):
+    from backend.services.task_event_publisher import TaskEventPublisher
+    from backend.services.task_queue_view import TaskQueueView
+    from backend.services.task_control_service import TaskControlService
+    from backend.services.task_repository import TaskRepository
+    from backend.services.task_runtime_state import TaskRuntimeState
     from backend.services.task_manager import TaskManager
 
-    return TaskManager()
+    return TaskManager(
+        repository=TaskRepository(),
+        event_publisher=TaskEventPublisher(container.get(Services.WS_NOTIFIER)),
+        queue_view=TaskQueueView(),
+        control_service=TaskControlService(),
+        runtime_state=TaskRuntimeState(),
+    )
 
 
-def _create_ws_notifier():
+def _create_ws_notifier(_container):
     from backend.core.ws_notifier import WebSocketNotifier
 
     return WebSocketNotifier()
 
 
-def _create_asr_service():
+def _create_asr_service(_container):
     from backend.services.asr import ASRService
 
     return ASRService()
 
 
-def _create_downloader_service():
+def _create_platform_factory(container):
+    from backend.services.platforms.factory import create_default_platform_factory
+
+    return create_default_platform_factory(
+        container.get(Services.BROWSER),
+        container.get(Services.SNIFFER),
+    )
+
+
+def _create_downloader_service(container):
     from backend.services.downloader.service import DownloaderService
 
-    return DownloaderService()
+    return DownloaderService(
+        platform_factory=container.get(Services.PLATFORM_FACTORY),
+        cookie_manager=container.get(Services.COOKIE_MANAGER),
+    )
 
 
-def _create_video_synthesizer():
+def _create_video_synthesizer(container):
     from backend.services.video_synthesizer import VideoSynthesizer
 
-    return VideoSynthesizer()
+    enhancer_service = (
+        container.get(Services.ENHANCER)
+        if container.has(Services.ENHANCER)
+        else None
+    )
+    return VideoSynthesizer(enhancer_service=enhancer_service)
 
 
-def _create_enhancer_service():
+def _create_enhancer_service(_container):
     from backend.services.enhancer import EnhancerService
 
     return EnhancerService()
 
 
-def _create_cleaner_service():
+def _create_cleaner_service(_container):
     from backend.services.cleaner import CleanerService
 
     return CleanerService()
 
 
-def _create_browser_service():
+def _create_browser_service(_container):
     from backend.services.browser_service import BrowserService
 
     return BrowserService()
 
 
-def _create_network_sniffer():
+def _create_network_sniffer(container):
     from backend.services.sniffer import NetworkSniffer
 
-    return NetworkSniffer()
+    return NetworkSniffer(container.get(Services.BROWSER))
 
 
-def _create_analyzer_service():
+def _create_analyzer_service(container):
     from backend.services.analyzer import AnalyzerService
 
-    return AnalyzerService()
+    return AnalyzerService(
+        platform_factory=container.get(Services.PLATFORM_FACTORY),
+        cookie_manager=container.get(Services.COOKIE_MANAGER),
+    )
 
 
-def _create_cookie_manager():
+def _create_cookie_manager(_container):
     from backend.services.cookie_manager import CookieManager
 
     return CookieManager()
 
 
-def _create_llm_translator():
+def _create_llm_translator(container):
     from backend.services.translator.llm_translator import LLMTranslator
 
-    return LLMTranslator()
+    return LLMTranslator(
+        settings_manager=container.get(Services.SETTINGS_MANAGER),
+        glossary_service=container.get(Services.GLOSSARY),
+    )
 
 
-def _create_glossary_service():
+def _create_glossary_service(_container):
     from backend.services.translator.glossary_service import GlossaryService
 
     return GlossaryService()
 
 
-def _create_settings_manager():
+def _create_settings_manager(_container):
     from backend.services.settings_manager import SettingsManager
 
     return SettingsManager()
 
 
-def _create_download_workflow_service():
+def _create_download_workflow_service(_container):
     from backend.application.download_workflow_service import DownloadWorkflowService
 
     return DownloadWorkflowService()
 
 
-def _create_transcriber_workflow_service():
+def _create_transcriber_workflow_service(_container):
     from backend.application.transcriber_workflow_service import (
         TranscriberWorkflowService,
     )
@@ -129,58 +161,53 @@ def _create_transcriber_workflow_service():
     return TranscriberWorkflowService()
 
 
-def _create_task_request_deduplicator():
+def _create_task_request_deduplicator(_container):
     from backend.application.task_request_deduplicator import TaskRequestDeduplicator
 
     return TaskRequestDeduplicator()
 
 
-def _create_task_resume_service():
+def _create_task_resume_service(_container):
     from backend.application.task_resume_service import TaskResumeService
 
     return TaskResumeService()
 
 
-def _register_if_missing(name, factory) -> bool:
-    """Register a service only when it is not already present."""
-    if container.has(name):
-        return False
-    container.register(name, factory)
-    return True
+def build_service_assembly() -> ServiceAssembly:
+    return ServiceAssembly(
+        [
+            ServiceProvider(Services.WS_NOTIFIER, _create_ws_notifier),
+            ServiceProvider(Services.TASK_MANAGER, _create_task_manager),
+            ServiceProvider(Services.PIPELINE, _create_pipeline_runner),
+            ServiceProvider(Services.ASR, _create_asr_service),
+            ServiceProvider(Services.DOWNLOADER, _create_downloader_service),
+            ServiceProvider(Services.VIDEO_SYNTHESIZER, _create_video_synthesizer),
+            ServiceProvider(
+                Services.ENHANCER,
+                _create_enhancer_service,
+                enabled=lambda: settings.ENABLE_EXPERIMENTAL_PREPROCESSING,
+            ),
+            ServiceProvider(
+                Services.CLEANER,
+                _create_cleaner_service,
+                enabled=lambda: settings.ENABLE_EXPERIMENTAL_PREPROCESSING,
+            ),
+            ServiceProvider(Services.BROWSER, _create_browser_service),
+            ServiceProvider(Services.SNIFFER, _create_network_sniffer),
+            ServiceProvider(Services.COOKIE_MANAGER, _create_cookie_manager),
+            ServiceProvider(Services.PLATFORM_FACTORY, _create_platform_factory),
+            ServiceProvider(Services.ANALYZER, _create_analyzer_service),
+            ServiceProvider(Services.GLOSSARY, _create_glossary_service),
+            ServiceProvider(Services.SETTINGS_MANAGER, _create_settings_manager),
+            ServiceProvider(Services.LLM_TRANSLATOR, _create_llm_translator),
+            ServiceProvider(Services.DOWNLOAD_WORKFLOW, _create_download_workflow_service),
+            ServiceProvider(Services.TRANSCRIBER_WORKFLOW, _create_transcriber_workflow_service),
+            ServiceProvider(Services.TASK_REQUEST_DEDUPLICATOR, _create_task_request_deduplicator),
+            ServiceProvider(Services.TASK_RESUME_SERVICE, _create_task_resume_service),
+            ServiceProvider(Services.TASK_ORCHESTRATOR, _create_task_orchestrator),
+        ]
+    )
 
 
-def register_all_services():
-    """Import and register every service in the DI container."""
-    registered_count = 0
-
-    # ── Core ─────────────────────────────────────────────────
-    registered_count += _register_if_missing(Services.TASK_MANAGER, _create_task_manager)
-    registered_count += _register_if_missing(Services.WS_NOTIFIER, _create_ws_notifier)
-    registered_count += _register_if_missing(Services.PIPELINE, _create_pipeline_runner)
-
-    # ── Media ────────────────────────────────────────────────
-    registered_count += _register_if_missing(Services.ASR, _create_asr_service)
-    registered_count += _register_if_missing(Services.DOWNLOADER, _create_downloader_service)
-    registered_count += _register_if_missing(Services.VIDEO_SYNTHESIZER, _create_video_synthesizer)
-
-    if settings.ENABLE_EXPERIMENTAL_PREPROCESSING:
-        registered_count += _register_if_missing(Services.ENHANCER, _create_enhancer_service)
-        registered_count += _register_if_missing(Services.CLEANER, _create_cleaner_service)
-
-    # ── External / Browser ───────────────────────────────────
-    registered_count += _register_if_missing(Services.BROWSER, _create_browser_service)
-    registered_count += _register_if_missing(Services.SNIFFER, _create_network_sniffer)
-    registered_count += _register_if_missing(Services.ANALYZER, _create_analyzer_service)
-    registered_count += _register_if_missing(Services.COOKIE_MANAGER, _create_cookie_manager)
-
-    # ── AI / Translation ─────────────────────────────────────
-    registered_count += _register_if_missing(Services.LLM_TRANSLATOR, _create_llm_translator)
-    registered_count += _register_if_missing(Services.GLOSSARY, _create_glossary_service)
-    registered_count += _register_if_missing(Services.SETTINGS_MANAGER, _create_settings_manager)
-    registered_count += _register_if_missing(Services.DOWNLOAD_WORKFLOW, _create_download_workflow_service)
-    registered_count += _register_if_missing(Services.TRANSCRIBER_WORKFLOW, _create_transcriber_workflow_service)
-    registered_count += _register_if_missing(Services.TASK_REQUEST_DEDUPLICATOR, _create_task_request_deduplicator)
-    registered_count += _register_if_missing(Services.TASK_RESUME_SERVICE, _create_task_resume_service)
-    registered_count += _register_if_missing(Services.TASK_ORCHESTRATOR, _create_task_orchestrator)
-
-    return registered_count
+def register_all_services(container):
+    return build_service_assembly().register_into(container)

@@ -30,7 +30,7 @@ Desktop runtime task ownership is now explicit:
   - owned only by Electron main plus Python desktop worker
   - synchronized through desktop task snapshots and desktop task events
 - `backend`
-  - remains a capability provider for desktop mode
+  - remains a non-blocking capability fallback for desktop mode
   - must not be treated as a desktop task-list source
 
 Current desktop renderer task semantics:
@@ -38,7 +38,8 @@ Current desktop renderer task semantics:
 - `connected`
   - local desktop task source is ready
 - `remoteTasksReady`
-  - backend capability readiness only; not a desktop task feed
+  - desktop startup no longer waits for backend health
+  - in desktop mode this only reflects whether fallback backend integration is considered non-blocking
 - `tasksSettled`
   - task state is sufficiently synchronized to safely conclude an active task no longer exists
 
@@ -119,6 +120,13 @@ Maintenance rule:
 - backend task CRUD endpoints
 - backend task snapshot endpoints
 - desktop fallback for APIs that still support web mode through `apiClient`
+
+Packaged desktop rule from here:
+
+- Python desktop worker is the primary execution path
+- bundled FastAPI backend is fallback-only
+- fallback backend must not block first paint, desktop task hydration, or worker handshake
+- any feature that still needs the backend must declare itself as fallback explicitly instead of re-entering the startup critical path
 
 Examples of backend fallback APIs still retained in renderer services:
 
@@ -309,8 +317,13 @@ Contract-level tests should follow the same rule:
 ### Electron side
 
 - [frontend/electron/main.ts](/E:/Work/Code/Mediaflow/frontend/electron/main.ts)
-  - launches bundled backend exe
-  - owns desktop lifecycle
+  - owns app lifecycle and module registration only
+- `frontend/electron/desktop/taskCoordinator.ts`
+  - owns desktop task orchestration and worker supervision
+- `frontend/electron/desktop/historyStore.ts`
+  - owns desktop task history persistence
+- `frontend/electron/desktop/backendFallback.ts`
+  - launches bundled backend as a non-blocking fallback
 - [frontend/electron/preload.ts](/E:/Work/Code/Mediaflow/frontend/electron/preload.ts)
   - exposes file, window, and shell APIs to renderer
 
@@ -338,13 +351,11 @@ Contract-level tests should follow the same rule:
 Desktop startup currently includes:
 
 1. Electron main-process boot.
-2. Spawn bundled Python backend exe.
-3. Uvicorn/FastAPI startup.
-4. Service registration and DB init.
-5. Task manager initialization.
-6. Renderer waits for backend health before app is usable.
+2. Spawn desktop Python worker.
+3. Worker handshake and task bridge availability.
+4. Optional bundled backend fallback starts in background when packaged.
 
-Even after recent cleanup, the desktop app still pays the cost of a web-server style backend for a local-only desktop runtime.
+The remaining cost problem is no longer "desktop cannot boot without backend". The remaining issue is making sure fallback-only capabilities do not leak back into the primary startup path.
 
 ## Target Architecture
 
@@ -541,6 +552,7 @@ Keep both modes temporarily:
   - FastAPI remains available
 - Packaged desktop mode:
   - Electron talks to worker RPC directly
+  - bundled FastAPI backend stays fallback-only and non-blocking
 
 This avoids a big-bang rewrite.
 

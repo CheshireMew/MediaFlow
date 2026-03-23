@@ -21,10 +21,6 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: "jsdom",
-    environmentMatchGlobs: [
-      ["**/__tests__/**", "jsdom"],
-    ],
     environmentOptions: {
       jsdom: {
         url: "http://localhost/",
@@ -32,6 +28,16 @@ export default defineConfig({
     },
     pool: "forks",
     setupFiles: "./src/__tests__/setup.ts",
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "ui",
+          include: ["src/**/*.{test,spec}.{ts,tsx}"],
+          environment: "jsdom",
+        },
+      },
+    ],
   },
   esbuild: {
     drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],

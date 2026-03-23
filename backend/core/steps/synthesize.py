@@ -1,12 +1,10 @@
-
-import asyncio
 from pathlib import Path
 from loguru import logger
 
 from backend.core.steps.base import PipelineStep
 from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
-from backend.core.container import container, Services
+from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
 from backend.models.schemas import FileRef
 
 class SynthesizeStep(PipelineStep):
@@ -35,34 +33,22 @@ class SynthesizeStep(PipelineStep):
         output_path = p.parent / f"{p.stem}_synthesized.mp4"
 
         # 3. Execution
-        synthesizer = container.get(Services.VIDEO_SYNTHESIZER)
-        tm = container.get(Services.TASK_MANAGER)
-        loop = asyncio.get_running_loop()
+        synthesizer = RuntimeServices.video_synthesizer()
+        runtime = TaskRuntimeContext.for_task(task_id)
 
         options = params.get("options", {})
-        
-        def progress_cb(percent, msg):
-             if task_id:
-                tm.raise_if_control_requested(task_id)
-                tm.submit_threadsafe_update(
-                    loop,
-                    task_id,
-                    progress=float(percent),
-                    message=msg,
-                )
 
         if task_id:
-            await tm.update_task(task_id, message="Starting FFmpeg synthesis...")
+            await runtime.update(message="Starting FFmpeg synthesis...")
 
-        output_file = await loop.run_in_executor(
-            None,
+        output_file = await runtime.run_blocking(
             lambda: synthesizer.burn_in_subtitles(
                 video_path, 
                 srt_path, 
                 str(output_path), 
                 watermark_path=params.get("watermark_path"),
                 options=options,
-                progress_callback=progress_cb
+                progress_callback=runtime.build_progress_callback(progress_transform=float)
             )
         )
         

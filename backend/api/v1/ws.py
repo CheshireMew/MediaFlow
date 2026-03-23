@@ -1,6 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.core.container import container, Services
+from backend.core.runtime_access import RuntimeServices
 
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
@@ -8,10 +8,9 @@ router = APIRouter(prefix="/ws", tags=["WebSocket"])
 @router.websocket("/tasks")
 async def websocket_endpoint(websocket: WebSocket):
     from loguru import logger
+    notifier = RuntimeServices.ws_notifier()
+    tm = RuntimeServices.task_manager()
     try:
-        notifier = container.get(Services.WS_NOTIFIER)
-        tm = container.get(Services.TASK_MANAGER)
-
         await notifier.connect(websocket)
         
         # Snapshot generation might fail if DB/serialization has issues
@@ -37,12 +36,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 await tm.cancel_task(task_id)
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected normally")
-        container.get(Services.WS_NOTIFIER).disconnect(websocket)
+        notifier.disconnect(websocket)
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         # Ensure we try to disconnect cleanly if possible
         try:
-            container.get(Services.WS_NOTIFIER).disconnect(websocket)
+            notifier.disconnect(websocket)
         except Exception:
             pass
 

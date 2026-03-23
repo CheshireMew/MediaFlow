@@ -2,10 +2,10 @@
   "name": "mediaflow-ui",
   "private": true,
   "version": "0.0.0",
-  "main": "dist-electron/main.js",
+  "main": "dist-electron/frontend/electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
+    "build": "npm run electron:build && tsc && vite build && electron-builder",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "electron:build": "tsc -p tsconfig.electron.json",

@@ -1,9 +1,9 @@
 from collections.abc import Awaitable, Callable
 from backend.models.schemas import TranscribeRequest
 from backend.models.task_model import Task
+from backend.application.transcription_service import run_transcription_task
 from backend.core.tasks.base import TaskHandler
 from backend.core.tasks.registry import TaskHandlerRegistry
-from backend.api.v1.transcribe import run_transcription_task
 from loguru import logger
 
 @TaskHandlerRegistry.register("transcribe")

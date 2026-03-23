@@ -76,7 +76,7 @@ export function useTranslatorFileLoader() {
         continue
       }
     }
-  }, [mode, setTargetLang, setTargetSegments, targetLang]);
+  }, [mode, setTargetLang, setTargetSegments, setTargetSubtitleRef, targetLang]);
 
   const handleFileUpload = useCallback(async (input: string | MediaReference) => {
     if (!isDesktopRuntime()) return;

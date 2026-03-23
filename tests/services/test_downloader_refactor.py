@@ -1,12 +1,22 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from backend.services.downloader.service import DownloaderService
+from backend.services.cookie_manager import CookieManager
 from backend.services.platforms.base import BasePlatform
+from backend.services.platforms.factory import PlatformFactory
 from backend.models.schemas import AnalyzeResult, TaskResult, FileRef
+
+
+def make_downloader() -> DownloaderService:
+    return DownloaderService(
+        platform_factory=PlatformFactory(),
+        cookie_manager=CookieManager(),
+    )
+
 
 @pytest.mark.asyncio
 async def test_download_uses_strategy():
-    downloader_service = DownloaderService()
+    downloader_service = make_downloader()
     # Mock PlatformFactory
     with patch("backend.services.platforms.factory.PlatformFactory.get_handler", new_callable=AsyncMock) as mock_get_handler:
         # Mock a handler
@@ -50,7 +60,7 @@ async def test_download_uses_strategy():
 
 @pytest.mark.asyncio
 async def test_download_fallback_when_no_handler():
-    downloader_service = DownloaderService()
+    downloader_service = make_downloader()
     with patch("backend.services.platforms.factory.PlatformFactory.get_handler", new_callable=AsyncMock) as mock_get_handler:
         mock_get_handler.return_value = None # No handler
 

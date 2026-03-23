@@ -12,6 +12,9 @@ echo ==================================================
 echo Root: %ROOT_DIR%
 echo.
 
+set "ENABLE_EXPERIMENTAL_PREPROCESSING=false"
+set "VITE_ENABLE_EXPERIMENTAL_PREPROCESSING=false"
+
 where python >nul 2>nul
 if errorlevel 1 (
   echo [ERROR] Python not found in PATH.
@@ -21,6 +24,16 @@ if errorlevel 1 (
 where npm >nul 2>nul
 if errorlevel 1 (
   echo [ERROR] npm not found in PATH.
+  exit /b 1
+)
+
+if not exist "%ROOT_DIR%\frontend\electron-builder.yml" (
+  echo [ERROR] Frontend packaging config not found: %ROOT_DIR%\frontend\electron-builder.yml
+  exit /b 1
+)
+
+if not exist "%ROOT_DIR%\frontend\resources\icon.ico" (
+  echo [ERROR] Windows icon not found: %ROOT_DIR%\frontend\resources\icon.ico
   exit /b 1
 )
 
@@ -72,6 +85,12 @@ popd
 
 if not exist "%ROOT_DIR%\frontend\release" (
   echo [ERROR] Desktop package output not found: %ROOT_DIR%\frontend\release
+  exit /b 1
+)
+
+dir /b "%ROOT_DIR%\frontend\release\MediaFlow-Portable-*.exe" >nul 2>nul
+if errorlevel 1 (
+  echo [ERROR] Portable package not found under: %ROOT_DIR%\frontend\release
   exit /b 1
 )
 

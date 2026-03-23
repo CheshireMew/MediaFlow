@@ -1,8 +1,7 @@
-import { apiClient } from "../../api/client";
 import { fileService } from "../fileService";
 import type { MediaReference } from "../ui/mediaReference";
 import { resolveMediaInputPath } from "./mediaInput";
-import { normalizeExecutionPayload } from "./executionPayload";
+import { prepareExecutionPayload } from "./executionPayload";
 import type {
   DetectSilenceResponse,
   ImagePreviewResponse,
@@ -10,7 +9,8 @@ import type {
   TranslateRequest,
   TranslateResponse,
 } from "../../types/api";
-import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop/bridge";
+import { isDesktopRuntime } from "../desktop/bridge";
+import { executeBackendDirectCall } from "./executionExecutor";
 
 export const editorService = {
   async detectSilence(payload: {
@@ -18,14 +18,13 @@ export const editorService = {
     threshold: string;
     min_duration: number;
   }): Promise<DetectSilenceResponse> {
-    if (isDesktopRuntime()) {
-      return await requireDesktopApiMethod(
-        "detectDesktopSilence",
-        "Desktop silence detection is unavailable.",
-      )(payload);
-    }
-
-    return apiClient.detectSilence(payload);
+    return await executeBackendDirectCall({
+      payload,
+      desktopMethod: "detectDesktopSilence",
+      desktopUnavailableMessage: "Desktop silence detection is unavailable.",
+      backendCall: (nextPayload) =>
+        import("../../api/client").then(({ apiClient }) => apiClient.detectSilence(nextPayload)),
+    });
   },
 
   async getPeaks(payload: {
@@ -40,18 +39,17 @@ export const editorService = {
       "Waveform video",
     );
 
-    if (isDesktopRuntime()) {
-      const buffer = await requireDesktopApiMethod(
-        "getDesktopPeaks",
-        "Desktop peaks loading is unavailable.",
-      )(videoPath);
-      if (!buffer) {
-        throw new Error("Failed to load peaks");
-      }
-      return buffer;
+    const buffer = await executeBackendDirectCall({
+      payload: videoPath,
+      desktopMethod: "getDesktopPeaks",
+      desktopUnavailableMessage: "Desktop peaks loading is unavailable.",
+      backendCall: (resolvedVideoPath) =>
+        import("../../api/client").then(({ apiClient }) => apiClient.getPeaks(resolvedVideoPath)),
+    });
+    if (!buffer) {
+      throw new Error("Failed to load peaks");
     }
-
-    return await apiClient.getPeaks(videoPath);
+    return buffer;
   },
 
   async transcribeSegment(payload: {
@@ -64,62 +62,68 @@ export const editorService = {
     language?: string;
     initial_prompt?: string;
   }): Promise<TranscribeSegmentResponse> {
-    const normalizedPayload = normalizeExecutionPayload(payload, [
-      {
-        pathKey: "audio_path",
-        refKey: "audio_ref",
-        label: "Audio",
-        required: true,
-      },
-    ]);
-
-    if (isDesktopRuntime()) {
-      return await requireDesktopApiMethod(
-        "desktopTranscribeSegment",
-        "Desktop segment transcription is unavailable.",
-      )(normalizedPayload);
-    }
-
-    return await apiClient.transcribeSegment({
-      ...normalizedPayload,
-      video_path: "",
-      srt_path: "",
-      watermark_path: null,
-      options: {},
+    return await executeBackendDirectCall({
+      payload,
+      normalizePayload: (nextPayload) =>
+        prepareExecutionPayload({
+          payload: nextPayload,
+          specs: [
+            {
+              pathKey: "audio_path",
+              refKey: "audio_ref",
+              label: "Audio",
+              required: true,
+            },
+          ],
+        }),
+      desktopMethod: "desktopTranscribeSegment",
+      desktopUnavailableMessage: "Desktop segment transcription is unavailable.",
+      backendCall: (normalizedPayload) =>
+        import("../../api/client").then(({ apiClient }) =>
+          apiClient.transcribeSegment({
+            ...normalizedPayload,
+            video_path: "",
+            srt_path: "",
+            watermark_path: null,
+            options: {},
+          }),
+        ),
     });
   },
 
   async translateSegments(payload: TranslateRequest): Promise<TranslateResponse> {
-    if (isDesktopRuntime()) {
-      return await requireDesktopApiMethod(
-        "desktopTranslateSegment",
-        "Desktop segment translation is unavailable.",
-      )(payload);
-    }
-
-    return await apiClient.translateSegments(payload);
+    return await executeBackendDirectCall({
+      payload,
+      desktopMethod: "desktopTranslateSegment",
+      desktopUnavailableMessage: "Desktop segment translation is unavailable.",
+      backendCall: (nextPayload) =>
+        import("../../api/client").then(({ apiClient }) => apiClient.translateSegments(nextPayload)),
+    });
   },
 
   async uploadWatermark(file: File): Promise<ImagePreviewResponse> {
     if (isDesktopRuntime()) {
       const filePath = fileService.getPathForFile(file);
-      return await requireDesktopApiMethod(
-        "uploadDesktopWatermark",
-        "Desktop watermark upload is unavailable.",
-      )(filePath);
+      return await executeBackendDirectCall({
+        payload: filePath,
+        desktopMethod: "uploadDesktopWatermark",
+        desktopUnavailableMessage: "Desktop watermark upload is unavailable.",
+        backendCall: async () =>
+          await import("../../api/client").then(({ apiClient }) => apiClient.uploadWatermark(file)),
+      });
     }
 
-    return await apiClient.uploadWatermark(file);
+    return await import("../../api/client").then(({ apiClient }) => apiClient.uploadWatermark(file));
   },
 
   async getLatestWatermark(): Promise<ImagePreviewResponse | null> {
-    if (isDesktopRuntime()) {
-      return await requireDesktopApiMethod(
-        "getDesktopLatestWatermark",
-        "Desktop watermark loading is unavailable.",
-      )();
-    }
-
-    return await apiClient.getLatestWatermark();
+    return await executeBackendDirectCall({
+      payload: undefined,
+      desktopMethod: "getDesktopLatestWatermark",
+      desktopUnavailableMessage: "Desktop watermark loading is unavailable.",
+      mapDesktopArgs: () => [],
+      backendCall: () =>
+        import("../../api/client").then(({ apiClient }) => apiClient.getLatestWatermark()),
+    });
   },
 };

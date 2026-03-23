@@ -46,7 +46,7 @@ def test_settings_manager_migrates_legacy_settings_file(tmp_path):
     new_path = user_data_dir / "user_settings.json"
     legacy_path.write_text('{"language":"ja","llm_providers":[]}', encoding="utf-8")
 
-    manager = SettingsManager.__new__(SettingsManager)
+    manager = object.__new__(SettingsManager)
     manager._legacy_file_path = legacy_path
     manager._file_path = new_path
 
@@ -60,7 +60,7 @@ def test_settings_manager_migrates_legacy_settings_file(tmp_path):
 
 
 def test_settings_manager_marks_encrypted_api_keys(monkeypatch):
-    manager = SettingsManager.__new__(SettingsManager)
+    manager = object.__new__(SettingsManager)
     manager._settings = UserSettings(
         llm_providers=[
             LLMProvider(
@@ -86,7 +86,7 @@ def test_settings_manager_marks_encrypted_api_keys(monkeypatch):
 
 
 def test_settings_manager_marks_plaintext_fallback_api_keys(monkeypatch):
-    manager = SettingsManager.__new__(SettingsManager)
+    manager = object.__new__(SettingsManager)
     manager._settings = UserSettings(
         llm_providers=[
             LLMProvider(

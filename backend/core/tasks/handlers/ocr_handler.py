@@ -1,8 +1,9 @@
 from collections.abc import Awaitable, Callable
 
-from backend.api.v1.ocr import OCRExtractRequest, run_ocr_task
+from backend.application.ocr_service import run_ocr_task
 from backend.core.tasks.base import TaskHandler
 from backend.core.tasks.registry import TaskHandlerRegistry
+from backend.models.schemas import OCRExtractRequest
 from backend.models.task_model import Task
 
 

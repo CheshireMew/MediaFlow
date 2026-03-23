@@ -1,20 +1,16 @@
-import { apiClient } from "../../api/client";
 import type { PipelineRequest } from "../../types/api";
 import type { SubtitleSegment } from "../../types/task";
-import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop/bridge";
 import type { TranscribeResult } from "../../types/transcriber";
 import type { MediaReference } from "../ui/mediaReference";
-import {
-  createDesktopTaskSubmissionReceipt,
-  createDirectExecutionResult,
-  createTaskExecutionSubmissionReceipt,
-  type DirectExecutionResult,
-  type TaskExecutionSubmission,
-} from "./taskSubmission";
+import type { ExecutionOutcome } from "./taskSubmission";
 import {
   getExecutionMediaDisplayName,
-  normalizeExecutionPayload,
+  prepareExecutionPayload,
 } from "./executionPayload";
+import {
+  executeDesktopDirectResult,
+  executeDesktopTaskSubmission,
+} from "./executionExecutor";
 
 export { isDesktopRuntime } from "../desktop/bridge";
 
@@ -62,55 +58,58 @@ export const executionService = {
   async transcribe(payload: {
     audio_path?: string | null;
     audio_ref?: MediaReference | null;
+    engine?: "builtin" | "cli";
     model: string;
     device: string;
     language?: string | null;
     initial_prompt?: string | null;
-  }): Promise<TaskExecutionSubmission | DirectExecutionResult<TranscribeResult>> {
-    const normalizedPayload = normalizeExecutionPayload(payload, [
-      {
-        pathKey: "audio_path",
-        refKey: "audio_ref",
-        label: "Transcription audio",
-        required: true,
+  }): Promise<ExecutionOutcome<TranscribeResult>> {
+    return await executeDesktopDirectResult({
+      payload,
+      normalizePayload: (nextPayload) =>
+        prepareExecutionPayload({
+          payload: nextPayload,
+          specs: [
+            {
+              pathKey: "audio_path",
+              refKey: "audio_ref",
+              label: "Transcription audio",
+              required: true,
+            },
+          ],
+        }),
+      desktopMethod: "desktopTranscribe",
+      desktopUnavailableMessage: "Desktop transcription worker is unavailable.",
+      backendSubmit: async (normalizedPayload) => {
+        const pipelineReq: PipelineRequest = {
+          pipeline_id: "transcriber_tool",
+          task_name: `Transcribe ${getExecutionMediaDisplayName({
+            reference: normalizedPayload.audio_ref ?? null,
+            path: normalizedPayload.audio_path ?? null,
+            fallbackName: "media",
+          })}`,
+          steps: [
+            {
+              step_name: "transcribe",
+              params: {
+                audio_path: normalizedPayload.audio_path,
+                audio_ref: normalizedPayload.audio_ref ?? null,
+                engine: normalizedPayload.engine ?? "builtin",
+                model: normalizedPayload.model,
+                device: normalizedPayload.device,
+                vad_filter: true,
+                language: normalizedPayload.language,
+                initial_prompt: normalizedPayload.initial_prompt,
+              },
+            },
+          ],
+        };
+
+        return await import("../../api/client").then(({ apiClient }) =>
+          apiClient.runPipeline(pipelineReq),
+        );
       },
-    ]);
-
-    if (isDesktopRuntime()) {
-      const result = await requireDesktopApiMethod(
-        "desktopTranscribe",
-        "Desktop transcription worker is unavailable.",
-      )(normalizedPayload);
-      return createDirectExecutionResult(result);
-    }
-
-    const pipelineReq: PipelineRequest = {
-      pipeline_id: "transcriber_tool",
-      task_name: `Transcribe ${getExecutionMediaDisplayName({
-        reference: normalizedPayload.audio_ref ?? null,
-        path: normalizedPayload.audio_path ?? null,
-        fallbackName: "media",
-      })}`,
-      steps: [
-        {
-          step_name: "transcribe",
-          params: {
-            audio_path: normalizedPayload.audio_path,
-            audio_ref: normalizedPayload.audio_ref ?? null,
-            model: normalizedPayload.model,
-            device: normalizedPayload.device,
-            vad_filter: true,
-            language: normalizedPayload.language,
-            initial_prompt: normalizedPayload.initial_prompt,
-          },
-        },
-      ],
-    };
-
-    return createTaskExecutionSubmissionReceipt(
-      await apiClient.runPipeline(pipelineReq),
-      "backend",
-    );
+    });
   },
 
   async translate(payload: {
@@ -119,33 +118,32 @@ export const executionService = {
     mode: "standard" | "intelligent" | "proofread";
     context_path?: string | null;
     context_ref?: MediaReference | null;
-  }): Promise<TaskExecutionSubmission | DirectExecutionResult<import("../../types/api").TranslateResponse>> {
-    const normalizedPayload = normalizeExecutionPayload(payload, [
-      {
-        pathKey: "context_path",
-        refKey: "context_ref",
-        label: "Translation context",
+  }): Promise<ExecutionOutcome<import("../../types/api").TranslateResponse>> {
+    return await executeDesktopDirectResult({
+      payload,
+      normalizePayload: (nextPayload) =>
+        prepareExecutionPayload({
+          payload: nextPayload,
+          specs: [
+            {
+              pathKey: "context_path",
+              refKey: "context_ref",
+              label: "Translation context",
+            },
+          ],
+        }),
+      desktopMethod: "desktopTranslate",
+      desktopUnavailableMessage: "Desktop translation worker is unavailable.",
+      backendSubmit: async (normalizedPayload) => {
+        const { translationService } = await import("./translationService");
+        const response = await translationService.startTranslation(normalizedPayload);
+        return {
+          task_id: response.task_id,
+          status: response.status ?? "pending",
+          message: undefined,
+        };
       },
-    ]);
-
-    if (isDesktopRuntime()) {
-      const result = await requireDesktopApiMethod(
-        "desktopTranslate",
-        "Desktop translation worker is unavailable.",
-      )(normalizedPayload);
-      return createDirectExecutionResult(result);
-    }
-
-    const { translationService } = await import("./translationService");
-    const response = await translationService.startTranslation(normalizedPayload);
-    return createTaskExecutionSubmissionReceipt(
-      {
-        task_id: response.task_id,
-        status: response.status ?? "pending",
-        message: undefined,
-      },
-      "backend",
-    );
+    });
   },
 
   async synthesize(payload: {
@@ -156,72 +154,70 @@ export const executionService = {
     watermark_path?: string | null;
     output_path?: string | null;
     options: Record<string, unknown>;
-  }): Promise<TaskExecutionSubmission> {
-    const normalizedPayload = normalizeExecutionPayload(payload, [
-      {
-        pathKey: "video_path",
-        refKey: "video_ref",
-        label: "Synthesis video",
-        required: true,
-      },
-      {
-        pathKey: "srt_path",
-        refKey: "srt_ref",
-        label: "Synthesis subtitle",
-        required: true,
-      },
-    ]);
-
-    if (isDesktopRuntime()) {
-      const taskId = `desktop-synthesize-${Date.now()}`;
-      void requireDesktopApiMethod(
-        "desktopSynthesize",
-        "Desktop synthesis worker is unavailable.",
-      )({
-        task_id: taskId,
-        ...normalizedPayload,
-      }).catch((error) => {
-        console.error("Desktop synthesis failed", error);
-      });
-      return createDesktopTaskSubmissionReceipt(taskId, "Synthesis started");
-    }
-
-    return createTaskExecutionSubmissionReceipt(
-      await apiClient.synthesizeVideo({
-        video_path: normalizedPayload.video_path,
-        video_ref: normalizedPayload.video_ref,
-        srt_path: normalizedPayload.srt_path,
-        srt_ref: normalizedPayload.srt_ref,
-        watermark_path: normalizedPayload.watermark_path || null,
-        output_path: normalizedPayload.output_path,
-        options: normalizedPayload.options,
-      }),
-      "backend",
-    );
+  }): Promise<ExecutionOutcome<never>> {
+    return await executeDesktopTaskSubmission({
+      payload,
+      normalizePayload: (nextPayload) =>
+        prepareExecutionPayload({
+          payload: nextPayload,
+          specs: [
+            {
+              pathKey: "video_path",
+              refKey: "video_ref",
+              label: "Synthesis video",
+              required: true,
+            },
+            {
+              pathKey: "srt_path",
+              refKey: "srt_ref",
+              label: "Synthesis subtitle",
+              required: true,
+            },
+          ],
+        }),
+      desktopMethod: "desktopSynthesize",
+      desktopUnavailableMessage: "Desktop synthesis worker is unavailable.",
+      desktopTaskIdPrefix: "desktop-synthesize",
+      desktopSubmissionMessage: "Synthesis started",
+      desktopFailureLogLabel: "Desktop synthesis failed",
+      backendSubmit: (normalizedPayload) =>
+        import("../../api/client").then(({ apiClient }) =>
+          apiClient.synthesizeVideo({
+            video_path: normalizedPayload.video_path,
+            video_ref: normalizedPayload.video_ref,
+            srt_path: normalizedPayload.srt_path,
+            srt_ref: normalizedPayload.srt_ref,
+            watermark_path: normalizedPayload.watermark_path || null,
+            output_path: normalizedPayload.output_path,
+            options: normalizedPayload.options,
+          }),
+        ),
+    });
   },
 
   async download(
     pipeline: PipelineRequest,
     settings?: DownloadExecutionSettings,
-  ): Promise<TaskExecutionSubmission> {
-    if (isDesktopRuntime()) {
-      const taskId = `desktop-download-${Date.now()}`;
-      void requireDesktopApiMethod(
-        "desktopDownload",
-        "Desktop download worker is unavailable.",
-      )({
-        task_id: taskId,
-        ...createDesktopDownloadSubmissionPayload(pipeline, settings),
-      }).catch((error) => {
-        console.error("Desktop download failed", error);
-      });
-
-      return createDesktopTaskSubmissionReceipt(taskId, "Download task started");
-    }
-
-    return createTaskExecutionSubmissionReceipt(
-      await apiClient.runPipeline(pipeline),
-      "backend",
-    );
+  ): Promise<ExecutionOutcome<never>> {
+    return await executeDesktopTaskSubmission({
+      payload: {
+        pipeline,
+        desktopPayload: createDesktopDownloadSubmissionPayload(pipeline, settings),
+      },
+      normalizePayload: ({ pipeline: nextPipeline, desktopPayload }) => ({
+        pipeline: nextPipeline,
+        desktopPayload,
+        task_id: null,
+      }),
+      desktopMethod: "desktopDownload",
+      desktopUnavailableMessage: "Desktop download worker is unavailable.",
+      desktopTaskIdPrefix: "desktop-download",
+      desktopSubmissionMessage: "Download task started",
+      desktopFailureLogLabel: "Desktop download failed",
+      mapDesktopArgs: (normalizedPayload, taskId) =>
+        [{ task_id: taskId, ...normalizedPayload.desktopPayload }],
+      backendSubmit: ({ pipeline: nextPipeline }) =>
+        import("../../api/client").then(({ apiClient }) => apiClient.runPipeline(nextPipeline)),
+    });
   },
 };

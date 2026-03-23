@@ -1,5 +1,8 @@
+from backend.application.pipeline_submission_service import PipelineSubmissionService
 from backend.application.download_workflow_service import DownloadWorkflowService
 from backend.application.task_orchestrator import TaskOrchestrator
+from backend.application.task_request_deduplicator import TaskRequestDeduplicator
+from backend.application.task_resume_service import TaskResumeService
 from backend.application.transcriber_workflow_service import (
     TranscriberWorkflowService,
 )
@@ -24,6 +27,9 @@ def _create_orchestrator() -> TaskOrchestrator:
         settings_manager=StubSettingsManager(),
         download_workflow_service=DownloadWorkflowService(),
         transcriber_workflow_service=TranscriberWorkflowService(),
+        task_request_deduplicator=TaskRequestDeduplicator(),
+        task_resume_service=TaskResumeService(),
+        pipeline_submission_service=PipelineSubmissionService(),
     )
 
 
