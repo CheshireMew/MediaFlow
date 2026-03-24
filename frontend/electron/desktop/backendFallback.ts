@@ -2,18 +2,23 @@ import { app } from "electron";
 import fs from "fs";
 import path from "path";
 import { spawn, type ChildProcess } from "child_process";
+import {
+  buildDesktopRuntimeEnv,
+  isDesktopDevMode,
+  resolveBundledBackendExecutable,
+} from "../desktopRuntime";
 
 
 export class BackendFallbackProcess {
   private backendProcess: ChildProcess | null = null;
 
   start() {
-    const isDev = process.env.IS_DEV === "true";
+    const isDev = isDesktopDevMode();
     if (isDev || !app.isPackaged || this.backendProcess) {
       return;
     }
 
-    const backendExe = path.join(process.resourcesPath, "backend", "mediaflow-backend.exe");
+    const backendExe = resolveBundledBackendExecutable();
     if (!fs.existsSync(backendExe)) {
       console.error("Bundled backend not found at:", backendExe);
       return;
@@ -23,6 +28,10 @@ export class BackendFallbackProcess {
     this.backendProcess = spawn(backendExe, [], {
       cwd: path.dirname(backendExe),
       detached: false,
+      env: {
+        ...process.env,
+        ...buildDesktopRuntimeEnv(),
+      },
     });
 
     this.backendProcess.stdout?.on("data", (data) => console.log(`[Backend] ${data}`));

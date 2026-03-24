@@ -25,7 +25,7 @@ class UserSettings(BaseModel):
     auto_execute_flow: bool = False
 
 class SettingsManager:
-    _legacy_file_path = settings.BASE_DIR / "data" / "user_settings.json"
+    _legacy_file_path = settings.RESOURCE_DIR / "data" / "user_settings.json"
     _file_path = settings.USER_DATA_DIR / "user_settings.json"
 
     def __init__(self):

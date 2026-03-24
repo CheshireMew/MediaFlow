@@ -1,38 +1,64 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
 import { Trash2, Wand2 } from 'lucide-react';
 import { validateSegment, fixOverlaps } from '../../utils/validation';
 import { highlightSubtitleText } from './subtitleTextHighlight';
-// [FIX] REMOVED BROKEN react-window
-// Implementing custom lightweight virtualization
-// [FIX] REMOVED BROKEN react-virtualized-auto-sizer
-// Implementing custom ResizeObserver for dimensions
+
 const ITEM_HEIGHT = 44;
 const OVERSCAN = 5;
+const FALLBACK_VISIBLE_ROWS = 12;
 
-// Custom hook for element size
-function useElementSize() {
+function useListViewport() {
     const ref = React.useRef<HTMLDivElement>(null);
     const [size, setSize] = React.useState({ width: 0, height: 0 });
 
     React.useEffect(() => {
-        if (!ref.current) return;
-        const observer = new ResizeObserver((entries) => {
-            const entry = entries[0];
-            if (entry) {
-                // Use contentRect for precise content box size
-                const { width, height } = entry.contentRect;
-                // Simple debounce/check to avoid excessive updates? 
-                // React 18 handles this well, but let's check exactness
-                setSize({ width, height });
-            }
+        const element = ref.current;
+        if (!element) return;
+
+        const measure = () => {
+            if (!ref.current) return;
+            setSize({
+                width: ref.current.clientWidth,
+                height: ref.current.clientHeight,
+            });
+        };
+
+        measure();
+
+        const observer = new ResizeObserver(() => {
+            measure();
         });
-        observer.observe(ref.current);
-        return () => observer.disconnect();
+        observer.observe(element);
+        window.addEventListener('resize', measure);
+
+        return () => {
+            observer.disconnect();
+            window.removeEventListener('resize', measure);
+        };
     }, []);
 
     return { ref, size };
+}
+
+function getViewportHeight(height: number, segmentCount: number) {
+    if (height > 0) {
+        return height;
+    }
+
+    return Math.min(
+        Math.max(segmentCount, 1),
+        FALLBACK_VISIBLE_ROWS,
+    ) * ITEM_HEIGHT;
+}
+
+function getViewportWidth(width: number) {
+    if (width > 0) {
+        return width;
+    }
+
+    return 1;
 }
 
 interface SubtitleListProps {
@@ -70,8 +96,10 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
     } = props;
 
     const [scrollTop, setScrollTop] = React.useState(0);
-    const listRef = useRef<HTMLDivElement>(null);
-    const { ref: containerRef, size } = useElementSize();
+    const { ref: listRef, size } = useListViewport();
+
+    const viewportHeight = getViewportHeight(size.height, segments.length);
+    const viewportWidth = getViewportWidth(size.width);
 
     // Scroll handler for virtualization
     const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -84,11 +112,11 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
         const index = segments.findIndex(s => String(s.id) === activeSegmentId);
         if (index !== -1) {
             const itemTop = index * ITEM_HEIGHT;
-            const containerHeight = listRef.current.clientHeight;
+            const containerHeight = listRef.current.clientHeight || viewportHeight;
             // Center the item
             listRef.current.scrollTop = itemTop - containerHeight / 2 + ITEM_HEIGHT / 2;
         }
-    }, [activeSegmentId, autoScroll, segments]);
+    }, [activeSegmentId, autoScroll, segments, listRef, viewportHeight]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -212,18 +240,17 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
     };
 
     // Virtualization Logic (extracted from JSX)
-    const { width, height } = size;
     const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN);
-    const endIndex = Math.min(segments.length, Math.ceil((scrollTop + height) / ITEM_HEIGHT) + OVERSCAN);
+    const endIndex = Math.min(
+        segments.length,
+        Math.ceil((scrollTop + viewportHeight) / ITEM_HEIGHT) + OVERSCAN,
+    );
     
     const visibleItems = [];
-    if (width > 0 && height > 0) {
-        // Safe loop bounds
-        const start = Math.max(0, startIndex);
-        const end = Math.min(segments.length, endIndex);
-        for (let i = start; i < end; i++) {
-            visibleItems.push(renderRow(i));
-        }
+    const start = Math.max(0, startIndex);
+    const end = Math.min(segments.length, endIndex);
+    for (let i = start; i < end; i++) {
+        visibleItems.push(renderRow(i));
     }
 
     return (
@@ -268,21 +295,20 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                         <p>{t('subtitleList.emptyState')}</p>
                     </div>
                 ) : (
-                    <div className="w-full h-full relative">
-                        {/* Sizing Container */}
-                        <div ref={containerRef} className="absolute inset-0 w-full h-full">
-                           {width > 0 && height > 0 && (
-                                <div
-                                    ref={listRef}
-                                    style={{ width, height, overflowY: 'auto', position: 'relative' }}
-                                    className="custom-scrollbar"
-                                    onScroll={handleScroll}
-                                >
-                                    <div style={{ height: segments.length * ITEM_HEIGHT, width: '100%', position: 'relative' }}>
-                                        {visibleItems}
-                                    </div>
-                                </div>
-                           )}
+                    <div
+                        ref={listRef}
+                        className="w-full h-full relative overflow-y-auto custom-scrollbar"
+                        onScroll={handleScroll}
+                    >
+                        <div
+                            style={{
+                                height: segments.length * ITEM_HEIGHT,
+                                width: `${viewportWidth}px`,
+                                minWidth: '100%',
+                                position: 'relative',
+                            }}
+                        >
+                            {visibleItems}
                         </div>
                     </div>
                 )}

@@ -4,6 +4,8 @@
     "subtitle": "タイムライン & 字幕",
     "openFileTooltip": "メディアファイルを開く (Ctrl+O)",
     "openButton": "メディアを開く",
+    "openSubtitleTooltip": "字幕ファイルを開く",
+    "openSubtitleButton": "字幕を開く",
     "autoScrollLabel": "自動スクロール",
     "smartSplitTooltip": "無音で自動分割",
     "smartSplitButton": "スマート分割",

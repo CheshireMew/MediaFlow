@@ -1,5 +1,5 @@
 
-import { Clapperboard, Save, Wand2, Download, FolderOpen, Languages } from "lucide-react";
+import { Clapperboard, Save, Wand2, Download, FolderOpen, Languages, FileType2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from 'react-i18next';
 
@@ -11,6 +11,7 @@ interface EditorHeaderProps {
     autoScroll: boolean;
     setAutoScroll: (enabled: boolean) => void;
     onOpenFile: () => void;
+    onOpenSubtitle: () => void;
     onSave: () => void;
     onSaveAs: () => void;
     onSmartSplit: () => Promise<void>;
@@ -19,9 +20,10 @@ interface EditorHeaderProps {
 }
 
 export function EditorHeader({
-    autoScroll,
-    setAutoScroll,
+    autoScroll: _autoScroll,
+    setAutoScroll: _setAutoScroll,
     onOpenFile,
+    onOpenSubtitle,
     onSave,
     onSaveAs,
     onSmartSplit,
@@ -38,7 +40,6 @@ export function EditorHeader({
         >
             {/* Window Controls Safe Zone (Absolute Top Right) */}
             <div className="absolute top-0 right-0 w-32 h-10 z-50 no-drag" style={noDragRegionStyle} />
-
             {/* Left: Brand & File */}
             <div className="flex items-center gap-5 no-drag" style={noDragRegionStyle}>
                 <div className="flex items-center gap-4">
@@ -61,21 +62,19 @@ export function EditorHeader({
                     <FolderOpen size={16} className="group-hover:text-indigo-200 transition-colors" />
                     <span>{t('header.openButton')}</span>
                 </button>
+
+                <button
+                  onClick={onOpenSubtitle}
+                  className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 px-4 py-2 rounded-lg text-xs font-medium transition-all shadow-sm active:scale-95 group"
+                  title={t('header.openSubtitleTooltip')}
+                >
+                    <FileType2 size={16} className="group-hover:text-white transition-colors" />
+                    <span>{t('header.openSubtitleButton')}</span>
+                </button>
             </div>
 
             {/* Right: Actions */}
             <div className="flex items-center gap-4 no-drag" style={noDragRegionStyle}>
-                 <div className="flex items-center gap-2 mr-4 bg-white/5 px-3 py-2 rounded-lg border border-white/5 shadow-inner">
-                    <input 
-                        type="checkbox" 
-                        id="autoScroll" 
-                        checked={autoScroll} 
-                        onChange={(e) => setAutoScroll(e.target.checked)}
-                        className="w-4 h-4 rounded border-white/10 bg-white/5 text-indigo-500 focus:ring-1 focus:ring-indigo-500/50 cursor-pointer"
-                    />
-                    <label htmlFor="autoScroll" className="text-xs text-slate-400 select-none cursor-pointer font-medium hover:text-slate-200 transition-colors whitespace-nowrap">{t('header.autoScrollLabel')}</label>
-                 </div>
-                 
                  <div className="flex items-center gap-2">
                      <button 
                         onClick={onSmartSplit}

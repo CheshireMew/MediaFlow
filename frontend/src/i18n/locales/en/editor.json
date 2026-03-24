@@ -4,6 +4,8 @@
     "subtitle": "Timeline & Subtitles",
     "openFileTooltip": "Open Media File (Ctrl+O)",
     "openButton": "Open Media",
+    "openSubtitleTooltip": "Open Subtitle File",
+    "openSubtitleButton": "Open Subtitle",
     "autoScrollLabel": "Auto-Scroll",
     "smartSplitTooltip": "Auto-split by Silence",
     "smartSplitButton": "Smart Split",

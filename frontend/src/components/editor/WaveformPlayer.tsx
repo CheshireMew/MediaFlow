@@ -5,8 +5,6 @@ import TimelinePlugin from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import HoverPlugin from 'wavesurfer.js/dist/plugins/hover.esm.js';
 import type { SubtitleSegment } from '../../types/task';
 
-type WaveformPeaks = Array<Float32Array | number[]> | null;
-
 type RegionLike = {
     id: string;
     start: number;
@@ -27,8 +25,6 @@ interface WaveformPlayerProps {
     onRegionUpdate: (id: string, start: number, end: number) => void;
     onRegionClick: (id: string, e: MouseEvent) => void;
     onContextMenu: (e: MouseEvent, id: string, regionData?: {start: number, end: number}) => void;
-    peaks?: WaveformPeaks;
-    onPeaksGenerated?: (peaks: WaveformPeaks) => void;
     selectedIds?: string[];
     autoScroll?: boolean;
     onInteractStart?: () => void;
@@ -41,8 +37,6 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
     onRegionUpdate,
     onRegionClick,
     onContextMenu,
-    peaks,
-    onPeaksGenerated,
     selectedIds = [],
     autoScroll = true,
     onInteractStart
@@ -55,13 +49,10 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
     const isDraggingRef = useRef(false);
     const currentTempRegionId = useRef<string | null>(null); // Track active temp region
     const latestRegionsRef = useRef(regions); // Track latest regions for event listeners
-    const peaksReportedRef = useRef(false);
     const onContextMenuRef = useRef(onContextMenu);
     const onRegionClickRef = useRef(onRegionClick);
     const onRegionUpdateRef = useRef(onRegionUpdate);
     const onInteractStartRef = useRef(onInteractStart);
-    const onPeaksGeneratedRef = useRef(onPeaksGenerated);
-    const peaksRef = useRef(peaks);
 
     useEffect(() => {
         latestRegionsRef.current = regions;
@@ -82,14 +73,6 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
     useEffect(() => {
         onInteractStartRef.current = onInteractStart;
     }, [onInteractStart]);
-
-    useEffect(() => {
-        onPeaksGeneratedRef.current = onPeaksGenerated;
-    }, [onPeaksGenerated]);
-
-    useEffect(() => {
-        peaksRef.current = peaks;
-    }, [peaks]);
 
     const [scrollWidth, setScrollWidth] = useState(0);
     const [duration, setDuration] = useState(0); // Added duration back
@@ -163,16 +146,6 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
             setHasError(false);
             setLoadProgress(0);
         }, 0);
-        peaksReportedRef.current = false;
-
-        const reportGeneratedPeaks = () => {
-            if (peaksRef.current || peaksReportedRef.current || !onPeaksGeneratedRef.current) return;
-            const exported = wavesurfer.current?.exportPeaks();
-            if (exported && exported.length > 0) {
-                peaksReportedRef.current = true;
-                onPeaksGeneratedRef.current(exported);
-            }
-        };
 
         const options: Parameters<typeof WaveSurfer.create>[0] = {
             container: containerRef.current,
@@ -197,10 +170,6 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
                 })
             ]
         };
-
-        if (peaksRef.current) {
-            options.peaks = peaksRef.current;
-        }
 
         const ws = WaveSurfer.create(options);
 
@@ -289,7 +258,6 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
              setIsReady(true);
              setDuration(ws.getDuration());
              if (containerRef.current) setScrollWidth(containerRef.current.scrollWidth);
-             reportGeneratedPeaks();
         });
         
         // Sync Scroll: WaveSurfer -> Top scrollbar (via scroll event)
@@ -305,7 +273,6 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
         ws.on('decode', () => {
              setDuration(ws.getDuration());
              if (containerRef.current) setScrollWidth(containerRef.current.scrollWidth);
-             reportGeneratedPeaks();
         });
         
         ws.on('error', (error) => {

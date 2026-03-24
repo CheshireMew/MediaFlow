@@ -13,6 +13,7 @@ import {
   isDesktopRuntime,
   type NullableExecutionMode,
 } from "../../services/domain";
+import { isCliTranscriptionSetupRequiredError } from "../../services/domain/executionAccess";
 import { fileService } from "../../services/fileService";
 import {
   createMediaReference,
@@ -232,6 +233,15 @@ export function useTranscriberCommands({
       setActiveTaskId(submission.task_id);
     } catch (err: unknown) {
       console.error("[Transcriber] Error submitting task:", err);
+      if (isCliTranscriptionSetupRequiredError(err)) {
+        setDesktopProgress({
+          progress: 0,
+          message: "",
+          active: false,
+        });
+        setExecutionMode(null);
+        return;
+      }
       if (err instanceof Error && /paused|cancelled/i.test(err.message)) {
         setDesktopProgress({
           progress: 0,

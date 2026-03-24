@@ -124,8 +124,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     threshold: string;
     min_duration: number;
   }) => ipcRenderer.invoke("desktop:detect-silence", payload),
-  getDesktopPeaks: (videoPath: string) =>
-    ipcRenderer.invoke("desktop:get-peaks", { video_path: videoPath }),
   desktopTranscribeSegment: (payload: {
     audio_path: string;
     start: number;

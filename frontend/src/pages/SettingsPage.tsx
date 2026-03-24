@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "i18next";
+import { useLocation } from "react-router-dom";
 import type { LLMProvider, UserSettings, ToolUpdateResponse } from "../types/api";
 import { settingsService } from "../services/domain";
 import { fileService } from "../services/fileService";
@@ -60,13 +61,19 @@ interface Notification {
     type: "success" | "error";
 }
 
+function resolveSettingsTab(search: string): "llm" | "general" {
+    const tab = new URLSearchParams(search).get("tab");
+    return tab === "general" ? "general" : "llm";
+}
+
 const SettingsPage: React.FC = () => {
     const { t } = useTranslation('settings');
     const { t: tc } = useTranslation('common');
+    const location = useLocation();
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [openModal, setOpenModal] = useState(false);
     const [notification, setNotification] = useState<Notification | null>(null);
-    const [activeTab, setActiveTab] = useState<'llm' | 'general'>('llm');
+    const [activeTab, setActiveTab] = useState<'llm' | 'general'>(() => resolveSettingsTab(location.search));
     const [isTestingConnection, setIsTestingConnection] = useState(false);
     const [isUpdatingYtDlp, setIsUpdatingYtDlp] = useState(false);
     const [ytDlpUpdateInfo, setYtDlpUpdateInfo] = useState<ToolUpdateResponse | null>(null);
@@ -120,6 +127,10 @@ const SettingsPage: React.FC = () => {
             cancelled = true;
         };
     }, [t]);
+
+    useEffect(() => {
+        setActiveTab(resolveSettingsTab(location.search));
+    }, [location.search]);
 
     const handleSaveProvider = async () => {
         if (!settings) return;

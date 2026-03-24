@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { executionService } from "../services/domain/executionService";
-import { editorService } from "../services/domain/editorService";
 import { preprocessingService } from "../services/domain/preprocessingService";
 import {
   normalizeDirectTranscribeResult,
@@ -216,21 +215,6 @@ describe("service media contract", () => {
     });
 
     expect(apiClientMock.getOcrResults).toHaveBeenCalledWith(
-      "E:/canonical/source.mp4",
-    );
-
-    await editorService.getPeaks({
-      video_path: "E:/workspace/source.mp4",
-      video_ref: {
-        path: "E:/canonical/source.mp4",
-        name: "source.mp4",
-        media_kind: "video",
-        role: "source",
-        origin: "navigation",
-      },
-    });
-
-    expect(apiClientMock.getPeaks).toHaveBeenCalledWith(
       "E:/canonical/source.mp4",
     );
   });

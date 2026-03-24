@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
             diagnose=True
         )
     
-    logger.info(f"Directories initialized at {settings.BASE_DIR}")
+    logger.info(f"Runtime directories initialized at {settings.RUNTIME_DIR}")
     logger.info(f"Log file configured at {log_file}")
     try:
         write_server_config()

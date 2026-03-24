@@ -27,8 +27,6 @@ import { useEditorFindReplace } from "../hooks/editor/useEditorFindReplace";
 import { useEditorRegionHandlers } from "../hooks/editor/useEditorRegionHandlers";
 import { useEditorStore } from "../stores/editorStore";
 
-type WaveformPeaks = Array<Float32Array | number[]> | null;
-
 export function EditorPage() {
   const { t } = useTranslation('editor');
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -36,7 +34,6 @@ export function EditorPage() {
 
   // ── UI State ────────────────────────────────────────────────
   const [autoScroll, setAutoScroll] = useState(true);
-  const [peaks, setPeaks] = useState<WaveformPeaks>(null);
   const [showSynthesis, setShowSynthesis] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
       position: { x: number; y: number };
@@ -76,10 +73,10 @@ export function EditorPage() {
 
   // ── IO Hook ─────────────────────────────────────────────────
   const {
-      mediaUrl, openFile, saveSubtitleFile,
+      mediaUrl, openFile, openSubtitle, saveSubtitleFile,
       detectSilence, currentFilePath,
       loadVideo, loadSubtitleFromPath,
-  } = useEditorIO(setPeaks);
+  } = useEditorIO();
 
   // ── Action Hooks ────────────────────────────────────────────
   const { handleSave, handleTranslate, handleSmartSplit } = useEditorActions({
@@ -145,6 +142,7 @@ export function EditorPage() {
             autoScroll={autoScroll}
             setAutoScroll={setAutoScroll}
             onOpenFile={openFile}
+            onOpenSubtitle={openSubtitle}
             onSave={handleSave}
             onSaveAs={() => saveSubtitleFile(regions, true)}
             onSmartSplit={handleSmartSplit}
@@ -227,7 +225,6 @@ export function EditorPage() {
                     onRegionUpdate={handleRegionUpdateCallback}
                      onRegionClick={handleRegionClick}
                      onContextMenu={handleContextMenu}
-                     peaks={peaks}
                      selectedIds={selectedIds}
                      autoScroll={autoScroll}
                      onInteractStart={snapshot}

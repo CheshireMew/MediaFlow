@@ -16,7 +16,6 @@ from backend.services.media_refs import create_media_ref
 
 from .model_manager import ModelManager
 from .core_strategies import CoreStrategies
-from backend.utils.peaks_generator import start_peaks_warmup
 
 class ASRService:
     def __init__(self):
@@ -52,12 +51,6 @@ class ASRService:
         if use_cli:
             logger.info("Faster-Whisper CLI enabled. Using CLI transcription path.")
 
-        if generate_peaks:
-            try:
-                start_peaks_warmup(audio_path)
-            except Exception as e:
-                logger.warning(f"Peaks warmup failed to start (non-critical): {e}")
-        
         final_segments = []
         
         if use_cli:

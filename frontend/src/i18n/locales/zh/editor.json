@@ -1,9 +1,11 @@
 {
   "header": {
-    "title": "编辑器工作区",
+    "title": "编辑器",
     "subtitle": "时间轴 & 字幕",
     "openFileTooltip": "打开媒体文件 (Ctrl+O)",
     "openButton": "打开媒体",
+    "openSubtitleTooltip": "打开字幕文件",
+    "openSubtitleButton": "打开字幕",
     "autoScrollLabel": "自动滚动",
     "smartSplitTooltip": "按静音自动分割",
     "smartSplitButton": "智能分割",

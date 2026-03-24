@@ -159,56 +159,6 @@ async function request<T>(
   }
 }
 
-async function requestBinary(
-  endpoint: string,
-  options: RequestInit = {},
-  timeoutMs: number = 30_000,
-): Promise<ArrayBuffer> {
-  const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const res = await fetch(url, {
-      ...options,
-      signal: options.signal ?? controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (!res.ok) {
-      let errorMessage = `API request failed: ${res.status} ${res.statusText}`;
-      try {
-        const errorText = await res.text();
-        if (errorText) {
-          errorMessage = errorText;
-        }
-      } catch {
-        // Ignore body parsing error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await res.arrayBuffer();
-  } catch (error: unknown) {
-    clearTimeout(timeout);
-    if (error instanceof DOMException && error.name === "AbortError") {
-      const msg = `Request to ${endpoint} timed out after ${timeoutMs}ms`;
-      console.error(msg);
-      import("../utils/toast").then(({ toast }) => {
-        toast.error(msg);
-      });
-      throw new Error(msg);
-    }
-    const errorMsg =
-      error instanceof Error ? error.message : "An unexpected error occurred";
-    console.error(`Status: Error requesting ${endpoint}`, error);
-    import("../utils/toast").then(({ toast }) => {
-      toast.error(errorMsg);
-    });
-    throw error;
-  }
-}
-
 // ─── API Client ──────────────────────────────────────────────────
 
 export const apiClient = {
@@ -408,12 +358,6 @@ export const apiClient = {
   getLatestWatermark: () => {
     return request<ImagePreviewResponse | null>(
       "/editor/preview/watermark/latest",
-    );
-  },
-
-  getPeaks: (videoPath: string) => {
-    return requestBinary(
-      `/editor/peaks?video_path=${encodeURIComponent(videoPath)}`,
     );
   },
 

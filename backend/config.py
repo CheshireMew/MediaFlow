@@ -25,6 +25,8 @@ DEFAULT_DOWNLOADER_FORMATS = {
     "audio": "bestaudio[ext=m4a]/bestaudio/best",
 }
 
+RUNTIME_DIR_ENV = "MEDIAFLOW_RUNTIME_DIR"
+
 
 def _load_env_file(path: Path) -> dict[str, str]:
     if not path.exists():
@@ -89,17 +91,14 @@ class Settings:
         self.PORT = 8800
         self.TASK_MAX_CONCURRENT = 2
 
-        if getattr(sys, "frozen", False):
-            self.BASE_DIR = Path(sys.executable).resolve().parent.parent
-        else:
-            self.BASE_DIR = Path(__file__).resolve().parent.parent
-
-        self.WORKSPACE_DIR = self.BASE_DIR / "workspace"
-        self.TEMP_DIR = self.BASE_DIR / ".temp"
-        self.MODEL_DIR = self.BASE_DIR / "models"
-        self.OUTPUT_DIR = self.BASE_DIR / "output"
-        self.USER_DATA_DIR = self.BASE_DIR / "user_data"
-        self.BIN_DIR = self.BASE_DIR / "bin"
+        self.RESOURCE_DIR = self._resolve_resource_dir()
+        self.RUNTIME_DIR = self._resolve_runtime_dir()
+        self.WORKSPACE_DIR = self.RUNTIME_DIR / "workspace"
+        self.TEMP_DIR = self.RUNTIME_DIR / ".temp"
+        self.MODEL_DIR = self.RUNTIME_DIR / "models"
+        self.OUTPUT_DIR = self.RUNTIME_DIR / "output"
+        self.USER_DATA_DIR = self.RUNTIME_DIR / "user_data"
+        self.BIN_DIR = self.RESOURCE_DIR / "bin"
 
         self.FFMPEG_PATH = "ffmpeg"
         self.FFPROBE_PATH = "ffprobe"
@@ -120,7 +119,7 @@ class Settings:
         self.init_dirs()
 
     def _apply_env(self):
-        env_file = self.BASE_DIR / ".env"
+        env_file = self.RESOURCE_DIR / ".env"
         env = {**_load_env_file(env_file), **os.environ}
 
         self.APP_NAME = env.get("APP_NAME", self.APP_NAME)
@@ -166,6 +165,26 @@ class Settings:
         local_ffprobe = self.BIN_DIR / "ffprobe.exe"
         if local_ffprobe.exists():
             self.FFPROBE_PATH = str(local_ffprobe)
+
+    @staticmethod
+    def _resolve_resource_dir() -> Path:
+        if getattr(sys, "frozen", False):
+            return Path(sys.executable).resolve().parent.parent
+        return Path(__file__).resolve().parent.parent
+
+    def _resolve_runtime_dir(self) -> Path:
+        configured_runtime_dir = os.environ.get(RUNTIME_DIR_ENV)
+        if configured_runtime_dir:
+            return Path(configured_runtime_dir).expanduser().resolve()
+
+        if not getattr(sys, "frozen", False):
+            return self.RESOURCE_DIR
+
+        appdata = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA")
+        if appdata:
+            return Path(appdata).expanduser().resolve() / "mediaflow-ui" / "runtime"
+
+        return Path.home().resolve() / ".mediaflow-ui" / "runtime"
 
     def init_dirs(self):
         for path in [

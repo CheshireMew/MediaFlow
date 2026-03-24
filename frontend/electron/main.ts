@@ -1,6 +1,5 @@
 /// <reference types="node" />
 import { app, BrowserWindow, Menu, shell } from "electron";
-import path from "path";
 
 import { registerDialogHandlers } from "./ipc/dialog-handlers";
 import { registerWindowHandlers } from "./ipc/window-handlers";
@@ -8,6 +7,11 @@ import { registerCookieHandlers } from "./ipc/cookie-handlers";
 import { BackendFallbackProcess } from "./desktop/backendFallback";
 import { DesktopTaskHistoryStore } from "./desktop/historyStore";
 import { DesktopTaskCoordinator } from "./desktop/taskCoordinator";
+import {
+  isDesktopDevMode,
+  resolveDesktopPreloadScript,
+  resolveDesktopRendererTarget,
+} from "./desktopRuntime";
 
 const backendFallback = new BackendFallbackProcess();
 const desktopTaskCoordinator = new DesktopTaskCoordinator(new DesktopTaskHistoryStore());
@@ -20,7 +24,8 @@ function registerIpcHandlers() {
 }
 
 function createWindow() {
-  const isDev = process.env.IS_DEV === "true";
+  const isDev = isDesktopDevMode();
+  const rendererTarget = resolveDesktopRendererTarget();
 
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -29,22 +34,101 @@ function createWindow() {
     frame: false,
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: resolveDesktopPreloadScript(),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: !isDev,
     },
   });
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
+  let loadFailureHandled = false;
+  const revealWindow = () => {
+    if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+  };
+
+  mainWindow.once("ready-to-show", revealWindow);
+  mainWindow.webContents.once("did-finish-load", revealWindow);
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame || loadFailureHandled) {
+      return;
+    }
+
+    loadFailureHandled = true;
+    console.error(
+      `[Desktop] Failed to load renderer (${errorCode}): ${errorDescription}. Target: ${validatedURL || rendererTarget.target}`,
+    );
+    revealWindow();
+
+    const safeDescription = JSON.stringify(errorDescription);
+    const safeTarget = JSON.stringify(validatedURL || rendererTarget.target);
+    void mainWindow.loadURL(
+      `data:text/html;charset=UTF-8,${encodeURIComponent(`
+        <!doctype html>
+        <html lang="zh-CN">
+          <head>
+            <meta charset="UTF-8" />
+            <title>MediaFlow Startup Error</title>
+            <style>
+              body {
+                margin: 0;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #111827;
+                color: #e5e7eb;
+                font-family: "Segoe UI", sans-serif;
+              }
+              main {
+                width: min(720px, calc(100vw - 48px));
+                padding: 32px;
+                border-radius: 20px;
+                background: rgba(17, 24, 39, 0.92);
+                border: 1px solid rgba(148, 163, 184, 0.18);
+                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+              }
+              h1 {
+                margin: 0 0 12px;
+                font-size: 24px;
+              }
+              p {
+                margin: 0 0 12px;
+                line-height: 1.6;
+                color: #cbd5e1;
+              }
+              code {
+                display: block;
+                margin-top: 16px;
+                padding: 14px 16px;
+                border-radius: 12px;
+                background: rgba(15, 23, 42, 0.9);
+                color: #f8fafc;
+                word-break: break-all;
+                white-space: pre-wrap;
+              }
+            </style>
+          </head>
+          <body>
+            <main>
+              <h1>MediaFlow 桌面端启动失败</h1>
+              <p>前端页面入口没有成功加载，已阻止继续停留在黑屏状态。</p>
+              <p>请把下面这段信息发给开发者定位：</p>
+              <code>Target: ${safeTarget}
+Error: ${safeDescription}</code>
+            </main>
+          </body>
+        </html>
+      `)}`,
+    );
   });
 
-  if (isDev) {
-    mainWindow.loadURL("http://localhost:5173");
+  if (rendererTarget.kind === "url") {
+    mainWindow.loadURL(rendererTarget.target);
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+    mainWindow.loadFile(rendererTarget.target);
   }
 
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -66,6 +150,7 @@ function createWindow() {
         {
           label: "Open API Docs",
           click: async () => {
+            backendFallback.start();
             await shell.openExternal("http://localhost:8800/docs");
           },
         },
@@ -77,7 +162,6 @@ function createWindow() {
 
 app.on("ready", () => {
   registerIpcHandlers();
-  backendFallback.start();
   createWindow();
 });
 
