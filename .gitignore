@@ -16,8 +16,10 @@ temp/
 .pytest_cache/
 models/
 !backend/models/
-backend/models/*
-!backend/models/schemas.py
+backend/models/**
+!backend/models/*.py
+backend/models/__pycache__/
+backend/models/propainter_core/
 example/
 output/
 bin/
