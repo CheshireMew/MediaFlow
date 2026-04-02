@@ -11,24 +11,38 @@ import {
   ensureAiTranslationConfigured,
   ensureCliTranscriptionConfigured,
 } from "./executionAccess";
+import { settingsService } from "./settingsService";
 import {
   executeDesktopDirectResult,
   executeDesktopTaskSubmission,
 } from "./executionExecutor";
+import { restoreStoredAsrExecutionPreferences } from "../persistence/asrExecutionPreferences";
+import { restoreStoredTranslationPreferences } from "../persistence/translationPreferences";
+import {
+  restoreStoredSynthesisExecutionPreferences,
+} from "../persistence/synthesisExecutionPreferences";
+import {
+  buildSynthesisOptionsFromPreferences,
+  resolveSynthesisWatermarkPath,
+} from "./synthesisExecution";
 
 export { isDesktopRuntime } from "../desktop/bridge";
 
 type DownloadExecutionSettings = {
   default_download_path: string | null;
   auto_execute_flow: boolean;
-  transcription_model: string;
-  translation_target_language: string;
 };
 
 type DownloadStepParams = {
   url?: string;
   [key: string]: unknown;
 };
+
+function omitUndefinedFields<T extends Record<string, unknown>>(payload: T) {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
+}
 
 export function resolveDownloadStepParams(pipeline: PipelineRequest) {
   const downloadStep = pipeline.steps.find((step) => step.step_name === "download");
@@ -44,18 +58,88 @@ export function resolveDownloadStepParams(pipeline: PipelineRequest) {
   return params;
 }
 
-export function createDesktopDownloadSubmissionPayload(
+function appendAutoExecutionSteps(
+  pipeline: PipelineRequest,
+  stepFactory: () => Array<PipelineRequest["steps"][number]>,
+) {
+  if (pipeline.steps.length !== 1) {
+    return pipeline;
+  }
+
+  return {
+    ...pipeline,
+    steps: [...pipeline.steps, ...stepFactory()],
+  };
+}
+
+async function buildSharedSynthesisExecutionPayload() {
+  const synthesisPreferences = restoreStoredSynthesisExecutionPreferences();
+  return {
+    options: buildSynthesisOptionsFromPreferences(synthesisPreferences),
+    watermarkPath: await resolveSynthesisWatermarkPath(synthesisPreferences),
+  };
+}
+
+async function buildSharedAutoExecutionSteps(includeTranscription: boolean) {
+  const asrPreferences = restoreStoredAsrExecutionPreferences();
+  const translationPreferences = restoreStoredTranslationPreferences();
+  const synthesisPayload = await buildSharedSynthesisExecutionPayload();
+  const steps: Array<PipelineRequest["steps"][number]> = [];
+
+  if (includeTranscription) {
+    steps.push({
+      step_name: "transcribe",
+      params: {
+        engine: asrPreferences.engine,
+        model: asrPreferences.model,
+        device: asrPreferences.device,
+        vad_filter: true,
+      },
+    });
+  }
+
+  steps.push({
+    step_name: "translate",
+    params: {
+      target_language: translationPreferences.targetLanguage,
+      mode: translationPreferences.mode,
+    },
+  });
+  steps.push({
+    step_name: "synthesize",
+    params: {
+      options: synthesisPayload.options,
+      watermark_path: synthesisPayload.watermarkPath,
+    },
+  });
+
+  return {
+    asrPreferences,
+    translationPreferences,
+    synthesisPayload,
+    steps,
+  };
+}
+
+export async function createDesktopDownloadSubmissionPayload(
   pipeline: PipelineRequest,
   settings?: DownloadExecutionSettings,
 ) {
-  return {
+  const autoExecution = settings?.auto_execute_flow
+    ? await buildSharedAutoExecutionSteps(false)
+    : null;
+  return omitUndefinedFields({
     ...resolveDownloadStepParams(pipeline),
     output_dir: settings?.default_download_path || undefined,
     auto_execute_flow: settings?.auto_execute_flow,
-    transcription_model: settings?.transcription_model,
-    target_language: settings?.translation_target_language,
-    device: "cpu",
-  };
+    transcription_engine: autoExecution?.asrPreferences.engine,
+    transcription_model: autoExecution?.asrPreferences.model,
+    translation_mode: autoExecution?.translationPreferences.mode,
+    target_language: autoExecution?.translationPreferences.targetLanguage,
+    device: autoExecution?.asrPreferences.device,
+    synthesis_options: autoExecution?.synthesisPayload.options,
+    watermark_path: autoExecution?.synthesisPayload.watermarkPath,
+  });
 }
 
 export const executionService = {
@@ -87,7 +171,11 @@ export const executionService = {
       desktopMethod: "desktopTranscribe",
       desktopUnavailableMessage: "Desktop transcription worker is unavailable.",
       backendSubmit: async (normalizedPayload) => {
-        const pipelineReq: PipelineRequest = {
+        const settings = await settingsService.getSettings();
+        const autoExecution = settings.auto_execute_flow
+          ? await buildSharedAutoExecutionSteps(false)
+          : null;
+        const basePipelineReq: PipelineRequest = {
           pipeline_id: "transcriber_tool",
           task_name: `Transcribe ${getExecutionMediaDisplayName({
             reference: normalizedPayload.audio_ref ?? null,
@@ -110,6 +198,10 @@ export const executionService = {
             },
           ],
         };
+        const pipelineReq =
+          settings.auto_execute_flow
+            ? appendAutoExecutionSteps(basePipelineReq, () => autoExecution?.steps ?? [])
+            : basePipelineReq;
 
         return await import("../../api/client").then(({ apiClient }) =>
           apiClient.runPipeline(pipelineReq),
@@ -207,10 +299,18 @@ export const executionService = {
     pipeline: PipelineRequest,
     settings?: DownloadExecutionSettings,
   ): Promise<ExecutionOutcome<never>> {
+    const autoExecution = settings?.auto_execute_flow
+      ? await buildSharedAutoExecutionSteps(true)
+      : null;
+    const pipelineForSubmission =
+      settings?.auto_execute_flow
+        ? appendAutoExecutionSteps(pipeline, () => autoExecution?.steps ?? [])
+        : pipeline;
+
     return await executeDesktopTaskSubmission({
       payload: {
-        pipeline,
-        desktopPayload: createDesktopDownloadSubmissionPayload(pipeline, settings),
+        pipeline: pipelineForSubmission,
+        desktopPayload: await createDesktopDownloadSubmissionPayload(pipeline, settings),
       },
       normalizePayload: ({ pipeline: nextPipeline, desktopPayload }) => ({
         pipeline: nextPipeline,

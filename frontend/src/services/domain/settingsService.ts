@@ -7,6 +7,7 @@ import type {
   UserSettings,
 } from "../../types/api";
 import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop/bridge";
+import { resolveSmartSplitTextLimit } from "../../utils/subtitleSmartSplit";
 
 export const settingsService = {
   getSettings(): Promise<UserSettings> {
@@ -69,5 +70,12 @@ export const settingsService = {
     return callBackendFallback("settingsService", "updateYtDlp", () =>
       import("../../api/client").then(({ apiClient }) => apiClient.updateYtDlp()),
     );
+  },
+
+  async getSmartSplitTextLimit(): Promise<number> {
+    const settings = await Promise.resolve(settingsService.getSettings()).catch(
+      () => null,
+    );
+    return resolveSmartSplitTextLimit(settings);
   },
 };

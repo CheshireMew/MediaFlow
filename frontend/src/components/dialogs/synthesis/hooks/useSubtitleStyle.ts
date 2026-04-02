@@ -9,9 +9,9 @@ import type { SubtitlePreset } from "../types";
 import { isFontAvailable } from "../fontUtils";
 import { computeDefaultSubtitleFontSize } from "../textShaper";
 import {
-  restoreSubtitleStyleSnapshot,
-  updateSubtitleStyleSnapshot,
-} from "../subtitleStylePersistence";
+  updateStoredSynthesisExecutionPreferences,
+  type SynthesisExecutionPreferences,
+} from "../../../../services/persistence/synthesisExecutionPreferences";
 
 export interface SubtitleStyleState {
   // Style values
@@ -70,6 +70,7 @@ export function useSubtitleStyle(
   currentTime: number,
   videoHeight: number,
   videoPath: string | null,
+  persistedPreferences: SynthesisExecutionPreferences,
 ): SubtitleStyleState {
   // --- State ---
   const [fontSize, setFontSizeState] = useState(24);
@@ -121,25 +122,25 @@ export function useSubtitleStyle(
     if (!isOpen) return;
     const timer = setTimeout(() => {
       try {
-        const snapshot = restoreSubtitleStyleSnapshot();
+        const subtitleStyle = persistedPreferences.subtitleStyle;
 
-        setCustomPresets(snapshot.customPresets);
+        setCustomPresets(subtitleStyle.customPresets);
         lastRecommendedVideoKey.current = null;
-        setFontName(snapshot.fontName);
-        setIsBold(snapshot.isBold);
-        setIsItalic(snapshot.isItalic);
-        setOutlineSize(snapshot.outlineSize);
-        setShadowSize(snapshot.shadowSize);
-        setOutlineColor(snapshot.outlineColor);
-        setBgEnabled(snapshot.bgEnabled);
-        setBgColor(snapshot.bgColor);
-        setBgOpacity(snapshot.bgOpacity);
-        setBgPadding(snapshot.bgPadding);
-        setAlignment(snapshot.alignment);
-        setMultilineAlign(snapshot.multilineAlign);
-        setFontSizeState(snapshot.fontSize);
-        setFontColor(snapshot.fontColor);
-        setSubPos(snapshot.subPos);
+        setFontName(subtitleStyle.fontName);
+        setIsBold(subtitleStyle.isBold);
+        setIsItalic(subtitleStyle.isItalic);
+        setOutlineSize(subtitleStyle.outlineSize);
+        setShadowSize(subtitleStyle.shadowSize);
+        setOutlineColor(subtitleStyle.outlineColor);
+        setBgEnabled(subtitleStyle.bgEnabled);
+        setBgColor(subtitleStyle.bgColor);
+        setBgOpacity(subtitleStyle.bgOpacity);
+        setBgPadding(subtitleStyle.bgPadding);
+        setAlignment(subtitleStyle.alignment);
+        setMultilineAlign(subtitleStyle.multilineAlign);
+        setFontSizeState(subtitleStyle.fontSize);
+        setFontColor(subtitleStyle.fontColor);
+        setSubPos(subtitleStyle.subPos);
       } catch (e) {
         console.error("Failed to restore subtitle styles", e);
       }
@@ -149,7 +150,7 @@ export function useSubtitleStyle(
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [isOpen, videoHeight]);
+  }, [isOpen, persistedPreferences.subtitleStyle, videoHeight]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -177,27 +178,31 @@ export function useSubtitleStyle(
   // --- Save position ---
   useEffect(() => {
     if (!isInitialized.current) return;
-    updateSubtitleStyleSnapshot({ subPos });
+    updateStoredSynthesisExecutionPreferences({
+      subtitleStyle: { subPos },
+    });
   }, [subPos]);
 
   // --- Save style settings ---
   useEffect(() => {
     if (!isInitialized.current) return;
-    updateSubtitleStyleSnapshot({
-      fontName,
-      isBold,
-      isItalic,
-      outlineSize,
-      shadowSize,
-      outlineColor,
-      bgEnabled,
-      bgColor,
-      bgOpacity,
-      bgPadding,
-      alignment,
-      multilineAlign,
-      fontSize,
-      fontColor,
+    updateStoredSynthesisExecutionPreferences({
+      subtitleStyle: {
+        fontName,
+        isBold,
+        isItalic,
+        outlineSize,
+        shadowSize,
+        outlineColor,
+        bgEnabled,
+        bgColor,
+        bgOpacity,
+        bgPadding,
+        alignment,
+        multilineAlign,
+        fontSize,
+        fontColor,
+      },
     });
   }, [
     fontName,
@@ -257,14 +262,18 @@ export function useSubtitleStyle(
     };
     const updated = [...customPresets, newPreset];
     setCustomPresets(updated);
-    updateSubtitleStyleSnapshot({ customPresets: updated });
+    updateStoredSynthesisExecutionPreferences({
+      subtitleStyle: { customPresets: updated },
+    });
     setPresetNameInput(null);
   };
 
   const deletePreset = (label: string) => {
     const updated = customPresets.filter((p) => p.label !== label);
     setCustomPresets(updated);
-    updateSubtitleStyleSnapshot({ customPresets: updated });
+    updateStoredSynthesisExecutionPreferences({
+      subtitleStyle: { customPresets: updated },
+    });
   };
 
   return {

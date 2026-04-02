@@ -15,8 +15,6 @@ class DummySettingsManager:
         return SimpleNamespace(
             default_download_path=None,
             auto_execute_flow=False,
-            transcription_model="base",
-            translation_target_language="Chinese",
         )
 
 

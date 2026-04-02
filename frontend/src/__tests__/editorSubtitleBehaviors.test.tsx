@@ -7,6 +7,7 @@ import {
 } from "../components/dialogs/findReplaceUtils";
 import { useCrop } from "../components/dialogs/synthesis/hooks/useCrop";
 import { useSubtitleStyle } from "../components/dialogs/synthesis/hooks/useSubtitleStyle";
+import { restoreStoredSynthesisExecutionPreferences } from "../services/persistence/synthesisExecutionPreferences";
 import {
   computeDefaultSubtitleFontSize,
   computePreviewScaledValue,
@@ -29,6 +30,11 @@ import {
   resolveTranslationNavigationPayload,
 } from "../hooks/editor/useEditorActions";
 import { isSupportedEditorSubtitlePath } from "../hooks/editor/editorFileHelpers";
+import {
+  DEFAULT_SMART_SPLIT_TEXT_LIMIT,
+  normalizeSmartSplitTextLimit,
+  smartSplitSubtitleSegments,
+} from "../utils/subtitleSmartSplit";
 import {
   getTranslatorAutoloadSuffixes,
   getTranslatorOutputSuffix,
@@ -72,6 +78,50 @@ describe("editor subtitle behaviors", () => {
     expect(fixed).not.toBe(input);
     expect(fixed[1].start).toBe(1.05);
     expect(fixed[1].end).toBe(2.15);
+  });
+
+  test("smart split reuses one rule set for long subtitle rows and renumbers the result", () => {
+    const input = [
+      {
+        id: "7",
+        start: 0,
+        end: 6,
+        text: "hello world this sentence is intentionally long enough to trigger smart split behavior here",
+      },
+      {
+        id: "9",
+        start: 6,
+        end: 7.2,
+        text: "short",
+      },
+    ];
+
+    const result = smartSplitSubtitleSegments(input);
+
+    expect(result.splitCount).toBe(1);
+    expect(result.segments).toHaveLength(3);
+    expect(result.segments.map((segment) => segment.id)).toEqual(["1", "2", "3"]);
+    expect(result.segments[0].text).not.toBe("");
+    expect(result.segments[1].text).not.toBe("");
+    expect(result.segments[2].text).toBe("short");
+  });
+
+  test("smart split text limit keeps the current default and can suppress splitting when raised", () => {
+    const input = [
+      {
+        id: "1",
+        start: 0,
+        end: 6,
+        text: "这是一个长度刚好足以触发当前智能分割规则的中文字幕文本示例",
+      },
+    ];
+
+    expect(DEFAULT_SMART_SPLIT_TEXT_LIMIT).toBe(24);
+    expect(normalizeSmartSplitTextLimit(undefined)).toBe(24);
+    expect(smartSplitSubtitleSegments(input).splitCount).toBe(1);
+    expect(
+      smartSplitSubtitleSegments(input, { textLimit: 40 }).splitCount,
+    ).toBe(0);
   });
 
   test("editor only accepts srt subtitle files", () => {
@@ -298,6 +348,7 @@ describe("editor subtitle behaviors", () => {
 
   test("subtitle style recommends a new font size when switching videos before manual override", async () => {
     localStorage.removeItem("sub_fontSize");
+    localStorage.removeItem("synthesis_execution_preferences");
     const originalGetContext = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = (() =>
       ({
@@ -308,7 +359,14 @@ describe("editor subtitle behaviors", () => {
     try {
       const { result, rerender } = renderHook(
         ({ videoHeight, videoPath }) =>
-          useSubtitleStyle(true, [], 0, videoHeight, videoPath),
+          useSubtitleStyle(
+            true,
+            [],
+            0,
+            videoHeight,
+            videoPath,
+            restoreStoredSynthesisExecutionPreferences(),
+          ),
         {
           initialProps: { videoHeight: 1080, videoPath: "E:/video-a.mp4" },
         },
@@ -327,6 +385,7 @@ describe("editor subtitle behaviors", () => {
 
   test("subtitle style recalculates the recommended font size whenever the video changes", async () => {
     localStorage.removeItem("sub_fontSize");
+    localStorage.removeItem("synthesis_execution_preferences");
     const originalGetContext = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = (() =>
       ({
@@ -337,7 +396,14 @@ describe("editor subtitle behaviors", () => {
     try {
       const { result, rerender } = renderHook(
         ({ videoHeight, videoPath }) =>
-          useSubtitleStyle(true, [], 0, videoHeight, videoPath),
+          useSubtitleStyle(
+            true,
+            [],
+            0,
+            videoHeight,
+            videoPath,
+            restoreStoredSynthesisExecutionPreferences(),
+          ),
         {
           initialProps: { videoHeight: 1080, videoPath: "E:/video-a.mp4" },
         },

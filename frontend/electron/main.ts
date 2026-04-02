@@ -126,7 +126,7 @@ Error: ${safeDescription}</code>
 
   if (rendererTarget.kind === "url") {
     mainWindow.loadURL(rendererTarget.target);
-    mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
     mainWindow.loadFile(rendererTarget.target);
   }

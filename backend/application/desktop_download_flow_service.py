@@ -31,11 +31,15 @@ class DesktopDownloadFlowRequest(BaseModel):
     local_source: Optional[str] = None
     codec: str = "best"
     auto_execute_flow: bool = False
+    transcription_engine: str = "builtin"
     transcription_model: str = "base"
     device: str = "cpu"
     language: Optional[str] = None
     initial_prompt: Optional[str] = None
     target_language: str = "Chinese"
+    translation_mode: str = "standard"
+    synthesis_options: dict | None = None
+    watermark_path: Optional[str] = None
 
 
 class DesktopDownloadFlowService:
@@ -117,6 +121,7 @@ class DesktopDownloadFlowService:
             language=request.language,
             initial_prompt=request.initial_prompt,
             task_id=request.task_id,
+            engine=request.transcription_engine,
             progress_callback=transcribe_progress,
         )
         if not asr_result.success:
@@ -150,14 +155,14 @@ class DesktopDownloadFlowService:
         translated_segments = self._translator.translate_segments(
             segments=segments,
             target_language=request.target_language,
-            mode="standard",
+            mode=request.translation_mode,
             batch_size=10,
             progress_callback=translate_progress,
         )
         translation_result = build_translation_task_result(
             translated_segments,
             target_language=request.target_language,
-            mode="standard",
+            mode=request.translation_mode,
             context_path=subtitle_path,
         )
         translated_srt_path = translation_result.meta.get("srt_path")
@@ -189,8 +194,8 @@ class DesktopDownloadFlowService:
                     f"{Path(media_path).stem}_synthesized{Path(media_path).suffix}"
                 )
             ),
-            watermark_path=None,
-            options={},
+            watermark_path=request.watermark_path,
+            options=request.synthesis_options or {},
             progress_callback=synthesize_progress,
         )
         result.files.append(

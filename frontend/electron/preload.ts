@@ -119,11 +119,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   }) => ipcRenderer.invoke("desktop:extract", payload),
   getDesktopOcrResults: (videoPath: string) =>
     ipcRenderer.invoke("desktop:get-ocr-results", { video_path: videoPath }),
-  detectDesktopSilence: (payload: {
-    file_path: string;
-    threshold: string;
-    min_duration: number;
-  }) => ipcRenderer.invoke("desktop:detect-silence", payload),
   desktopTranscribeSegment: (payload: {
     audio_path: string;
     start: number;

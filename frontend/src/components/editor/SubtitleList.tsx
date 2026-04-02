@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
-import { Trash2, Wand2 } from 'lucide-react';
+import { Scissors, Trash2, Wand2 } from 'lucide-react';
 import { validateSegment, fixOverlaps } from '../../utils/validation';
 import { highlightSubtitleText } from './subtitleTextHighlight';
 
@@ -72,6 +72,8 @@ interface SubtitleListProps {
     onSegmentMerge: (ids: string[]) => void;
     onSegmentDoubleClick: (id: string) => void;
     onContextMenu: (e: React.MouseEvent, id: string) => void;
+    onSmartSplit: () => void | Promise<void>;
+    isSmartSplitting?: boolean;
     onAutoFix?: (newSegments: SubtitleSegment[]) => void;
     searchTerm?: string;
     matchCase?: boolean;
@@ -90,6 +92,8 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
         onSegmentMerge,
         onSegmentDoubleClick,
         onContextMenu,
+        onSmartSplit,
+        isSmartSplitting = false,
         onAutoFix,
         searchTerm,
         matchCase
@@ -256,26 +260,42 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
     return (
         <div className="flex flex-col h-full bg-[#1a1a1a] border-r border-white/5 relative">
              {/* Toolbar */}
-             <div className="p-2 border-b border-white/5 flex gap-2 bg-[#1a1a1a] shrink-0 z-20">
-                <button 
-                  disabled={selectedIds.length < 2 || !isContinuous}
-                  title={!isContinuous && selectedIds.length >= 2 ? t('subtitleList.mergeAdjacentError') : t('subtitleList.mergeTooltip')}
-                  onClick={handleMerge}
-                  className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-300 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5"
-                >
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                    {t('subtitleList.mergeButton')} ({selectedIds.length})
-                </button>
-                
-                {onAutoFix && hasOverlaps && (
-                    <button
-                        onClick={handleAutoFix}
-                        className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 animate-pulse"
-                        title={t('subtitleList.autoFixTooltip')}
+             <div className="p-2 border-b border-white/5 flex flex-wrap items-center gap-2 bg-[#1a1a1a] shrink-0 z-20">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <button 
+                      disabled={selectedIds.length < 2 || !isContinuous}
+                      title={!isContinuous && selectedIds.length >= 2 ? t('subtitleList.mergeAdjacentError') : t('subtitleList.mergeTooltip')}
+                      onClick={handleMerge}
+                      className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-300 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap"
                     >
-                        <Wand2 size={12} /> {t('subtitleList.autoFixButton')}
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        {t('subtitleList.mergeButton')} ({selectedIds.length})
                     </button>
-                )}
+                    
+                    {onAutoFix && hasOverlaps && (
+                        <button
+                            onClick={handleAutoFix}
+                            className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 animate-pulse whitespace-nowrap"
+                            title={t('subtitleList.autoFixTooltip')}
+                        >
+                            <Wand2 size={12} /> {t('subtitleList.autoFixButton')}
+                        </button>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 ml-auto">
+                    <button
+                        onClick={onSmartSplit}
+                        disabled={segments.length === 0 || isSmartSplitting}
+                        title={t('subtitleList.smartSplitTooltip')}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 disabled:bg-white/5 text-amber-300 disabled:text-slate-500 border border-amber-500/20 disabled:border-white/5 text-xs font-medium transition-colors whitespace-nowrap"
+                    >
+                        <Scissors className="w-3.5 h-3.5" />
+                        {isSmartSplitting
+                            ? t('subtitleList.smartSplittingButton')
+                            : t('subtitleList.smartSplitButton')}
+                    </button>
+                </div>
              </div>
 
              {/* Header */}

@@ -11,6 +11,7 @@ import {
   enqueueExecutionTask,
   executionService,
   isDesktopRuntime,
+  settingsService,
   type NullableExecutionMode,
 } from "../../services/domain";
 import { isCliTranscriptionSetupRequiredError } from "../../services/domain/executionAccess";
@@ -28,7 +29,7 @@ import {
 import type { ElectronFile } from "../../types/electron";
 import type { TranscribeResult, TranscriptionEngine } from "../../types/transcriber";
 import { toSRT } from "../../utils/subtitleParser";
-import { smartSplitTranscriptionResult } from "../../utils/transcriberSmartSplit";
+import { smartSplitSubtitleSegments } from "../../utils/subtitleSmartSplit";
 import { toast } from "../../utils/toast";
 
 type UseTranscriberCommandsArgs = {
@@ -331,13 +332,21 @@ export function useTranscriberCommands({
       return;
     }
 
-    const { result: nextResult, splitCount } =
-      smartSplitTranscriptionResult(result);
+    const textLimit = await settingsService.getSmartSplitTextLimit();
+    const { segments, splitCount } = smartSplitSubtitleSegments(result.segments, {
+      textLimit,
+    });
 
     if (splitCount === 0) {
       toast.info(t("results.smartSplitNoChanges"));
       return;
     }
+
+    const nextResult = {
+      ...result,
+      segments,
+      text: segments.map((segment) => segment.text).join(" ").trim(),
+    };
 
     const targetPath = nextResult.subtitle_ref?.path ?? null;
 

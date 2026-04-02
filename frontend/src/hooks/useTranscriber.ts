@@ -6,11 +6,14 @@ import {
   selectTaskById,
 } from "./tasks/taskSelectors";
 import {
-  restoreStoredTranscriberSnapshot,
   restoreStoredTranscriberFile,
   restoreStoredTranscriberResult,
   useTranscriberPersistence,
 } from "./transcriber/useTranscriberPersistence";
+import {
+  persistStoredAsrExecutionPreferences,
+  restoreStoredAsrExecutionPreferences,
+} from "../services/persistence/asrExecutionPreferences";
 import { useTranscriberNavigation } from "./transcriber/useTranscriberNavigation";
 import { useTranscriberCommands } from "./transcriber/useTranscriberCommands";
 import { useTranscriberTaskSync } from "./transcriber/useTranscriberTaskSync";
@@ -25,18 +28,17 @@ import { useExecutionModeState } from "./execution/useExecutionModeState";
 
 export function useTranscriber() {
   const { tasks, tasksSettled } = useTaskContext();
-  const persistedSnapshot = restoreStoredTranscriberSnapshot();
   const { executionMode, setExecutionMode } = useExecutionModeState("transcriber");
 
   // Settings
   const [model, setModel] = useState(
-    () => persistedSnapshot?.model || "base",
+    () => restoreStoredAsrExecutionPreferences().model,
   );
   const [device, setDevice] = useState(
-    () => persistedSnapshot?.device || "cpu",
+    () => restoreStoredAsrExecutionPreferences().device,
   );
   const [engine, setEngine] = useState<"builtin" | "cli">(
-    () => persistedSnapshot?.engine || "builtin",
+    () => restoreStoredAsrExecutionPreferences().engine,
   );
 
   const [isUploading, setIsUploading] = useState(false);
@@ -61,12 +63,17 @@ export function useTranscriber() {
   );
 
   useTranscriberPersistence({
-    engine,
-    model,
-    device,
     result,
     file,
   });
+
+  useEffect(() => {
+    persistStoredAsrExecutionPreferences({
+      engine,
+      model,
+      device,
+    });
+  }, [device, engine, model]);
 
   useTranscriberNavigation({ setFile, setResult, setActiveTaskId });
   useTranscriberTaskSync({

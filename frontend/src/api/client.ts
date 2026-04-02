@@ -20,7 +20,6 @@ export type {
   ProviderConnectionRequest,
   ProviderConnectionResponse,
   ToolUpdateResponse,
-  DetectSilenceResponse,
   ImagePreviewResponse,
   SynthesizeOptions,
   SynthesizeRequest,
@@ -51,7 +50,6 @@ import type {
   ProviderConnectionRequest,
   ProviderConnectionResponse,
   ToolUpdateResponse,
-  DetectSilenceResponse,
   ImagePreviewResponse,
   SynthesizeRequest,
   TranscribeSegmentRequest,
@@ -326,17 +324,6 @@ export const apiClient = {
     return request<ToolUpdateResponse>("/settings/update-yt-dlp", {
       method: "POST",
     }, 300_000);
-  },
-
-  detectSilence: (payload: {
-    file_path: string;
-    threshold: string;
-    min_duration: number;
-  }) => {
-    return request<DetectSilenceResponse>("/audio/detect-silence", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
   },
 
   synthesizeVideo: (payload: SynthesizeRequest) => {

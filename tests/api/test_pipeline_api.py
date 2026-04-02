@@ -14,8 +14,6 @@ class StubSettingsManager:
     def get_settings(self) -> UserSettings:
         return UserSettings(
             default_download_path="E:/Downloads",
-            translation_target_language="Japanese",
-            transcription_model="large-v3-turbo",
             auto_execute_flow=True,
         )
 
@@ -56,17 +54,10 @@ def test_prepare_pipeline_request_applies_downloader_defaults():
     payload = prepared.model_dump(mode="json")
 
     assert payload["steps"][0]["params"]["output_dir"] == "E:/Downloads"
-    assert [step["step_name"] for step in payload["steps"]] == [
-        "download",
-        "transcribe",
-        "translate",
-        "synthesize",
-    ]
-    assert payload["steps"][1]["params"]["model"] == "large-v3-turbo"
-    assert payload["steps"][2]["params"]["target_language"] == "Japanese"
+    assert [step["step_name"] for step in payload["steps"]] == ["download"]
 
 
-def test_prepare_pipeline_request_expands_transcriber_auto_flow():
+def test_prepare_pipeline_request_keeps_transcriber_pipeline_unchanged():
     request = PipelineRequest.model_validate(
         {
             "pipeline_id": "transcriber_tool",
@@ -88,10 +79,5 @@ def test_prepare_pipeline_request_expands_transcriber_auto_flow():
     prepared = _create_orchestrator().prepare_pipeline_request(request)
     payload = prepared.model_dump(mode="json")
 
-    assert [step["step_name"] for step in payload["steps"]] == [
-        "transcribe",
-        "translate",
-        "synthesize",
-    ]
+    assert [step["step_name"] for step in payload["steps"]] == ["transcribe"]
     assert payload["steps"][0]["params"]["model"] == "small"
-    assert payload["steps"][1]["params"]["target_language"] == "Japanese"

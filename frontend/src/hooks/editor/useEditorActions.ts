@@ -1,4 +1,5 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { SubtitleSegment } from "../../types/task";
 import {
   createMediaReference,
@@ -10,6 +11,9 @@ import {
   NavigationService,
   type NavigationPayload,
 } from "../../services/ui/navigation";
+import { settingsService } from "../../services/domain";
+import { smartSplitSubtitleSegments } from "../../utils/subtitleSmartSplit";
+import { toast } from "../../utils/toast";
 
 // ─── Types ──────────────────────────────────────────────────────
 interface UseEditorActionsArgs {
@@ -22,15 +26,14 @@ interface UseEditorActionsArgs {
     regions: SubtitleSegment[],
     saveAs?: boolean,
   ) => Promise<string | boolean>;
-  detectSilence: () => Promise<[number, number][] | null>;
   replaceRegionsWithUndo: (regions: SubtitleSegment[]) => void;
-  videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
 interface UseEditorActionsReturn {
   handleSave: () => Promise<void>;
   handleTranslate: () => Promise<void>;
   handleSmartSplit: () => Promise<void>;
+  isSmartSplitting: boolean;
 }
 
 export function resolveSubtitleReferenceForTranslation(params: {
@@ -113,10 +116,11 @@ export function useEditorActions({
   currentSubtitleRef,
   regions,
   saveSubtitleFile,
-  detectSilence,
   replaceRegionsWithUndo,
-  videoRef,
 }: UseEditorActionsArgs): UseEditorActionsReturn {
+  const { t } = useTranslation("editor");
+  const [isSmartSplitting, setIsSmartSplitting] = useState(false);
+
   const handleSave = useCallback(async () => {
     try {
       console.log(
@@ -168,47 +172,31 @@ export function useEditorActions({
   ]);
 
   const handleSmartSplit = useCallback(async () => {
-    if (
-      !confirm(
-        "Start Smart Split (Voice Detection)?\n\nThis will OVERWRITE segments based on detected voice activity (non-silence).",
-      )
-    )
+    if (regions.length === 0 || isSmartSplitting) {
       return;
-
-    try {
-      const silences = await detectSilence();
-      const duration = videoRef.current?.duration || 0;
-
-      if (silences && silences.length > 0 && duration > 0) {
-        const speechSegments: { start: number; end: number }[] = [];
-        let lastEnd = 0;
-
-        silences.forEach(([silStart, silEnd]) => {
-          if (silStart > lastEnd + 0.1) {
-            speechSegments.push({ start: lastEnd, end: silStart });
-          }
-          lastEnd = Math.max(lastEnd, silEnd);
-        });
-
-        if (lastEnd < duration - 0.1) {
-          speechSegments.push({ start: lastEnd, end: duration });
-        }
-
-        const newSegments = speechSegments.map((seg, idx) => ({
-          id: String(idx + 1),
-          start: seg.start,
-          end: seg.end,
-          text: "",
-        }));
-
-        replaceRegionsWithUndo(newSegments);
-      } else {
-        alert("No silence/speech pattern detected.");
-      }
-    } catch (e) {
-      alert("Failed to run detection. " + e);
     }
-  }, [detectSilence, replaceRegionsWithUndo, videoRef]);
 
-  return { handleSave, handleTranslate, handleSmartSplit };
+    setIsSmartSplitting(true);
+    try {
+      const textLimit = await settingsService.getSmartSplitTextLimit();
+      const { segments, splitCount } = smartSplitSubtitleSegments(regions, {
+        textLimit,
+      });
+
+      if (splitCount === 0) {
+        toast.info(t("subtitleList.smartSplitNoChanges"));
+        return;
+      }
+
+      replaceRegionsWithUndo(segments);
+      toast.success(t("subtitleList.smartSplitSuccess", { count: splitCount }));
+    } catch (error) {
+      console.error("[EditorActions] Smart split failed", error);
+      toast.error(t("subtitleList.smartSplitError"));
+    } finally {
+      setIsSmartSplitting(false);
+    }
+  }, [isSmartSplitting, regions, replaceRegionsWithUndo, t]);
+
+  return { handleSave, handleTranslate, handleSmartSplit, isSmartSplitting };
 }

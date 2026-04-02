@@ -1,12 +1,23 @@
 import shutil
 
-from backend.services.settings_manager import LLMProvider, SettingsManager, UserSettings
+from backend.services.settings_manager import (
+    LLMProvider,
+    SMART_SPLIT_TEXT_LIMIT_DEFAULT,
+    SettingsManager,
+    UserSettings,
+)
 
 
-def test_settings_manager_defaults_translation_target_language():
+def test_settings_manager_defaults_auto_execute_flow_disabled():
     settings = UserSettings()
 
-    assert settings.translation_target_language == "Chinese"
+    assert settings.auto_execute_flow is False
+
+
+def test_settings_manager_defaults_smart_split_threshold():
+    settings = UserSettings()
+
+    assert settings.smart_split_text_limit == SMART_SPLIT_TEXT_LIMIT_DEFAULT
 
 
 def test_settings_manager_normalizes_active_provider_selection():

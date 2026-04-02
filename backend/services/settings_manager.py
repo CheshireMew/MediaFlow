@@ -15,14 +15,18 @@ class LLMProvider(BaseModel):
     model: str
     is_active: bool = False
 
+SMART_SPLIT_TEXT_LIMIT_DEFAULT = 24
+
 class UserSettings(BaseModel):
     llm_providers: List[LLMProvider] = []
     default_download_path: Optional[str] = None
     faster_whisper_cli_path: Optional[str] = None
     language: str = "zh"
-    translation_target_language: str = "Chinese"
-    transcription_model: str = "base"
     auto_execute_flow: bool = False
+    smart_split_text_limit: int = Field(
+        default=SMART_SPLIT_TEXT_LIMIT_DEFAULT,
+        ge=1,
+    )
 
 class SettingsManager:
     _legacy_file_path = settings.RESOURCE_DIR / "data" / "user_settings.json"

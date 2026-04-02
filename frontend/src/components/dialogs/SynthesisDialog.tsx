@@ -7,18 +7,20 @@ import { MonitorPlay } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
 import type { SynthesizeOptions } from '../../types/api';
-import { hexToAss } from './synthesis/types';
-import { computeSynthesisFontSize } from './synthesis/textShaper';
 import { useSubtitleStyle } from './synthesis/hooks/useSubtitleStyle';
 import { useWatermark } from './synthesis/hooks/useWatermark';
 import { useOutputSettings } from './synthesis/hooks/useOutputSettings';
 import { useCrop } from './synthesis/hooks/useCrop';
-import { restoreSynthesisSettingsSnapshot, updateSynthesisSettingsSnapshot } from './synthesis/synthesisPersistence';
 import { SubtitleStylePanel } from './synthesis/components/SubtitleStylePanel';
 import { WatermarkPanel } from './synthesis/components/WatermarkPanel';
 import { OutputSettingsPanel } from './synthesis/components/OutputSettingsPanel';
 import { VideoPreview } from './synthesis/components/VideoPreview';
 import { desktopEventsService } from '../../services/desktop';
+import {
+    restoreStoredSynthesisExecutionPreferences,
+    updateStoredSynthesisExecutionPreferences,
+} from '../../services/persistence/synthesisExecutionPreferences';
+import { buildSynthesisOptionsFromPreferences } from '../../services/domain/synthesisExecution';
 
 interface SynthesisDialogProps {
     isOpen: boolean;
@@ -37,7 +39,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     isOpen, onClose, regions, videoPath, mediaUrl, onSynthesize
 }) => {
     const { t } = useTranslation('synthesis');
-    const [persistedSettings] = useState(() => restoreSynthesisSettingsSnapshot());
+    const [persistedPreferences] = useState(() => restoreStoredSynthesisExecutionPreferences());
     // --- Shared refs ---
     const videoRef = useRef<HTMLVideoElement>(null);
     const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
@@ -48,23 +50,40 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
 
     // --- Toggle switches with localStorage persistence ---
     const [subtitleEnabled, setSubtitleEnabled] = useState(() => {
-        return persistedSettings.subtitleEnabled;
+        return persistedPreferences.subtitleEnabled;
     });
     const [watermarkEnabled, setWatermarkEnabled] = useState(() => {
-        return persistedSettings.watermarkEnabled;
+        return persistedPreferences.watermarkEnabled;
     });
 
     useEffect(() => {
-        updateSynthesisSettingsSnapshot({
+        updateStoredSynthesisExecutionPreferences({
             subtitleEnabled,
             watermarkEnabled,
         });
     }, [subtitleEnabled, watermarkEnabled]);
 
     // --- Hooks ---
-    const style = useSubtitleStyle(isOpen, regions, currentTime, videoSize.h, videoPath);
-    const watermark = useWatermark(isOpen, style.isInitialized, videoSize);
-    const output = useOutputSettings(isOpen, videoPath, style.isInitialized, persistedSettings);
+    const style = useSubtitleStyle(
+        isOpen,
+        regions,
+        currentTime,
+        videoSize.h,
+        videoPath,
+        persistedPreferences,
+    );
+    const watermark = useWatermark(
+        isOpen,
+        style.isInitialized,
+        videoSize,
+        persistedPreferences,
+    );
+    const output = useOutputSettings(
+        isOpen,
+        videoPath,
+        style.isInitialized,
+        persistedPreferences,
+    );
     const crop = useCrop();
 
     useEffect(() => {
@@ -88,77 +107,49 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         setSynthesisProgress(0);
         setSynthesisMessage(t('preview.preparingSynthesis'));
         try {
-            const marginV = Math.max(0, Math.round((1 - style.subPos.y) * videoSize.h));
-
-            // FFmpeg overlay expressions for watermark position
-            const wmXExpr = `main_w*${watermark.wmPos.x}-w/2`;
-            const wmYExpr = `main_h*${watermark.wmPos.y}-h/2`;
-            
-            // Calculate Backend Scale Factor for Watermark
-            let backendScale = watermark.wmScale;
-            if (videoSize.w > 0 && watermark.watermarkSize.w > 0) {
-                backendScale = (videoSize.w * watermark.wmScale) / watermark.watermarkSize.w;
-            }
-
-            // ASS alpha: 00 = fully opaque, FF = fully transparent
-            const bgAlphaHex = Math.round((1 - style.bgOpacity) * 255).toString(16).padStart(2, '0').toUpperCase();
-            const assBackgroundColor = hexToAss(style.bgColor, bgAlphaHex);
-
-            const options: SynthesizeOptions = {
-                crf: output.quality === 'high' ? 17 : output.quality === 'balanced' ? 20 : 26,
-                preset: output.quality === 'high' ? 'slow' : output.quality === 'balanced' ? 'medium' : 'fast',
-                use_gpu: output.useGpu,
-                trim_start: output.trimStart > 0 ? output.trimStart : undefined,
-                trim_end: output.trimEnd > 0 ? output.trimEnd : undefined,
-                video_width: videoSize.w || 1920,
-                video_height: videoSize.h || 1080,
-                target_resolution: output.targetResolution,
-            };
-
-            // Subtitle options (only if enabled)
-            if (subtitleEnabled) {
-                Object.assign(options, {
-                    font_name: style.effectiveFontName,
-                    font_size: computeSynthesisFontSize(style.fontSize),
-                    font_color: hexToAss(style.fontColor),
-                    bold: style.isBold,
-                    italic: style.isItalic,
-                    outline: style.bgEnabled ? style.bgPadding : style.outlineSize,
-                    shadow: style.shadowSize,
-                    outline_color: style.bgEnabled ? assBackgroundColor : hexToAss(style.outlineColor),
-                    back_color: style.bgEnabled ? assBackgroundColor : hexToAss(style.bgColor, bgAlphaHex),
-                    border_style: style.bgEnabled ? 3 : 1,
-                    alignment: style.alignment,
-                    multiline_align: style.multilineAlign,
-                    margin_v: marginV,
-                });
-            } else {
-                options.skip_subtitles = true;
-            }
-
-            // Watermark options (only if enabled)
-            if (watermarkEnabled && watermark.watermarkPath) {
-                Object.assign(options, {
-                    wm_x: wmXExpr,
-                    wm_y: wmYExpr,
-                    wm_scale: backendScale,
-                    wm_opacity: watermark.wmOpacity,
-                });
-            }
-
-            // Mix in Crop Params if enabled
-            if (crop.isEnabled) {
-                // Convert normalized (0-1) to pixels
-                const w = videoSize.w || 1920;
-                const h = videoSize.h || 1080;
-                
-                Object.assign(options, {
-                    crop_x: Math.round(crop.crop.x * w),
-                    crop_y: Math.round(crop.crop.y * h),
-                    crop_w: Math.round(crop.crop.w * w),
-                    crop_h: Math.round(crop.crop.h * h),
-                });
-            }
+            const options: SynthesizeOptions = buildSynthesisOptionsFromPreferences(
+                {
+                    ...persistedPreferences,
+                    subtitleEnabled,
+                    watermarkEnabled,
+                    quality: output.quality,
+                    useGpu: output.useGpu,
+                    targetResolution: output.targetResolution,
+                    lastOutputDir: output.outputDir,
+                    subtitleStyle: {
+                        ...persistedPreferences.subtitleStyle,
+                        fontName: style.effectiveFontName,
+                        fontSize: style.fontSize,
+                        fontColor: style.fontColor,
+                        isBold: style.isBold,
+                        isItalic: style.isItalic,
+                        outlineSize: style.outlineSize,
+                        shadowSize: style.shadowSize,
+                        outlineColor: style.outlineColor,
+                        bgEnabled: style.bgEnabled,
+                        bgColor: style.bgColor,
+                        bgOpacity: style.bgOpacity,
+                        bgPadding: style.bgPadding,
+                        alignment: style.alignment,
+                        multilineAlign: style.multilineAlign,
+                        subPos: style.subPos,
+                        customPresets: style.customPresets,
+                    },
+                    watermark: {
+                        ...persistedPreferences.watermark,
+                        wmScale: watermark.wmScale,
+                        wmOpacity: watermark.wmOpacity,
+                        wmPos: watermark.wmPos,
+                    },
+                },
+                {
+                    targetResolution: output.targetResolution,
+                    trimStart: output.trimStart,
+                    trimEnd: output.trimEnd,
+                    crop: crop.isEnabled ? crop.crop : null,
+                    videoSize,
+                },
+            );
 
             if (onSynthesize) {
                 let targetPath = null;

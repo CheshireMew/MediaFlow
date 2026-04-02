@@ -2,9 +2,9 @@
 import { useState, useEffect } from "react";
 import { fileService } from "../../../../services/fileService";
 import {
-  updateSynthesisSettingsSnapshot,
-  type SynthesisSettingsSnapshot,
-} from "../synthesisPersistence";
+  updateStoredSynthesisExecutionPreferences,
+  type SynthesisExecutionPreferences,
+} from "../../../../services/persistence/synthesisExecutionPreferences";
 
 export interface OutputSettingsState {
   quality: "high" | "balanced" | "small";
@@ -30,18 +30,21 @@ export function useOutputSettings(
   isOpen: boolean,
   videoPath: string | null,
   isInitialized: React.MutableRefObject<boolean>,
-  persistedSettings: SynthesisSettingsSnapshot,
+  persistedPreferences: SynthesisExecutionPreferences,
 ): OutputSettingsState {
   const [quality, setQuality] = useState<"high" | "balanced" | "small">(
-    () => persistedSettings.quality,
+    () => persistedPreferences.quality,
   );
   const [isQualityMenuOpen, setIsQualityMenuOpen] = useState(false);
   const [outputFilename, setOutputFilename] = useState("");
   const [outputDir, setOutputDir] = useState<string | null>(null);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
-  const [useGpu, setUseGpu] = useState(() => persistedSettings.useGpu);
-  const [targetResolution, setTargetResolution] = useState(() => persistedSettings.targetResolution);
+  const [useGpu, setUseGpu] = useState(() => persistedPreferences.useGpu);
+  // Output resolution is intentionally per-run only.
+  // Different videos need different export decisions, so we always start from "original"
+  // instead of restoring the previous video's resolution choice.
+  const [targetResolution, setTargetResolution] = useState("original");
 
   // Reset trim when video changes or dialog opens
   useEffect(() => {
@@ -56,13 +59,12 @@ export function useOutputSettings(
   // --- Persist quality ---
   useEffect(() => {
     if (!isInitialized.current) return;
-    updateSynthesisSettingsSnapshot({
+    updateStoredSynthesisExecutionPreferences({
       quality,
       useGpu,
-      targetResolution,
       lastOutputDir: outputDir,
     });
-  }, [isInitialized, outputDir, quality, targetResolution, useGpu]);
+  }, [isInitialized, outputDir, quality, useGpu]);
 
   // --- Initialize output path from video path ---
   useEffect(() => {
@@ -79,13 +81,13 @@ export function useOutputSettings(
       0,
       Math.max(videoPath.lastIndexOf("\\"), videoPath.lastIndexOf("/")),
     );
-    const nextDir = persistedSettings.lastOutputDir || currentDir;
+    const nextDir = persistedPreferences.lastOutputDir || currentDir;
     const timer = setTimeout(() => {
       setOutputFilename(defaultName);
       setOutputDir(nextDir);
     }, 0);
     return () => clearTimeout(timer);
-  }, [isOpen, persistedSettings.lastOutputDir, videoPath]);
+  }, [isOpen, persistedPreferences.lastOutputDir, videoPath]);
 
   // --- Select output folder ---
   const handleSelectOutputFolder = async () => {

@@ -2,7 +2,6 @@ import { fileService } from "../fileService";
 import { prepareExecutionPayload } from "./executionPayload";
 import type { MediaReference } from "../ui/mediaReference";
 import type {
-  DetectSilenceResponse,
   ImagePreviewResponse,
   TranscribeSegmentResponse,
   TranslateRequest,
@@ -10,33 +9,25 @@ import type {
 } from "../../types/api";
 import { isDesktopRuntime } from "../desktop/bridge";
 import { executeBackendDirectCall } from "./executionExecutor";
-import { ensureAiTranslationConfigured } from "./executionAccess";
+import {
+  ensureAiTranslationConfigured,
+  ensureCliTranscriptionConfigured,
+} from "./executionAccess";
 
 export const editorService = {
-  async detectSilence(payload: {
-    file_path: string;
-    threshold: string;
-    min_duration: number;
-  }): Promise<DetectSilenceResponse> {
-    return await executeBackendDirectCall({
-      payload,
-      desktopMethod: "detectDesktopSilence",
-      desktopUnavailableMessage: "Desktop silence detection is unavailable.",
-      backendCall: (nextPayload) =>
-        import("../../api/client").then(({ apiClient }) => apiClient.detectSilence(nextPayload)),
-    });
-  },
-
   async transcribeSegment(payload: {
     audio_path?: string | null;
     audio_ref?: MediaReference | null;
     start: number;
     end: number;
+    engine?: "builtin" | "cli";
     model?: string;
     device?: string;
     language?: string;
     initial_prompt?: string;
   }): Promise<TranscribeSegmentResponse> {
+    await ensureCliTranscriptionConfigured(payload.engine);
+
     return await executeBackendDirectCall({
       payload,
       normalizePayload: (nextPayload) =>

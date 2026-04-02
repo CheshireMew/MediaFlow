@@ -49,11 +49,30 @@ describe("translatorStore persistence", () => {
       targetSegments: [{ id: "1", start: 0, end: 1, text: "nihao" }],
       resultMode: "standard",
     });
+    expect(persisted.state.targetLang).toBeUndefined();
     expect(persisted.state.taskId).toBeUndefined();
     expect(persisted.state.taskStatus).toBeUndefined();
     expect(persisted.state.progress).toBeUndefined();
     expect(persisted.state.taskError).toBeUndefined();
     expect(persisted.state.executionMode).toBeUndefined();
     expect(persisted.state.activeMode).toBeUndefined();
+  });
+
+  it("persists target language through the shared translation preferences", () => {
+    useTranslatorStore.getState().setTargetLang("Japanese");
+
+    expect(useTranslatorStore.getState().targetLang).toBe("Japanese");
+    expect(localStorage.getItem("translation_preferences")).toContain(
+      "\"targetLanguage\":\"Japanese\"",
+    );
+  });
+
+  it("persists translation mode through the shared translation preferences", () => {
+    useTranslatorStore.getState().setMode("intelligent");
+
+    expect(useTranslatorStore.getState().mode).toBe("intelligent");
+    expect(localStorage.getItem("translation_preferences")).toContain(
+      "\"mode\":\"intelligent\"",
+    );
   });
 });

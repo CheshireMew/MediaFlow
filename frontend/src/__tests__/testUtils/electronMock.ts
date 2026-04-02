@@ -62,7 +62,6 @@ function createBaseElectronMock(): MockedElectronAPI {
     desktopDownload: vi.fn(),
     desktopExtract: vi.fn(),
     getDesktopOcrResults: vi.fn(),
-    detectDesktopSilence: vi.fn(),
     desktopTranscribeSegment: vi.fn(),
     desktopTranslateSegment: vi.fn(),
     uploadDesktopWatermark: vi.fn(),

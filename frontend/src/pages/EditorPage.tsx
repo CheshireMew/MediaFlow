@@ -73,15 +73,14 @@ export function EditorPage() {
 
   // ── IO Hook ─────────────────────────────────────────────────
   const {
-      mediaUrl, openFile, openSubtitle, saveSubtitleFile,
-      detectSilence, currentFilePath,
+      mediaUrl, openFile, openSubtitle, saveSubtitleFile, currentFilePath,
       loadVideo, loadSubtitleFromPath,
   } = useEditorIO();
 
   // ── Action Hooks ────────────────────────────────────────────
-  const { handleSave, handleTranslate, handleSmartSplit } = useEditorActions({
+  const { handleSave, handleTranslate, handleSmartSplit, isSmartSplitting } = useEditorActions({
       currentFilePath, currentSubtitlePath, currentFileRef, currentSubtitleRef, regions, saveSubtitleFile,
-      detectSilence, replaceRegionsWithUndo, videoRef,
+      replaceRegionsWithUndo,
   });
 
   const { handleContextMenu } = useContextMenuBuilder({
@@ -145,7 +144,6 @@ export function EditorPage() {
             onOpenSubtitle={openSubtitle}
             onSave={handleSave}
             onSaveAs={() => saveSubtitleFile(regions, true)}
-            onSmartSplit={handleSmartSplit}
             onSynthesize={() => setShowSynthesis(true)}
             onTranslate={handleTranslate}
         />
@@ -169,6 +167,8 @@ export function EditorPage() {
                             if (seg && videoRef.current) videoRef.current.currentTime = seg.start;
                         }}
                         onContextMenu={handleContextMenu}
+                        onSmartSplit={handleSmartSplit}
+                        isSmartSplitting={isSmartSplitting}
                         onAutoFix={(newSegments) => replaceRegionsWithUndo(newSegments)}
                         searchTerm={searchTerm}
                         matchCase={matchCase}

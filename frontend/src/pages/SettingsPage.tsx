@@ -5,8 +5,12 @@ import { useLocation } from "react-router-dom";
 import type { LLMProvider, UserSettings, ToolUpdateResponse } from "../types/api";
 import { settingsService } from "../services/domain";
 import { fileService } from "../services/fileService";
-import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay, Globe, Wrench } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay, Globe, Scissors, Wrench } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "../i18n";
+import {
+    DEFAULT_SMART_SPLIT_TEXT_LIMIT,
+    normalizeSmartSplitTextLimit,
+} from "../utils/subtitleSmartSplit";
 
 const PROVIDER_PRESETS = [
     {
@@ -35,27 +39,6 @@ const PROVIDER_PRESETS = [
     },
 ] as const;
 
-const TRANSLATION_LANGUAGES = [
-    { value: "Chinese", labelKey: "languages.chinese" },
-    { value: "English", labelKey: "languages.english" },
-    { value: "Japanese", labelKey: "languages.japanese" },
-    { value: "Spanish", labelKey: "languages.spanish" },
-    { value: "French", labelKey: "languages.french" },
-    { value: "German", labelKey: "languages.german" },
-    { value: "Russian", labelKey: "languages.russian" },
-] as const;
-
-const TRANSCRIPTION_MODELS = [
-    { value: "tiny", label: "tiny" },
-    { value: "base", label: "base" },
-    { value: "small", label: "small" },
-    { value: "medium", label: "medium" },
-    { value: "large-v1", label: "large-v1" },
-    { value: "large-v2", label: "large-v2" },
-    { value: "large-v3", label: "large-v3" },
-    { value: "large-v3-turbo", label: "large-v3-turbo" },
-] as const;
-
 interface Notification {
     message: string;
     type: "success" | "error";
@@ -78,6 +61,7 @@ const SettingsPage: React.FC = () => {
     const [isUpdatingYtDlp, setIsUpdatingYtDlp] = useState(false);
     const [ytDlpUpdateInfo, setYtDlpUpdateInfo] = useState<ToolUpdateResponse | null>(null);
     const [selectedProviderPreset, setSelectedProviderPreset] = useState<(typeof PROVIDER_PRESETS)[number]["key"]>("openai");
+    const [smartSplitTextLimitInput, setSmartSplitTextLimitInput] = useState(String(DEFAULT_SMART_SPLIT_TEXT_LIMIT));
     
     // Form State
     const [editingProvider, setEditingProvider] = useState<LLMProvider | null>(null);
@@ -131,6 +115,13 @@ const SettingsPage: React.FC = () => {
     useEffect(() => {
         setActiveTab(resolveSettingsTab(location.search));
     }, [location.search]);
+
+    useEffect(() => {
+        if (!settings) return;
+        setSmartSplitTextLimitInput(String(
+            normalizeSmartSplitTextLimit(settings.smart_split_text_limit),
+        ));
+    }, [settings]);
 
     const handleSaveProvider = async () => {
         if (!settings) return;
@@ -441,66 +432,6 @@ const SettingsPage: React.FC = () => {
                                     </select>
                                 </div>
 
-                                <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors">
-                                    <div className="space-y-1">
-                                        <h4 className="text-base font-medium text-white flex items-center gap-2">
-                                            <MonitorPlay size={18} className="text-indigo-400" />
-                                            {t("general.translationTargetLanguage")}
-                                        </h4>
-                                        <p className="text-sm text-slate-500">
-                                            {t("general.translationTargetLanguageDesc")}
-                                        </p>
-                                    </div>
-                                    <select
-                                        value={settings?.translation_target_language || 'Chinese'}
-                                        onChange={async (e) => {
-                                            if (!settings) return;
-                                            const targetLanguage = e.target.value;
-                                            await updateSettingsField({
-                                                ...settings,
-                                                translation_target_language: targetLanguage,
-                                            });
-                                        }}
-                                        className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
-                                    >
-                                        {TRANSLATION_LANGUAGES.map((lang) => (
-                                            <option key={lang.value} value={lang.value}>
-                                                {t(lang.labelKey)}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors">
-                                    <div className="space-y-1">
-                                        <h4 className="text-base font-medium text-white flex items-center gap-2">
-                                            <Cpu size={18} className="text-indigo-400" />
-                                            {t("general.transcriptionModel")}
-                                        </h4>
-                                        <p className="text-sm text-slate-500">
-                                            {t("general.transcriptionModelDesc")}
-                                        </p>
-                                    </div>
-                                    <select
-                                        value={settings?.transcription_model || 'base'}
-                                        onChange={async (e) => {
-                                            if (!settings) return;
-                                            const transcriptionModel = e.target.value;
-                                            await updateSettingsField({
-                                                ...settings,
-                                                transcription_model: transcriptionModel,
-                                            });
-                                        }}
-                                        className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
-                                    >
-                                        {TRANSCRIPTION_MODELS.map((model) => (
-                                            <option key={model.value} value={model.value}>
-                                                {model.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
                                 {/* Auto-Execute Flow Toggle */}
                                 <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors">
                                     <div className="space-y-1">
@@ -529,6 +460,64 @@ const SettingsPage: React.FC = () => {
                                             settings?.auto_execute_flow ? 'translate-x-6' : 'translate-x-1'
                                         }`} />
                                     </button>
+                                </div>
+
+                                <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors gap-6">
+                                    <div className="space-y-1 min-w-0 flex-1">
+                                        <h4 className="text-base font-medium text-white flex items-center gap-2">
+                                            <Scissors size={18} className="text-indigo-400" />
+                                            {t("general.smartSplitTextLimit")}
+                                        </h4>
+                                        <p className="text-sm text-slate-500">
+                                            {t("general.smartSplitTextLimitDesc")}
+                                        </p>
+                                        <div className="mt-3 flex items-center gap-3">
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                value={smartSplitTextLimitInput}
+                                                onChange={(e) => setSmartSplitTextLimitInput(e.target.value)}
+                                                placeholder={String(DEFAULT_SMART_SPLIT_TEXT_LIMIT)}
+                                                className="w-32 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all"
+                                            />
+                                            <span className="text-sm text-slate-400">
+                                                {t("general.smartSplitTextLimitUnit")}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0 self-end">
+                                        <button
+                                            onClick={async () => {
+                                                if (!settings) return;
+                                                const nextValue = Number.parseInt(smartSplitTextLimitInput, 10);
+                                                if (!Number.isFinite(nextValue) || nextValue < 1) {
+                                                    showNotification(t("general.smartSplitTextLimitInvalid"), "error");
+                                                    return;
+                                                }
+                                                await updateSettingsField({
+                                                    ...settings,
+                                                    smart_split_text_limit: normalizeSmartSplitTextLimit(nextValue),
+                                                });
+                                            }}
+                                            className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors"
+                                        >
+                                            {t("general.savePath")}
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (!settings) return;
+                                                setSmartSplitTextLimitInput(String(DEFAULT_SMART_SPLIT_TEXT_LIMIT));
+                                                await updateSettingsField({
+                                                    ...settings,
+                                                    smart_split_text_limit: DEFAULT_SMART_SPLIT_TEXT_LIMIT,
+                                                });
+                                            }}
+                                            className="px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            {t("general.restoreDefault")}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/5 flex items-start justify-between group hover:border-white/10 transition-colors gap-6">

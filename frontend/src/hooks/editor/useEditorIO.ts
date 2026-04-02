@@ -1,5 +1,4 @@
-import { useCallback, useEffect } from "react";
-import { editorService } from "../../services/domain";
+import { useEffect } from "react";
 import { useEditorStore } from "../../stores/editorStore";
 import {
   createMediaReference,
@@ -128,26 +127,6 @@ export function useEditorIO() {
     tryLoadRelatedSubtitle,
   ]);
 
-  const detectSilence = useCallback(
-    async (threshold = "-30dB", minDuration = 0.5) => {
-      const path = currentFilePath;
-      if (!path) throw new Error("No file loaded");
-
-      try {
-        const res = await editorService.detectSilence({
-          file_path: path,
-          threshold,
-          min_duration: minDuration,
-        });
-        return res.silence_intervals as [number, number][];
-      } catch (e) {
-        console.error("Silence detection failed", e);
-        throw e;
-      }
-    },
-    [currentFilePath],
-  );
-
   return {
     mediaUrl,
     currentFilePath,
@@ -156,6 +135,5 @@ export function useEditorIO() {
     loadVideo: loadMediaAndResources,
     loadSubtitleFromPath,
     saveSubtitleFile,
-    detectSilence,
   };
 }

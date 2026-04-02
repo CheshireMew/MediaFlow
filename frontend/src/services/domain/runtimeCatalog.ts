@@ -20,7 +20,6 @@ export const domainRuntimeCatalog = {
     saveCookies: "desktop-primary",
   },
   editorService: {
-    detectSilence: "desktop-primary",
     getPeaks: "desktop-primary",
     transcribeSegment: "desktop-primary",
     translateSegments: "desktop-primary",

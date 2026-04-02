@@ -98,14 +98,21 @@ class SubtitleWriter:
             back_color = style_options.get('back_color', '&H80000000')
             border_style = int(style_options.get('border_style', 1))
             alignment = int(style_options.get('alignment', 2))
-            
-            base_margin_v = style_options.get('margin_v', 20)
-            margin_v = int(base_margin_v * scale_factor)
 
             # Dynamic Resolution (True Res)
             # These are already updated in VideoSynthesizer based on target_resolution
             play_res_x = style_options.get('video_width', 1920)
             play_res_y = style_options.get('video_height', 1080)
+
+            base_margin_v = style_options.get('margin_v')
+            if base_margin_v is None:
+                subtitle_position_y = style_options.get('subtitle_position_y')
+                if isinstance(subtitle_position_y, (int, float)):
+                    clamped_y = max(0.0, min(1.0, float(subtitle_position_y)))
+                    base_margin_v = max(0, round((1 - clamped_y) * play_res_y))
+                else:
+                    base_margin_v = 20
+            margin_v = int(base_margin_v * scale_factor)
             
             logger.debug(f"Subtitle Smart Scaling: Factor={scale_factor:.2f}, Size={base_font_size}->{font_size}, MarginV={base_margin_v}->{margin_v}")
 

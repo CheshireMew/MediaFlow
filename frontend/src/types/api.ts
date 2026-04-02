@@ -142,9 +142,8 @@ export interface UserSettings {
   default_download_path: string | null;
   faster_whisper_cli_path: string | null;
   language: string;
-  translation_target_language: string;
-  transcription_model: string;
   auto_execute_flow: boolean;
+  smart_split_text_limit: number;
 }
 
 export interface ActiveProviderResponse {
@@ -171,12 +170,6 @@ export interface ToolUpdateResponse {
   current_version?: string | null;
 }
 
-// ─── Audio ──────────────────────────────────────────────────────
-
-export interface DetectSilenceResponse {
-  silence_intervals: [number, number][];
-}
-
 // ─── Editor ─────────────────────────────────────────────────────
 
 export interface ImagePreviewResponse {
@@ -198,9 +191,29 @@ export interface SynthesizeOptions {
   back_color?: string;
   border_style?: number;
   alignment?: number;
+  multiline_align?: "bottom" | "center" | "top";
   margin_v?: number;
+  subtitle_position_y?: number;
   crf?: number;
+  preset?: string;
+  use_gpu?: boolean;
   target_resolution?: string; // "original" | "720p" | "1080p"
+  trim_start?: number;
+  trim_end?: number;
+  crop_x?: number;
+  crop_y?: number;
+  crop_w?: number;
+  crop_h?: number;
+  video_width?: number;
+  video_height?: number;
+  skip_subtitles?: boolean;
+  wm_scale?: number;
+  wm_opacity?: number;
+  wm_x?: string;
+  wm_y?: string;
+  wm_relative_width?: number;
+  wm_pos_x?: number;
+  wm_pos_y?: number;
   [key: string]: unknown;
 }
 

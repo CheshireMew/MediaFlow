@@ -1,6 +1,8 @@
 import { useCallback, useRef } from "react";
 import { editorService } from "../../services/domain";
 import { isAiTranslationSetupRequiredError } from "../../services/domain/executionAccess";
+import { restoreStoredAsrExecutionPreferences } from "../../services/persistence/asrExecutionPreferences";
+import { restoreStoredTranslationPreferences } from "../../services/persistence/translationPreferences";
 import type { MediaReference } from "../../services/ui/mediaReference";
 import { formatSRTTime } from "../../utils/subtitleParser";
 import type { ContextMenuItem } from "../../components/ui/ContextMenu";
@@ -64,11 +66,144 @@ export function useContextMenuBuilder({
   const currentFileRefRef = useRef(currentFileRef);
   currentFileRefRef.current = currentFileRef;
 
+  const buildSegmentsFromTranscription = useCallback(
+    (
+      payload: SegmentTranscriptionPayload,
+      fallbackRegion: { start: number; end: number },
+    ): SubtitleSegment[] => {
+      if (payload.segments && payload.segments.length > 0) {
+        return payload.segments.map((seg, idx) => ({
+          id: String(Date.now() + idx),
+          start: seg.start,
+          end: seg.end,
+          text: String(seg.text || "").trim(),
+        }));
+      }
+
+      return [
+        {
+          id: String(Date.now()),
+          start: fallbackRegion.start,
+          end: fallbackRegion.end,
+          text: (payload.text || "").trim() || "[无语音]",
+        },
+      ];
+    },
+    [],
+  );
+
+  const translateSegmentsWithSharedTargetLanguage = useCallback(
+    async (segments: SubtitleSegment[]) => {
+      const { toast } = await import("../../utils/toast");
+      const { targetLanguage, mode } = restoreStoredTranslationPreferences();
+
+      try {
+        const res = await editorService.translateSegments({
+          segments,
+          target_language: targetLanguage,
+          mode,
+        });
+        if (res.status === "completed" && res.segments) {
+          return {
+            segments: res.segments as SubtitleSegment[],
+            targetLanguage,
+          };
+        }
+
+        toast.info(`任务处理中 (Task: ${res.task_id})`, 3000);
+        return {
+          segments: null,
+          targetLanguage,
+        };
+      } catch (err) {
+        console.error(err);
+        if (isAiTranslationSetupRequiredError(err)) {
+          return {
+            segments: null,
+            targetLanguage,
+            aborted: true,
+          };
+        }
+        toast.error("翻译失败 " + String(err));
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const transcribeRegion = useCallback(
+    async (region: { start: number; end: number }, translateAfterTranscribe: boolean) => {
+      const currentPath = currentFilePathRef.current;
+      const currentFile = currentFileRefRef.current;
+
+      if (!currentPath && !currentFile?.path) {
+        alert("请先保存或打开一个文件");
+        return;
+      }
+
+      const { toast } = await import("../../utils/toast");
+      toast.info(
+        translateAfterTranscribe ? "正在识别并翻译片段..." : "正在识别片段...",
+        2000,
+      );
+
+      try {
+        const asrPreferences = restoreStoredAsrExecutionPreferences();
+        const res = (await editorService.transcribeSegment({
+          audio_path: currentFile ? null : currentPath,
+          audio_ref: currentFile,
+          start: region.start,
+          end: region.end,
+          engine: asrPreferences.engine,
+          model: asrPreferences.model,
+          device: asrPreferences.device,
+        })) as TranscribeSegmentResponse;
+
+        if (res.status !== "completed" || !res.data) {
+          throw new Error("片段识别未返回同步结果");
+        }
+
+        const recognizedSegments = buildSegmentsFromTranscription(res.data, region);
+        let finalSegments = recognizedSegments;
+
+        if (translateAfterTranscribe) {
+          const translated = await translateSegmentsWithSharedTargetLanguage(
+            recognizedSegments,
+          );
+          if (translated.segments) {
+            finalSegments = translated.segments;
+            addSegments(finalSegments);
+            toast.success(`识别并翻译完成 (${translated.targetLanguage})`);
+            return;
+          }
+
+          if (translated.aborted) {
+            return;
+          }
+
+          addSegments(finalSegments);
+          toast.success("识别完成，翻译任务已提交");
+          return;
+        }
+
+        addSegments(finalSegments);
+        toast.success(
+          finalSegments.length > 1
+            ? `成功识别 ${finalSegments.length} 个片段`
+            : "识别成功",
+        );
+      } catch (err) {
+        console.error(err);
+        const { toast } = await import("../../utils/toast");
+        toast.error("识别失败: " + String(err));
+      }
+    },
+    [addSegments, buildSegmentsFromTranscription, translateSegmentsWithSharedTargetLanguage],
+  );
+
   const handleContextMenu = useCallback(
     (e: ContextMenuEvent, id: string, regionData?: { start: number; end: number }) => {
       const currentSelectedIds = selectedIdsRef.current;
-      const currentPath = currentFilePathRef.current;
-      const currentFile = currentFileRefRef.current;
       const existing = regionsRef.current.find((r) => String(r.id) === id);
 
       // ── Temporary region (drawn on waveform but not yet a segment) ──
@@ -92,62 +227,11 @@ export function useContextMenuBuilder({
             },
             {
               label: "🎙️ 识别选中区域 (ASR)",
-              onClick: async () => {
-                if (!currentPath && !currentFile?.path) {
-                  alert("请先保存或打开一个文件");
-                  return;
-                }
-                const { toast } = await import("../../utils/toast");
-                toast.info("正在识别片段...", 2000);
-
-                try {
-                  const applyTranscriptionResult = (
-                    payload: SegmentTranscriptionPayload,
-                    fallbackRegion: { start: number; end: number },
-                  ) => {
-                    const { segments, text } = payload;
-
-                    if (segments && segments.length > 0) {
-                      const newSegments: SubtitleSegment[] = segments.map((seg, idx) => ({
-                        id: String(Date.now() + idx),
-                        start: seg.start,
-                        end: seg.end,
-                        text: String(seg.text || "").trim(),
-                      }));
-                      addSegments(newSegments);
-                      toast.success(`成功识别 ${newSegments.length} 个片段`);
-                      return;
-                    }
-
-                    const newId = String(Date.now());
-                    addSegment({
-                      id: newId,
-                      start: fallbackRegion.start,
-                      end: fallbackRegion.end,
-                      text: (text || "").trim() || "[无语音]",
-                    });
-                    setTimeout(() => selectSegment(newId, false, false), 50);
-                    toast.success("识别成功");
-                  };
-
-                  const res = await editorService.transcribeSegment({
-                    audio_path: currentFile ? null : currentPath,
-                    audio_ref: currentFile,
-                    start: regionData.start,
-                    end: regionData.end,
-                  }) as TranscribeSegmentResponse;
-
-                  if (res.status === "completed" && res.data) {
-                    applyTranscriptionResult(res.data, regionData);
-                  } else {
-                    throw new Error("片段识别未返回同步结果");
-                  }
-                } catch (err) {
-                  console.error(err);
-                  const { toast } = await import("../../utils/toast");
-                  toast.error("识别失败: " + String(err));
-                }
-              },
+              onClick: async () => transcribeRegion(regionData, false),
+            },
+            {
+              label: "🎙️🌐 识别并翻译选中区域",
+              onClick: async () => transcribeRegion(regionData, true),
             },
             { separator: true, label: "", onClick: () => {} },
             { label: "取消", onClick: () => {} },
@@ -195,23 +279,13 @@ export function useContextMenuBuilder({
             toast.info("正在翻译...", 2000);
 
             try {
-              const res = await editorService.translateSegments({
-                segments: selected,
-                target_language: "Chinese",
-              });
-              if (res.status === "completed" && res.segments) {
-                updateSegments(res.segments);
+              const translated = await translateSegmentsWithSharedTargetLanguage(selected);
+              if (translated.segments) {
+                updateSegments(translated.segments);
                 toast.success("翻译完成");
-              } else {
-                toast.info(`任务处理中 (Task: ${res.task_id})`, 3000);
               }
             } catch (err) {
-              console.error(err);
-              if (isAiTranslationSetupRequiredError(err)) {
-                return;
-              }
-              const { toast: t } = await import("../../utils/toast");
-              t.error("翻译失败 " + String(err));
+              return;
             }
           },
         },
@@ -324,6 +398,8 @@ export function useContextMenuBuilder({
       addSegments,
       updateSegments,
       setContextMenu,
+      transcribeRegion,
+      translateSegmentsWithSharedTargetLanguage,
       videoRef,
     ],
   );

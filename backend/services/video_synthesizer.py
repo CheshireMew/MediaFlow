@@ -194,6 +194,38 @@ class VideoSynthesizer:
         audio_stream = input_video.audio if MediaProber.has_audio(video_path) else None
         return input_video.video, audio_stream
 
+    def _resolve_render_dimensions(self, video_path: str, options: dict):
+        try:
+            probed_w, probed_h = MediaProber.probe_resolution(video_path)
+        except Exception as e:
+            logger.warning(f"Failed to probe video resolution: {e}")
+            probed_w, probed_h = (
+                int(options.get('video_width', 1920)),
+                int(options.get('video_height', 1080)),
+            )
+
+        crop_w = options.get('crop_w')
+        crop_h = options.get('crop_h')
+        base_w = int(crop_w) if crop_w is not None else int(probed_w)
+        base_h = int(crop_h) if crop_h is not None else int(probed_h)
+
+        if base_w <= 0:
+            base_w = int(options.get('video_width', 1920))
+        if base_h <= 0:
+            base_h = int(options.get('video_height', 1080))
+
+        target_res = options.get('target_resolution', 'original')
+        force_hd = options.get('force_hd')
+        if target_res in ['720p', '1080p'] or force_hd:
+            target_h = 720 if (target_res == '720p' or force_hd) else 1080
+            scale_factor = target_h / base_h if base_h > 0 else 1.0
+            render_w = int(base_w * scale_factor) if base_h > 0 else int(1280 * (target_h / 720))
+            if render_w % 2 != 0:
+                render_w -= 1
+            return render_w, target_h, scale_factor
+
+        return base_w, base_h, 1.0
+
     def _apply_filters(self, video_stream, video_path, srt_path, watermark_path, options):
         # 1. Crop
         crop_w = options.get('crop_w')
@@ -209,41 +241,27 @@ class VideoSynthesizer:
         # 2. Resolution Scaling & Smart Scaling
         # Must be applied before subtitles so text is rendered at high res
         target_res = options.get('target_resolution', 'original')
-        scale_factor = 1.0
+        render_width, render_height, scale_factor = self._resolve_render_dimensions(
+            video_path,
+            options,
+        )
         
         if target_res in ['720p', '1080p']:
             target_h = 720 if target_res == '720p' else 1080
             logger.info(f"Target resolution enabled: Scaling video to Height={target_h} (Width=Auto)")
-            
-            # Calculate scale factor for Smart Scaling
-            # scale_factor = new_height / old_height
-            try:
-                # We need original height. Using probed height.
-                _, orig_h = MediaProber.probe_resolution(video_path)
-                # Handle crop
-                if options.get('crop_h'):
-                    orig_h = int(options.get('crop_h'))
-                    
-                if orig_h > 0:
-                    scale_factor = target_h / orig_h
-                    logger.info(f"Smart Scaling Factor: {scale_factor:.2f} (Target: {target_h} / Original: {orig_h})")
-            except Exception as e:
-                logger.warning(f"Failed to calculate scale factor: {e}")
-
-            # Apply Scale Filter
-            # -2 ensures width is divisible by 2 (required for encoding)
             video_stream = video_stream.filter('scale', w=-2, h=target_h)
+            logger.info(
+                f"Resolved render size for synthesis: {render_width}x{render_height} "
+                f"(scale={scale_factor:.2f})"
+            )
 
         elif options.get('force_hd'): # Backward compatibility
              logger.info("Legacy Force HD enabled: Scaling to 720p")
-             # We assume legacy force_hd meant 720p. 
-             # For legacy, we might NOT apply smart scaling if user didn't request it, 
-             # OR we apply it to be nice. Let's apply it to be consistent.
-             target_h = 720
-             _, orig_h = MediaProber.probe_resolution(video_path)
-             if orig_h > 0:
-                 scale_factor = target_h / orig_h
              video_stream = video_stream.filter('scale', w=-2, h=720)
+             logger.info(
+                 f"Resolved render size for synthesis: {render_width}x{render_height} "
+                 f"(scale={scale_factor:.2f})"
+             )
 
 
         # 3. Watermark
@@ -254,6 +272,19 @@ class VideoSynthesizer:
             # Base scale * Smart Scale Factor
             user_scale = float(options.get('wm_scale', 1.0))
             final_scale = user_scale * scale_factor
+            relative_width = options.get('wm_relative_width')
+            if relative_width is not None:
+                try:
+                    from PIL import Image
+
+                    with Image.open(watermark_path) as watermark_image:
+                        watermark_width, _ = watermark_image.size
+
+                    if watermark_width > 0:
+                        user_scale = (render_width * float(relative_width)) / watermark_width
+                        final_scale = user_scale
+                except Exception as e:
+                    logger.warning(f"Failed to resolve relative watermark width: {e}")
             
             opacity = float(options.get('wm_opacity', 1.0))
             
@@ -262,11 +293,18 @@ class VideoSynthesizer:
             wm_processed = wm_input.filter('scale', w=f'iw*{final_scale}', h=f'ih*{final_scale}')
             if opacity < 1.0:
                 wm_processed = wm_processed.filter('format', 'rgba').filter('colorchannelmixer', aa=opacity)
+
+            x_expr = options.get('wm_x')
+            y_expr = options.get('wm_y')
+            if x_expr is None and options.get('wm_pos_x') is not None:
+                x_expr = f"main_w*{float(options.get('wm_pos_x'))}-w/2"
+            if y_expr is None and options.get('wm_pos_y') is not None:
+                y_expr = f"main_h*{float(options.get('wm_pos_y'))}-h/2"
             
             video_stream = video_stream.overlay(
                 wm_processed, 
-                x=options.get('wm_x', '10'), 
-                y=options.get('wm_y', '10')
+                x=x_expr or '10', 
+                y=y_expr or '10'
             )
 
         # 4. Subtitles (conditionally skip if user toggled off)
@@ -274,39 +312,8 @@ class VideoSynthesizer:
         if options.get('skip_subtitles'):
             logger.info("Subtitles disabled by user, skipping subtitle burn-in")
         else:
-            width = options.get('video_width')
-            height = options.get('video_height')
-
-            # If Target Resolution (or Force HD) is on, update dimensions
-            if target_res in ['720p', '1080p'] or options.get('force_hd'):
-                 target_h = 720 if (target_res == '720p' or options.get('force_hd')) else 1080
-                 height = target_h
-                 
-                 orig_w, orig_h = MediaProber.probe_resolution(video_path)
-                 if orig_h > 0:
-                     width = int(orig_w * (target_h / orig_h))
-                     if width % 2 != 0: width -= 1
-                 else:
-                     width = int(1280 * (target_h / 720)) # Approximation
-                 
-                 logger.info(f"Resolution updated for subtitles: {width}x{height}")
-                 
-            elif not width or not height:
-                width, height = MediaProber.probe_resolution(video_path)
-                logger.info(f"Probed video resolution for subtitles: {width}x{height}")
-            else:
-                logger.info(f"Using provided video resolution: {width}x{height}")
-
-            # Override resolution if cropped (and not scaled)
-            crop_w = options.get('crop_w')
-            crop_h = options.get('crop_h')
-            if crop_w is not None and crop_h is not None and target_res == 'original' and not options.get('force_hd'):
-                 width = int(crop_w)
-                 height = int(crop_h)
-                 logger.info(f"Resolution updated to cropped size: {width}x{height}")
-
-            options['video_width'] = width
-            options['video_height'] = height
+            options['video_width'] = render_width
+            options['video_height'] = render_height
             
             # Inject Smart Scale Factor into options for SubtitleWriter
             if scale_factor != 1.0:

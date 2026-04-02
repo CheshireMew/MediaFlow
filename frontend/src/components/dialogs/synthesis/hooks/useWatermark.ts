@@ -2,9 +2,9 @@
 import { useState, useEffect } from "react";
 import { editorService } from "../../../../services/domain";
 import {
-  restoreWatermarkSnapshot,
-  updateWatermarkSnapshot,
-} from "../watermarkPersistence";
+  updateStoredSynthesisExecutionPreferences,
+  type SynthesisExecutionPreferences,
+} from "../../../../services/persistence/synthesisExecutionPreferences";
 
 export interface WatermarkState {
   watermarkPath: string | null;
@@ -26,6 +26,7 @@ export function useWatermark(
   isOpen: boolean,
   isInitialized: React.MutableRefObject<boolean>,
   videoSize: { w: number; h: number },
+  persistedPreferences: SynthesisExecutionPreferences,
 ): WatermarkState {
   const [watermarkPath, setWatermarkPath] = useState<string | null>(null);
   const [watermarkPreviewUrl, setWatermarkPreviewUrl] = useState<string | null>(
@@ -40,14 +41,13 @@ export function useWatermark(
   useEffect(() => {
     if (!isOpen) return;
     const timer = setTimeout(() => {
-      const snapshot = restoreWatermarkSnapshot();
-      setWmScale(snapshot.wmScale);
-      setWmOpacity(snapshot.wmOpacity);
-      setWmPos(snapshot.wmPos);
+      setWmScale(persistedPreferences.watermark.wmScale);
+      setWmOpacity(persistedPreferences.watermark.wmOpacity);
+      setWmPos(persistedPreferences.watermark.wmPos);
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [isOpen]);
+  }, [isOpen, persistedPreferences.watermark]);
 
   // --- Load persisted watermark image ---
   useEffect(() => {
@@ -71,17 +71,23 @@ export function useWatermark(
   // --- Persist scale/opacity/pos ---
   useEffect(() => {
     if (!isInitialized.current) return;
-    updateWatermarkSnapshot({ wmScale });
+    updateStoredSynthesisExecutionPreferences({
+      watermark: { wmScale },
+    });
   }, [wmScale, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized.current) return;
-    updateWatermarkSnapshot({ wmOpacity });
+    updateStoredSynthesisExecutionPreferences({
+      watermark: { wmOpacity },
+    });
   }, [wmOpacity, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized.current) return;
-    updateWatermarkSnapshot({ wmPos });
+    updateStoredSynthesisExecutionPreferences({
+      watermark: { wmPos },
+    });
   }, [wmPos, isInitialized]);
 
   // --- Handle watermark upload ---

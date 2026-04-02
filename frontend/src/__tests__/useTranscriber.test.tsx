@@ -21,6 +21,7 @@ vi.mock("../context/taskContext", () => ({
 vi.mock("../api/client", () => ({
   apiClient: {
     runPipeline: vi.fn(),
+    getSettings: vi.fn(),
   },
 }));
 
@@ -40,6 +41,14 @@ describe("useTranscriber", () => {
     localStorage.clear();
     sessionStorage.clear();
     vi.clearAllMocks();
+    vi.mocked(apiClient.getSettings).mockResolvedValue({
+      llm_providers: [],
+      default_download_path: null,
+      faster_whisper_cli_path: null,
+      language: "zh",
+      auto_execute_flow: false,
+      smart_split_text_limit: 24,
+    });
 
     useTaskContextMock.mockReturnValue({
       tasks: [],
@@ -410,9 +419,11 @@ describe("useTranscriber", () => {
     expect(result.current.state.device).toBe("cuda");
     expect(result.current.state.activeTaskId).toBeNull();
     expect(result.current.state.result?.text).toBe("snapshot");
+    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"model\":\"small\"");
+    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"device\":\"cuda\"");
   });
 
-  it("persists transcriber state only to the versioned snapshot", async () => {
+  it("persists transcriber document state separately from shared ASR preferences", async () => {
     clearElectronMock();
 
     const { result } = renderHook(() => useTranscriber());
@@ -436,6 +447,10 @@ describe("useTranscriber", () => {
     expect(localStorage.getItem("transcriber_result")).toBeNull();
     expect(localStorage.getItem("transcriber_file")).toBeNull();
     expect(localStorage.getItem("transcriber_snapshot")).not.toContain("\"activeTaskId\"");
+    expect(localStorage.getItem("transcriber_snapshot")).not.toContain("\"model\"");
+    expect(localStorage.getItem("transcriber_snapshot")).not.toContain("\"device\"");
+    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"model\":\"base\"");
+    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"device\":\"cpu\"");
   });
 
   it("ignores legacy transcriber keys when no versioned snapshot exists", async () => {

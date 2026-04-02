@@ -4,8 +4,13 @@ import type { SubtitleSegment } from "../types/task";
 import type { GlossaryTerm } from "../services/domain";
 import type { MediaReference } from "../services/ui/mediaReference";
 import type { NullableExecutionMode } from "../services/domain";
+import {
+  persistStoredTranslationPreferences,
+  restoreStoredTranslationPreferences,
+  type TranslationExecutionMode,
+} from "../services/persistence/translationPreferences";
 
-export type TranslatorMode = "standard" | "intelligent" | "proofread";
+export type TranslatorMode = TranslationExecutionMode;
 export type TranslatorResultMode = TranslatorMode | null;
 export type TranslatorExecutionMode = NullableExecutionMode;
 
@@ -62,8 +67,8 @@ export const useTranslatorStore = create<TranslatorState>()(
       sourceFilePath: null,
       sourceFileRef: null,
       targetSubtitleRef: null,
-      targetLang: "Chinese",
-      mode: "standard",
+      targetLang: restoreStoredTranslationPreferences().targetLanguage,
+      mode: restoreStoredTranslationPreferences().mode,
       activeMode: null,
       resultMode: null,
       taskId: null,
@@ -95,8 +100,20 @@ export const useTranslatorStore = create<TranslatorState>()(
       setSourceFilePath: (path) => set({ sourceFilePath: path }),
       setSourceFileRef: (sourceFileRef) => set({ sourceFileRef }),
       setTargetSubtitleRef: (targetSubtitleRef) => set({ targetSubtitleRef }),
-      setTargetLang: (lang) => set({ targetLang: lang }),
-      setMode: (mode) => set({ mode }),
+      setTargetLang: (lang) => {
+        persistStoredTranslationPreferences({
+          ...restoreStoredTranslationPreferences(),
+          targetLanguage: lang,
+        });
+        set({ targetLang: lang });
+      },
+      setMode: (mode) => {
+        persistStoredTranslationPreferences({
+          ...restoreStoredTranslationPreferences(),
+          mode,
+        });
+        set({ mode });
+      },
       setActiveMode: (activeMode) => set({ activeMode }),
       setResultMode: (resultMode) => set({ resultMode }),
       setTaskId: (id) => set({ taskId: id }),
@@ -119,7 +136,7 @@ export const useTranslatorStore = create<TranslatorState>()(
     }),
     {
       name: "translator-storage",
-      version: 1,
+      version: 2,
       migrate: (persistedState) => {
         const state = (persistedState ?? {}) as Partial<TranslatorState>;
         return {
@@ -135,11 +152,8 @@ export const useTranslatorStore = create<TranslatorState>()(
             state.targetSubtitleRef && typeof state.targetSubtitleRef === "object"
               ? (state.targetSubtitleRef as MediaReference)
               : null,
-          targetLang: typeof state.targetLang === "string" ? state.targetLang : "Chinese",
-          mode:
-            state.mode === "standard" || state.mode === "intelligent" || state.mode === "proofread"
-              ? state.mode
-              : "standard",
+          targetLang: restoreStoredTranslationPreferences().targetLanguage,
+          mode: restoreStoredTranslationPreferences().mode,
           resultMode:
             state.resultMode === "standard" ||
             state.resultMode === "intelligent" ||
@@ -155,8 +169,6 @@ export const useTranslatorStore = create<TranslatorState>()(
         sourceFilePath: state.sourceFilePath,
         sourceFileRef: state.sourceFileRef,
         targetSubtitleRef: state.targetSubtitleRef,
-        targetLang: state.targetLang,
-        mode: state.mode,
         resultMode: state.resultMode,
       }),
     },

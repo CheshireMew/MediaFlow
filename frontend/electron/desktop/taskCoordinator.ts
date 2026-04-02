@@ -69,7 +69,6 @@ const DESKTOP_BRIDGE_CAPABILITIES = [
   "desktopDownload",
   "desktopExtract",
   "getDesktopOcrResults",
-  "detectDesktopSilence",
   "desktopTranscribeSegment",
   "desktopTranslateSegment",
   "uploadDesktopWatermark",
@@ -180,9 +179,6 @@ export class DesktopTaskCoordinator {
     });
     ipcMain.handle("desktop:get-ocr-results", async (_event, payload) => {
       return await this.requestDesktopWorker("get_ocr_results", payload);
-    });
-    ipcMain.handle("desktop:detect-silence", async (_event, payload) => {
-      return await this.requestDesktopWorker("detect_silence", payload);
     });
     ipcMain.handle("desktop:transcribe-segment", async (_event, payload) => {
       return await this.requestDesktopWorker("transcribe_segment", payload);

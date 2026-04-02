@@ -131,11 +131,6 @@ export interface ElectronAPI {
   getDesktopOcrResults?: (
     videoPath: string,
   ) => Promise<{ events: import("./api").OCRTextEvent[] }>;
-  detectDesktopSilence?: (payload: {
-    file_path: string;
-    threshold: string;
-    min_duration: number;
-  }) => Promise<import("./api").DetectSilenceResponse>;
   desktopTranscribeSegment?: (
     payload: Omit<import("./api").TranscribeSegmentRequest, "video_path" | "srt_path" | "watermark_path" | "options">,
   ) => Promise<{

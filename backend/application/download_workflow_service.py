@@ -32,30 +32,4 @@ class DownloadWorkflowService:
         if not download_params.get("output_dir") and settings.default_download_path:
             download_params["output_dir"] = settings.default_download_path
 
-        should_expand_flow = settings.auto_execute_flow and len(steps) == 1
-        if should_expand_flow:
-            steps.extend(
-                [
-                    {
-                        "step_name": "transcribe",
-                        "params": {
-                            "model": settings.transcription_model or "base",
-                            "device": "cpu",
-                            "vad_filter": True,
-                        },
-                    },
-                    {
-                        "step_name": "translate",
-                        "params": {
-                            "target_language": settings.translation_target_language or "Chinese",
-                            "mode": "standard",
-                        },
-                    },
-                    {
-                        "step_name": "synthesize",
-                        "params": {"options": {}},
-                    },
-                ]
-            )
-
         return PipelineRequest.model_validate(payload)
