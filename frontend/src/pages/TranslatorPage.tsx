@@ -26,7 +26,6 @@ export const TranslatorPage = () => {
         targetLang,
         mode,
         activeMode,
-        resultMode,
         taskStatus,
         progress,
         taskError,
@@ -44,7 +43,6 @@ export const TranslatorPage = () => {
     } = useTranslator();
 
     const { t } = useTranslation('translator');
-    const hasGeneratedSegments = targetSegments.length > sourceSegments.length;
     const executionModeDisplay = executionMode
         ? getExecutionModeDisplay(executionMode)
         : null;
@@ -219,33 +217,6 @@ export const TranslatorPage = () => {
                          </div>
                      </div>
                  </div>
-
-                 {targetSegments.length > 0 && resultMode && (
-                     <div className="flex-none px-4 py-3 border-b border-white/5 bg-black/20 flex items-center gap-2 text-xs text-slate-300">
-                        <span className={`px-2 py-1 rounded-md border font-semibold ${
-                            resultMode === 'proofread'
-                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
-                                : resultMode === 'intelligent'
-                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                                    : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
-                        }`}>
-                            {resultMode === 'proofread'
-                                ? t('result.proofreadBadge')
-                                : resultMode === 'intelligent'
-                                    ? t('result.intelligentBadge')
-                                    : t('result.standardBadge')}
-                        </span>
-                        <span>
-                            {resultMode === 'proofread'
-                                ? t('result.proofreadHint')
-                                : resultMode === 'intelligent'
-                                    ? hasGeneratedSegments
-                                        ? t('result.intelligentHintGenerated')
-                                        : t('result.intelligentHint')
-                                    : t('result.standardHint')}
-                        </span>
-                     </div>
-                 )}
 
                  {taskStatus === "failed" && taskError && (
                      <div className="flex-none px-4 py-3 border-b border-rose-500/20 bg-rose-500/10 text-sm text-rose-200">

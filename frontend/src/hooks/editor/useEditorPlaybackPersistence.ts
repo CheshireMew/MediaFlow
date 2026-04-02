@@ -1,6 +1,8 @@
 import { useCallback, useEffect } from "react";
 import {
+  persistEditorPlaybackRate,
   persistEditorPlaybackTime,
+  restoreEditorPlaybackRate,
   restoreEditorPlaybackTime,
 } from "./editorPlaybackPersistence";
 
@@ -35,9 +37,41 @@ export function useEditorPlaybackPersistence({
     };
   }, [currentFilePath, videoRef]);
 
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    const savedRate = restoreEditorPlaybackRate();
+    if (Number.isFinite(savedRate) && savedRate > 0 && video.playbackRate !== savedRate) {
+      video.playbackRate = savedRate;
+    }
+
+    const saveRate = () => {
+      persistEditorPlaybackRate(video.playbackRate);
+    };
+
+    video.addEventListener("ratechange", saveRate);
+
+    return () => {
+      saveRate();
+      video.removeEventListener("ratechange", saveRate);
+    };
+  }, [currentFilePath, videoRef]);
+
   const handleLoadedMetadata = useCallback(() => {
     if (!currentFilePath || !videoRef.current) {
       return;
+    }
+
+    const savedRate = restoreEditorPlaybackRate();
+    if (
+      Number.isFinite(savedRate) &&
+      savedRate > 0 &&
+      videoRef.current.playbackRate !== savedRate
+    ) {
+      videoRef.current.playbackRate = savedRate;
     }
 
     const savedTime = restoreEditorPlaybackTime(currentFilePath);

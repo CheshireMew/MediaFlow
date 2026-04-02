@@ -110,7 +110,7 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
     selected.sort((a, b) => a.start - b.start);
     const first = selected[0];
     const last = selected[selected.length - 1];
-    const mergedText = selected.map((s) => s.text).join(" ");
+    const mergedText = selected.map((s) => s.text).join("");
 
     const newSegment = {
       ...first,

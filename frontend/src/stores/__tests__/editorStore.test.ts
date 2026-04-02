@@ -37,6 +37,24 @@ describe("useEditorStore", () => {
     expect(useEditorStore.getState().regions[0].id).toBe("2");
   });
 
+  it("should merge subtitle text without inserting spaces", () => {
+    const regions: SubtitleSegment[] = [
+      { id: "1", start: 0, end: 5, text: "第一句" },
+      { id: "2", start: 5, end: 10, text: "第二句" },
+    ];
+
+    useEditorStore.getState().setRegions(regions);
+    useEditorStore.getState().mergeSegments(["1", "2"]);
+
+    expect(useEditorStore.getState().regions).toHaveLength(1);
+    expect(useEditorStore.getState().regions[0]).toMatchObject({
+      id: "1",
+      start: 0,
+      end: 10,
+      text: "第一句第二句",
+    });
+  });
+
   it("should undo a timing edit in a single step", () => {
     const regions: SubtitleSegment[] = [
       { id: "1", start: 0, end: 5, text: "1" },

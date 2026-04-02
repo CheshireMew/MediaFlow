@@ -8,13 +8,25 @@ const EDITOR_PLAYBACK_SNAPSHOT_VERSION = 1;
 const EDITOR_PLAYBACK_SNAPSHOT_LIFECYCLE = {
   currentTime: TASK_LIFECYCLE.history_only,
 } as const;
+const EDITOR_PLAYBACK_RATE_VERSION = 1;
+const EDITOR_PLAYBACK_RATE_LIFECYCLE = {
+  playbackRate: TASK_LIFECYCLE.history_only,
+} as const;
 
 type EditorPlaybackSnapshot = {
   currentTime: number;
 };
 
+type EditorPlaybackRateSnapshot = {
+  playbackRate: number;
+};
+
 function getEditorPlaybackSnapshotKey(currentFilePath: string) {
   return `editor_playback_snapshot_${currentFilePath}`;
+}
+
+function getEditorPlaybackRateKey() {
+  return "editor_playback_rate";
 }
 
 export function restoreEditorPlaybackTime(currentFilePath: string) {
@@ -23,6 +35,14 @@ export function restoreEditorPlaybackTime(currentFilePath: string) {
     EDITOR_PLAYBACK_SNAPSHOT_VERSION,
   );
   return snapshot?.currentTime ?? 0;
+}
+
+export function restoreEditorPlaybackRate() {
+  const snapshot = parseVersionedSnapshot<EditorPlaybackRateSnapshot>(
+    localStorage.getItem(getEditorPlaybackRateKey()),
+    EDITOR_PLAYBACK_RATE_VERSION,
+  );
+  return snapshot?.playbackRate ?? 1;
 }
 
 export function persistEditorPlaybackTime(
@@ -41,6 +61,23 @@ export function persistEditorPlaybackTime(
         currentTime,
       },
       EDITOR_PLAYBACK_SNAPSHOT_LIFECYCLE,
+    ),
+  );
+}
+
+export function persistEditorPlaybackRate(playbackRate: number) {
+  if (!Number.isFinite(playbackRate) || playbackRate <= 0) {
+    return;
+  }
+
+  localStorage.setItem(
+    getEditorPlaybackRateKey(),
+    serializeVersionedSnapshot(
+      EDITOR_PLAYBACK_RATE_VERSION,
+      {
+        playbackRate,
+      },
+      EDITOR_PLAYBACK_RATE_LIFECYCLE,
     ),
   );
 }

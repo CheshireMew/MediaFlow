@@ -30,15 +30,6 @@
     "proofread": "Proofread"
   },
   "loading": { "message": "Translating..." },
-  "result": {
-    "standardBadge": "Standard Translation",
-    "standardHint": "The right column currently shows one-to-one translated segments.",
-    "intelligentBadge": "Smart Split Result",
-    "intelligentHint": "The right column may be merged or split and does not necessarily match the source row-for-row.",
-    "intelligentHintGenerated": "The right column has been resegmented; some rows are newly generated target segments.",
-    "proofreadBadge": "Proofread Result",
-    "proofreadHint": "The right column currently shows corrected source-language text, not a target-language translation."
-  },
   "uploader": {
     "dragText": "Drag & drop subtitle file",
     "supportedFormats": "Supports .srt, .vtt, .ass, .ssa",

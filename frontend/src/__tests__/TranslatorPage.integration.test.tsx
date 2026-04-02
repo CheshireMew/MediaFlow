@@ -82,8 +82,6 @@ vi.mock("react-i18next", () => ({
         "modes.intelligent": "智能分割",
         "modes.proofread": "校对",
         "loading.message": "翻译中...",
-        "result.proofreadBadge": "校对结果",
-        "result.proofreadHint": "当前右侧内容是原语言校对稿，不是目标语言译文。",
       };
       return map[key] || key;
     },
@@ -156,5 +154,18 @@ describe("TranslatorPage integration", () => {
     expect(
       screen.getByText("Network unreachable while contacting LLM provider"),
     ).not.toBeNull();
+  });
+
+  it("does not render the result hint banner after translation output is available", () => {
+    translatorState = {
+      ...translatorState,
+      targetSegments: [{ id: "1", start: 0, end: 1, text: "你好" }],
+      resultMode: "proofread",
+    };
+
+    render(<TranslatorPage />);
+
+    expect(screen.queryByText("result.proofreadBadge")).toBeNull();
+    expect(screen.queryByText("result.proofreadHint")).toBeNull();
   });
 });

@@ -30,15 +30,6 @@
     "proofread": "校对"
   },
   "loading": { "message": "翻译中..." },
-  "result": {
-    "standardBadge": "标准翻译结果",
-    "standardHint": "当前右侧内容是按原分段逐条翻译后的结果。",
-    "intelligentBadge": "智能分割结果",
-    "intelligentHint": "当前右侧内容可能经过合并或拆分，和原始分段不一定一一对应。",
-    "intelligentHintGenerated": "当前右侧内容已经过智能重分段，部分条目是新生成的目标段。",
-    "proofreadBadge": "校对结果",
-    "proofreadHint": "当前右侧内容是原语言校对稿，不是目标语言译文。"
-  },
   "uploader": {
     "dragText": "拖放字幕文件",
     "supportedFormats": "支持 .srt, .vtt, .ass, .ssa",
