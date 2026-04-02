@@ -22,7 +22,6 @@ describe("useEditorFileLoader", () => {
 
     installElectronMock({
       readFile: vi.fn(),
-      getDesktopPeaks: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
       getFileSize: vi.fn().mockResolvedValue(1024),
     });
   });
@@ -39,12 +38,7 @@ describe("useEditorFileLoader", () => {
       return "";
     });
 
-    const { result } = renderHook(() =>
-      useEditorFileLoader({
-        setPeaks: vi.fn(),
-        tryLoadPeaks: vi.fn().mockResolvedValue([new Float32Array([0, 1])]),
-      }),
-    );
+    const { result } = renderHook(() => useEditorFileLoader());
 
     await act(async () => {
       await result.current.loadSubtitleFromPath(subtitlePath);

@@ -1,8 +1,5 @@
-from fastapi import APIRouter, HTTPException, UploadFile, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel
-from typing import Optional
-from pathlib import Path
 import os
 from backend.application.synthesis_service import submit_synthesis_task
 from backend.core.runtime_access import RuntimeServices
@@ -79,55 +76,6 @@ async def upload_watermark_for_preview(file: UploadFile):
         logger.exception(f"[Preview] Failed to process upload: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/peaks")
-async def get_peaks(video_path: str = Query(..., description="Absolute path to the video file")):
-    """
-    Get (or generate) the waveform peaks for a video.
-    Returns the binary .peaks.bin file.
-    """
-    from backend.utils.peaks_generator import get_peaks_path, generate_peaks
-    from backend.utils.path_validator import validate_path
-    from loguru import logger
-    import os
-
-    validate_path(video_path, "video_path")
-
-    if not os.path.exists(video_path):
-        raise HTTPException(status_code=404, detail=f"Video not found: {video_path}")
-
-    try:
-        # 1. Resolve Cache Path
-        # This uses the new hashing logic in peaks_generator
-        peaks_path = get_peaks_path(video_path)
-        
-        # 2. Generate if missing
-        if not peaks_path.exists():
-            logger.info(f"[EditorAPI] Peaks missing for {os.path.basename(video_path)}, generating...")
-            # generate_peaks with output_path=None triggers the cache logic
-            # but since we already computed the path via get_peaks_path (to check existence),
-            # we can just call generate_peaks(..., output_path=str(peaks_path)) OR None.
-            # safe to pass None and let it re-compute, or pass explicit path.
-            # Let's pass None to use the internal logic which also does cleanup.
-            generated_path = generate_peaks(video_path, output_path=None)
-            
-            if not generated_path or not os.path.exists(generated_path):
-                 raise HTTPException(status_code=500, detail="Failed to generate peaks")
-            
-            peaks_path = Path(generated_path)
-
-        # 3. Return File
-        return FileResponse(
-            path=peaks_path,
-            media_type="application/octet-stream",
-            filename=f"{os.path.basename(video_path)}.peaks.bin"
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"[EditorAPI] Failed to get peaks: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/preview/watermark/latest")
 async def get_current_watermark():

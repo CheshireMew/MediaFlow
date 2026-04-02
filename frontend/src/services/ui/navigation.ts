@@ -19,11 +19,23 @@ export interface NavigationPayload {
   subtitle_path?: string | null;
   video_ref?: MediaReference | null;
   subtitle_ref?: MediaReference | null;
+  settings_tab?: "llm" | "general";
 }
 
 export interface NavigationEventDetail {
   destination: NavigationDestination;
   payload?: NavigationPayload;
+}
+
+export function resolveNavigationPath(detail: NavigationEventDetail): string {
+  if (
+    detail.destination === "settings" &&
+    detail.payload?.settings_tab
+  ) {
+    return `/${detail.destination}?tab=${detail.payload.settings_tab}`;
+  }
+
+  return `/${detail.destination}`;
 }
 
 function normalizeNavigationMediaRef(

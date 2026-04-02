@@ -19,6 +19,11 @@ import {
   type DesktopTaskType,
 } from "../desktopTaskState";
 import { DesktopTaskHistoryStore } from "./historyStore";
+import {
+  buildDesktopRuntimeEnv,
+  isDesktopDevMode,
+  resolveBundledBackendExecutable,
+} from "../desktopRuntime";
 
 
 type DesktopWorkerRequest = {
@@ -65,7 +70,6 @@ const DESKTOP_BRIDGE_CAPABILITIES = [
   "desktopExtract",
   "getDesktopOcrResults",
   "detectDesktopSilence",
-  "getDesktopPeaks",
   "desktopTranscribeSegment",
   "desktopTranslateSegment",
   "uploadDesktopWatermark",
@@ -179,14 +183,6 @@ export class DesktopTaskCoordinator {
     });
     ipcMain.handle("desktop:detect-silence", async (_event, payload) => {
       return await this.requestDesktopWorker("detect_silence", payload);
-    });
-    ipcMain.handle("desktop:get-peaks", async (_event, payload) => {
-      const result = await this.requestDesktopWorker<{ peaks_path?: string }>("get_peaks", payload);
-      const peaksPath = result?.peaks_path;
-      if (!peaksPath || !fs.existsSync(peaksPath)) {
-        throw new Error("Desktop peaks file is unavailable.");
-      }
-      return fs.readFileSync(peaksPath);
     });
     ipcMain.handle("desktop:transcribe-segment", async (_event, payload) => {
       return await this.requestDesktopWorker("transcribe_segment", payload);
@@ -330,10 +326,10 @@ export class DesktopTaskCoordinator {
   }
 
   private getDesktopWorkerCommand(): { command: string; args: string[]; cwd: string } | null {
-    const isDev = process.env.IS_DEV === "true";
+    const isDev = isDesktopDevMode();
 
     if (!isDev && app.isPackaged) {
-      const backendExe = path.join(process.resourcesPath, "backend", "mediaflow-backend.exe");
+      const backendExe = resolveBundledBackendExecutable();
       if (!fs.existsSync(backendExe)) {
         console.error("Bundled backend worker executable not found at:", backendExe);
         return null;
@@ -494,6 +490,10 @@ export class DesktopTaskCoordinator {
       cwd: workerCommand.cwd,
       detached: false,
       stdio: ["pipe", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        ...buildDesktopRuntimeEnv(),
+      },
     });
 
     this.desktopWorkerProcess.stdout?.on("data", (data) => {

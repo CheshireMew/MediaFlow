@@ -7,6 +7,7 @@ import {
   executionService,
   type NullableExecutionMode,
 } from "../../services/domain";
+import { isAiTranslationSetupRequiredError } from "../../services/domain/executionAccess";
 import { createMediaReference, type MediaReference } from "../../services/ui/mediaReference";
 import { normalizeTranslateResult } from "../../services/ui/translateResult";
 
@@ -124,6 +125,16 @@ export function useTranslationCommands({
       setTaskStatus("pending");
     } catch (e) {
       console.error(e);
+      if (isAiTranslationSetupRequiredError(e)) {
+        activeTaskModeRef.current = effectiveMode;
+        setActiveMode(null);
+        setResultMode(null);
+        setExecutionMode(null);
+        setTaskId(null);
+        setTaskStatus("");
+        setTaskError(null);
+        return;
+      }
       if (e instanceof Error && /paused|cancelled/i.test(e.message)) {
         setTaskStatus("paused");
         return;
@@ -199,6 +210,16 @@ export function useTranslationCommands({
       setTaskStatus("pending");
     } catch (e) {
       console.error(e);
+      if (isAiTranslationSetupRequiredError(e)) {
+        activeTaskModeRef.current = previousTranslateModeRef.current;
+        setActiveMode(null);
+        setResultMode(null);
+        setExecutionMode(null);
+        setTaskId(null);
+        setTaskStatus("");
+        setTaskError(null);
+        return;
+      }
       if (e instanceof Error && /paused|cancelled/i.test(e.message)) {
         setTaskStatus("paused");
         return;

@@ -1,11 +1,8 @@
-import { useCallback, useEffect, useRef } from "react";
-import { useTaskContext } from "../../context/taskContext";
-import { findCompletedTranscribeTask } from "../tasks/taskSelectors";
+import { useCallback, useEffect } from "react";
 import { editorService } from "../../services/domain";
 import { useEditorStore } from "../../stores/editorStore";
 import {
   createMediaReference,
-  type MediaReference,
 } from "../../services/ui/mediaReference";
 import {
   consumePendingMediaNavigation,
@@ -26,12 +23,9 @@ import { useEditorSubtitleActions } from "./useEditorSubtitleActions";
 
 export { isSupportedEditorSubtitlePath } from "./editorFileHelpers";
 
-type WaveformPeaks = Array<Float32Array | number[]> | null;
-
-export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
+export function useEditorIO() {
   const mediaUrl = useEditorStore((state) => state.mediaUrl);
   const currentFilePath = useEditorStore((state) => state.currentFilePath);
-  const currentFileRef = useEditorStore((state) => state.currentFileRef);
   const replaceEditorDocument = useEditorStore(
     (state) => state.replaceEditorDocument,
   );
@@ -44,42 +38,14 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
   );
   const setCurrentFileRef = useEditorStore((state) => state.setCurrentFileRef);
   const setCurrentSubtitleRef = useEditorStore((state) => state.setCurrentSubtitleRef);
-  const { tasks } = useTaskContext();
-  const refreshedPeaksTaskIdRef = useRef<string | null>(null);
-
-  const fetchPeaks = useCallback(async (params: {
-    videoPath: string;
-    videoRef?: MediaReference | null;
-  }) => {
-    try {
-      const buffer = await editorService.getPeaks({
-        video_path: params.videoPath,
-        video_ref: params.videoRef ?? null,
-      });
-      if (buffer && buffer.byteLength > 0) {
-        return [new Float32Array(buffer)] as WaveformPeaks;
-      }
-    } catch (e) {
-      console.warn("[EditorIO] Failed to load peaks via API:", e);
-    }
-    return null;
-  }, []);
-
-  const tryLoadPeaks = useCallback(async (videoPath: string, videoRef?: MediaReference | null) => {
-    const peaks = await fetchPeaks({ videoPath, videoRef });
-    setPeaks(peaks);
-    return peaks;
-  }, [fetchPeaks, setPeaks]);
-
   const {
     handleOpenFile,
+    handleOpenSubtitle,
     loadMediaAndResources,
     loadSubtitleFromPath,
     tryLoadRelatedSubtitle,
-  } = useEditorFileLoader({
-    setPeaks,
-    tryLoadPeaks,
-  });
+  } =
+    useEditorFileLoader();
   const { saveSubtitleFile } = useEditorSubtitleActions();
 
   useEffect(() => {
@@ -97,7 +63,6 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
         );
         setCurrentSubtitlePath(null);
         setCurrentSubtitleRef(null);
-        await tryLoadPeaks(videoPath, videoRef);
         setMediaUrl(pathToFileURL(videoPath));
 
         if (subtitlePath) {
@@ -137,7 +102,7 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
       }
 
       if (currentFilePath) {
-        await tryLoadPeaks(currentFilePath, null);
+        setMediaUrl(pathToFileURL(currentFilePath));
       }
     };
     void restoreSession();
@@ -153,7 +118,6 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
     });
     return cleanup;
   }, [
-    currentFileRef,
     currentFilePath,
     replaceEditorDocument,
     setCurrentFilePath,
@@ -161,29 +125,8 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
     setCurrentSubtitlePath,
     setCurrentSubtitleRef,
     setMediaUrl,
-    tryLoadPeaks,
     tryLoadRelatedSubtitle,
   ]);
-
-  useEffect(() => {
-    const completedTranscribeTask = findCompletedTranscribeTask(
-      tasks,
-      currentFileRef,
-      currentFilePath,
-    );
-    if (!completedTranscribeTask) {
-      return;
-    }
-    if (!currentFilePath) {
-      return;
-    }
-    if (refreshedPeaksTaskIdRef.current === completedTranscribeTask.id) {
-      return;
-    }
-
-    refreshedPeaksTaskIdRef.current = completedTranscribeTask.id;
-    void tryLoadPeaks(currentFilePath, currentFileRef);
-  }, [currentFilePath, currentFileRef, tasks, tryLoadPeaks]);
 
   const detectSilence = useCallback(
     async (threshold = "-30dB", minDuration = 0.5) => {
@@ -209,6 +152,7 @@ export function useEditorIO(setPeaks: (peaks: WaveformPeaks) => void) {
     mediaUrl,
     currentFilePath,
     openFile: handleOpenFile,
+    openSubtitle: handleOpenSubtitle,
     loadVideo: loadMediaAndResources,
     loadSubtitleFromPath,
     saveSubtitleFile,

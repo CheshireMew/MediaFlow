@@ -60,13 +60,10 @@ describe("Editor recovery", () => {
       readFile: vi.fn().mockResolvedValue(
         "1\n00:00:00,000 --> 00:00:01,000\nNew subtitle\n",
       ),
-      getDesktopPeaks: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
     });
   });
 
   it("prefers explicit pending navigation payload over persisted editor store state", async () => {
-    const setPeaks = vi.fn();
-
     writePendingMediaNavigation({
       target: "editor",
       video_path: "E:/new-video.mp4",
@@ -81,7 +78,7 @@ describe("Editor recovery", () => {
       },
     });
 
-    renderHook(() => useEditorIO(setPeaks));
+    renderHook(() => useEditorIO());
 
     await waitFor(() => {
       expectEditorMediaState({
@@ -98,8 +95,6 @@ describe("Editor recovery", () => {
         { id: "1", start: 0, end: 1, text: "New subtitle" },
       ]);
     });
-
-    expect(setPeaks).toHaveBeenCalled();
     expect(sessionStorage.getItem("mediaflow:pending_file")).toBeNull();
   });
 });

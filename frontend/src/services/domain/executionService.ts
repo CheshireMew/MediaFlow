@@ -8,6 +8,10 @@ import {
   prepareExecutionPayload,
 } from "./executionPayload";
 import {
+  ensureAiTranslationConfigured,
+  ensureCliTranscriptionConfigured,
+} from "./executionAccess";
+import {
   executeDesktopDirectResult,
   executeDesktopTaskSubmission,
 } from "./executionExecutor";
@@ -64,6 +68,8 @@ export const executionService = {
     language?: string | null;
     initial_prompt?: string | null;
   }): Promise<ExecutionOutcome<TranscribeResult>> {
+    await ensureCliTranscriptionConfigured(payload.engine);
+
     return await executeDesktopDirectResult({
       payload,
       normalizePayload: (nextPayload) =>
@@ -119,6 +125,8 @@ export const executionService = {
     context_path?: string | null;
     context_ref?: MediaReference | null;
   }): Promise<ExecutionOutcome<import("../../types/api").TranslateResponse>> {
+    await ensureAiTranslationConfigured();
+
     return await executeDesktopDirectResult({
       payload,
       normalizePayload: (nextPayload) =>

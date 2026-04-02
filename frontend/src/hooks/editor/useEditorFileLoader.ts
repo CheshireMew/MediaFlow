@@ -11,23 +11,13 @@ import {
   pathToFileURL,
 } from "./editorFileHelpers";
 
-type WaveformPeaks = Array<Float32Array | number[]> | null;
-
 type ElectronMediaFile = {
   path: string;
   name: string;
   size: number;
 };
 
-type UseEditorFileLoaderArgs = {
-  setPeaks: (peaks: WaveformPeaks) => void;
-  tryLoadPeaks: (videoPath: string) => Promise<WaveformPeaks>;
-};
-
-export function useEditorFileLoader({
-  setPeaks,
-  tryLoadPeaks,
-}: UseEditorFileLoaderArgs) {
+export function useEditorFileLoader() {
   const replaceEditorDocument = useEditorStore(
     (state) => state.replaceEditorDocument,
   );
@@ -66,13 +56,11 @@ export function useEditorFileLoader({
         return;
       }
 
-      setPeaks(null);
       replaceEditorDocument([]);
       setCurrentFilePath(path);
       setCurrentSubtitlePath(null);
       setCurrentFileRef(createMediaReference({ path }));
       setCurrentSubtitleRef(null);
-      await tryLoadPeaks(path);
       setMediaUrl(pathToFileURL(path));
       await tryLoadRelatedSubtitle(path);
     },
@@ -83,8 +71,6 @@ export function useEditorFileLoader({
       setCurrentSubtitlePath,
       setCurrentSubtitleRef,
       setMediaUrl,
-      setPeaks,
-      tryLoadPeaks,
       tryLoadRelatedSubtitle,
     ],
   );
@@ -98,8 +84,6 @@ export function useEditorFileLoader({
 
       const videoPath = await findRelatedVideoForSubtitle(path);
       if (videoPath) {
-        setPeaks(null);
-        await tryLoadPeaks(videoPath);
         setCurrentFilePath(videoPath);
         setCurrentFileRef(createMediaReference({ path: videoPath }));
         setMediaUrl(pathToFileURL(videoPath));
@@ -126,8 +110,6 @@ export function useEditorFileLoader({
       setCurrentSubtitleRef,
       setCurrentSubtitlePath,
       setMediaUrl,
-      setPeaks,
-      tryLoadPeaks,
     ],
   );
 
@@ -153,16 +135,33 @@ export function useEditorFileLoader({
       const file = input.files?.[0];
       if (file) {
         setMediaUrl(URL.createObjectURL(file));
-        setPeaks(null);
         setCurrentFileRef(null);
         setCurrentSubtitleRef(null);
       }
     };
     input.click();
-  }, [loadMediaAndResources, setCurrentFileRef, setCurrentSubtitleRef, setMediaUrl, setPeaks]);
+  }, [loadMediaAndResources, setCurrentFileRef, setCurrentSubtitleRef, setMediaUrl]);
+
+  const handleOpenSubtitle = useCallback(async () => {
+    if (!isDesktopRuntime()) {
+      return;
+    }
+
+    try {
+      const result = await fileService.openSubtitleFile();
+      const path = (result as { path?: string } | null)?.path;
+
+      if (path) {
+        await loadSubtitleFromPath(path);
+      }
+    } catch (error) {
+      console.error("Failed to open subtitle file:", error);
+    }
+  }, [loadSubtitleFromPath]);
 
   return {
     handleOpenFile,
+    handleOpenSubtitle,
     loadMediaAndResources,
     loadSubtitleFromPath,
     tryLoadRelatedSubtitle,

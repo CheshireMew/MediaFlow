@@ -1,7 +1,6 @@
 import { fileService } from "../fileService";
-import type { MediaReference } from "../ui/mediaReference";
-import { resolveMediaInputPath } from "./mediaInput";
 import { prepareExecutionPayload } from "./executionPayload";
+import type { MediaReference } from "../ui/mediaReference";
 import type {
   DetectSilenceResponse,
   ImagePreviewResponse,
@@ -11,6 +10,7 @@ import type {
 } from "../../types/api";
 import { isDesktopRuntime } from "../desktop/bridge";
 import { executeBackendDirectCall } from "./executionExecutor";
+import { ensureAiTranslationConfigured } from "./executionAccess";
 
 export const editorService = {
   async detectSilence(payload: {
@@ -25,31 +25,6 @@ export const editorService = {
       backendCall: (nextPayload) =>
         import("../../api/client").then(({ apiClient }) => apiClient.detectSilence(nextPayload)),
     });
-  },
-
-  async getPeaks(payload: {
-    video_path?: string | null;
-    video_ref?: MediaReference | null;
-  }): Promise<ArrayBuffer> {
-    const videoPath = resolveMediaInputPath(
-      {
-        path: payload.video_path,
-        ref: payload.video_ref,
-      },
-      "Waveform video",
-    );
-
-    const buffer = await executeBackendDirectCall({
-      payload: videoPath,
-      desktopMethod: "getDesktopPeaks",
-      desktopUnavailableMessage: "Desktop peaks loading is unavailable.",
-      backendCall: (resolvedVideoPath) =>
-        import("../../api/client").then(({ apiClient }) => apiClient.getPeaks(resolvedVideoPath)),
-    });
-    if (!buffer) {
-      throw new Error("Failed to load peaks");
-    }
-    return buffer;
   },
 
   async transcribeSegment(payload: {
@@ -92,6 +67,8 @@ export const editorService = {
   },
 
   async translateSegments(payload: TranslateRequest): Promise<TranslateResponse> {
+    await ensureAiTranslationConfigured();
+
     return await executeBackendDirectCall({
       payload,
       desktopMethod: "desktopTranslateSegment",

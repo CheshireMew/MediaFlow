@@ -19,6 +19,7 @@ import {
   persistNavigationDestination,
   resolveLaunchDestination,
 } from "./services/ui/navigationPersistence";
+import { resolveNavigationPath } from "./services/ui/navigation";
 
 import { TaskProvider } from "./context/taskContext";
 
@@ -34,8 +35,13 @@ function ExternalNavListener() {
   // Event-based navigation (e.g. from Electron menu or other non-react sources)
   useEffect(() => {
     const handleNav = (e: Event) => {
-        const detail = (e as CustomEvent<{ destination?: string }>).detail;
-        if (detail?.destination) navigate(`/${detail.destination}`);
+        const detail = (e as CustomEvent<{
+          destination?: string;
+          payload?: { settings_tab?: "llm" | "general" };
+        }>).detail;
+        if (detail?.destination) {
+          navigate(resolveNavigationPath(detail));
+        }
     };
     window.addEventListener('mediaflow:navigate', handleNav);
     return () => window.removeEventListener('mediaflow:navigate', handleNav);

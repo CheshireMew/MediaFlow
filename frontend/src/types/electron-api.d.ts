@@ -136,7 +136,6 @@ export interface ElectronAPI {
     threshold: string;
     min_duration: number;
   }) => Promise<import("./api").DetectSilenceResponse>;
-  getDesktopPeaks?: (videoPath: string) => Promise<ArrayBuffer | null>;
   desktopTranscribeSegment?: (
     payload: Omit<import("./api").TranscribeSegmentRequest, "video_path" | "srt_path" | "watermark_path" | "options">,
   ) => Promise<{

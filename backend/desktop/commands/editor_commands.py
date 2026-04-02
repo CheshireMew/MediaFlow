@@ -33,29 +33,6 @@ def handle_detect_silence(request_id: str | None, payload: dict[str, Any]) -> No
         },
     })
 
-
-@register_worker_command("get_peaks")
-def handle_get_peaks(request_id: str | None, payload: dict[str, Any]) -> None:
-    from backend.utils.peaks_generator import generate_peaks
-
-    video_path = payload["video_path"]
-    if not os.path.exists(video_path):
-        raise FileNotFoundError(f"Video not found: {video_path}")
-
-    generated_path = generate_peaks(video_path, output_path=None)
-    if not generated_path or not os.path.exists(generated_path):
-        raise RuntimeError("Failed to generate peaks")
-
-    emit({
-        "type": "response",
-        "id": request_id,
-        "ok": True,
-        "result": {
-            "peaks_path": generated_path,
-        },
-    })
-
-
 @register_worker_command("transcribe_segment")
 def handle_transcribe_segment(request_id: str | None, payload: dict[str, Any]) -> None:
     request = TranscribeSegmentRequest.model_validate(payload)

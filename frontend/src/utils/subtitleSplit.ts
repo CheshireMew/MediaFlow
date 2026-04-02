@@ -42,8 +42,7 @@ export function splitSubtitleSegment<T extends SegmentLike>(
 
   const midpointIndex = Math.floor(text.length / 2);
   const smartIndex = getBestSplitIndex(text);
-  const hasSmartSplit =
-    smartIndex > 0 && smartIndex < text.length && smartIndex !== midpointIndex;
+  const hasSmartSplit = smartIndex > 0 && smartIndex < text.length;
 
   let splitIndex = -1;
   let splitTime = 0;

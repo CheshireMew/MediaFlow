@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import { editorService } from "../../services/domain";
+import { isAiTranslationSetupRequiredError } from "../../services/domain/executionAccess";
 import type { MediaReference } from "../../services/ui/mediaReference";
 import { formatSRTTime } from "../../utils/subtitleParser";
 import type { ContextMenuItem } from "../../components/ui/ContextMenu";
@@ -206,6 +207,9 @@ export function useContextMenuBuilder({
               }
             } catch (err) {
               console.error(err);
+              if (isAiTranslationSetupRequiredError(err)) {
+                return;
+              }
               const { toast: t } = await import("../../utils/toast");
               t.error("翻译失败 " + String(err));
             }

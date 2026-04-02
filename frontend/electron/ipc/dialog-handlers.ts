@@ -9,6 +9,7 @@ import type { IpcMainInvokeEvent, OpenDialogOptions, SaveDialogOptions } from "e
 import path from "path";
 import fs from "fs";
 import { resolvePathFromDirectoryEntries } from "../../src/services/filesystem/pathRepair";
+import { resolveDesktopWorkspaceDir } from "../desktopRuntime";
 
 // ─── Preferences Persistence ────────────────────────────────────
 
@@ -51,9 +52,7 @@ function ensureLoaded() {
 
 function getDefaultStartPath(): string | undefined {
   const appPath = app.getAppPath();
-  // In dev: appPath is '.../frontend'
-  // Workspace is sibling: '.../workspace'
-  const workspaceDir = path.resolve(appPath, "../workspace");
+  const workspaceDir = resolveDesktopWorkspaceDir();
 
   let startPath = lastOpenDir;
 
