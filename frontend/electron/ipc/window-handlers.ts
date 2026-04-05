@@ -11,10 +11,11 @@ export function bindRendererReadyCallback(
   window: BrowserWindow,
   callback: () => void,
 ) {
-  rendererReadyCallbacks.set(window.webContents.id, callback);
+  const webContentsId = window.webContents.id;
+  rendererReadyCallbacks.set(webContentsId, callback);
 
   window.once("closed", () => {
-    rendererReadyCallbacks.delete(window.webContents.id);
+    rendererReadyCallbacks.delete(webContentsId);
   });
 }
 
