@@ -15,6 +15,14 @@ files:
       - "!dist-electron/**/*.map"
 
 extraResources:
+  - from: src/assets/fonts
+    to: fonts
+    filter:
+      - "**/*"
+
+  - from: src/shared/fontCatalog.json
+    to: fontCatalog.json
+
   # ── bin/ ──────────────────────────────────────────────────
   # Stable desktop build only ships the core runtime.
   # Experimental preprocessing binaries stay in source/dev only.

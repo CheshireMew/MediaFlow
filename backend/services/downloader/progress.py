@@ -24,12 +24,12 @@ def _parse_progress_percent(payload: Dict) -> float:
     return 0.0
 
 
-def _build_progress_message(payload: Dict, percent: float) -> str:
+def _build_progress_message(payload: Dict, percent: float, stage_label: str) -> str:
     eta = clean_ansi(str(payload.get("_eta_str", ""))).strip()
     speed = clean_ansi(str(payload.get("_speed_str", ""))).strip()
     total = clean_ansi(str(payload.get("_total_bytes_str", ""))).strip()
 
-    parts = [f"Downloading: {percent:.1f}%"]
+    parts = [f"{stage_label}: {percent:.1f}%"]
     if total:
         parts.append(total)
     if speed:
@@ -39,29 +39,41 @@ def _build_progress_message(payload: Dict, percent: float) -> str:
     return " - ".join(parts)
 
 class ProgressHook:
-    def __init__(self, progress_callback: Optional[ProgressCallback], check_cancel_callback: Optional[CancelCheckCallback]):
+    def __init__(
+        self,
+        progress_callback: Optional[ProgressCallback],
+        check_cancel_callback: Optional[CancelCheckCallback],
+        *,
+        stage_label: str = "Downloading",
+    ):
         self.progress_callback = progress_callback
         self.check_cancel_callback = check_cancel_callback
+        self.stage_label = stage_label
+        self._last_percent = 0.0
 
     def __call__(self, d: Dict):
-        # 1. Check for cancellation
         if self.check_cancel_callback and self.check_cancel_callback():
             raise Exception("Download cancelled by user")
 
-        status = d.get('status')
+        status = d.get("status")
 
-        # 2. Update progress
-        if status == 'downloading':
+        if status == "downloading":
             try:
                 percent = _parse_progress_percent(d)
+                percent = max(self._last_percent, percent)
+                self._last_percent = percent
 
                 if self.progress_callback:
-                    self.progress_callback(percent, _build_progress_message(d, percent))
+                    self.progress_callback(
+                        percent,
+                        _build_progress_message(d, percent, self.stage_label),
+                    )
             except Exception as e:
                 logger.warning(f"Error in progress hook: {e}")
 
-        elif status == 'finished':
+        elif status == "finished":
+            self._last_percent = max(self._last_percent, 100.0)
             if self.progress_callback:
-                self.progress_callback(100.0, "Processing completed")
-        elif status == 'error':
+                self.progress_callback(100.0, f"{self.stage_label} stage completed")
+        elif status == "error":
             logger.warning(f"yt-dlp reported error status: {d.get('error', 'unknown')}")

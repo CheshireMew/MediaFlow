@@ -6,7 +6,8 @@ import {
   DEFAULT_SUBTITLE_POSITION,
 } from "../types";
 import type { SubtitlePreset } from "../types";
-import { isFontAvailable } from "../fontUtils";
+import { detectFontAvailability } from "../fontUtils";
+import { isBundledFont } from "../fontCatalog";
 import { computeDefaultSubtitleFontSize } from "../textShaper";
 import {
   updateStoredSynthesisExecutionPreferences,
@@ -96,9 +97,12 @@ export function useSubtitleStyle(
 
   const isInitialized = useRef(false);
   const lastRecommendedVideoKey = useRef<string | null>(null);
+  const lastManualFontSizeVideoKey = useRef<string | null>(null);
 
+  const resolveVideoKey = (path: string | null) => path ?? "__unknown_video__";
   const setFontSize = (value: number) => {
     setFontSizeState(value);
+    lastManualFontSizeVideoKey.current = resolveVideoKey(videoPath);
   };
 
   const currentSubtitle = useMemo(() => {
@@ -109,7 +113,21 @@ export function useSubtitleStyle(
   }, [currentTime, regions]);
 
   useEffect(() => {
-    setFontAvailable(isFontAvailable(fontName));
+    let cancelled = false;
+
+    if (isBundledFont(fontName)) {
+      setFontAvailable(true);
+    }
+
+    void detectFontAvailability(fontName).then((available) => {
+      if (!cancelled) {
+        setFontAvailable(available);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [fontName]);
 
   const effectiveFontName = fontAvailable ? fontName : "Arial";
@@ -119,42 +137,48 @@ export function useSubtitleStyle(
 
   // --- Restore from localStorage ---
   useEffect(() => {
-    if (!isOpen) return;
-    const timer = setTimeout(() => {
-      try {
-        const subtitleStyle = persistedPreferences.subtitleStyle;
+    if (!isOpen) {
+      isInitialized.current = false;
+      lastRecommendedVideoKey.current = null;
+      lastManualFontSizeVideoKey.current = null;
+      return;
+    }
 
-        setCustomPresets(subtitleStyle.customPresets);
-        lastRecommendedVideoKey.current = null;
-        setFontName(subtitleStyle.fontName);
-        setIsBold(subtitleStyle.isBold);
-        setIsItalic(subtitleStyle.isItalic);
-        setOutlineSize(subtitleStyle.outlineSize);
-        setShadowSize(subtitleStyle.shadowSize);
-        setOutlineColor(subtitleStyle.outlineColor);
-        setBgEnabled(subtitleStyle.bgEnabled);
-        setBgColor(subtitleStyle.bgColor);
-        setBgOpacity(subtitleStyle.bgOpacity);
-        setBgPadding(subtitleStyle.bgPadding);
-        setAlignment(subtitleStyle.alignment);
-        setMultilineAlign(subtitleStyle.multilineAlign);
-        setFontSizeState(subtitleStyle.fontSize);
-        setFontColor(subtitleStyle.fontColor);
-        setSubPos(subtitleStyle.subPos);
-      } catch (e) {
-        console.error("Failed to restore subtitle styles", e);
-      }
+    isInitialized.current = false;
 
-      isInitialized.current = true;
-      setPresetNameInput(null);
-    }, 0);
+    try {
+      const subtitleStyle = persistedPreferences.subtitleStyle;
 
-    return () => clearTimeout(timer);
-  }, [isOpen, persistedPreferences.subtitleStyle, videoHeight]);
+      setCustomPresets(subtitleStyle.customPresets);
+      lastRecommendedVideoKey.current = null;
+      lastManualFontSizeVideoKey.current = null;
+      setFontName(subtitleStyle.fontName);
+      setIsBold(subtitleStyle.isBold);
+      setIsItalic(subtitleStyle.isItalic);
+      setOutlineSize(subtitleStyle.outlineSize);
+      setShadowSize(subtitleStyle.shadowSize);
+      setOutlineColor(subtitleStyle.outlineColor);
+      setBgEnabled(subtitleStyle.bgEnabled);
+      setBgColor(subtitleStyle.bgColor);
+      setBgOpacity(subtitleStyle.bgOpacity);
+      setBgPadding(subtitleStyle.bgPadding);
+      setAlignment(subtitleStyle.alignment);
+      setMultilineAlign(subtitleStyle.multilineAlign);
+      setFontSizeState(subtitleStyle.fontSize);
+      setFontColor(subtitleStyle.fontColor);
+      setSubPos(subtitleStyle.subPos);
+    } catch (e) {
+      console.error("Failed to restore subtitle styles", e);
+    }
+
+    isInitialized.current = true;
+    setPresetNameInput(null);
+  }, [isOpen, persistedPreferences]);
 
   useEffect(() => {
     if (!isOpen) {
       lastRecommendedVideoKey.current = null;
+      lastManualFontSizeVideoKey.current = null;
       return;
     }
 
@@ -162,12 +186,17 @@ export function useSubtitleStyle(
       return;
     }
 
-    const currentVideoKey = videoPath ?? "__unknown_video__";
+    const currentVideoKey = resolveVideoKey(videoPath);
     const shouldRecommend =
       lastRecommendedVideoKey.current !== currentVideoKey ||
       lastRecommendedVideoKey.current === null;
 
     if (!shouldRecommend) {
+      return;
+    }
+
+    if (lastManualFontSizeVideoKey.current === currentVideoKey) {
+      lastRecommendedVideoKey.current = currentVideoKey;
       return;
     }
 
@@ -224,7 +253,7 @@ export function useSubtitleStyle(
   // --- Preset actions ---
   const applyPreset = (preset: SubtitlePreset) => {
     setFontName(preset.fontName);
-    setFontSizeState(preset.fontSize);
+    setFontSize(preset.fontSize);
     setFontColor(preset.fontColor);
     setIsBold(preset.bold);
     setIsItalic(preset.italic);

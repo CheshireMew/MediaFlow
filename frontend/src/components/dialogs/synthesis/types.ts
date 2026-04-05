@@ -1,15 +1,8 @@
 // ── Synthesis Dialog Types, Constants & Utilities ──
 
-// Font presets available for subtitle rendering
-export const FONT_PRESETS = [
-  { value: "Arial", label: "Arial" },
-  { value: "Microsoft YaHei", label: "微软雅黑" },
-  { value: "SimHei", label: "黑体" },
-  { value: "SimSun", label: "宋体" },
-  { value: "KaiTi", label: "楷体" },
-  { value: "Noto Sans SC", label: "Noto Sans SC" },
-  { value: "LXGW WenKai", label: "霞鹜文楷" },
-];
+import { FONT_PRESETS } from "./fontCatalog";
+
+export { FONT_PRESETS };
 
 export const DEFAULT_SUBTITLE_POSITION: { x: number; y: number } = {
   x: 0.5,

@@ -11,7 +11,7 @@ type SubtitleSegmentLike = {
 const REGEX_CJK =
   /[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF\u4E00-\u9FAF\u3400-\u4DBF]/;
 
-const MIN_SEGMENT_DURATION = 3.2;
+const MIN_SEGMENT_DURATION = 1.6;
 const MIN_LATIN_LENGTH = 56;
 const MIN_CJK_LENGTH = 24;
 const MIN_WORD_COUNT = 11;

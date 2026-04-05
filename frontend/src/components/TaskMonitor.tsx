@@ -14,6 +14,7 @@ import {
 } from '../services/ui/taskMedia';
 import { createTaskDiagnostic } from '../services/debug/runtimeDiagnostics';
 import { useTaskMonitorOverview } from './task-monitor/useTaskMonitorOverview';
+import { canRetryTask, retryFailedTask } from '../services/tasks/taskRetry';
 
 type TaskWithDetails = Task & { result?: TaskResult };
 
@@ -28,6 +29,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
         pauseAllTasks,
         pauseTask,
         resumeTask,
+        addTask,
         deleteTask,
         clearTasks,
     } = useTaskContext();
@@ -52,6 +54,17 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
             return next;
         });
     };
+
+    const handleResumeAction = React.useCallback(async (task: TaskWithDetails) => {
+        if (task.status === 'paused') {
+            await resumeTask(task.id);
+            return;
+        }
+
+        if (task.status === 'failed' && canRetryTask(task)) {
+            await retryFailedTask(task, addTask);
+        }
+    }, [addTask, resumeTask]);
 
     const resolveTaskPaths = React.useCallback(async (task: TaskWithDetails) => {
         return await resolveTaskMediaPaths(task);
@@ -329,10 +342,10 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
                                                 </button>
                                             ) : null}
 
-                                            {task.status === 'paused' && (
+                                            {(task.status === 'paused' || canRetryTask(task)) && (
                                                 <button 
                                                     onClick={() => {
-                                                        void Promise.resolve(resumeTask(task.id)).catch(err => console.error(err));
+                                                        void Promise.resolve(handleResumeAction(task)).catch(err => console.error(err));
                                                     }}
                                                     className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-500 transition-colors"
                                                     title={t('actions.resume.tooltip')}

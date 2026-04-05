@@ -1,9 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { lazy, Suspense, useState, useRef, useEffect } from "react";
 import { useTranslation } from 'react-i18next';
 import { WaveformPlayer } from "../components/editor/WaveformPlayer";
 import { SubtitleList } from "../components/editor/SubtitleList";
 import { FindReplaceDialog } from "../components/dialogs/FindReplaceDialog";
-import { SynthesisDialog } from "../components/dialogs/SynthesisDialog";
 import { ContextMenu, type ContextMenuItem } from "../components/ui/ContextMenu";
 import {
   createTaskFromExecutionOutcome,
@@ -26,6 +25,11 @@ import { useEditorPlaybackPersistence } from "../hooks/editor/useEditorPlaybackP
 import { useEditorFindReplace } from "../hooks/editor/useEditorFindReplace";
 import { useEditorRegionHandlers } from "../hooks/editor/useEditorRegionHandlers";
 import { useEditorStore } from "../stores/editorStore";
+
+const SynthesisDialog = lazy(async () => {
+  const mod = await import("../components/dialogs/SynthesisDialog");
+  return { default: mod.SynthesisDialog };
+});
 
 export function EditorPage() {
   const { t } = useTranslation('editor');
@@ -252,66 +256,69 @@ export function EditorPage() {
             setMatchCase={setMatchCase}
         />
 
-        <SynthesisDialog
-            isOpen={showSynthesis}
-            onClose={() => setShowSynthesis(false)}
-            regions={regions}
-            videoPath={currentFilePath || (mediaUrl ? mediaUrl.replace('file:///', '') : null)}
-            mediaUrl={mediaUrl}
-            onSynthesize={async (options, _unusedVideoPath, watermarkPath) => {
-                let srtPath: string | false = false;
-                try {
-                    srtPath = await saveSubtitleFile(regions);
-                } catch (e) {
-                    console.error("[EditorPage] Failed to save subtitles before synthesis", e);
-                }
+        {showSynthesis && (
+            <Suspense fallback={null}>
+                <SynthesisDialog
+                    isOpen={showSynthesis}
+                    onClose={() => setShowSynthesis(false)}
+                    regions={regions}
+                    videoPath={currentFilePath || (mediaUrl ? mediaUrl.replace('file:///', '') : null)}
+                    mediaUrl={mediaUrl}
+                    onSynthesize={async (options, _unusedVideoPath, watermarkPath) => {
+                        let srtPath: string | false = false;
+                        try {
+                            srtPath = await saveSubtitleFile(regions);
+                        } catch (e) {
+                            console.error("[EditorPage] Failed to save subtitles before synthesis", e);
+                        }
 
-                if (!srtPath) {
-                    if(!confirm(t('synthesis.confirmUnsavedMessage'))) return;
-                    // Fallback to guessing if save failed but user wants to proceed
-                    if (currentFilePath) {
-                        srtPath = currentFilePath.replace(/\.[^.]+$/, '.srt');
-                    }
-                }
-                
-                if (!srtPath || !currentFilePath) {
-                    alert(t('synthesis.missingFilesError'));
-                    return;
-                }
+                        if (!srtPath) {
+                            if(!confirm(t('synthesis.confirmUnsavedMessage'))) return;
+                            if (currentFilePath) {
+                                srtPath = currentFilePath.replace(/\.[^.]+$/, '.srt');
+                            }
+                        }
+                        
+                        if (!srtPath || !currentFilePath) {
+                            alert(t('synthesis.missingFilesError'));
+                            return;
+                        }
 
-                const { output_path, ...restOptions } = options;
-                const executionResult = await executionService.synthesize({
-                    video_path: currentFileRef ? null : currentFilePath,
-                    video_ref: currentFileRef,
-                    srt_path: srtPath as string,
-                    srt_ref: currentSubtitleRef,
-                    watermark_path: watermarkPath,
-                    output_path: output_path,
-                    options: restOptions,
-                });
-                const outcome = resolveExecutionOutcomeBranch(executionResult);
-                if (outcome.kind !== "submission") {
-                    throw new Error("Synthesis should return a task submission");
-                }
-                addTask(
-                    createTaskFromExecutionOutcome({
-                        outcome: executionResult,
-                        type: "synthesize",
-                        name: currentFilePath
-                            ? `Synthesize ${currentFilePath.split(/[\\/]/).pop()}`
-                            : "Synthesize video",
-                        request_params: {
+                        const { output_path, ...restOptions } = options;
+                        const executionResult = await executionService.synthesize({
+                            video_path: currentFileRef ? null : currentFilePath,
                             video_ref: currentFileRef,
                             srt_path: srtPath as string,
-                            subtitle_ref: currentSubtitleRef,
+                            srt_ref: currentSubtitleRef,
                             watermark_path: watermarkPath,
-                            output_path: output_path ?? undefined,
-                            ...restOptions,
-                        },
-                    }),
-                );
-            }}
-        />
+                            output_path: output_path,
+                            options: restOptions,
+                        });
+                        const outcome = resolveExecutionOutcomeBranch(executionResult);
+                        if (outcome.kind !== "submission") {
+                            throw new Error("Synthesis should return a task submission");
+                        }
+                        addTask(
+                            createTaskFromExecutionOutcome({
+                                outcome: executionResult,
+                                type: "synthesize",
+                                name: currentFilePath
+                                    ? `Synthesize ${currentFilePath.split(/[\\/]/).pop()}`
+                                    : "Synthesize video",
+                                request_params: {
+                                    video_ref: currentFileRef,
+                                    srt_path: srtPath as string,
+                                    subtitle_ref: currentSubtitleRef,
+                                    watermark_path: watermarkPath,
+                                    output_path: output_path ?? undefined,
+                                    ...restOptions,
+                                },
+                            }),
+                        );
+                    }}
+                />
+            </Suspense>
+        )}
     </div>
   );
 }

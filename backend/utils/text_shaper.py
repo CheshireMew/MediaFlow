@@ -8,6 +8,7 @@ line breaks and insert ASS \\N markers before rendering.
 from functools import lru_cache
 from pathlib import Path
 import os
+from backend.utils.font_assets import get_bundled_font_files
 
 # Characters that MUST NOT appear at the START of a line (避头标点)
 _LINE_START_FORBIDDEN = set('，。！？；：、）」』】》〉）…—～·')
@@ -89,6 +90,10 @@ def _resolve_font_path(font_name: str) -> str | None:
     normalized = _normalize_font_key(font_name)
     if not normalized:
         return None
+
+    bundled_files = get_bundled_font_files(font_name)
+    if bundled_files:
+        return str(bundled_files[0])
 
     font_dirs = _candidate_font_dirs()
     hints = _FONT_FILENAME_HINTS.get(normalized, [])

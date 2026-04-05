@@ -49,6 +49,7 @@ function createWindow() {
   };
 
   mainWindow.once("ready-to-show", revealWindow);
+  mainWindow.webContents.once("dom-ready", revealWindow);
   mainWindow.webContents.once("did-finish-load", revealWindow);
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (!isMainFrame || loadFailureHandled) {

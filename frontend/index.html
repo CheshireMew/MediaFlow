@@ -5,9 +5,60 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mediaflow-ui</title>
+    <style>
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: #0a0a0a;
+      }
+
+      body {
+        color: #e5e7eb;
+        font-family: "Segoe UI", sans-serif;
+      }
+
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(circle at top, rgba(99, 102, 241, 0.18), transparent 40%),
+          #0a0a0a;
+      }
+
+      #boot-splash main {
+        width: min(360px, calc(100vw - 40px));
+        padding: 28px 24px;
+        border-radius: 20px;
+        background: rgba(17, 24, 39, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      }
+
+      #boot-splash h1 {
+        margin: 0 0 8px;
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      #boot-splash p {
+        margin: 0;
+        color: #94a3b8;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="boot-splash">
+      <main>
+        <h1>MediaFlow</h1>
+        <p>正在启动桌面界面…</p>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -13,6 +13,9 @@ const deleteTaskMock = vi.fn();
 const pauseTaskMock = vi.fn();
 const resumeTaskMock = vi.fn();
 const isDesktopRuntimeMock = vi.fn();
+const addTaskMock = vi.fn();
+const canRetryTaskMock = vi.fn();
+const retryFailedTaskMock = vi.fn();
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -26,6 +29,11 @@ vi.mock("../context/taskContext", () => ({
 
 vi.mock("../services/desktop", () => ({
   isDesktopRuntime: () => isDesktopRuntimeMock(),
+}));
+
+vi.mock("../services/tasks/taskRetry", () => ({
+  canRetryTask: (...args: unknown[]) => canRetryTaskMock(...args),
+  retryFailedTask: (...args: unknown[]) => retryFailedTaskMock(...args),
 }));
 
 vi.mock("../components/TaskTraceView", () => ({
@@ -86,7 +94,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
-      addTask: vi.fn(),
+      addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
     });
@@ -96,6 +104,11 @@ describe("TaskMonitor integration", () => {
     pauseAllTasksMock.mockResolvedValue({ count: 3 });
     clearTasksMock.mockResolvedValue(undefined);
     deleteTaskMock.mockResolvedValue(undefined);
+    addTaskMock.mockReset();
+    canRetryTaskMock.mockReset();
+    retryFailedTaskMock.mockReset();
+    canRetryTaskMock.mockReturnValue(false);
+    retryFailedTaskMock.mockResolvedValue(undefined);
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
@@ -146,7 +159,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
-      addTask: vi.fn(),
+      addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
     });
@@ -249,7 +262,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
-      addTask: vi.fn(),
+      addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
     });
@@ -291,7 +304,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
-      addTask: vi.fn(),
+      addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
     });
@@ -305,6 +318,117 @@ describe("TaskMonitor integration", () => {
 
     await waitFor(() => {
       expect(resumeTaskMock).toHaveBeenCalledWith("paused-desktop-task");
+    });
+  });
+
+  it("retries a failed download task from the resume button", async () => {
+    canRetryTaskMock.mockReturnValue(true);
+    useTaskContextMock.mockReturnValue({
+      tasks: [
+        {
+          id: "failed-download-task",
+          type: "download",
+          status: "failed",
+          progress: 0,
+          name: "Failed download task",
+          message: "Download failed",
+          error: "network error",
+          created_at: 2,
+          request_params: {
+            url: "https://example.com/video",
+            download_subs: true,
+            resolution: "best",
+            codec: "best",
+          },
+        },
+      ],
+      connected: true,
+      remoteTasksReady: true,
+      tasksSettled: true,
+      taskOwnerMode: "backend",
+      pauseLocalTasks: pauseLocalTasksMock,
+      pauseRemoteTasks: pauseRemoteTasksMock,
+      pauseAllTasks: pauseAllTasksMock,
+      pauseTask: pauseTaskMock,
+      resumeTask: resumeTaskMock,
+      addTask: addTaskMock,
+      deleteTask: deleteTaskMock,
+      clearTasks: clearTasksMock,
+    });
+
+    render(<TaskMonitor />);
+
+    const taskRow = screen.getByText("Failed download task").closest(".group") as HTMLElement | null;
+    if (!taskRow) throw new Error("Failed download task row not found");
+
+    fireEvent.click(within(taskRow).getByTitle("actions.resume.tooltip"));
+
+    await waitFor(() => {
+      expect(retryFailedTaskMock).toHaveBeenCalledWith(
+        {
+          id: "failed-download-task",
+          type: "download",
+          status: "failed",
+          progress: 0,
+          name: "Failed download task",
+          message: "Download failed",
+          error: "network error",
+          created_at: 2,
+          request_params: {
+            url: "https://example.com/video",
+            download_subs: true,
+            resolution: "best",
+            codec: "best",
+          },
+        },
+        addTaskMock,
+      );
+    });
+
+    expect(resumeTaskMock).not.toHaveBeenCalled();
+  });
+
+  it("shows retry button for other retryable failed tasks", async () => {
+    canRetryTaskMock.mockImplementation((task) => task.id === "failed-translate-task");
+    useTaskContextMock.mockReturnValue({
+      tasks: [
+        {
+          id: "failed-translate-task",
+          type: "translate",
+          status: "failed",
+          progress: 0,
+          name: "Failed translate task",
+          message: "Translate failed",
+          error: "provider error",
+          created_at: 2,
+        },
+      ],
+      connected: true,
+      remoteTasksReady: true,
+      tasksSettled: true,
+      taskOwnerMode: "backend",
+      pauseLocalTasks: pauseLocalTasksMock,
+      pauseRemoteTasks: pauseRemoteTasksMock,
+      pauseAllTasks: pauseAllTasksMock,
+      pauseTask: pauseTaskMock,
+      resumeTask: resumeTaskMock,
+      addTask: addTaskMock,
+      deleteTask: deleteTaskMock,
+      clearTasks: clearTasksMock,
+    });
+
+    render(<TaskMonitor />);
+
+    const taskRow = screen.getByText("Failed translate task").closest(".group") as HTMLElement | null;
+    if (!taskRow) throw new Error("Failed translate task row not found");
+
+    fireEvent.click(within(taskRow).getByTitle("actions.resume.tooltip"));
+
+    await waitFor(() => {
+      expect(retryFailedTaskMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "failed-translate-task", type: "translate" }),
+        addTaskMock,
+      );
     });
   });
 
@@ -340,7 +464,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
-      addTask: vi.fn(),
+      addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
     });

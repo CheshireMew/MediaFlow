@@ -349,6 +349,7 @@ describe("editor subtitle behaviors", () => {
   test("subtitle style recommends a new font size when switching videos before manual override", async () => {
     localStorage.removeItem("sub_fontSize");
     localStorage.removeItem("synthesis_execution_preferences");
+    const persistedPreferences = restoreStoredSynthesisExecutionPreferences();
     const originalGetContext = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = (() =>
       ({
@@ -365,18 +366,22 @@ describe("editor subtitle behaviors", () => {
             0,
             videoHeight,
             videoPath,
-            restoreStoredSynthesisExecutionPreferences(),
+            persistedPreferences,
           ),
         {
           initialProps: { videoHeight: 1080, videoPath: "E:/video-a.mp4" },
         },
       );
 
-      await Promise.resolve();
+      await act(async () => {
+        await Promise.resolve();
+      });
       expect(result.current.fontSize).toBe(24);
 
       rerender({ videoHeight: 720, videoPath: "E:/video-b.mp4" });
-      await Promise.resolve();
+      await act(async () => {
+        await Promise.resolve();
+      });
       expect(result.current.fontSize).toBe(18);
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext;
@@ -386,6 +391,7 @@ describe("editor subtitle behaviors", () => {
   test("subtitle style recalculates the recommended font size whenever the video changes", async () => {
     localStorage.removeItem("sub_fontSize");
     localStorage.removeItem("synthesis_execution_preferences");
+    const persistedPreferences = restoreStoredSynthesisExecutionPreferences();
     const originalGetContext = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = (() =>
       ({
@@ -402,21 +408,71 @@ describe("editor subtitle behaviors", () => {
             0,
             videoHeight,
             videoPath,
-            restoreStoredSynthesisExecutionPreferences(),
+            persistedPreferences,
           ),
         {
           initialProps: { videoHeight: 1080, videoPath: "E:/video-a.mp4" },
         },
       );
 
-      await Promise.resolve();
+      await act(async () => {
+        await Promise.resolve();
+      });
 
       act(() => {
         result.current.setFontSize(30);
       });
       rerender({ videoHeight: 720, videoPath: "E:/video-b.mp4" });
-      await Promise.resolve();
+      await act(async () => {
+        await Promise.resolve();
+      });
       expect(result.current.fontSize).toBe(18);
+    } finally {
+      HTMLCanvasElement.prototype.getContext = originalGetContext;
+    }
+  });
+
+  test("subtitle style keeps the manual font size when the same video metadata arrives late", async () => {
+    localStorage.removeItem("sub_fontSize");
+    localStorage.removeItem("synthesis_execution_preferences");
+    const persistedPreferences = restoreStoredSynthesisExecutionPreferences();
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = (() =>
+      ({
+        font: "",
+        measureText: () => ({ width: 10 }),
+      }) as unknown as CanvasRenderingContext2D) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const { result, rerender } = renderHook(
+        ({ videoHeight }) =>
+          useSubtitleStyle(
+            true,
+            [],
+            0,
+            videoHeight,
+            "E:/video-a.mp4",
+            persistedPreferences,
+          ),
+        {
+          initialProps: { videoHeight: 0 },
+        },
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      act(() => {
+        result.current.setFontSize(32);
+      });
+
+      rerender({ videoHeight: 1080 });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(result.current.fontSize).toBe(32);
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext;
     }

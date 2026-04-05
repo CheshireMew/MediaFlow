@@ -1,29 +1,21 @@
 import asyncio
-import uuid
 import time
+import uuid
 from pathlib import Path
-from typing import Optional, List, Callable
-from concurrent.futures import ThreadPoolExecutor
+from typing import Optional
 
 import yt_dlp
 from loguru import logger
 
 from backend.config import settings
-from backend.models.schemas import TaskResult, FileRef
+from backend.models.schemas import TaskResult
 from backend.services.cookie_manager import CookieManager
 from backend.services.platforms.factory import PlatformFactory
-from backend.utils.subtitle_manager import SubtitleManager
 
+from .artifacts import DownloadArtifactResolver, sanitize_filename
 from .config_builder import YtDlpConfigBuilder
 from .post_processor import DownloadPostProcessor
-from .progress import ProgressHook, ProgressCallback, CancelCheckCallback
-
-
-def _infer_media_file_type(path: str) -> str:
-    suffix = Path(path).suffix.lower()
-    if suffix in {".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg"}:
-        return "audio"
-    return "video"
+from .progress import CancelCheckCallback, ProgressCallback, ProgressHook
 
 
 class DownloaderService:
@@ -35,8 +27,9 @@ class DownloaderService:
     ):
         self.output_dir = settings.WORKSPACE_DIR
         self._cookie_manager = cookie_manager
-        self.post_processor = DownloadPostProcessor()
         self._platform_factory = platform_factory
+        self._artifact_resolver = DownloadArtifactResolver()
+        self._post_processor = DownloadPostProcessor()
 
     async def download(
         self,
@@ -53,34 +46,27 @@ class DownloaderService:
         cookie_file: Optional[str] = None,
         filename: Optional[str] = None,
         local_source: Optional[str] = None,
-        codec: str = "best"
+        codec: str = "best",
     ) -> TaskResult:
-        """
-        Async download entry point.
-        """
-        # Normalize URL
         url = str(url)
-        
-        # 1. Strategy Analysis
+
         handler = await self._platform_factory.get_handler(url)
         final_url = url
         final_title = filename
-        
+
         if handler:
             logger.info(f"Using platform handler: {handler.__class__.__name__}")
             try:
                 result = await handler.analyze(url)
-                if result:
-                    if result.type == 'single':
-                        if result.direct_src:
-                            logger.info(f"Resolved direct URL: {result.direct_src[:50]}...")
-                            final_url = result.direct_src
-                        if result.title and not final_title:
-                            final_title = result.title
+                if result and result.type == "single":
+                    if result.direct_src:
+                        logger.info(f"Resolved direct URL: {result.direct_src[:50]}...")
+                        final_url = result.direct_src
+                    if result.title and not final_title:
+                        final_title = result.title
             except Exception as e:
                 logger.error(f"Platform analysis failed, falling back to default: {e}")
 
-        # 2. Execution (Blocking)
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None,
@@ -99,12 +85,13 @@ class DownloaderService:
                 cookie_file=cookie_file,
                 filename=final_title,
                 local_source=local_source,
-                codec=codec
-            )
+                codec=codec,
+            ),
         )
 
     def _perform_download_sync(
         self,
+        *,
         url: str,
         start_url: Optional[str] = None,
         proxy: Optional[str] = None,
@@ -119,115 +106,130 @@ class DownloaderService:
         cookie_file: Optional[str] = None,
         filename: Optional[str] = None,
         local_source: Optional[str] = None,
-        codec: str = "best"
+        codec: str = "best",
     ) -> TaskResult:
-        
-        # 1. Handle Local Source (Direct Download)
         if local_source:
-             return self._handle_local_source(
-                 local_source, url, filename, playlist_title, task_id, output_dir
-             )
+            return self._handle_local_source(
+                local_source=local_source,
+                url=url,
+                filename=filename,
+                playlist_title=playlist_title,
+                task_id=task_id,
+                output_dir=output_dir,
+            )
 
-        # 2. Build Configuration
         target_output_dir = Path(output_dir) if output_dir else self.output_dir
         target_output_dir.mkdir(parents=True, exist_ok=True)
-        progress_hook = ProgressHook(progress_callback, check_cancel_callback)
-        ydl_opts = YtDlpConfigBuilder(
+        config_builder = YtDlpConfigBuilder(
             target_output_dir,
             cookie_manager=self._cookie_manager,
-        ).build(
+        )
+
+        media_progress = self._build_phase_progress_callback(
+            progress_callback,
+            start=0.0,
+            end=90.0 if download_subs else 99.0,
+        )
+        media_hook = ProgressHook(
+            media_progress,
+            check_cancel_callback,
+            stage_label="Media download",
+        )
+        media_opts = config_builder.build_media_download(
             url=url,
             start_url=start_url,
             proxy=proxy,
             playlist_title=playlist_title,
             playlist_items=playlist_items,
-            download_subs=download_subs,
+            download_subs=False,
             resolution=resolution,
             cookie_file=cookie_file,
             filename=filename,
-            progress_hook=progress_hook,
-            codec=codec
+            progress_hook=media_hook,
+            codec=codec,
         )
-        
-        # 3. Execute Download
-        logger.info(f"Starting download: {url}")
+
+        logger.info(f"Starting media download: {url}")
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                if not info:
-                    return TaskResult(success=False, error="Download failed: No info returned")
-                downloaded_path = ydl.prepare_filename(info)
+            media_info, prepared_path = self._execute_yt_dlp_download(
+                url=url,
+                ydl_opts=media_opts,
+                require_prepared_path=True,
+            )
         except Exception as e:
-            logger.error(f"yt-dlp download failed: {e}")
+            logger.error(f"yt-dlp media download failed: {e}")
             return TaskResult(success=False, error=f"Download failed: {e}")
 
-        duration = info.get('duration', 0)
-        title = info.get('title') or "Unknown Title"
-
-        # Robustness: Check if file exists vs what yt-dlp predicted (e.g. .NA extension issue)
-        dpath = Path(downloaded_path)
-        if not dpath.exists():
-            logger.warning(f"File not found at expected path: {dpath}. Searching for alternatives...")
-            media_id = info.get("id")
-            if media_id:
-                id_candidates = list(dpath.parent.glob(f"*{media_id}*.*"))
-                if id_candidates:
-                    preferred_suffixes = {".mp4", ".mkv", ".webm", ".m4a", ".mp3", ".wav", ".mov"}
-                    id_candidates.sort(
-                        key=lambda p: (
-                            p.suffix.lower() in preferred_suffixes,
-                            p.stat().st_mtime,
-                        ),
-                        reverse=True,
-                    )
-                    downloaded_path = str(id_candidates[0])
-                    dpath = Path(downloaded_path)
-                    logger.info(f"Recovered downloaded file by media id: {downloaded_path}")
-            # Search in same dir for files with same name but different extension
-            candidates = list(dpath.parent.glob(f"{dpath.stem}.*")) if not dpath.exists() else []
-            if candidates:
-                # Prefer video/audio extensions
-                candidates.sort(key=lambda p: p.suffix in ['.mp4', '.mkv', '.webm', '.m4a', '.mp3'], reverse=True)
-                downloaded_path = str(candidates[0])
-                logger.info(f"Found actual file at: {downloaded_path}")
-            elif not dpath.exists():
-                return TaskResult(success=False, error=f"File not found: {dpath}")
-
-        # 4. Post Processing
-        subtitle_path = self.post_processor.process_subtitles(Path(downloaded_path), download_subs)
-        normalized_media_path, subtitle_path = self.post_processor.normalize_artifact_names(
-            Path(downloaded_path),
-            subtitle_path,
-            preferred_stem=filename or title,
-        )
-        downloaded_path = str(normalized_media_path)
-
-        logger.success(f"Download complete: {downloaded_path}")
-
-        files = [
-            FileRef(
-                type=_infer_media_file_type(str(downloaded_path)),
-                path=str(downloaded_path),
-                label="source",
+        subtitle_error: Optional[str] = None
+        if download_subs:
+            subtitle_progress = self._build_phase_progress_callback(
+                progress_callback,
+                start=90.0,
+                end=99.0,
             )
-        ]
-        if subtitle_path:
-            files.append(FileRef(type="subtitle", path=str(subtitle_path), label="downloaded"))
+            subtitle_hook = ProgressHook(
+                subtitle_progress,
+                check_cancel_callback,
+                stage_label="Subtitle download",
+            )
+            subtitle_opts = config_builder.build_subtitle_download(
+                url=url,
+                start_url=start_url,
+                proxy=proxy,
+                playlist_title=playlist_title,
+                playlist_items=playlist_items,
+                cookie_file=cookie_file,
+                filename=filename,
+                progress_hook=subtitle_hook,
+            )
+            try:
+                logger.info(f"Starting subtitle download: {url}")
+                self._execute_yt_dlp_download(
+                    url=url,
+                    ydl_opts=subtitle_opts,
+                    require_prepared_path=False,
+                )
+            except Exception as e:
+                subtitle_error = str(e)
+                logger.warning(f"Subtitle download failed after media completed: {e}")
+                if progress_callback:
+                    progress_callback(99.0, "Subtitle download failed, keeping media")
 
+        duration = media_info.get("duration", 0)
+        title = media_info.get("title") or "Unknown Title"
+
+        try:
+            artifacts = self._artifact_resolver.finalize_download(
+                info=media_info,
+                prepared_path=prepared_path,
+                subtitle_requested=download_subs,
+                preferred_stem=filename or title,
+                subtitle_error=subtitle_error,
+            )
+        except Exception as e:
+            logger.error(f"Download artifact resolution failed: {e}")
+            return TaskResult(success=False, error=f"Download failed: {e}")
+
+        if progress_callback:
+            progress_callback(100.0, "Download completed")
+
+        logger.success(f"Download complete: {artifacts.media_path}")
         return TaskResult(
             success=True,
-            files=files,
+            files=artifacts.to_files(),
             meta={
                 "id": task_id or str(uuid.uuid4()),
                 "title": title,
                 "duration": duration,
-                "filename": Path(downloaded_path).name,
-                "source_url": url
-            }
+                "filename": artifacts.media_path.name,
+                "source_url": url,
+                "download_artifacts": artifacts.to_meta(),
+            },
         )
 
     def _handle_local_source(
         self,
+        *,
         local_source: str,
         url: str,
         filename: Optional[str],
@@ -237,43 +239,64 @@ class DownloaderService:
     ) -> TaskResult:
         local_path = Path(local_source)
         if not local_path.exists():
-             return TaskResult(success=False, error=f"Local source not found: {local_source}")
+            return TaskResult(success=False, error=f"Local source not found: {local_source}")
 
-        # Determine destination
         base_output_dir = Path(output_dir) if output_dir else self.output_dir
         if playlist_title:
-             safe_playlist_title = "".join([c for c in playlist_title if c.isalpha() or c.isdigit() or c in ' -_[]']).rstrip()
-             dest_dir = base_output_dir / safe_playlist_title
+            safe_playlist_title = sanitize_filename(playlist_title).rstrip()
+            dest_dir = base_output_dir / safe_playlist_title
         else:
-             dest_dir = base_output_dir
-        
+            dest_dir = base_output_dir
+
         dest_dir.mkdir(parents=True, exist_ok=True)
         final_name = filename or f"Douyin_Video_{int(time.time())}"
-        
-        dest_path = self.post_processor.process_local_file(local_path, dest_dir, final_name)
-        
+        dest_path = self._post_processor.process_local_file(local_path, dest_dir, final_name)
+        artifacts = self._artifact_resolver.finalize_existing(
+            media_path=dest_path,
+            preferred_stem=final_name,
+        )
+
         return TaskResult(
             success=True,
-            files=[
-                FileRef(
-                    type=_infer_media_file_type(str(dest_path)),
-                    path=str(dest_path),
-                    label="source",
-                )
-            ],
+            files=artifacts.to_files(),
             meta={
                 "id": task_id or str(uuid.uuid4()),
                 "title": final_name,
                 "duration": 0,
-                "filename": dest_path.name,
-                "source_url": url
-            }
+                "filename": artifacts.media_path.name,
+                "source_url": url,
+                "download_artifacts": artifacts.to_meta(),
+            },
         )
 
-    def _clean_subtitles(self, subtitle_path: str) -> Optional[Path]:
-        """
-        Backward-compatible helper retained for tests and older callers.
-        Converts a VTT subtitle file to SRT using the shared subtitle parser.
-        """
-        path = Path(subtitle_path)
-        return SubtitleManager.process_vtt_file(path)
+    def _execute_yt_dlp_download(
+        self,
+        *,
+        url: str,
+        ydl_opts: dict,
+        require_prepared_path: bool,
+    ) -> tuple[dict, Optional[str]]:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if not info:
+                raise RuntimeError("No info returned")
+            prepared_path = ydl.prepare_filename(info) if require_prepared_path else None
+        return info, prepared_path
+
+    def _build_phase_progress_callback(
+        self,
+        progress_callback: Optional[ProgressCallback],
+        *,
+        start: float,
+        end: float,
+    ) -> Optional[ProgressCallback]:
+        if not progress_callback:
+            return None
+
+        span = max(end - start, 0.0)
+
+        def report(progress: float, message: str) -> None:
+            bounded = max(0.0, min(100.0, float(progress)))
+            progress_callback(start + (bounded / 100.0) * span, message)
+
+        return report

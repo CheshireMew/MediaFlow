@@ -4,11 +4,13 @@ import tempfile
 import uuid
 import shutil
 import time
+from pathlib import Path
 from loguru import logger
 import ffmpeg
 from backend.config import settings
 from backend.services.video.media_prober import MediaProber
 from backend.services.video.watermark_processor import WatermarkProcessor
+from backend.utils.font_assets import stage_font_files
 from backend.utils.subtitle_manager import SubtitleManager
 
 
@@ -112,6 +114,7 @@ class VideoSynthesizer:
         # ── End SR Pre-processing ──────────────────────────────
         
         temp_ass = None
+        temp_fonts_dir = None
         try:
             # 1. Probe & Validation
             self._validate_paths(video_path, srt_path)
@@ -119,7 +122,7 @@ class VideoSynthesizer:
             input_video, audio = self._create_input_streams(video_path, options)
             
             # 2. Build Filter Graph
-            video_stream, temp_ass = self._apply_filters(
+            video_stream, temp_ass, temp_fonts_dir = self._apply_filters(
                 input_video, 
                 video_path, 
                 srt_path, 
@@ -153,6 +156,12 @@ class VideoSynthesizer:
                      logger.debug(f"Deleted temp subtitle: {temp_ass}")
                  except Exception as e:
                      logger.warning(f"Failed to delete temp subtitle: {e}")
+             if temp_fonts_dir and os.path.exists(temp_fonts_dir):
+                 try:
+                     shutil.rmtree(temp_fonts_dir)
+                     logger.debug(f"Deleted temp fonts dir: {temp_fonts_dir}")
+                 except Exception as e:
+                     logger.warning(f"Failed to delete temp fonts dir: {e}")
              # Clean up temp SR file
              if temp_sr_path and os.path.exists(temp_sr_path):
                  try:
@@ -309,6 +318,7 @@ class VideoSynthesizer:
 
         # 4. Subtitles (conditionally skip if user toggled off)
         temp_ass = None
+        temp_fonts_dir = None
         if options.get('skip_subtitles'):
             logger.info("Subtitles disabled by user, skipping subtitle burn-in")
         else:
@@ -328,15 +338,29 @@ class VideoSynthesizer:
                 sub_offset = -trim_start if trim_start > 0 else 0.0
                 
                 SubtitleManager.convert_srt_to_ass(srt_path, temp_ass, options, time_offset=sub_offset)
-                
-                # Use relative path for filter to avoid escaping hell
-                video_stream = video_stream.filter('subtitles', os.path.basename(temp_ass))
+
+                temp_fonts_dir_path = stage_font_files(
+                    str(options.get('font_name', '')).strip(),
+                    Path(os.path.abspath(f"temp_fonts_{uuid.uuid4().hex[:8]}")),
+                )
+                temp_fonts_dir = str(temp_fonts_dir_path) if temp_fonts_dir_path else None
+
+                subtitle_filter_kwargs = {}
+                if temp_fonts_dir:
+                    subtitle_filter_kwargs['fontsdir'] = os.path.basename(temp_fonts_dir)
+
+                # Use relative paths for filter to avoid escaping hell on Windows
+                video_stream = video_stream.filter(
+                    'subtitles',
+                    os.path.basename(temp_ass),
+                    **subtitle_filter_kwargs,
+                )
                 
             except Exception as e:
                 logger.error(f"Subtitle prep failed: {e}")
                 raise
             
-        return video_stream, temp_ass
+        return video_stream, temp_ass, temp_fonts_dir
 
 
 

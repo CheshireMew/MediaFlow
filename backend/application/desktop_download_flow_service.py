@@ -62,13 +62,20 @@ class DesktopDownloadFlowService:
         *,
         progress_callback: ProgressCallback,
     ) -> TaskResult:
+        download_progress_callback = progress_callback
+        if request.auto_execute_flow:
+            def download_progress(progress: int | float, message: str) -> None:
+                progress_callback(float(progress) * 0.45, message)
+
+            download_progress_callback = download_progress
+
         result = await self._downloader.download(
             url=request.url,
             proxy=request.proxy,
             output_dir=request.output_dir,
             playlist_title=request.playlist_title,
             playlist_items=request.playlist_items,
-            progress_callback=progress_callback,
+            progress_callback=download_progress_callback,
             download_subs=request.download_subs,
             resolution=request.resolution,
             task_id=request.task_id,
