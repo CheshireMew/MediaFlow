@@ -113,12 +113,6 @@ export class DesktopTaskCoordinator {
       return await this.requestDesktopWorker("transcribe", payload);
     });
     ipcMain.handle("desktop:get-runtime-info", async () => {
-      const ping = await this.requestDesktopWorker<{
-        status: "pong";
-        protocol_version?: number;
-        app_version?: string | null;
-      }>("ping", {});
-
       return {
         status: "pong" as const,
         contract_version: DESKTOP_BRIDGE_CONTRACT_VERSION,
@@ -126,8 +120,8 @@ export class DesktopTaskCoordinator {
         task_owner_mode: DESKTOP_TASK_OWNER_MODE,
         capabilities: [...DESKTOP_BRIDGE_CAPABILITIES],
         worker: {
-          protocol_version: ping.protocol_version ?? DESKTOP_WORKER_PROTOCOL_VERSION,
-          app_version: ping.app_version ?? null,
+          protocol_version: DESKTOP_WORKER_PROTOCOL_VERSION,
+          app_version: null,
         },
       };
     });

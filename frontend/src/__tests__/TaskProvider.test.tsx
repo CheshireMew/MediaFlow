@@ -65,6 +65,15 @@ function Probe() {
   );
 }
 
+async function flushDesktopBootstrapFrame() {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+    await Promise.resolve();
+  });
+}
+
 describe("TaskProvider", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -150,7 +159,7 @@ describe("TaskProvider", () => {
     );
 
     await act(async () => {
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(20);
       await Promise.resolve();
     });
 
@@ -166,6 +175,8 @@ describe("TaskProvider", () => {
         <Probe />
       </TaskProvider>,
     );
+
+    await flushDesktopBootstrapFrame();
 
     await waitFor(() => {
       expect(screen.getByTestId("task-ids").textContent).toBe("desktop-task");
@@ -240,6 +251,7 @@ describe("TaskProvider", () => {
   });
 
   it("ignores backend task events in desktop owner mode", async () => {
+    vi.useFakeTimers();
     const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     onTaskEventMock.mockImplementation((callback: (payload: unknown) => void) => {
@@ -262,10 +274,12 @@ describe("TaskProvider", () => {
       </TaskProvider>,
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId("task-ids").textContent).toBe("desktop-task");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
+      await Promise.resolve();
     });
 
+    expect(screen.getByTestId("task-ids").textContent).toBe("desktop-task");
     expect(screen.getByTestId("task-ids").textContent).not.toContain("remote-task");
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining("[TaskOwnerMode] Ignoring task remote-task"),

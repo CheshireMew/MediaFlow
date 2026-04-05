@@ -5,6 +5,19 @@
  */
 import { BrowserWindow, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 
+const rendererReadyCallbacks = new Map<number, () => void>();
+
+export function bindRendererReadyCallback(
+  window: BrowserWindow,
+  callback: () => void,
+) {
+  rendererReadyCallbacks.set(window.webContents.id, callback);
+
+  window.once("closed", () => {
+    rendererReadyCallbacks.delete(window.webContents.id);
+  });
+}
+
 export function registerWindowHandlers() {
   // Show file in system file explorer
   ipcMain.handle(
@@ -36,5 +49,18 @@ export function registerWindowHandlers() {
   ipcMain.on("window:close", () => {
     const win = BrowserWindow.getFocusedWindow();
     win?.close();
+  });
+
+  ipcMain.on("window:renderer-ready", (event) => {
+    const rendererReadyCallback = rendererReadyCallbacks.get(event.sender.id);
+    if (rendererReadyCallback) {
+      rendererReadyCallback();
+      return;
+    }
+
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && !win.isDestroyed() && !win.isVisible()) {
+      win.show();
+    }
   });
 }

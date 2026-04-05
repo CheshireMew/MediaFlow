@@ -12,4 +12,8 @@ export const windowService = {
   close() {
     getDesktopApi()?.close?.();
   },
+
+  notifyRendererReady() {
+    getDesktopApi()?.notifyRendererReady?.();
+  },
 };

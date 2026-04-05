@@ -4,12 +4,17 @@ import type { TaskSource } from "./types";
 import { isDesktopTask } from "./shared";
 import { isTaskQueued, isTaskRunning } from "../../services/tasks/taskRuntimeState";
 
-export function createDesktopTaskSource(ready: boolean): TaskSource {
+export function createDesktopTaskSource(
+  state: boolean | { ready: boolean; settled?: boolean },
+): TaskSource {
+  const ready = typeof state === "boolean" ? state : state.ready;
+  const settled = typeof state === "boolean" ? ready : state.settled ?? state.ready;
+
   return {
     id: "desktop",
     kind: "local",
     ready,
-    settled: ready,
+    settled,
     clearPredicate: isDesktopTask,
     loadSnapshot: () => desktopTaskService.listTasks(),
     supportsTask: isDesktopTask,

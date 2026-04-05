@@ -282,6 +282,12 @@ export interface TranslationTaskStatus {
   result?: Pick<TaskResultShape, "segments" | "meta">;
 }
 
+export interface TaskQueueSummaryResponse {
+  max_concurrent: number;
+  running: number;
+  queued: number;
+}
+
 // ─── OCR ────────────────────────────────────────────────────────
 
 export interface OCRTextEvent {

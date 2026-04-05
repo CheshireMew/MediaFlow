@@ -113,14 +113,19 @@ describe("taskSources", () => {
     expect(clearTasks).toHaveBeenCalledWith(isDesktopTask);
     expect(applyMessage).toHaveBeenCalledWith({
       type: "update",
-      task: {
+      task: expect.objectContaining({
         ...tasks[0],
         lifecycle: "runtime-only",
         task_source: "desktop",
         task_contract_version: SUPPORTED_TASK_CONTRACT_VERSION,
-      },
+        task_contract_normalized_from_legacy: false,
+      }),
     });
-    expect(createDesktopTaskSource(true).id).toBe("desktop");
+    expect(createDesktopTaskSource({ ready: true, settled: false })).toMatchObject({
+      id: "desktop",
+      ready: true,
+      settled: false,
+    });
   });
 
   it("drops incompatible task snapshots before they reach the store", () => {

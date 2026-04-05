@@ -2,7 +2,7 @@
 import { app, BrowserWindow, Menu, shell } from "electron";
 
 import { registerDialogHandlers } from "./ipc/dialog-handlers";
-import { registerWindowHandlers } from "./ipc/window-handlers";
+import { bindRendererReadyCallback, registerWindowHandlers } from "./ipc/window-handlers";
 import { registerCookieHandlers } from "./ipc/cookie-handlers";
 import { BackendFallbackProcess } from "./desktop/backendFallback";
 import { DesktopTaskHistoryStore } from "./desktop/historyStore";
@@ -30,7 +30,7 @@ function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    backgroundColor: "#1a1b1e",
+    backgroundColor: "#0a0a0a",
     frame: false,
     show: false,
     webPreferences: {
@@ -42,15 +42,30 @@ function createWindow() {
   });
 
   let loadFailureHandled = false;
+  let rendererReady = false;
+  let firstFrameReady = false;
   const revealWindow = () => {
     if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) {
       mainWindow.show();
     }
   };
-
-  mainWindow.once("ready-to-show", revealWindow);
-  mainWindow.webContents.once("dom-ready", revealWindow);
-  mainWindow.webContents.once("did-finish-load", revealWindow);
+  const tryRevealWindow = () => {
+    if (rendererReady && firstFrameReady) {
+      revealWindow();
+    }
+  };
+  const revealFallbackTimer = setTimeout(revealWindow, 4000);
+  mainWindow.once("show", () => {
+    clearTimeout(revealFallbackTimer);
+  });
+  mainWindow.once("ready-to-show", () => {
+    firstFrameReady = true;
+    tryRevealWindow();
+  });
+  bindRendererReadyCallback(mainWindow, () => {
+    rendererReady = true;
+    tryRevealWindow();
+  });
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (!isMainFrame || loadFailureHandled) {
       return;

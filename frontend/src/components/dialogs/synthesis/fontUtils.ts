@@ -1,4 +1,4 @@
-import { getBundledFontBrowserUrl, isBundledFont } from "./fontCatalog";
+import { isBundledFont, loadBundledFontStyles } from "./fontCatalog";
 
 const FALLBACK_STACK = "monospace";
 const SAMPLE_TEXT = "MediaFlow 字幕预览 0123456789 ABCDEFG abcdefg ，。！？（）【】";
@@ -34,8 +34,7 @@ export function isFontAvailable(fontFamily: string): boolean {
 
 async function ensureBundledFont(fontFamily: string): Promise<boolean> {
   const normalized = fontFamily.trim();
-  const browserUrl = getBundledFontBrowserUrl(normalized);
-  if (!browserUrl || typeof document === "undefined") {
+  if (typeof document === "undefined") {
     return false;
   }
 
@@ -50,12 +49,10 @@ async function ensureBundledFont(fontFamily: string): Promise<boolean> {
 
   const loader = (async () => {
     try {
-      const fontFace = new FontFace(normalized, `url("${browserUrl}")`, {
-        style: "normal",
-        weight: "400",
-      });
-      const loadedFace = await fontFace.load();
-      document.fonts.add(loadedFace);
+      const loaded = await loadBundledFontStyles(normalized);
+      if (!loaded) {
+        return false;
+      }
       await document.fonts.load(`16px "${normalized}"`, SAMPLE_TEXT);
       await document.fonts.ready;
       return isFontAvailable(normalized);

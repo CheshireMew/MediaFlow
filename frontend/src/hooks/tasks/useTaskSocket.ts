@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getWsUrl } from "../../api/client";
+import { getWsUrl } from "../../api/runtime";
 import type { TaskSocketMessage } from "./useTaskStore";
 
 type UseTaskSocketArgs = {

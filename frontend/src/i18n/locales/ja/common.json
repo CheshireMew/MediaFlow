@@ -19,36 +19,6 @@
       "retryingGeneric": "起動確認に失敗しました。再試行しています...",
       "ready": "バックエンドの準備ができました。",
       "webMode": "Electron バックエンドのブートストラップなしで実行中です。"
-    },
-    "pages": {
-      "dashboard": {
-        "title": "タスクモニター",
-        "subtitle": "ライブタスク概要と接続状態を準備しています。"
-      },
-      "editor": {
-        "title": "字幕エディター",
-        "subtitle": "波形、字幕一覧、プレビュー作業領域を準備しています。"
-      },
-      "downloader": {
-        "title": "ダウンローダー",
-        "subtitle": "URL 解析、キュー状態、最近のダウンロードを準備しています。"
-      },
-      "transcriber": {
-        "title": "文字起こし",
-        "subtitle": "アップロード操作、モデル設定、文字起こし結果を準備しています。"
-      },
-      "translator": {
-        "title": "翻訳",
-        "subtitle": "用語集、セグメント表、書き出し操作を準備しています。"
-      },
-      "preprocessing": {
-        "title": "前処理",
-        "subtitle": "メディア一覧、プレビューキャンバス、OCR ツールを準備しています。"
-      },
-      "settings": {
-        "title": "設定",
-        "subtitle": "プロバイダー設定、ツール、言語設定を準備しています。"
-      }
     }
   }
 }

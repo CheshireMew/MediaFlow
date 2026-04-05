@@ -9,6 +9,7 @@ import {
   Settings,
   Wand2,
 } from "lucide-react";
+import { resolvePagePresentation } from "../../services/ui/pagePresentation";
 
 type StartupVariant =
   | "dashboard"
@@ -25,52 +26,36 @@ interface StartupPlaceholderPageProps {
 }
 
 interface VariantConfig {
-  titleKey: string;
-  subtitleKey: string;
   icon: ReactNode;
   accent: string;
 }
 
 const VARIANT_CONFIG: Record<StartupVariant, VariantConfig> = {
   dashboard: {
-    titleKey: "startup.pages.dashboard.title",
-    subtitleKey: "startup.pages.dashboard.subtitle",
     icon: <Activity className="w-6 h-6 text-indigo-400" />,
     accent: "from-indigo-500/20 to-cyan-500/20",
   },
   editor: {
-    titleKey: "startup.pages.editor.title",
-    subtitleKey: "startup.pages.editor.subtitle",
     icon: <Pencil className="w-6 h-6 text-indigo-400" />,
     accent: "from-indigo-500/20 to-purple-500/20",
   },
   downloader: {
-    titleKey: "startup.pages.downloader.title",
-    subtitleKey: "startup.pages.downloader.subtitle",
     icon: <Download className="w-6 h-6 text-indigo-400" />,
     accent: "from-indigo-500/20 to-purple-500/20",
   },
   transcriber: {
-    titleKey: "startup.pages.transcriber.title",
-    subtitleKey: "startup.pages.transcriber.subtitle",
     icon: <FileAudio className="w-6 h-6 text-purple-400" />,
     accent: "from-purple-500/20 to-pink-500/20",
   },
   translator: {
-    titleKey: "startup.pages.translator.title",
-    subtitleKey: "startup.pages.translator.subtitle",
     icon: <Globe className="w-6 h-6 text-indigo-400" />,
     accent: "from-indigo-500/20 to-blue-500/20",
   },
   preprocessing: {
-    titleKey: "startup.pages.preprocessing.title",
-    subtitleKey: "startup.pages.preprocessing.subtitle",
     icon: <Wand2 className="w-6 h-6 text-indigo-400" />,
     accent: "from-indigo-500/20 to-teal-500/20",
   },
   settings: {
-    titleKey: "startup.pages.settings.title",
-    subtitleKey: "startup.pages.settings.subtitle",
     icon: <Settings className="w-6 h-6 text-amber-400" />,
     accent: "from-amber-500/20 to-orange-500/20",
   },
@@ -270,8 +255,9 @@ export function StartupPlaceholderPage({
   variant,
   message,
 }: StartupPlaceholderPageProps) {
-  const { t } = useTranslation("common");
   const config = VARIANT_CONFIG[variant];
+  const presentation = resolvePagePresentation(variant);
+  const { t } = useTranslation(presentation.namespace);
 
   return (
     <div className="w-full h-full px-6 pb-6 pt-5 flex flex-col overflow-hidden">
@@ -283,9 +269,9 @@ export function StartupPlaceholderPage({
         </div>
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">
-            {t(config.titleKey)}
+            {t(presentation.titleKey)}
           </h1>
-          <p className="text-slate-400 text-sm mt-0.5">{t(config.subtitleKey)}</p>
+          <p className="text-slate-400 text-sm mt-0.5">{t(presentation.subtitleKey)}</p>
         </div>
       </header>
 

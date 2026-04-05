@@ -10,7 +10,7 @@ import {
   type LucideIcon,
   Wand2
 } from 'lucide-react';
-import { useTaskContext } from '../../context/taskContext';
+import { useTaskSummaryContext } from '../../context/taskSummaryContext';
 import { ENABLE_EXPERIMENTAL_PREPROCESSING } from '../../config/features';
 import mediaflowMark from '../../assets/mediaflow-mark.svg';
 
@@ -64,8 +64,8 @@ export function Sidebar() {
   const { t } = useTranslation('sidebar');
   const activeTab = location.pathname.substring(1) || 'downloader';
 
-  const { tasks } = useTaskContext();
-  const activeTaskCount = tasks.filter(t => t.status === 'running' || t.status === 'pending').length;
+  const taskSummary = useTaskSummaryContext();
+  const activeTaskCount = taskSummary?.activeTaskCount ?? 0;
 
   const menuItems = [
     { id: 'dashboard', labelKey: 'monitor', icon: LayoutDashboard, badge: activeTaskCount},

@@ -1,15 +1,26 @@
-import { useEffect, useState } from "react";
-import App from "../../App";
+import { useEffect, useMemo, useState } from "react";
+import type { ComponentType } from "react";
+import { HashRouter } from "react-router-dom";
+import { Layout } from "../layout/Layout";
+import { StartupPlaceholderPage } from "./StartupPlaceholderPage";
 import { isDesktopRuntime, settingsService } from "../../services/domain";
 import { getDesktopRuntimeInfo, hasDesktopCapability } from "../../services/desktop";
+import { windowService } from "../../services/desktop";
 import { createDesktopRuntimeDiagnostic } from "../../services/debug/runtimeDiagnostics";
 import { DESKTOP_BRIDGE_CONTRACT_VERSION, DESKTOP_TASK_OWNER_MODE } from "../../contracts/runtimeContracts";
 import i18n from "../../i18n";
+import { resolveCurrentPresentationRoute } from "../../services/ui/pagePresentation";
 
 type StartupState = {
   appReady: boolean;
   remoteBackendReady: boolean;
   message: string;
+};
+
+type AppShellProps = {
+  appReady: boolean;
+  remoteBackendReady: boolean;
+  startupMessage: string;
 };
 
 const REQUIRED_DESKTOP_CAPABILITIES = [
@@ -18,16 +29,54 @@ const REQUIRED_DESKTOP_CAPABILITIES = [
   "desktopTranscribe",
 ] as const;
 
+const STARTUP_TEXT_FALLBACKS = {
+  checkingHealth: "已发现后端，正在检查服务健康状态...",
+  retryingGeneric: "启动检查失败，正在重试...",
+  ready: "后端已就绪。",
+  webMode: "当前以无 Electron 后端引导的模式运行。",
+} as const;
+
 export function BootApp() {
-  const getStartupText = (key: string) => i18n.t(`startup.status.${key}`);
+  const getStartupText = (key: keyof typeof STARTUP_TEXT_FALLBACKS) => {
+    const translated = i18n.t(`startup.status.${key}`);
+    return translated === `startup.status.${key}`
+      ? STARTUP_TEXT_FALLBACKS[key]
+      : translated;
+  };
+  const [LoadedApp, setLoadedApp] = useState<ComponentType<AppShellProps> | null>(null);
   const [startupState, setStartupState] = useState<StartupState>({
     appReady: false,
     remoteBackendReady: false,
     message: getStartupText("checkingHealth"),
   });
 
+  const startupVariant = useMemo(() => {
+    const destination = resolveCurrentPresentationRoute();
+
+    switch (destination) {
+      case "dashboard":
+      case "editor":
+      case "downloader":
+      case "transcriber":
+      case "translator":
+      case "preprocessing":
+      case "settings":
+        return destination;
+      default:
+        return "downloader";
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
+
+    window.requestAnimationFrame(() => {
+      void import("../../App").then((module) => {
+        if (!cancelled) {
+          setLoadedApp(() => module.default);
+        }
+      });
+    });
 
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -87,11 +136,13 @@ export function BootApp() {
               createDesktopRuntimeDiagnostic(runtimeInfo),
             );
 
-            await loadUserSettings();
             updateState({
               appReady: true,
               remoteBackendReady: true,
               message: getStartupText("ready"),
+            });
+            window.requestAnimationFrame(() => {
+              void loadUserSettings();
             });
             return;
           } catch (error) {
@@ -124,8 +175,31 @@ export function BootApp() {
     };
   }, []);
 
+  useEffect(() => {
+    let frameId = 0;
+    frameId = window.requestAnimationFrame(() => {
+      windowService.notifyRendererReady();
+    });
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  if (!LoadedApp) {
+    return (
+      <HashRouter>
+        <Layout>
+          <StartupPlaceholderPage
+            variant={startupVariant}
+            message={startupState.message}
+          />
+        </Layout>
+      </HashRouter>
+    );
+  }
+
   return (
-    <App
+    <LoadedApp
       appReady={startupState.appReady}
       remoteBackendReady={startupState.remoteBackendReady}
       startupMessage={startupState.message}

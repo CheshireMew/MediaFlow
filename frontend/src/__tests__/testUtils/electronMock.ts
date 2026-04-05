@@ -78,6 +78,7 @@ function createBaseElectronMock(): MockedElectronAPI {
     minimize: vi.fn(),
     maximize: vi.fn(),
     close: vi.fn(),
+    notifyRendererReady: vi.fn(),
   };
 }
 

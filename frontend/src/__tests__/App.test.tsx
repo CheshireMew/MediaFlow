@@ -74,10 +74,12 @@ vi.mock('../pages/TranscriberPage', () => ({ TranscriberPage: () => <div data-te
 vi.mock('../pages/TranslatorPage', () => ({ TranslatorPage: () => <div data-testid="page-translator">Translator Page Mock</div> }))
 vi.mock('../pages/PreprocessingPage', () => ({ PreprocessingPage: () => <div data-testid="page-preprocessing">Preprocessing Page Mock</div> }))
 
-test('renders app with navigation sidebar', () => {
+test('renders app with navigation sidebar', async () => {
   render(<App />)
-  // Check for sidebar items via "Editor" title
-  expect(screen.getByTitle(/Editor/i)).toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.getByTitle(/Editor/i)).toBeInTheDocument()
+    expect(screen.getByTestId('page-downloader')).toBeInTheDocument()
+  })
 })
 
 test('opens downloader on first launch', async () => {
@@ -95,16 +97,20 @@ test('restores the last opened page from localStorage', async () => {
   })
 })
 
-test('renders preprocessing page without backend readiness gate', () => {
+test('renders preprocessing page without backend readiness gate', async () => {
   window.location.hash = '#/preprocessing'
   render(<App appReady remoteBackendReady={false} startupMessage="Waiting" />)
-  expect(screen.getByTestId('page-preprocessing')).toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.getByTestId('page-preprocessing')).toBeInTheDocument()
+  })
 })
 
-test('allows editor in desktop runtime before backend health is ready', () => {
+test('allows editor in desktop runtime before backend health is ready', async () => {
   window.location.hash = '#/editor'
   render(<App appReady remoteBackendReady={false} startupMessage="Waiting" />)
-  expect(screen.getByTestId('page-editor')).toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.getByTestId('page-editor')).toBeInTheDocument()
+  })
 })
 
 

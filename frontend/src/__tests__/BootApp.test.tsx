@@ -4,7 +4,6 @@ import { BootApp } from "../components/startup/BootApp";
 import { resetDesktopRuntimeInfoCache } from "../services/desktop";
 import { installElectronMock, type MockedElectronAPI } from "./testUtils/electronMock";
 
-const checkHealthMock = vi.fn();
 const getSettingsMock = vi.fn();
 const changeLanguageMock = vi.fn();
 
@@ -24,12 +23,6 @@ vi.mock("../App", () => ({
       <div data-testid="startup-message">{startupMessage}</div>
     </div>
   ),
-}));
-
-vi.mock("../api/client", () => ({
-  apiClient: {
-    checkHealth: (...args: unknown[]) => checkHealthMock(...args),
-  },
 }));
 
 vi.mock("../services/domain", () => ({
@@ -62,12 +55,9 @@ describe("BootApp", () => {
     vi.restoreAllMocks();
   });
 
-  it("marks app ready after desktop worker ping before backend health is ready", async () => {
+  it("marks app ready before user settings finish loading", async () => {
     vi.useFakeTimers();
     getSettingsMock.mockResolvedValue({ language: "zh" });
-    checkHealthMock
-      .mockRejectedValueOnce(new Error("starting"))
-      .mockResolvedValueOnce({ status: "ok" });
 
     render(<BootApp />);
 
@@ -76,19 +66,17 @@ describe("BootApp", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByTestId("app-ready").textContent).toBe("true");
-    expect(screen.getByTestId("remote-backend-ready").textContent).toBe("false");
-    expect(screen.getByTestId("startup-message").textContent).toBe(
-      "startup.status.retryingHealth",
-    );
+    expect(getSettingsMock).not.toHaveBeenCalled();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(20);
+      await Promise.resolve();
       await Promise.resolve();
     });
 
+    expect(screen.getByTestId("app-ready").textContent).toBe("true");
     expect(screen.getByTestId("remote-backend-ready").textContent).toBe("true");
-    expect(screen.getByTestId("startup-message").textContent).toBe("startup.status.ready");
+    expect(screen.getByTestId("startup-message").textContent).toBe("后端已就绪。");
     expect(getSettingsMock).toHaveBeenCalledTimes(1);
     expect(changeLanguageMock).toHaveBeenCalledWith("zh");
     expect(electronMock.getDesktopRuntimeInfo).toHaveBeenCalledTimes(1);
@@ -111,6 +99,7 @@ describe("BootApp", () => {
     render(<BootApp />);
 
     await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
       await Promise.resolve();
       await Promise.resolve();
     });

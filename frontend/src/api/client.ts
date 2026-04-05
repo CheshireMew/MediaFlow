@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../config/api";
+import { getApiBase, getApiUrl } from "./runtime";
 
 // Re-export all API types for consumers
 export type {
@@ -64,23 +64,6 @@ import type {
 } from "../types/api";
 import type { Task } from "../types/task";
 
-// Backend API base URL (HTTP) — mutable for dynamic configuration
-export let API_BASE = API_BASE_URL;
-
-export const initializeApi = (config: {
-  base_url: string;
-  ws_url?: string;
-}) => {
-  if (config?.base_url) {
-    API_BASE = config.base_url;
-  }
-  console.log(`[API] Initialized with Base URL: ${API_BASE}`);
-};
-
-export const getWsUrl = () => {
-  return API_BASE.replace(/^http/, "ws") + "/ws/tasks";
-};
-
 // ─── Internal Generic Request Wrapper ────────────────────────────
 
 async function request<T>(
@@ -88,7 +71,7 @@ async function request<T>(
   options: RequestInit = {},
   timeoutMs: number = 30_000,
 ): Promise<T> {
-  const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
+  const url = getApiUrl(endpoint);
 
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -191,7 +174,7 @@ export const apiClient = {
 
   checkHealth: () => {
     // Health check might be on root URL, not /api/v1
-    const baseUrl = API_BASE.replace("/api/v1", "");
+    const baseUrl = getApiBase().replace("/api/v1", "");
     return request<HealthResponse>(`${baseUrl}/health`);
   },
 

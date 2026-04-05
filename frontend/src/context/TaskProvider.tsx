@@ -12,6 +12,7 @@ import {
   createTaskSourceBundle,
   getTaskSourceForTask,
   hasActiveRemoteTasks,
+  isDesktopTask,
   normalizeTaskForOwnerMode,
 } from "./taskSources";
 import { resetTaskSourceDiagnostics } from "./taskSources/diagnostics";
@@ -24,6 +25,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
   const taskOwnerMode = getRuntimeTaskOwnerMode(desktopRuntime);
   const desktopOwnsTaskState = taskOwnerMode === "desktop";
   const [desktopTasksReady, setDesktopTasksReady] = useState(!desktopRuntime);
+  const [desktopSnapshotReady, setDesktopSnapshotReady] = useState(!desktopRuntime);
   const [remoteSnapshotReady, setRemoteSnapshotReady] = useState(false);
   const {
     tasks,
@@ -41,8 +43,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
   const backendSourceReady = desktopOwnsTaskState || (backendTaskSyncEnabled && remoteSnapshotReady);
   const backendSourceSettled = desktopOwnsTaskState || !backendTaskSyncEnabled || remoteSnapshotReady;
   const desktopSource = useMemo(
-    () => createDesktopTaskSource(desktopTasksReady),
-    [desktopTasksReady],
+    () =>
+      createDesktopTaskSource({
+        ready: desktopTasksReady,
+        settled: desktopSnapshotReady,
+      }),
+    [desktopSnapshotReady, desktopTasksReady],
   );
   const backendSource = useMemo(
     () =>
@@ -134,15 +140,16 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
   }, []);
 
   useEffect(() => {
-    if (!desktopRuntime) {
+    if (!desktopRuntime || desktopSnapshotReady) {
       return;
     }
 
     let cancelled = false;
+    let frameId = 0;
 
-    void desktopTaskService
-      .listTasks()
-      .then((desktopTasks) => {
+    const loadDesktopTaskSnapshot = async () => {
+      try {
+        const desktopTasks = await desktopTaskService.listTasks();
         if (cancelled) {
           return;
         }
@@ -150,20 +157,29 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
         applyTaskSnapshot(
           clearLocalTasks,
           applyMessage,
-          desktopSource.clearPredicate,
+          isDesktopTask,
           desktopTasks,
           taskOwnerMode,
         );
         setDesktopTasksReady(true);
-      })
-      .catch((error) => {
+        setDesktopSnapshotReady(true);
+      } catch (error) {
         console.error("Failed to load desktop task snapshot", error);
-      });
+      }
+    };
+
+    frameId = window.requestAnimationFrame(() => {
+      if (cancelled) {
+        return;
+      }
+      void loadDesktopTaskSnapshot();
+    });
 
     return () => {
       cancelled = true;
+      window.cancelAnimationFrame(frameId);
     };
-  }, [applyMessage, clearLocalTasks, desktopRuntime, desktopSource, taskOwnerMode]);
+  }, [applyMessage, clearLocalTasks, desktopRuntime, desktopSnapshotReady, taskOwnerMode]);
 
   useEffect(() => {
     if (!backendTaskSyncEnabled) {
