@@ -16,11 +16,12 @@ import { WatermarkPanel } from './synthesis/components/WatermarkPanel';
 import { OutputSettingsPanel } from './synthesis/components/OutputSettingsPanel';
 import { VideoPreview } from './synthesis/components/VideoPreview';
 import { desktopEventsService } from '../../services/desktop';
+import { buildSynthesisOptionsFromPreferences } from '../../services/domain';
 import {
     restoreStoredSynthesisExecutionPreferences,
+    type SynthesisExecutionPreferences,
     updateStoredSynthesisExecutionPreferences,
 } from '../../services/persistence/synthesisExecutionPreferences';
-import { buildSynthesisOptionsFromPreferences } from '../../services/domain/synthesisExecution';
 
 interface SynthesisDialogProps {
     isOpen: boolean;
@@ -107,41 +108,42 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         setSynthesisProgress(0);
         setSynthesisMessage(t('preview.preparingSynthesis'));
         try {
-            const options: SynthesizeOptions = buildSynthesisOptionsFromPreferences(
-                {
-                    ...persistedPreferences,
-                    subtitleEnabled,
-                    watermarkEnabled,
-                    quality: output.quality,
-                    useGpu: output.useGpu,
-                    targetResolution: output.targetResolution,
-                    lastOutputDir: output.outputDir,
-                    subtitleStyle: {
-                        ...persistedPreferences.subtitleStyle,
-                        fontName: style.effectiveFontName,
-                        fontSize: style.fontSize,
-                        fontColor: style.fontColor,
-                        isBold: style.isBold,
-                        isItalic: style.isItalic,
-                        outlineSize: style.outlineSize,
-                        shadowSize: style.shadowSize,
-                        outlineColor: style.outlineColor,
-                        bgEnabled: style.bgEnabled,
-                        bgColor: style.bgColor,
-                        bgOpacity: style.bgOpacity,
-                        bgPadding: style.bgPadding,
-                        alignment: style.alignment,
-                        multilineAlign: style.multilineAlign,
-                        subPos: style.subPos,
-                        customPresets: style.customPresets,
-                    },
-                    watermark: {
-                        ...persistedPreferences.watermark,
-                        wmScale: watermark.wmScale,
-                        wmOpacity: watermark.wmOpacity,
-                        wmPos: watermark.wmPos,
-                    },
+            const effectivePreferences: SynthesisExecutionPreferences = {
+                ...persistedPreferences,
+                subtitleEnabled,
+                watermarkEnabled,
+                quality: output.quality,
+                useGpu: output.useGpu,
+                lastOutputDir: output.outputDir,
+                subtitleStyle: {
+                    ...persistedPreferences.subtitleStyle,
+                    fontName: style.fontName,
+                    fontSize: style.fontSize,
+                    fontColor: style.fontColor,
+                    isBold: style.isBold,
+                    isItalic: style.isItalic,
+                    outlineSize: style.outlineSize,
+                    shadowSize: style.shadowSize,
+                    outlineColor: style.outlineColor,
+                    bgEnabled: style.bgEnabled,
+                    bgColor: style.bgColor,
+                    bgOpacity: style.bgOpacity,
+                    bgPadding: style.bgPadding,
+                    alignment: style.alignment,
+                    multilineAlign: style.multilineAlign,
+                    subPos: style.subPos,
+                    customPresets: style.customPresets,
                 },
+                watermark: {
+                    ...persistedPreferences.watermark,
+                    wmScale: watermark.wmScale,
+                    wmOpacity: watermark.wmOpacity,
+                    wmPos: watermark.wmPos,
+                },
+            };
+
+            const options: SynthesizeOptions = buildSynthesisOptionsFromPreferences(
+                effectivePreferences,
                 {
                     targetResolution: output.targetResolution,
                     trimStart: output.trimStart,

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import type { TaskQueueSummaryResponse } from "../types/api";
 import type { Task } from "../types/task";
@@ -6,13 +6,7 @@ import type { TaskSocketMessage } from "../hooks/tasks/useTaskStore";
 import { getApiUrl } from "../api/runtime";
 import { desktopEventsService, desktopTaskService, isDesktopRuntime } from "../services/desktop";
 import { isTaskQueued, isTaskRunning } from "../services/tasks/taskRuntimeState";
-
-type TaskSummaryContextType = {
-  activeTaskCount: number;
-  ready: boolean;
-};
-
-const TaskSummaryContext = createContext<TaskSummaryContextType | null>(null);
+import { TaskSummaryContext, type TaskSummaryContextType } from "./taskSummaryShared";
 
 function isActiveTask(task: Task) {
   return isTaskQueued(task) || isTaskRunning(task);
@@ -166,8 +160,4 @@ export function TaskSummaryProvider({
   );
 
   return React.createElement(TaskSummaryContext.Provider, { value }, children);
-}
-
-export function useTaskSummaryContext() {
-  return useContext(TaskSummaryContext);
 }

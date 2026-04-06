@@ -38,6 +38,13 @@ export type SynthesisExecutionPreferences = {
   watermark: SynthesisWatermarkPreferences;
 };
 
+export type SynthesisExecutionPreferencesUpdate = Partial<
+  Omit<SynthesisExecutionPreferences, "subtitleStyle" | "watermark">
+> & {
+  subtitleStyle?: Partial<SynthesisSubtitleStylePreferences>;
+  watermark?: Partial<SynthesisWatermarkPreferences>;
+};
+
 const SYNTHESIS_EXECUTION_PREFERENCES_KEY = "synthesis_execution_preferences";
 const SYNTHESIS_EXECUTION_PREFERENCES_VERSION = 1;
 
@@ -485,11 +492,11 @@ export function restoreStoredSynthesisExecutionPreferences(): SynthesisExecution
   return migratedPreferences;
 }
 
-export function updateStoredSynthesisExecutionPreferences(
-  updates: Partial<SynthesisExecutionPreferences>,
-) {
-  const currentPreferences = restoreStoredSynthesisExecutionPreferences();
-  persistStoredSynthesisExecutionPreferences({
+export function mergeSynthesisExecutionPreferences(
+  currentPreferences: SynthesisExecutionPreferences,
+  updates: SynthesisExecutionPreferencesUpdate,
+): SynthesisExecutionPreferences {
+  return normalizeSynthesisExecutionPreferences({
     ...currentPreferences,
     ...updates,
     subtitleStyle: updates.subtitleStyle
@@ -505,4 +512,13 @@ export function updateStoredSynthesisExecutionPreferences(
         }
       : currentPreferences.watermark,
   });
+}
+
+export function updateStoredSynthesisExecutionPreferences(
+  updates: SynthesisExecutionPreferencesUpdate,
+) {
+  const currentPreferences = restoreStoredSynthesisExecutionPreferences();
+  persistStoredSynthesisExecutionPreferences(
+    mergeSynthesisExecutionPreferences(currentPreferences, updates),
+  );
 }

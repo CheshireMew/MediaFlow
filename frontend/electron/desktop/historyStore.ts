@@ -43,6 +43,11 @@ export class DesktopTaskHistoryStore {
     return [...this.tasks];
   }
 
+  get(taskId: string) {
+    this.ensureLoaded();
+    return this.tasks.find((task) => task.id === taskId) ?? null;
+  }
+
   upsert(task: Task) {
     this.ensureLoaded();
     this.tasks = normalizePersistedDesktopTaskHistory([

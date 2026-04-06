@@ -3,6 +3,8 @@ import subprocess
 import json
 from pathlib import Path
 
+WORKER_PREFIX = "__MEDIAFLOW_WORKER__"
+
 def test_desktop_worker_decodes_utf8_stdin():
     worker_script = Path(__file__).parent.parent.parent / "backend" / "desktop_worker.py"
     
@@ -55,6 +57,8 @@ def test_desktop_worker_decodes_utf8_stdin():
             continue
             
         print("Worker:", line)
+        if line.startswith(WORKER_PREFIX):
+            line = line[len(WORKER_PREFIX):]
         # Try to parse as JSON
         try:
             data = json.loads(line)

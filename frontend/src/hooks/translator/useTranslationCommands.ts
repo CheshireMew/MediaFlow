@@ -5,9 +5,9 @@ import {
   applyExecutionOutcome,
   enqueueExecutionTask,
   executionService,
+  isAiTranslationSetupRequiredError,
   type NullableExecutionMode,
 } from "../../services/domain";
-import { isAiTranslationSetupRequiredError } from "../../services/domain/executionAccess";
 import { createMediaReference, type MediaReference } from "../../services/ui/mediaReference";
 import { normalizeTranslateResult } from "../../services/ui/translateResult";
 

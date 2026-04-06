@@ -29,6 +29,21 @@ const resourceCache = new Map<string, Record<string, unknown>>();
 type SupportedLanguageCode = (typeof SUPPORTED_LANGUAGES)[number]["code"];
 type I18nNamespace = (typeof KNOWN_NAMESPACES)[number];
 
+function isKnownNamespace(namespace: string): namespace is I18nNamespace {
+  return KNOWN_NAMESPACES.includes(namespace as I18nNamespace);
+}
+
+function resolveNamespaces(
+  namespaces: readonly I18nNamespace[] | readonly string[],
+): I18nNamespace[] {
+  return Array.from(new Set(namespaces)).map((namespace) => {
+    if (!isKnownNamespace(namespace)) {
+      throw new Error(`Unknown i18n namespace: ${namespace}`);
+    }
+    return namespace;
+  });
+}
+
 function normalizeLanguage(language: string): SupportedLanguageCode {
   return SUPPORTED_LANGUAGES.some(({ code }) => code === language)
     ? (language as SupportedLanguageCode)
@@ -114,7 +129,7 @@ export async function ensureI18nNamespaces(
   namespaces: readonly I18nNamespace[] | readonly string[],
   language: string = i18n.resolvedLanguage || i18n.language || "zh",
 ) {
-  await preloadNamespaces(language, namespaces);
+  await preloadNamespaces(language, resolveNamespaces(namespaces));
 }
 
 export function initI18n(language: string = "zh") {
@@ -129,7 +144,7 @@ export function initI18nWithNamespaces(
   namespaces: readonly I18nNamespace[] | readonly string[] = DEFAULT_BOOTSTRAP_NAMESPACES,
 ) {
   const resolvedLanguage = normalizeLanguage(language);
-  const bootstrapNamespaces = Array.from(new Set(namespaces));
+  const bootstrapNamespaces = resolveNamespaces(namespaces);
 
   return Promise.all([
     preloadNamespaces(resolvedLanguage, bootstrapNamespaces),

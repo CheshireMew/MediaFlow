@@ -72,27 +72,19 @@ Current source layers:
 Current implementation entry points:
 
 - [frontend/src/context/taskSources.ts](/E:/Work/Code/Mediaflow/frontend/src/context/taskSources.ts)
-  - barrel export for the task source layer
-- [frontend/src/context/taskSources/types.ts](/E:/Work/Code/Mediaflow/frontend/src/context/taskSources/types.ts)
-  - shared source interfaces and bundle types
+  - barrel export for task normalization helpers only
 - [frontend/src/context/taskSources/shared.ts](/E:/Work/Code/Mediaflow/frontend/src/context/taskSources/shared.ts)
-  - source-independent helpers
+  - task normalization helpers
   - task ownership detection
   - snapshot application
-  - state aggregation
-- [frontend/src/context/taskSources/desktopSource.ts](/E:/Work/Code/Mediaflow/frontend/src/context/taskSources/desktopSource.ts)
-  - desktop task source implementation
-- [frontend/src/context/taskSources/backendSource.ts](/E:/Work/Code/Mediaflow/frontend/src/context/taskSources/backendSource.ts)
-  - backend task source implementation
 - [frontend/src/context/TaskProvider.tsx](/E:/Work/Code/Mediaflow/frontend/src/context/TaskProvider.tsx)
-  - source composition and React wiring only
+  - desktop-only and web-only task orchestration split
 
 Maintenance rule:
 
-- if a behavior belongs to one task source only, add it to that source implementation
-- if a behavior is shared across sources, add it to `shared.ts`
-- if a change only affects renderer-facing readiness semantics, prefer updating the aggregation helper before editing UI consumers
-- `TaskProvider` should stay a composition layer, not regain source-specific branching
+- if a behavior belongs to desktop runtime only, implement it directly in `TaskProvider`
+- if a behavior belongs to web runtime only, implement it directly in `TaskProvider`
+- keep `shared.ts` limited to task normalization and contract checks
 
 ### What is already migrated off desktop HTTP/WebSocket
 
@@ -318,12 +310,12 @@ Contract-level tests should follow the same rule:
 
 - [frontend/electron/main.ts](/E:/Work/Code/Mediaflow/frontend/electron/main.ts)
   - owns app lifecycle and module registration only
-- `frontend/electron/desktop/taskCoordinator.ts`
-  - owns desktop task orchestration and worker supervision
+- `frontend/electron/desktop/workerSupervisor.ts`
+  - owns desktop worker supervision and task queue orchestration
+- `frontend/electron/ipc/desktop-handlers.ts`
+  - owns desktop IPC handler registration
 - `frontend/electron/desktop/historyStore.ts`
   - owns desktop task history persistence
-- `frontend/electron/desktop/backendFallback.ts`
-  - launches bundled backend as a non-blocking fallback
 - [frontend/electron/preload.ts](/E:/Work/Code/Mediaflow/frontend/electron/preload.ts)
   - exposes file, window, and shell APIs to renderer
 

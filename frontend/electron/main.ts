@@ -4,23 +4,22 @@ import { app, BrowserWindow, Menu, shell } from "electron";
 import { registerDialogHandlers } from "./ipc/dialog-handlers";
 import { bindRendererReadyCallback, registerWindowHandlers } from "./ipc/window-handlers";
 import { registerCookieHandlers } from "./ipc/cookie-handlers";
-import { BackendFallbackProcess } from "./desktop/backendFallback";
 import { DesktopTaskHistoryStore } from "./desktop/historyStore";
-import { DesktopTaskCoordinator } from "./desktop/taskCoordinator";
+import { registerDesktopHandlers } from "./ipc/desktop-handlers";
+import { DesktopWorkerSupervisor } from "./desktop/workerSupervisor";
 import {
   isDesktopDevMode,
   resolveDesktopPreloadScript,
   resolveDesktopRendererTarget,
 } from "./desktopRuntime";
 
-const backendFallback = new BackendFallbackProcess();
-const desktopTaskCoordinator = new DesktopTaskCoordinator(new DesktopTaskHistoryStore());
+const desktopWorkerSupervisor = new DesktopWorkerSupervisor(new DesktopTaskHistoryStore());
 
 function registerIpcHandlers() {
   registerDialogHandlers();
   registerWindowHandlers();
   registerCookieHandlers();
-  desktopTaskCoordinator.registerIpcHandlers();
+  registerDesktopHandlers(desktopWorkerSupervisor);
 }
 
 function createWindow() {
@@ -37,6 +36,8 @@ function createWindow() {
       preload: resolveDesktopPreloadScript(),
       nodeIntegration: false,
       contextIsolation: true,
+      // This preload imports local modules, which Electron's sandboxed preload cannot resolve.
+      sandbox: false,
       webSecurity: !isDev,
     },
   });
@@ -164,10 +165,9 @@ Error: ${safeDescription}</code>
       label: "Help",
       submenu: [
         {
-          label: "Open API Docs",
+          label: "Open Workspace",
           click: async () => {
-            backendFallback.start();
-            await shell.openExternal("http://localhost:8800/docs");
+            await shell.openPath(app.getPath("userData"));
           },
         },
       ],
@@ -182,8 +182,7 @@ app.on("ready", () => {
 });
 
 app.on("before-quit", () => {
-  backendFallback.stop();
-  desktopTaskCoordinator.stop();
+  desktopWorkerSupervisor.stop();
 });
 
 app.on("window-all-closed", () => {

@@ -37,7 +37,7 @@ export function EditorPage() {
   const { addTask } = useTaskContext();
 
   // ── UI State ────────────────────────────────────────────────
-  const [autoScroll, setAutoScroll] = useState(true);
+  const autoScroll = true;
   const [showSynthesis, setShowSynthesis] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
       position: { x: number; y: number };
@@ -142,8 +142,6 @@ export function EditorPage() {
   return (
     <div className="h-screen w-full flex flex-col text-slate-100 overflow-hidden">
         <EditorHeader
-            autoScroll={autoScroll}
-            setAutoScroll={setAutoScroll}
             onOpenFile={openFile}
             onOpenSubtitle={openSubtitle}
             onSave={handleSave}
@@ -301,7 +299,7 @@ export function EditorPage() {
                         addTask(
                             createTaskFromExecutionOutcome({
                                 outcome: executionResult,
-                                type: "synthesize",
+                                type: "synthesis",
                                 name: currentFilePath
                                     ? `Synthesize ${currentFilePath.split(/[\\/]/).pop()}`
                                     : "Synthesize video",
@@ -311,7 +309,7 @@ export function EditorPage() {
                                     subtitle_ref: currentSubtitleRef,
                                     watermark_path: watermarkPath,
                                     output_path: output_path ?? undefined,
-                                    ...restOptions,
+                                    options: restOptions,
                                 },
                             }),
                         );

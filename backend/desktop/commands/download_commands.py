@@ -1,17 +1,14 @@
 import asyncio
 from typing import Any
 
-from backend.application.download_service import (
-    analyze_url,
-    execute_desktop_download,
-    save_cookies,
-)
 from backend.desktop.command_registry import register_worker_command
 from backend.desktop.worker_context import emit
 
 
 @register_worker_command("analyze_url")
 def handle_analyze_url(request_id: str | None, payload: dict[str, Any]) -> None:
+    from backend.application.download_service import analyze_url
+
     result = asyncio.run(analyze_url(payload["url"]))
     emit({
         "type": "response",
@@ -23,6 +20,8 @@ def handle_analyze_url(request_id: str | None, payload: dict[str, Any]) -> None:
 
 @register_worker_command("save_cookies")
 def handle_save_cookies(request_id: str | None, payload: dict[str, Any]) -> None:
+    from backend.application.download_service import save_cookies
+
     emit({
         "type": "response",
         "id": request_id,
@@ -33,6 +32,7 @@ def handle_save_cookies(request_id: str | None, payload: dict[str, Any]) -> None
 
 @register_worker_command("download")
 def handle_download(request_id: str | None, payload: dict[str, Any]) -> None:
+    from backend.application.download_service import execute_desktop_download
     from backend.application.desktop_download_flow_service import DesktopDownloadFlowRequest
 
     request = DesktopDownloadFlowRequest.model_validate(

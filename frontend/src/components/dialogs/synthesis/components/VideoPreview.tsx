@@ -12,6 +12,7 @@ import {
     computeSubtitleLineBottomMargins,
     shapeSubtitleText,
 } from '../textShaper';
+import { resolveSubtitlePlacementMetrics } from '../subtitlePlacement';
 import {
     buildAssLikeTextShadow,
     getSubtitlePadding,
@@ -47,15 +48,15 @@ export const VideoPreview: React.FC<Props> = ({
     videoRef, videoSize, setVideoSize,
     currentTime, onTimeUpdate,
 }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
+    const frameRef = useRef<HTMLDivElement>(null);
     const { t } = useTranslation('synthesis');
     const [dragging, setDragging] = useState<'wm' | 'sub' | null>(null);
     const [isTrimOpen, setIsTrimOpen] = useState(false);
     const [duration, setDuration] = useState(0);
-    const [previewMetrics, setPreviewMetrics] = useState({
-        containerWidth: 0,
-        containerHeight: 0,
-        videoHeight: 0,
+    const [loadedMediaUrl, setLoadedMediaUrl] = useState<string | null>(null);
+    const [frameSize, setFrameSize] = useState({
+        width: 0,
+        height: 0,
     });
 
     // --- Drag Logic ---
@@ -78,9 +79,10 @@ export const VideoPreview: React.FC<Props> = ({
         if (!dragging) return;
 
         const handleMouseMove = (e: MouseEvent) => {
-            if (!containerRef.current) return;
+            if (!frameRef.current) return;
 
-            const rect = containerRef.current.getBoundingClientRect();
+            const rect = frameRef.current.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return;
             const x = (e.clientX - rect.left) / rect.width;
             const y = (e.clientY - rect.top) / rect.height;
 
@@ -107,18 +109,15 @@ export const VideoPreview: React.FC<Props> = ({
     }, [dragging, setWmPos, setSubPos]);
 
     useEffect(() => {
-        const container = containerRef.current;
-        const video = videoRef.current;
-
-        if (!container && !video) {
+        const frame = frameRef.current;
+        if (!frame) {
             return;
         }
 
         const measure = () => {
-            setPreviewMetrics({
-                containerWidth: container?.clientWidth || 0,
-                containerHeight: container?.clientHeight || 0,
-                videoHeight: video?.clientHeight || 0,
+            setFrameSize({
+                width: frame.clientWidth || 0,
+                height: frame.clientHeight || 0,
             });
         };
 
@@ -130,15 +129,14 @@ export const VideoPreview: React.FC<Props> = ({
         }
 
         const observer = new ResizeObserver(measure);
-        if (container) observer.observe(container);
-        if (video) observer.observe(video);
+        observer.observe(frame);
 
         return () => observer.disconnect();
-    }, [mediaUrl, videoRef, videoSize.h, videoSize.w]);
+    }, [mediaUrl]);
 
     // Destructure for readability
     const {
-        fontSize, fontColor, effectiveFontName, isBold, isItalic,
+        fontSize, fontColor, fontName, isBold, isItalic,
         outlineSize, shadowSize, outlineColor,
         bgEnabled, bgColor, bgOpacity, bgPadding, alignment, multilineAlign,
         subPos, currentSubtitle,
@@ -153,43 +151,55 @@ export const VideoPreview: React.FC<Props> = ({
         trimStart, setTrimStart, trimEnd, setTrimEnd,
     } = output;
 
-    const effectiveDuration = mediaUrl ? duration : 0;
-    const previewVideoHeight = previewMetrics.videoHeight || previewMetrics.containerHeight || videoSize.h;
+    const isCurrentMediaLoaded = mediaUrl !== null && loadedMediaUrl === mediaUrl;
+    const effectiveVideoSize = isCurrentMediaLoaded ? videoSize : { w: 0, h: 0 };
+    const effectiveDuration = isCurrentMediaLoaded ? duration : 0;
+    const previewVideoHeight = frameSize.height || effectiveVideoSize.h;
     const previewFontSize = computePreviewScaledValue(
         fontSize,
-        videoSize.h,
+        effectiveVideoSize.h,
         previewVideoHeight,
     );
     const previewOutlineSize = bgEnabled
-        ? computePreviewScaledValue(bgPadding, videoSize.h, previewVideoHeight)
-        : computePreviewScaledValue(outlineSize, videoSize.h, previewVideoHeight);
+        ? computePreviewScaledValue(bgPadding, effectiveVideoSize.h, previewVideoHeight)
+        : computePreviewScaledValue(outlineSize, effectiveVideoSize.h, previewVideoHeight);
     const previewShadowSize = computePreviewScaledValue(
         shadowSize,
-        videoSize.h,
+        effectiveVideoSize.h,
         previewVideoHeight,
     );
     const previewBackgroundPadding = computePreviewScaledValue(
         bgPadding,
-        videoSize.h,
+        effectiveVideoSize.h,
         previewVideoHeight,
     );
-    const subtitleAvailableWidth = previewMetrics.containerWidth
-        ? Math.max(0, previewMetrics.containerWidth - Math.max(20, previewMetrics.containerWidth * 0.04))
+    const subtitleAvailableWidth = frameSize.width
+        ? Math.max(0, frameSize.width - Math.max(20, frameSize.width * 0.04))
         : 0;
     const shapedSubtitle = shapeSubtitleText(
         currentSubtitle || t('preview.subtitlePosition'),
         subtitleAvailableWidth,
         previewFontSize,
         {
-            fontFamily: effectiveFontName,
+            fontFamily: fontName,
             isBold,
             isItalic,
         },
     );
     const subtitleLines = shapedSubtitle.split('\n');
-    const previewMarginV = previewMetrics.containerHeight
-        ? Math.max(0, Math.round((1 - subPos.y) * previewMetrics.containerHeight))
-        : 0;
+    const subtitlePlacement = resolveSubtitlePlacementMetrics({
+        normalizedY: subPos.y,
+        sourceVideoHeight: effectiveVideoSize.h,
+        previewVideoHeight: frameSize.height,
+        crop: crop.isEnabled ? crop.crop : null,
+    });
+    const previewMarginV = subtitlePlacement.previewHeight > 0
+        ? subtitlePlacement.previewMarginV
+        : computePreviewScaledValue(
+            subtitlePlacement.sourceMarginV,
+            subtitlePlacement.sourceHeight,
+            frameSize.height,
+        );
     const previewLineStep = previewFontSize + previewOutlineSize * 2;
     const lineBottomMargins = computeSubtitleLineBottomMargins(
         subtitleLines.length,
@@ -369,124 +379,119 @@ export const VideoPreview: React.FC<Props> = ({
 
             {/* Output Preview Container */}
             <div className="flex-1 relative flex items-center justify-center bg-[url('/grid.svg')] bg-repeat opacity-100 overflow-hidden p-8">
-                {/* The Video Container that matches aspect ratio */}
-                <div 
-                    ref={containerRef}
-                    className="relative shadow-2xl shadow-black/50 border border-white/10 bg-black rounded-lg overflow-hidden ring-1 ring-white/5"
-                    style={{
-                        width: videoSize.w ? undefined : '100%',
-                        height: videoSize.w ? undefined : '100%',
-                        aspectRatio: videoSize.w ? `${videoSize.w}/${videoSize.h}` : undefined,
-                        maxWidth: '100%',
-                        maxHeight: '100%'
-                    }}
-                >
-                    {mediaUrl ? (
+                {mediaUrl ? (
+                    /* The frame is sized by the browser's actual rendered video box, and overlays attach to that exact box */
+                    <div 
+                        ref={frameRef}
+                        className="relative flex items-center justify-center shadow-2xl shadow-black/50 border border-white/10 bg-black rounded-lg overflow-hidden ring-1 ring-white/5 max-w-full max-h-full"
+                    >
                         <video 
+                            key={mediaUrl}
                             ref={videoRef}
                             src={mediaUrl}
-                            className="w-full h-full object-contain block"
+                            className="block max-w-full max-h-full"
                             onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
                             onLoadedMetadata={(e) => {
                                 const t = e.currentTarget;
+                                setLoadedMediaUrl(mediaUrl);
                                 setVideoSize({ w: t.videoWidth, h: t.videoHeight });
                                 setDuration(t.duration || 0);
                             }}
                             onDurationChange={(e) => setDuration(e.currentTarget.duration || 0)}
                         />
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full w-full text-slate-600 bg-white/[0.02]">
-                            <Play size={48} className="opacity-20 mb-4"/>
-                            <span className="text-sm font-medium">{t('preview.noMediaLoaded')}</span>
-                        </div>
-                    )}
 
-                    {/* --- Overlays Layer --- */}
-                    
-                    {/* Crop Overlay */}
-                    {crop.isEnabled && (
-                        <CropOverlay 
-                            crop={crop.crop} 
-                            setCrop={crop.setCrop} 
-                            containerRef={containerRef} 
-                        />
-                    )}
-                    
-                    {/* Watermark Overlay */}
-                    {watermarkEnabled && watermarkPreviewUrl && (
-                        <div
-                            className="absolute cursor-move select-none group"
-                            style={{
-                                left: `${wmPos.x * 100}%`,
-                                top: `${wmPos.y * 100}%`,
-                                width: `${wmScale * 100}%`,
-                                opacity: wmOpacity,
-                                zIndex: 20,
-                                transform: 'translate(-50%, -50%)',
-                                border: dragging === 'wm' ? '1px dashed #6366f1' : '1px dashed transparent',
-                                boxShadow: dragging === 'wm' ? '0 0 0 1000px rgba(0,0,0,0.5)' : 'none'
-                            }}
-                            onMouseDown={(e) => handleDragStart(e, 'wm')}
-                        >
-                            <img 
-                                src={watermarkPreviewUrl} 
-                                className="w-full h-auto pointer-events-none drop-shadow-lg"
-                                alt="Watermark"
+                        {/* --- Overlays Layer --- */}
+                        
+                        {/* Crop Overlay */}
+                        {crop.isEnabled && (
+                            <CropOverlay 
+                                crop={crop.crop} 
+                                setCrop={crop.setCrop} 
+                                containerRef={frameRef} 
                             />
-                            <div className="absolute inset-0 border border-indigo-500/50 opacity-0 group-hover:opacity-100 pointer-events-none rounded transition-opacity"></div>
-                        </div>
-                    )}
-                    
-                    {/* Subtitle Overlay */}
-                    {subtitleEnabled && (
-                    <div 
-                        className="absolute inset-0 select-none group transition-colors px-6 pointer-events-none"
-                        style={{ 
-                            zIndex: 30,
-                            textAlign: alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center',
-                        }}
-                    >
-                        {(currentSubtitle || dragging === 'sub') && (
-                            subtitleLines.map((lineText, index) => (
-                                <div
-                                    key={`${index}-${lineText}`}
-                                    className="absolute left-6 right-6"
-                                    style={{
-                                        bottom: `${lineBottomMargins[index] ?? previewMarginV}px`,
-                                        textAlign: alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center',
-                                    }}
-                                >
-                                    <span 
-                                        className={`
-                                            inline-block rounded text-lg md:text-xl leading-relaxed max-w-full cursor-move pointer-events-auto
-                                            transition-all duration-75
-                                            ${dragging === 'sub' ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-black/50' : 'group-hover:ring-1 group-hover:ring-white/30'}
-                                        `}
-                                        onMouseDown={handleSubtitleDragStart}
-                                        style={{ 
-                                            fontSize: `${previewFontSize}px`, 
-                                            color: fontColor,
-                                            fontFamily: `"${effectiveFontName}", sans-serif`,
-                                            fontWeight: isBold ? 'bold' : 'normal',
-                                            fontStyle: isItalic ? 'italic' : 'normal',
-                                            fontSynthesis: 'style',
-                                            lineHeight: `${previewFontSize + previewOutlineSize * 2}px`,
-                                            WebkitTextStroke: undefined,
-                                            paintOrder: undefined,
-                                            textShadow: previewTextShadow,
-                                            backgroundColor: previewBackgroundColor,
-                                            padding: previewPadding,
-                                            whiteSpace: 'pre',
+                        )}
+                        
+                        {/* Watermark Overlay */}
+                        {watermarkEnabled && watermarkPreviewUrl && (
+                            <div
+                                className="absolute cursor-move select-none group"
+                                style={{
+                                    left: `${wmPos.x * 100}%`,
+                                    top: `${wmPos.y * 100}%`,
+                                    width: `${wmScale * 100}%`,
+                                    opacity: wmOpacity,
+                                    zIndex: 20,
+                                    transform: 'translate(-50%, -50%)',
+                                    border: dragging === 'wm' ? '1px dashed #6366f1' : '1px dashed transparent',
+                                    boxShadow: dragging === 'wm' ? '0 0 0 1000px rgba(0,0,0,0.5)' : 'none'
+                                }}
+                                onMouseDown={(e) => handleDragStart(e, 'wm')}
+                            >
+                                <img 
+                                    src={watermarkPreviewUrl} 
+                                    className="w-full h-auto pointer-events-none drop-shadow-lg"
+                                    alt="Watermark"
+                                />
+                                <div className="absolute inset-0 border border-indigo-500/50 opacity-0 group-hover:opacity-100 pointer-events-none rounded transition-opacity"></div>
+                            </div>
+                        )}
+                        
+                        {/* Subtitle Overlay */}
+                        {subtitleEnabled && (
+                        <div 
+                            className="absolute inset-0 select-none group transition-colors px-6 pointer-events-none"
+                            style={{
+                                zIndex: 30,
+                                textAlign: alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center',
+                            }}
+                        >
+                            {(currentSubtitle || dragging === 'sub') && (
+                                subtitleLines.map((lineText, index) => (
+                                    <div
+                                        key={`${index}-${lineText}`}
+                                        className="absolute left-6 right-6"
+                                        style={{
+                                            bottom: `${lineBottomMargins[index] ?? previewMarginV}px`,
+                                            textAlign: alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center',
                                         }}
                                     >
-                                        {lineText}
-                                    </span>
-                                </div>
-                            ))
+                                        <span 
+                                            className={`
+                                                inline-block rounded text-lg md:text-xl leading-relaxed max-w-full cursor-move pointer-events-auto
+                                                transition-all duration-75
+                                                ${dragging === 'sub' ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-black/50' : 'group-hover:ring-1 group-hover:ring-white/30'}
+                                            `}
+                                            onMouseDown={handleSubtitleDragStart}
+                                            style={{ 
+                                                fontSize: `${previewFontSize}px`, 
+                                                color: fontColor,
+                                                fontFamily: `"${fontName}", sans-serif`,
+                                                fontWeight: isBold ? 'bold' : 'normal',
+                                                fontStyle: isItalic ? 'italic' : 'normal',
+                                                fontSynthesis: 'style',
+                                                lineHeight: `${previewFontSize + previewOutlineSize * 2}px`,
+                                                WebkitTextStroke: undefined,
+                                                paintOrder: undefined,
+                                                textShadow: previewTextShadow,
+                                                backgroundColor: previewBackgroundColor,
+                                                padding: previewPadding,
+                                                whiteSpace: 'pre',
+                                            }}
+                                        >
+                                            {lineText}
+                                        </span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                         )}
                     </div>
-                    )}
-                </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center w-full h-full text-slate-600 bg-white/[0.02] rounded-lg border border-white/10 ring-1 ring-white/5">
+                        <Play size={48} className="opacity-20 mb-4"/>
+                        <span className="text-sm font-medium">{t('preview.noMediaLoaded')}</span>
+                    </div>
+                )}
             </div>
             
             {/* Time Seeker & Action Bar */}

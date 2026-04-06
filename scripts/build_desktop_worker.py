@@ -6,11 +6,11 @@ from pathlib import Path
 
 def build() -> None:
     root_dir = Path(__file__).resolve().parents[1]
-    spec_path = root_dir / "mediaflow-backend.spec"
-    dist_path = root_dir / "dist-backend"
-    work_path = root_dir / "build-backend"
+    spec_path = root_dir / "mediaflow-desktop-worker.spec"
+    dist_path = root_dir / "dist-desktop-worker"
+    work_path = root_dir / "build-desktop-worker"
     if not spec_path.exists():
-        raise FileNotFoundError(f"PyInstaller spec not found: {spec_path}")
+        raise FileNotFoundError(f"Desktop worker spec not found: {spec_path}")
 
     env = os.environ.copy()
     env.setdefault("ENABLE_EXPERIMENTAL_PREPROCESSING", "false")
@@ -33,7 +33,8 @@ def build() -> None:
         env=env,
     )
 
+
 if __name__ == "__main__":
-    print(f"Starting PyInstaller build for MediaFlow Backend...")
+    print("Starting PyInstaller build for MediaFlow desktop worker...")
     build()
-    print(f"Build completed successfully! Outputs are in dist-backend/mediaflow-backend")
+    print("Build completed successfully! Outputs are in dist-desktop-worker/mediaflow-desktop-worker")

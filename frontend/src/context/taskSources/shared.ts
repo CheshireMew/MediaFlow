@@ -1,6 +1,5 @@
 import type { Task } from "../../types/task";
 import type { TaskSocketMessage } from "../../hooks/tasks/useTaskStore";
-import type { AggregatedTaskSourceState, TaskSource, TaskSourceBundle } from "./types";
 import {
   getTaskLifecycle,
   TASK_CONTRACT_VERSION,
@@ -140,53 +139,4 @@ export function applyTaskSnapshot(
       task: normalizedTask,
     });
   });
-}
-
-export function aggregateTaskSourceState(args: {
-  desktopRuntime: boolean;
-  enabled: boolean;
-  wsConnected: boolean;
-  localSource: Pick<TaskSource, "ready" | "settled">;
-  remoteSource: Pick<TaskSource, "ready" | "settled">;
-}): AggregatedTaskSourceState {
-  const { desktopRuntime, enabled, wsConnected, localSource, remoteSource } = args;
-
-  if (!desktopRuntime) {
-    const ready = enabled && wsConnected;
-    return {
-      connected: ready,
-      remoteTasksReady: ready,
-      tasksSettled: ready,
-    };
-  }
-
-  return {
-    connected: localSource.ready,
-    remoteTasksReady: remoteSource.ready,
-    tasksSettled: localSource.settled && remoteSource.settled,
-  };
-}
-
-export function getTaskSourceForTask(taskSources: TaskSource[], task: Task) {
-  return taskSources.find((source) => source.supportsTask(task));
-}
-
-export function createTaskSourceBundle(args: {
-  taskOwnerMode: TaskOwnerMode;
-  desktopSource: TaskSource;
-  backendSource: TaskSource;
-}): TaskSourceBundle {
-  const { taskOwnerMode, desktopSource, backendSource } = args;
-  const taskSources =
-    taskOwnerMode === "desktop"
-      ? [desktopSource]
-      : taskOwnerMode === "backend"
-        ? [backendSource]
-        : [desktopSource, backendSource];
-
-  return {
-    desktopSource,
-    backendSource,
-    taskSources,
-  };
 }

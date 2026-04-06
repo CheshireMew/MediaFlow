@@ -7,7 +7,6 @@ import {
 } from "../types";
 import type { SubtitlePreset } from "../types";
 import { detectFontAvailability } from "../fontUtils";
-import { isBundledFont } from "../fontCatalog";
 import { computeDefaultSubtitleFontSize } from "../textShaper";
 import {
   updateStoredSynthesisExecutionPreferences,
@@ -30,7 +29,6 @@ export interface SubtitleStyleState {
   bgPadding: number;
   alignment: number;
   multilineAlign: "bottom" | "center" | "top";
-  effectiveFontName: string;
   isFontAvailable: boolean;
   // Setters
   setFontSize: (v: number) => void;
@@ -115,11 +113,9 @@ export function useSubtitleStyle(
   useEffect(() => {
     let cancelled = false;
 
-    if (isBundledFont(fontName)) {
-      setFontAvailable(true);
-    }
+    const availabilityCheck = detectFontAvailability(fontName);
 
-    void detectFontAvailability(fontName).then((available) => {
+    void availabilityCheck.then((available) => {
       if (!cancelled) {
         setFontAvailable(available);
       }
@@ -130,10 +126,9 @@ export function useSubtitleStyle(
     };
   }, [fontName]);
 
-  const effectiveFontName = fontAvailable ? fontName : "Arial";
   const fontAvailabilityMessage = fontAvailable
     ? null
-    : `字体 "${fontName}" 当前不可用，预览和导出将回退到 Arial。`;
+    : `字体 "${fontName}" 当前不可用，预览可能回退到替代字体。`;
 
   // --- Restore from localStorage ---
   useEffect(() => {
@@ -145,34 +140,43 @@ export function useSubtitleStyle(
     }
 
     isInitialized.current = false;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
 
-    try {
-      const subtitleStyle = persistedPreferences.subtitleStyle;
+      try {
+        const subtitleStyle = persistedPreferences.subtitleStyle;
 
-      setCustomPresets(subtitleStyle.customPresets);
-      lastRecommendedVideoKey.current = null;
-      lastManualFontSizeVideoKey.current = null;
-      setFontName(subtitleStyle.fontName);
-      setIsBold(subtitleStyle.isBold);
-      setIsItalic(subtitleStyle.isItalic);
-      setOutlineSize(subtitleStyle.outlineSize);
-      setShadowSize(subtitleStyle.shadowSize);
-      setOutlineColor(subtitleStyle.outlineColor);
-      setBgEnabled(subtitleStyle.bgEnabled);
-      setBgColor(subtitleStyle.bgColor);
-      setBgOpacity(subtitleStyle.bgOpacity);
-      setBgPadding(subtitleStyle.bgPadding);
-      setAlignment(subtitleStyle.alignment);
-      setMultilineAlign(subtitleStyle.multilineAlign);
-      setFontSizeState(subtitleStyle.fontSize);
-      setFontColor(subtitleStyle.fontColor);
-      setSubPos(subtitleStyle.subPos);
-    } catch (e) {
-      console.error("Failed to restore subtitle styles", e);
-    }
+        setCustomPresets(subtitleStyle.customPresets);
+        lastRecommendedVideoKey.current = null;
+        lastManualFontSizeVideoKey.current = null;
+        setFontName(subtitleStyle.fontName);
+        setIsBold(subtitleStyle.isBold);
+        setIsItalic(subtitleStyle.isItalic);
+        setOutlineSize(subtitleStyle.outlineSize);
+        setShadowSize(subtitleStyle.shadowSize);
+        setOutlineColor(subtitleStyle.outlineColor);
+        setBgEnabled(subtitleStyle.bgEnabled);
+        setBgColor(subtitleStyle.bgColor);
+        setBgOpacity(subtitleStyle.bgOpacity);
+        setBgPadding(subtitleStyle.bgPadding);
+        setAlignment(subtitleStyle.alignment);
+        setMultilineAlign(subtitleStyle.multilineAlign);
+        setFontSizeState(subtitleStyle.fontSize);
+        setFontColor(subtitleStyle.fontColor);
+        setSubPos(subtitleStyle.subPos);
+      } catch (e) {
+        console.error("Failed to restore subtitle styles", e);
+      }
 
-    isInitialized.current = true;
-    setPresetNameInput(null);
+      isInitialized.current = true;
+      setPresetNameInput(null);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, persistedPreferences]);
 
   useEffect(() => {
@@ -200,8 +204,17 @@ export function useSubtitleStyle(
       return;
     }
 
-    setFontSizeState(computeDefaultSubtitleFontSize(videoHeight));
-    lastRecommendedVideoKey.current = currentVideoKey;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
+      setFontSizeState(computeDefaultSubtitleFontSize(videoHeight));
+      lastRecommendedVideoKey.current = currentVideoKey;
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, videoHeight, videoPath]);
 
   // --- Save position ---
@@ -320,7 +333,6 @@ export function useSubtitleStyle(
     bgPadding,
     alignment,
     multilineAlign,
-    effectiveFontName,
     isFontAvailable: fontAvailable,
     setFontSize,
     setFontColor,

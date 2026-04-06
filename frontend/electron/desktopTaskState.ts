@@ -56,6 +56,12 @@ export type DesktopWorkerEventPayload = {
   message?: string;
 };
 
+function resolveDesktopTaskCreatedAt(payload: Record<string, unknown>) {
+  return typeof payload.created_at === "number" && Number.isFinite(payload.created_at)
+    ? payload.created_at
+    : Date.now();
+}
+
 function normalizeTaskResult(result: unknown): Task["result"] {
   if (!result || typeof result !== "object") {
     return {
@@ -395,7 +401,7 @@ export function buildDesktopTask(
             return normalizeTaskResult(result);
           })()
         : undefined,
-    created_at: Date.now(),
+    created_at: resolveDesktopTaskCreatedAt(payload),
     queue_state:
       status === "pending"
         ? "queued"

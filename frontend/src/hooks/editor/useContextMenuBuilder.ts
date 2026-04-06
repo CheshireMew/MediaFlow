@@ -1,6 +1,8 @@
 import { useCallback, useRef } from "react";
-import { editorService } from "../../services/domain";
-import { isAiTranslationSetupRequiredError } from "../../services/domain/executionAccess";
+import {
+  editorService,
+  isAiTranslationSetupRequiredError,
+} from "../../services/domain";
 import { restoreStoredAsrExecutionPreferences } from "../../services/persistence/asrExecutionPreferences";
 import { restoreStoredTranslationPreferences } from "../../services/persistence/translationPreferences";
 import type { MediaReference } from "../../services/ui/mediaReference";
@@ -284,7 +286,7 @@ export function useContextMenuBuilder({
                 updateSegments(translated.segments);
                 toast.success("翻译完成");
               }
-            } catch (err) {
+            } catch {
               return;
             }
           },
@@ -395,7 +397,6 @@ export function useContextMenuBuilder({
       splitSegment,
       deleteSegments,
       addSegment,
-      addSegments,
       updateSegments,
       setContextMenu,
       transcribeRegion,

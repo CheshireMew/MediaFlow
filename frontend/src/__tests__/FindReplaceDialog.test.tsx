@@ -28,6 +28,7 @@ vi.mock("lucide-react", () => {
     Search: makeIcon("Search"),
     ArrowUp: makeIcon("ArrowUp"),
     ArrowDown: makeIcon("ArrowDown"),
+    Scissors: makeIcon("Scissors"),
     X: makeIcon("X"),
     Replace: makeIcon("Replace"),
     Trash2: makeIcon("Trash2"),
@@ -101,6 +102,7 @@ function FindReplaceHarness() {
         onSegmentMerge={() => {}}
         onSegmentDoubleClick={() => {}}
         onContextMenu={() => {}}
+        onSmartSplit={() => {}}
         searchTerm={searchTerm}
         matchCase={matchCase}
       />

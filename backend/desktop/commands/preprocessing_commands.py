@@ -1,10 +1,6 @@
 from pathlib import Path
 from typing import Any
 
-from backend.application.preprocessing_service import (
-    execute_cleanup,
-    execute_enhancement,
-)
 from backend.core.runtime_access import RuntimeServices
 from backend.desktop.command_registry import register_worker_command
 from backend.desktop.worker_context import emit
@@ -13,6 +9,8 @@ from backend.models.schemas import CleanRequest, EnhanceRequest
 
 @register_worker_command("enhance")
 def handle_enhance(request_id: str | None, payload: dict[str, Any]) -> None:
+    from backend.application.preprocessing_service import execute_enhancement
+
     request = EnhanceRequest.model_validate(payload)
     if not request.video_path:
         raise ValueError("video_path or video_ref is required")
@@ -51,6 +49,8 @@ def handle_enhance(request_id: str | None, payload: dict[str, Any]) -> None:
 
 @register_worker_command("clean")
 def handle_clean(request_id: str | None, payload: dict[str, Any]) -> None:
+    from backend.application.preprocessing_service import execute_cleanup
+
     request = CleanRequest.model_validate(payload)
     if not request.video_path:
         raise ValueError("video_path or video_ref is required")

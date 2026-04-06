@@ -1,32 +1,11 @@
-export type {
-  AggregatedTaskSourceState,
-  TaskSource,
-  TaskSourceBundle,
-  TaskSourceKind,
-} from "./taskSources/types";
 export {
-  aggregateTaskSourceState,
+  SUPPORTED_TASK_CONTRACT_VERSION,
   applyTaskSnapshot,
-  createTaskSourceBundle,
-  getTaskSourceForTask,
-  hasActiveRemoteTasks,
+  getTaskSourceOwnerMode,
   hasSupportedTaskContract,
   isDesktopTask,
-  normalizeTaskForRenderer,
-  SUPPORTED_TASK_CONTRACT_VERSION,
-  getTaskSourceOwnerMode,
   isTaskAllowedInOwnerMode,
+  normalizeTaskContract,
   normalizeTaskForOwnerMode,
+  normalizeTaskForRenderer,
 } from "./taskSources/shared";
-export { createDesktopTaskSource } from "./taskSources/desktopSource";
-export { createBackendTaskSource } from "./taskSources/backendSource";
-export {
-  ACTIVE_TASK_STATUSES,
-  isTaskActive,
-  isTaskHistoryEntry,
-  isTaskPaused,
-  isTaskQueued,
-  isTaskRecoverable,
-  isTaskRunning,
-  isTaskTerminal,
-} from "../services/tasks/taskRuntimeState";

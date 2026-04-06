@@ -10,7 +10,7 @@ import {
   type LucideIcon,
   Wand2
 } from 'lucide-react';
-import { useTaskSummaryContext } from '../../context/taskSummaryContext';
+import { useTaskSummaryContext } from '../../context/useTaskSummaryContext';
 import { ENABLE_EXPERIMENTAL_PREPROCESSING } from '../../config/features';
 import mediaflowMark from '../../assets/mediaflow-mark.svg';
 

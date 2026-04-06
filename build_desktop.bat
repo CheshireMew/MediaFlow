@@ -32,8 +32,8 @@ if not exist "%ROOT_DIR%\requirements.txt" (
   exit /b 1
 )
 
-if not exist "%ROOT_DIR%\mediaflow-backend.spec" (
-  echo [ERROR] Backend spec not found: %ROOT_DIR%\mediaflow-backend.spec
+if not exist "%ROOT_DIR%\mediaflow-desktop-worker.spec" (
+  echo [ERROR] Desktop worker spec not found: %ROOT_DIR%\mediaflow-desktop-worker.spec
   exit /b 1
 )
 
@@ -111,25 +111,25 @@ popd
 
 echo [3/6] Cleaning previous build outputs...
 if exist "%ROOT_DIR%\build" rmdir /s /q "%ROOT_DIR%\build"
-if exist "%ROOT_DIR%\build-backend" rmdir /s /q "%ROOT_DIR%\build-backend"
+if exist "%ROOT_DIR%\build-desktop-worker" rmdir /s /q "%ROOT_DIR%\build-desktop-worker"
 if exist "%ROOT_DIR%\dist" rmdir /s /q "%ROOT_DIR%\dist"
-if exist "%ROOT_DIR%\dist-backend" rmdir /s /q "%ROOT_DIR%\dist-backend"
+if exist "%ROOT_DIR%\dist-desktop-worker" rmdir /s /q "%ROOT_DIR%\dist-desktop-worker"
 if exist "%ROOT_DIR%\frontend\dist" rmdir /s /q "%ROOT_DIR%\frontend\dist"
 if exist "%ROOT_DIR%\frontend\dist-electron" rmdir /s /q "%ROOT_DIR%\frontend\dist-electron"
 if exist "%ROOT_DIR%\frontend\release" rmdir /s /q "%ROOT_DIR%\frontend\release"
 
-echo [4/6] Building backend with PyInstaller spec...
+echo [4/6] Building desktop worker with PyInstaller spec...
 pushd "%ROOT_DIR%"
-call python scripts\build_backend.py
+call python scripts\build_desktop_worker.py
 if errorlevel 1 (
   popd
-  echo [ERROR] Backend build failed.
+  echo [ERROR] Desktop worker build failed.
   exit /b 1
 )
 popd
 
-if not exist "%ROOT_DIR%\dist-backend\mediaflow-backend\mediaflow-backend.exe" (
-  echo [ERROR] Backend executable not found: %ROOT_DIR%\dist-backend\mediaflow-backend\mediaflow-backend.exe
+if not exist "%ROOT_DIR%\dist-desktop-worker\mediaflow-desktop-worker\mediaflow-desktop-worker.exe" (
+  echo [ERROR] Desktop worker executable not found: %ROOT_DIR%\dist-desktop-worker\mediaflow-desktop-worker\mediaflow-desktop-worker.exe
   exit /b 1
 )
 
@@ -149,8 +149,8 @@ if not exist "%ROOT_DIR%\frontend\release\win-unpacked\MediaFlow.exe" (
   exit /b 1
 )
 
-if not exist "%ROOT_DIR%\frontend\release\win-unpacked\resources\backend\mediaflow-backend.exe" (
-  echo [ERROR] Packaged backend executable not found: %ROOT_DIR%\frontend\release\win-unpacked\resources\backend\mediaflow-backend.exe
+if not exist "%ROOT_DIR%\frontend\release\win-unpacked\resources\desktop-worker\mediaflow-desktop-worker.exe" (
+  echo [ERROR] Packaged desktop worker executable not found: %ROOT_DIR%\frontend\release\win-unpacked\resources\desktop-worker\mediaflow-desktop-worker.exe
   exit /b 1
 )
 
@@ -172,8 +172,8 @@ if errorlevel 1 (
 
 echo Build completed successfully.
 echo.
-echo Backend output:
-echo   %ROOT_DIR%\dist-backend\mediaflow-backend
+echo Desktop worker output:
+echo   %ROOT_DIR%\dist-desktop-worker\mediaflow-desktop-worker
 echo.
 echo Desktop package output:
 echo   %ROOT_DIR%\frontend\release

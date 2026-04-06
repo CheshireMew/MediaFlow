@@ -130,7 +130,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
             }
         }, 0);
         return () => clearTimeout(timer);
-    }, [scrollResetKey]);
+    }, [listRef, scrollResetKey]);
 
     // Check continuity for merge
     const activeIndices = selectedIds.map(id => segments.findIndex(s => String(s.id) === id)).sort((a,b) => a-b);

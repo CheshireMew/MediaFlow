@@ -10,11 +10,11 @@ import {
   applyExecutionOutcome,
   enqueueExecutionTask,
   executionService,
+  isCliTranscriptionSetupRequiredError,
   isDesktopRuntime,
   settingsService,
   type NullableExecutionMode,
 } from "../../services/domain";
-import { isCliTranscriptionSetupRequiredError } from "../../services/domain/executionAccess";
 import { fileService } from "../../services/fileService";
 import {
   createMediaReference,

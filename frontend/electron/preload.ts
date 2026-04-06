@@ -1,4 +1,9 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import {
+  DESKTOP_PROGRESS_CHANNELS,
+  DESKTOP_TASK_EVENT_CHANNEL,
+  DESKTOP_WORKER_INVOCATIONS,
+} from "./desktop/bridgeContract";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   sendMessage: (message: string) => ipcRenderer.send("message-from-ui", message),
@@ -41,7 +46,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   saveFile: (filePath: string, content: string) =>
     ipcRenderer.invoke("fs:writeFile", filePath, content),
   getDesktopRuntimeInfo: () => ipcRenderer.invoke("desktop:get-runtime-info"),
-  desktopPing: () => ipcRenderer.invoke("desktop:ping"),
+  desktopPing: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopPing.ipcChannel),
   listDesktopTasks: () => ipcRenderer.invoke("desktop:list-tasks"),
   desktopTranscribe: (payload: {
     audio_path?: string | null;
@@ -60,7 +65,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     device: string;
     language?: string | null;
     initial_prompt?: string | null;
-  }) => ipcRenderer.invoke("desktop:transcribe", payload),
+  }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopTranscribe.ipcChannel, payload),
   desktopTranslate: (payload: {
     segments: Array<{ id: string | number; start: number; end: number; text: string }>;
     target_language: string;
@@ -76,7 +81,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       role?: string;
       origin?: string;
     } | null;
-  }) => ipcRenderer.invoke("desktop:translate", payload),
+  }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopTranslate.ipcChannel, payload),
   desktopSynthesize: (payload: {
     task_id?: string;
     video_path: string;
@@ -84,42 +89,42 @@ contextBridge.exposeInMainWorld("electronAPI", {
     watermark_path?: string | null;
     output_path?: string | null;
     options: Record<string, unknown>;
-  }) => ipcRenderer.invoke("desktop:synthesize", payload),
-  getDesktopSettings: () => ipcRenderer.invoke("desktop:get-settings"),
+  }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopSynthesize.ipcChannel, payload),
+  getDesktopSettings: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.getDesktopSettings.ipcChannel),
   updateDesktopSettings: (settings: Record<string, unknown>) =>
-    ipcRenderer.invoke("desktop:update-settings", { settings }),
+    ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.updateDesktopSettings.ipcChannel, { settings }),
   setDesktopActiveProvider: (providerId: string) =>
-    ipcRenderer.invoke("desktop:set-active-provider", { provider_id: providerId }),
+    ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.setDesktopActiveProvider.ipcChannel, { provider_id: providerId }),
   testDesktopProvider: (payload: {
     name?: string;
     base_url: string;
     api_key: string;
     model: string;
-  }) => ipcRenderer.invoke("desktop:test-provider", payload),
-  listDesktopGlossary: () => ipcRenderer.invoke("desktop:glossary-list"),
+  }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.testDesktopProvider.ipcChannel, payload),
+  listDesktopGlossary: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.listDesktopGlossary.ipcChannel),
   addDesktopGlossaryTerm: (payload: {
     source: string;
     target: string;
     note?: string;
     category?: string;
-  }) => ipcRenderer.invoke("desktop:glossary-add", payload),
+  }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.addDesktopGlossaryTerm.ipcChannel, payload),
   deleteDesktopGlossaryTerm: (termId: string) =>
-    ipcRenderer.invoke("desktop:glossary-delete", { term_id: termId }),
-  updateDesktopYtDlp: () => ipcRenderer.invoke("desktop:update-yt-dlp"),
-  analyzeDesktopUrl: (url: string) => ipcRenderer.invoke("desktop:analyze-url", { url }),
+    ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.deleteDesktopGlossaryTerm.ipcChannel, { term_id: termId }),
+  updateDesktopYtDlp: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.updateDesktopYtDlp.ipcChannel),
+  analyzeDesktopUrl: (url: string) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.analyzeDesktopUrl.ipcChannel, { url }),
   saveDesktopCookies: (domain: string, cookies: Array<Record<string, unknown>>) =>
-    ipcRenderer.invoke("desktop:save-cookies", { domain, cookies }),
+    ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.saveDesktopCookies.ipcChannel, { domain, cookies }),
   desktopDownload: (payload: Record<string, unknown>) =>
-    ipcRenderer.invoke("desktop:download", payload),
+    ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopDownload.ipcChannel, payload),
   desktopExtract: (payload: {
     task_id?: string;
     video_path: string;
     roi?: number[];
     engine: "rapid" | "paddle";
     sample_rate?: number;
-  }) => ipcRenderer.invoke("desktop:extract", payload),
+  }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopExtract.ipcChannel, payload),
   getDesktopOcrResults: (videoPath: string) =>
-    ipcRenderer.invoke("desktop:get-ocr-results", { video_path: videoPath }),
+    ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.getDesktopOcrResults.ipcChannel, { video_path: videoPath }),
   desktopTranscribeSegment: (payload: {
     audio_path: string;
     start: number;
@@ -129,29 +134,29 @@ contextBridge.exposeInMainWorld("electronAPI", {
     device?: string;
     language?: string;
     initial_prompt?: string;
-  }) => ipcRenderer.invoke("desktop:transcribe-segment", payload),
+  }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopTranscribeSegment.ipcChannel, payload),
   desktopTranslateSegment: (payload: {
     segments: Array<{ id: string | number; start: number; end: number; text: string }>;
     target_language: string;
     mode?: "standard" | "intelligent" | "proofread";
     context_path?: string | null;
-  }) => ipcRenderer.invoke("desktop:translate-segment", payload),
+  }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopTranslateSegment.ipcChannel, payload),
   uploadDesktopWatermark: (filePath: string) =>
-    ipcRenderer.invoke("desktop:upload-watermark", { file_path: filePath }),
-  getDesktopLatestWatermark: () => ipcRenderer.invoke("desktop:get-latest-watermark"),
+    ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.uploadDesktopWatermark.ipcChannel, { file_path: filePath }),
+  getDesktopLatestWatermark: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.getDesktopLatestWatermark.ipcChannel),
   desktopEnhance: (payload: {
     task_id?: string;
     video_path: string;
     model?: string;
     scale?: string;
     method?: string;
-  }) => ipcRenderer.invoke("desktop:enhance", payload),
+  }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopEnhance.ipcChannel, payload),
   desktopClean: (payload: {
     task_id?: string;
     video_path: string;
     roi: [number, number, number, number];
     method?: string;
-  }) => ipcRenderer.invoke("desktop:clean", payload),
+  }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopClean.ipcChannel, payload),
   pauseDesktopTask: (taskId: string) =>
     ipcRenderer.invoke("desktop:pause-task", { task_id: taskId }),
   resumeDesktopTask: (taskId: string) =>
@@ -164,9 +169,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) =>
       callback(payload);
 
-    ipcRenderer.on("desktop:task-event", listener);
+    ipcRenderer.on(DESKTOP_TASK_EVENT_CHANNEL, listener);
     return () => {
-      ipcRenderer.removeListener("desktop:task-event", listener);
+      ipcRenderer.removeListener(DESKTOP_TASK_EVENT_CHANNEL, listener);
     };
   },
   onDesktopTranscribeProgress: (
@@ -177,9 +182,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
       payload: { progress: number; message: string },
     ) => callback(payload);
 
-    ipcRenderer.on("desktop:transcribe-progress", listener);
+    ipcRenderer.on(DESKTOP_PROGRESS_CHANNELS.onDesktopTranscribeProgress, listener);
     return () => {
-      ipcRenderer.removeListener("desktop:transcribe-progress", listener);
+      ipcRenderer.removeListener(DESKTOP_PROGRESS_CHANNELS.onDesktopTranscribeProgress, listener);
     };
   },
   onDesktopTranslateProgress: (
@@ -190,9 +195,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
       payload: { progress: number; message: string },
     ) => callback(payload);
 
-    ipcRenderer.on("desktop:translate-progress", listener);
+    ipcRenderer.on(DESKTOP_PROGRESS_CHANNELS.onDesktopTranslateProgress, listener);
     return () => {
-      ipcRenderer.removeListener("desktop:translate-progress", listener);
+      ipcRenderer.removeListener(DESKTOP_PROGRESS_CHANNELS.onDesktopTranslateProgress, listener);
     };
   },
   onDesktopSynthesizeProgress: (
@@ -203,9 +208,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
       payload: { progress: number; message: string },
     ) => callback(payload);
 
-    ipcRenderer.on("desktop:synthesize-progress", listener);
+    ipcRenderer.on(DESKTOP_PROGRESS_CHANNELS.onDesktopSynthesizeProgress, listener);
     return () => {
-      ipcRenderer.removeListener("desktop:synthesize-progress", listener);
+      ipcRenderer.removeListener(DESKTOP_PROGRESS_CHANNELS.onDesktopSynthesizeProgress, listener);
     };
   },
 });

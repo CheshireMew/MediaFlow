@@ -1,5 +1,6 @@
 import { hexToAss } from "../../components/dialogs/synthesis/types";
 import { computeSynthesisFontSize } from "../../components/dialogs/synthesis/textShaper";
+import { resolveSubtitlePlacementMetrics } from "../../components/dialogs/synthesis/subtitlePlacement";
 import type { SynthesizeOptions } from "../../types/api";
 import { editorService } from "./editorService";
 import type { SynthesisExecutionPreferences } from "../persistence/synthesisExecutionPreferences";
@@ -64,7 +65,13 @@ export function buildSynthesisOptionsFromPreferences(
   }
 
   if (preferences.subtitleEnabled) {
-    Object.assign(options, {
+    const subtitlePlacement = resolveSubtitlePlacementMetrics({
+      normalizedY: subtitleStyle.subPos.y,
+      sourceVideoHeight: overrides?.videoSize?.h ?? 0,
+      previewVideoHeight: 0,
+      crop: overrides?.crop ?? null,
+    });
+    const subtitleOptions: SynthesizeOptions = {
       font_name: subtitleStyle.fontName,
       font_size: computeSynthesisFontSize(subtitleStyle.fontSize),
       font_color: hexToAss(subtitleStyle.fontColor),
@@ -83,8 +90,15 @@ export function buildSynthesisOptionsFromPreferences(
       border_style: subtitleStyle.bgEnabled ? 3 : 1,
       alignment: subtitleStyle.alignment,
       multiline_align: subtitleStyle.multilineAlign,
-      subtitle_position_y: subtitleStyle.subPos.y,
-    });
+    };
+
+    if (subtitlePlacement.sourceHeight > 0) {
+      subtitleOptions.margin_v = subtitlePlacement.sourceMarginV;
+    } else {
+      subtitleOptions.subtitle_position_y = subtitleStyle.subPos.y;
+    }
+
+    Object.assign(options, subtitleOptions);
   } else {
     options.skip_subtitles = true;
   }

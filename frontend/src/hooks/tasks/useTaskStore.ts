@@ -53,7 +53,16 @@ export function useTaskStore() {
     if (!normalizedTask) {
       return;
     }
-    setTasks((prev) => sortTasks([normalizedTask, ...prev]));
+    setTasks((prev) => {
+      const index = prev.findIndex((existingTask) => existingTask.id === normalizedTask.id);
+      if (index === -1) {
+        return sortTasks([normalizedTask, ...prev]);
+      }
+
+      const next = [...prev];
+      next[index] = normalizedTask;
+      return sortTasks(next);
+    });
   }, []);
 
   const deleteTask = useCallback((taskId: string) => {

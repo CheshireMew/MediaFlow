@@ -1,6 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import '@fontsource/noto-sans-sc/chinese-simplified-400.css'
+import '@fontsource/noto-sans-sc/chinese-simplified-700.css'
+import 'lxgw-wenkai-webfont/lxgwwenkai-regular.css'
+import 'lxgw-wenkai-webfont/lxgwwenkai-bold.css'
+
 import './index.css'
 import { BootApp } from './components/startup/BootApp';
 import { initI18nWithNamespaces } from './i18n';

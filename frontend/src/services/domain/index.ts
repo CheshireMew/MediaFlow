@@ -3,6 +3,14 @@ export { settingsService } from "./settingsService";
 export { glossaryService } from "./glossaryService";
 export type { GlossaryTerm } from "../../types/api";
 export { translationService } from "./translationService";
+export {
+  buildSynthesisOptionsFromPreferences,
+  resolveSynthesisWatermarkPath,
+} from "./synthesisExecution";
+export {
+  isAiTranslationSetupRequiredError,
+  isCliTranscriptionSetupRequiredError,
+} from "./executionAccess";
 export type {
   TranslateRequest,
   TranslateResponse,
@@ -11,12 +19,6 @@ export type {
 export { downloaderService } from "./downloaderService";
 export { preprocessingService } from "./preprocessingService";
 export { editorService } from "./editorService";
-export {
-  backendHttpRuntimeCatalog,
-  domainRuntimeCatalog,
-  getRuntimeStrategy,
-} from "./runtimeCatalog";
-export type { RuntimeStrategy } from "./runtimeCatalog";
 export type {
   ExecutionOutcomeBranch,
   ExecutionMode,

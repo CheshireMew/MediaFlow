@@ -9,6 +9,10 @@ export function isDesktopDevMode() {
   return process.env.IS_DEV === "true";
 }
 
+export function resolveDesktopDevProjectRoot() {
+  return path.resolve(app.getAppPath(), "..");
+}
+
 export function resolveDesktopPreloadScript() {
   return path.join(__dirname, "preload.js");
 }
@@ -29,7 +33,7 @@ export function resolveDesktopRendererTarget() {
 
 export function resolveDesktopRuntimeDataRoot() {
   if (isDesktopDevMode()) {
-    return path.resolve(app.getAppPath(), "..");
+    return resolveDesktopDevProjectRoot();
   }
 
   return path.join(app.getPath("userData"), DESKTOP_RUNTIME_DIRNAME);
@@ -45,6 +49,14 @@ export function buildDesktopRuntimeEnv() {
   };
 }
 
-export function resolveBundledBackendExecutable() {
-  return path.join(process.resourcesPath, "backend", "mediaflow-backend.exe");
+export function resolveBundledDesktopWorkerExecutable() {
+  return path.join(process.resourcesPath, "desktop-worker", "mediaflow-desktop-worker.exe");
+}
+
+export function resolveDesktopDevWorkerLaunch() {
+  return {
+    command: "python",
+    args: ["-m", "backend.desktop_worker"],
+    cwd: resolveDesktopDevProjectRoot(),
+  };
 }

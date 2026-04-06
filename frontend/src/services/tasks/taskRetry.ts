@@ -1,4 +1,8 @@
-import type { PipelineRequest, TranslateRequest } from "../../types/api";
+import type {
+  OCRExtractRequest,
+  PipelineRequest,
+  TranslateRequest,
+} from "../../types/api";
 import type { Task, TaskRequestParams, TaskType } from "../../types/task";
 import {
   createTaskFromExecutionOutcome,
@@ -6,6 +10,7 @@ import {
   preprocessingService,
   settingsService,
 } from "../domain";
+import type { ExecutionOutcome } from "../domain";
 import { createMediaReference, type MediaReference } from "../ui/mediaReference";
 import { fileService } from "../fileService";
 import { parseSubtitleContent } from "../../utils/subtitleParser";
@@ -14,7 +19,16 @@ type RetryDescriptor = {
   type: TaskType;
   request_params: TaskRequestParams;
   name?: string;
+  created_at?: number;
 };
+
+type RetrySubmission = {
+  outcome: ExecutionOutcome<unknown>;
+  descriptor: RetryDescriptor;
+};
+
+type TranslateMode = NonNullable<TranslateRequest["mode"]>;
+type OcrEngine = OCRExtractRequest["engine"];
 
 function getRequestParams(task: Task) {
   return task.request_params && typeof task.request_params === "object"
@@ -43,6 +57,65 @@ function getStepParams(task: Task, stepName: string) {
   return step?.params && typeof step.params === "object" ? step.params : null;
 }
 
+function createRetryDescriptor(
+  type: TaskType,
+  request_params: TaskRequestParams,
+  name?: string,
+  created_at?: number,
+): RetryDescriptor {
+  return {
+    type,
+    request_params,
+    name,
+    created_at,
+  };
+}
+
+function resolveRetryTaskId(task: Task): string | undefined {
+  return task.task_source === "desktop" ? task.id : undefined;
+}
+
+function isMediaReferenceCandidate(
+  value: unknown,
+): value is Partial<MediaReference> & { path: string } {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "path" in value &&
+      typeof (value as { path?: unknown }).path === "string",
+  );
+}
+
+function isTranslateMode(value: unknown): value is TranslateMode {
+  return value === "standard" || value === "intelligent" || value === "proofread";
+}
+
+function isOcrEngine(value: unknown): value is OcrEngine {
+  return value === "rapid" || value === "paddle";
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isRoiTuple(value: unknown): value is [number, number, number, number] {
+  return (
+    Array.isArray(value) &&
+    value.length === 4 &&
+    value.every((item) => isFiniteNumber(item))
+  );
+}
+
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 function toMediaReference(value: unknown, type?: string): MediaReference | null {
   if (!value) {
     return null;
@@ -50,8 +123,8 @@ function toMediaReference(value: unknown, type?: string): MediaReference | null 
   if (typeof value === "string") {
     return createMediaReference({ path: value, type });
   }
-  if (typeof value === "object" && "path" in value && typeof value.path === "string") {
-    const candidate = value as Partial<MediaReference>;
+  if (isMediaReferenceCandidate(value)) {
+    const candidate = value;
     return createMediaReference({
       path: candidate.path,
       name: candidate.name,
@@ -76,7 +149,43 @@ function getTaskMediaReference(params: Record<string, unknown>, keys: string[], 
   return null;
 }
 
-async function submitDownloadRetry(task: Task) {
+function normalizeSynthesisTaskParams(task: Task) {
+  const params = getRequestParams(task);
+  if (!params) {
+    return null;
+  }
+
+  const optionsFromParams = readRecord(params.options);
+  const options =
+    optionsFromParams ??
+    Object.fromEntries(
+      Object.entries(params).filter(
+        ([key]) =>
+          ![
+            "__desktop_worker",
+            "task_id",
+            "video_ref",
+            "video_path",
+            "subtitle_ref",
+            "srt_ref",
+            "context_ref",
+            "srt_path",
+            "watermark_path",
+            "output_path",
+            "options",
+          ].includes(key),
+      ),
+    );
+
+  return {
+    params,
+    options,
+    watermarkPath: readOptionalString(params.watermark_path),
+    outputPath: readOptionalString(params.output_path),
+  };
+}
+
+async function submitDownloadRetry(task: Task): Promise<RetrySubmission | null> {
   const params = getRequestParams(task);
   if (!params) {
     return null;
@@ -121,21 +230,26 @@ async function submitDownloadRetry(task: Task) {
   }
 
   const settings = await settingsService.getSettings().catch(() => undefined);
-  const outcome = await executionService.download(pipeline, settings);
+  const outcome = await executionService.download(
+    pipeline,
+    settings,
+    resolveRetryTaskId(task),
+  );
   return {
     outcome,
-    descriptor: {
-      type: "download" as const,
-      name: task.name,
-      request_params: {
+    descriptor: createRetryDescriptor(
+      "download",
+      {
         steps: pipeline.steps,
         ...(pipeline.steps[0]?.params ?? {}),
       },
-    },
+      task.name,
+      task.created_at,
+    ),
   };
 }
 
-async function submitTranscribeRetry(task: Task) {
+async function submitTranscribeRetry(task: Task): Promise<RetrySubmission | null> {
   const stepParams = getStepParams(task, "transcribe");
   const params = stepParams ?? getRequestParams(task);
   if (!params) {
@@ -147,14 +261,20 @@ async function submitTranscribeRetry(task: Task) {
     return null;
   }
 
+  const engine = params.engine === "cli" ? "cli" : "builtin";
+  const model = typeof params.model === "string" ? params.model : "base";
+  const device = typeof params.device === "string" ? params.device : "cpu";
+  const language = readOptionalString(params.language);
+  const initialPrompt = readOptionalString(params.initial_prompt);
+
   const outcome = await executionService.transcribe({
     audio_path: null,
     audio_ref: audioRef,
-    engine: (params.engine as "builtin" | "cli" | undefined) ?? "builtin",
-    model: typeof params.model === "string" ? params.model : "base",
-    device: typeof params.device === "string" ? params.device : "cpu",
-    language: typeof params.language === "string" ? params.language : null,
-    initial_prompt: typeof params.initial_prompt === "string" ? params.initial_prompt : null,
+    engine,
+    model,
+    device,
+    language: language ?? null,
+    initial_prompt: initialPrompt ?? null,
   });
 
   const request_params =
@@ -167,12 +287,12 @@ async function submitTranscribeRetry(task: Task) {
               params: {
                 audio_path: null,
                 audio_ref: audioRef,
-                engine: (params.engine as "builtin" | "cli" | undefined) ?? "builtin",
-                model: typeof params.model === "string" ? params.model : "base",
-                device: typeof params.device === "string" ? params.device : "cpu",
+                engine,
+                model,
+                device,
                 vad_filter: params.vad_filter ?? true,
-                language: typeof params.language === "string" ? params.language : undefined,
-                initial_prompt: typeof params.initial_prompt === "string" ? params.initial_prompt : undefined,
+                language,
+                initial_prompt: initialPrompt,
               },
             },
           ],
@@ -189,15 +309,11 @@ async function submitTranscribeRetry(task: Task) {
 
   return {
     outcome,
-    descriptor: {
-      type: task.type,
-      name: task.name,
-      request_params,
-    },
+    descriptor: createRetryDescriptor(task.type, request_params, task.name, task.created_at),
   };
 }
 
-async function submitTranslateRetry(task: Task) {
+async function submitTranslateRetry(task: Task): Promise<RetrySubmission | null> {
   const params = getRequestParams(task);
   if (!params) {
     return null;
@@ -219,37 +335,39 @@ async function submitTranslateRetry(task: Task) {
     throw new Error(`Retry failed: no subtitle segments found in ${contextPath}`);
   }
 
-  const translateReq: TranslateRequest = {
+  const targetLanguage =
+    typeof params.target_language === "string" ? params.target_language : "Chinese";
+  const mode: TranslateMode = isTranslateMode(params.mode) ? params.mode : "standard";
+  const translateReq = {
     segments,
-    target_language: typeof params.target_language === "string" ? params.target_language : "Chinese",
-    mode:
-      typeof params.mode === "string"
-        ? (params.mode as "standard" | "intelligent" | "proofread")
-        : "standard",
+    target_language: targetLanguage,
+    mode,
     context_path: contextPath,
     context_ref: contextRef,
-  };
+  } satisfies Parameters<typeof executionService.translate>[0];
   const outcome = await executionService.translate(translateReq);
   return {
     outcome,
-    descriptor: {
-      type: "translate",
-      name: task.name,
-      request_params: {
+    descriptor: createRetryDescriptor(
+      "translate",
+      {
         context_path: contextPath,
         context_ref: contextRef,
-        target_language: translateReq.target_language,
-        mode: translateReq.mode,
+        target_language: targetLanguage,
+        mode,
       },
-    },
+      task.name,
+      task.created_at,
+    ),
   };
 }
 
-async function submitSynthesizeRetry(task: Task) {
-  const params = getRequestParams(task);
-  if (!params) {
+async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null> {
+  const normalized = normalizeSynthesisTaskParams(task);
+  if (!normalized) {
     return null;
   }
+  const { params, options, watermarkPath, outputPath } = normalized;
 
   const videoRef = getTaskMediaReference(params, ["video_ref", "video_path"], "video/mp4");
   const srtRef = getTaskMediaReference(
@@ -260,46 +378,40 @@ async function submitSynthesizeRetry(task: Task) {
   if (!videoRef?.path || !srtRef?.path) {
     return null;
   }
-
-  const {
-    video_ref,
-    video_path,
-    subtitle_ref,
-    srt_ref,
-    context_ref,
-    srt_path,
-    watermark_path,
-    output_path,
-    ...rest
-  } = params;
   const outcome = await executionService.synthesize({
+    task_id: resolveRetryTaskId(task),
     video_path: null,
     video_ref: videoRef,
     srt_path: srtRef.path,
     srt_ref: srtRef,
-    watermark_path: typeof watermark_path === "string" ? watermark_path : null,
-    output_path: typeof output_path === "string" ? output_path : null,
-    options: rest,
+    watermark_path: watermarkPath ?? null,
+    output_path: outputPath ?? null,
+    options,
   });
 
   return {
     outcome,
-    descriptor: {
-      type: task.type,
-      name: task.name,
-      request_params: {
+    descriptor: createRetryDescriptor(
+      task.type,
+      {
         video_ref: videoRef,
         srt_path: srtRef.path,
         subtitle_ref: srtRef,
-        watermark_path,
-        output_path,
-        ...rest,
+        ...(watermarkPath !== undefined
+          ? { watermark_path: watermarkPath }
+          : {}),
+        ...(outputPath !== undefined
+          ? { output_path: outputPath }
+          : {}),
+        options,
       },
-    },
+      task.name,
+      task.created_at,
+    ),
   };
 }
 
-async function submitExtractRetry(task: Task) {
+async function submitExtractRetry(task: Task): Promise<RetrySubmission | null> {
   const params = getRequestParams(task);
   if (!params) {
     return null;
@@ -308,29 +420,34 @@ async function submitExtractRetry(task: Task) {
   if (!videoRef?.path) {
     return null;
   }
+  const roi = isRoiTuple(params.roi) ? params.roi : undefined;
+  const engine: OcrEngine = isOcrEngine(params.engine) ? params.engine : "rapid";
+  const sampleRate = isFiniteNumber(params.sample_rate) ? params.sample_rate : undefined;
   const outcome = await preprocessingService.extractText({
+    task_id: resolveRetryTaskId(task),
     video_path: null,
     video_ref: videoRef,
-    roi: Array.isArray(params.roi) ? (params.roi as [number, number, number, number]) : undefined,
-    engine: typeof params.engine === "string" ? params.engine : "rapid",
-    sample_rate: typeof params.sample_rate === "number" ? params.sample_rate : undefined,
+    roi,
+    engine,
+    sample_rate: sampleRate,
   });
   return {
     outcome,
-    descriptor: {
-      type: "extract",
-      name: task.name,
-      request_params: {
+    descriptor: createRetryDescriptor(
+      "extract",
+      {
         video_ref: videoRef,
-        roi: params.roi,
-        engine: params.engine,
-        sample_rate: params.sample_rate,
+        ...(roi ? { roi } : {}),
+        engine,
+        ...(sampleRate !== undefined ? { sample_rate: sampleRate } : {}),
       },
-    },
+      task.name,
+      task.created_at,
+    ),
   };
 }
 
-async function submitEnhanceRetry(task: Task) {
+async function submitEnhanceRetry(task: Task): Promise<RetrySubmission | null> {
   const params = getRequestParams(task);
   if (!params) {
     return null;
@@ -339,54 +456,63 @@ async function submitEnhanceRetry(task: Task) {
   if (!videoRef?.path) {
     return null;
   }
+  const model = readOptionalString(params.model);
+  const scale = readOptionalString(params.scale);
+  const method = readOptionalString(params.method);
   const outcome = await preprocessingService.enhanceVideo({
+    task_id: resolveRetryTaskId(task),
     video_path: null,
     video_ref: videoRef,
-    model: typeof params.model === "string" ? params.model : undefined,
-    scale: typeof params.scale === "string" ? params.scale : undefined,
-    method: typeof params.method === "string" ? params.method : undefined,
+    model,
+    scale,
+    method,
   });
   return {
     outcome,
-    descriptor: {
-      type: "enhancement",
-      name: task.name,
-      request_params: {
+    descriptor: createRetryDescriptor(
+      "enhancement",
+      {
         video_ref: videoRef,
-        model: params.model,
-        scale: params.scale,
-        method: params.method,
+        ...(model !== undefined ? { model } : {}),
+        ...(scale !== undefined ? { scale } : {}),
+        ...(method !== undefined ? { method } : {}),
       },
-    },
+      task.name,
+      task.created_at,
+    ),
   };
 }
 
-async function submitCleanRetry(task: Task) {
+async function submitCleanRetry(task: Task): Promise<RetrySubmission | null> {
   const params = getRequestParams(task);
   if (!params) {
     return null;
   }
   const videoRef = getTaskMediaReference(params, ["video_ref", "video_path"], "video/mp4");
-  if (!videoRef?.path || !Array.isArray(params.roi)) {
+  const roi = isRoiTuple(params.roi) ? params.roi : null;
+  if (!videoRef?.path || !roi) {
     return null;
   }
+  const method = readOptionalString(params.method);
   const outcome = await preprocessingService.cleanVideo({
+    task_id: resolveRetryTaskId(task),
     video_path: null,
     video_ref: videoRef,
-    roi: params.roi as [number, number, number, number],
-    method: typeof params.method === "string" ? params.method : undefined,
+    roi,
+    method,
   });
   return {
     outcome,
-    descriptor: {
-      type: "cleanup",
-      name: task.name,
-      request_params: {
+    descriptor: createRetryDescriptor(
+      "cleanup",
+      {
         video_ref: videoRef,
-        roi: params.roi,
-        method: params.method,
+        roi,
+        ...(method !== undefined ? { method } : {}),
       },
-    },
+      task.name,
+      task.created_at,
+    ),
   };
 }
 
@@ -415,12 +541,7 @@ export function canRetryTask(task: Task) {
 }
 
 export async function retryFailedTask(task: Task, addTask: (task: Task) => void) {
-  let submission:
-    | {
-        outcome: unknown;
-        descriptor: RetryDescriptor;
-      }
-    | null = null;
+  let submission: RetrySubmission | null = null;
 
   if (isDownloadLikeTask(task)) {
     submission = await submitDownloadRetry(task);
@@ -444,10 +565,11 @@ export async function retryFailedTask(task: Task, addTask: (task: Task) => void)
 
   addTask(
     createTaskFromExecutionOutcome({
-      outcome: submission.outcome as never,
+      outcome: submission.outcome,
       type: submission.descriptor.type,
       name: submission.descriptor.name,
       request_params: submission.descriptor.request_params,
+      created_at: submission.descriptor.created_at,
     }),
   );
 }

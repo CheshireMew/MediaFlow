@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { executionService } from "../services/domain/executionService";
 import { preprocessingService } from "../services/domain/preprocessingService";
+import { createMockUserSettings } from "./testUtils/mockUserSettings";
 import {
   normalizeDirectTranscribeResult,
   normalizeDirectTranslateResult,
@@ -10,6 +11,7 @@ import { normalizeTranscribeResult } from "../services/ui/transcribeResult";
 import { normalizeTranslateResult } from "../services/ui/translateResult";
 
 const apiClientMock = vi.hoisted(() => ({
+  getSettings: vi.fn(),
   runPipeline: vi.fn(),
   startTranslation: vi.fn(),
   synthesizeVideo: vi.fn(),
@@ -32,6 +34,7 @@ vi.mock("../services/desktop/bridge", () => ({
 describe("service media contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiClientMock.getSettings.mockResolvedValue(createMockUserSettings());
     apiClientMock.synthesizeVideo.mockResolvedValue({
       task_id: "task-synthesize",
       status: "pending",
@@ -163,6 +166,7 @@ describe("service media contract", () => {
               role: "source",
               origin: "navigation",
             },
+            engine: "builtin",
             model: "base",
             device: "cpu",
             vad_filter: true,

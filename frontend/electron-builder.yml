@@ -59,10 +59,10 @@ extraResources:
       - "!realcugan/README.md"
       - "!realcugan/LICENSE"
 
-  # ── dist-backend/ ─────────────────────────────────────────
-  # PyInstaller-compiled backend (FastAPI + ML inference)
-  - from: ../dist-backend/mediaflow-backend
-    to: backend
+  # ── dist-desktop-worker/ ──────────────────────────────────
+  # PyInstaller-compiled Python desktop worker
+  - from: ../dist-desktop-worker/mediaflow-desktop-worker
+    to: desktop-worker
     filter:
       - "**/*"
       - "!**/__pycache__/**"
@@ -73,6 +73,8 @@ extraResources:
       - "!**/testing/**"
       - "!**/Pythonwin/**"
       - "!**/pythonwin/**"
+      - "!**/fastapi/**"
+      - "!**/uvicorn/**"
       - "!**/torch/**"
       - "!**/torchaudio/**"
       - "!**/torchvision/**"

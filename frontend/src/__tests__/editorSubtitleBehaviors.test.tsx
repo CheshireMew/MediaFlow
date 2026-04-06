@@ -24,6 +24,7 @@ import {
   DEFAULT_SUBTITLE_POSITION,
   hexToAss,
 } from "../components/dialogs/synthesis/types";
+import { resolveSubtitlePlacementMetrics } from "../components/dialogs/synthesis/subtitlePlacement";
 import {
   resolveSubtitleReferenceForTranslation,
   resolveSubtitlePathForTranslation,
@@ -332,6 +333,38 @@ describe("editor subtitle behaviors", () => {
     expect(computePreviewScaledValue(48, 1080, 540)).toBe(24);
     expect(computePreviewScaledValue(48, 1080, 1080)).toBe(48);
     expect(computePreviewScaledValue(48, 1080, 1440)).toBe(64);
+  });
+
+  test("preview subtitle margin falls back to the visible frame height before metadata arrives", () => {
+    expect(
+      resolveSubtitlePlacementMetrics({
+        normalizedY: 0.9,
+        sourceVideoHeight: 0,
+        previewVideoHeight: 540,
+      }),
+    ).toMatchObject({
+      sourceHeight: 0,
+      previewHeight: 540,
+      sourceMarginV: 0,
+      previewMarginV: 54,
+    });
+  });
+
+  test("preview subtitle margin follows the cropped viewport instead of the full frame", () => {
+    expect(
+      resolveSubtitlePlacementMetrics({
+        normalizedY: 0.9,
+        sourceVideoHeight: 1080,
+        previewVideoHeight: 540,
+        crop: { x: 0, y: 0.1, w: 1, h: 0.8 },
+      }),
+    ).toMatchObject({
+      sourceHeight: 864,
+      previewHeight: 432,
+      previewBottomOffset: 54,
+      sourceMarginV: 86,
+      previewMarginV: 97,
+    });
   });
 
   test("synthesis font size compensates for ass rendering being smaller than css", () => {

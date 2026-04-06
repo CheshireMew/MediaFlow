@@ -1,20 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTaskSocket } from "../hooks/tasks/useTaskSocket";
 import { useTaskStore } from "../hooks/tasks/useTaskStore";
-import { desktopTaskService, isDesktopRuntime } from "../services/desktop";
+import { apiClient } from "../api/client";
+import { desktopEventsService, desktopTaskService, isDesktopRuntime } from "../services/desktop";
 import { TaskContext } from "./taskContext";
 import { getRuntimeTaskOwnerMode } from "../contracts/runtimeContracts";
 import {
-  aggregateTaskSourceState,
   applyTaskSnapshot,
-  createBackendTaskSource,
-  createDesktopTaskSource,
-  createTaskSourceBundle,
-  getTaskSourceForTask,
-  hasActiveRemoteTasks,
-  isDesktopTask,
   normalizeTaskForOwnerMode,
-} from "./taskSources";
+} from "./taskSources/shared";
+import { isTaskActive } from "../services/tasks/taskRuntimeState";
 import { resetTaskSourceDiagnostics } from "./taskSources/diagnostics";
 
 export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boolean }> = ({
@@ -23,10 +18,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
 }) => {
   const desktopRuntime = isDesktopRuntime();
   const taskOwnerMode = getRuntimeTaskOwnerMode(desktopRuntime);
-  const desktopOwnsTaskState = taskOwnerMode === "desktop";
   const [desktopTasksReady, setDesktopTasksReady] = useState(!desktopRuntime);
   const [desktopSnapshotReady, setDesktopSnapshotReady] = useState(!desktopRuntime);
-  const [remoteSnapshotReady, setRemoteSnapshotReady] = useState(false);
+  const [remoteSnapshotReady, setRemoteSnapshotReady] = useState(desktopRuntime);
   const {
     tasks,
     applyMessage,
@@ -38,101 +32,74 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
     onMessage: applyMessage,
     enabled: enabled && !desktopRuntime,
   });
-  const shouldPollRemoteTasks = hasActiveRemoteTasks(tasks);
-  const backendTaskSyncEnabled = enabled && !desktopOwnsTaskState;
-  const backendSourceReady = desktopOwnsTaskState || (backendTaskSyncEnabled && remoteSnapshotReady);
-  const backendSourceSettled = desktopOwnsTaskState || !backendTaskSyncEnabled || remoteSnapshotReady;
-  const desktopSource = useMemo(
-    () =>
-      createDesktopTaskSource({
-        ready: desktopTasksReady,
-        settled: desktopSnapshotReady,
-      }),
-    [desktopSnapshotReady, desktopTasksReady],
+  const shouldPollRemoteTasks = useMemo(
+    () => tasks.some((task) => isTaskActive(task)),
+    [tasks],
   );
-  const backendSource = useMemo(
-    () =>
-      createBackendTaskSource(
-        backendTaskSyncEnabled,
-        shouldPollRemoteTasks,
-        sendPause,
-        !desktopRuntime,
-      ),
-    [backendTaskSyncEnabled, desktopRuntime, sendPause, shouldPollRemoteTasks],
-  );
-  const { taskSources } = useMemo(
-    () => createTaskSourceBundle({ taskOwnerMode, desktopSource, backendSource }),
-    [backendSource, desktopSource, taskOwnerMode],
-  );
-  const { connected, remoteTasksReady, tasksSettled } = useMemo(
-    () =>
-      aggregateTaskSourceState({
-        desktopRuntime,
-        enabled,
-        wsConnected,
-        localSource: desktopSource,
-        remoteSource: {
-          ready: backendSourceReady,
-          settled: backendSourceSettled,
-        },
-      }),
-    [
-      backendSourceReady,
-      backendSourceSettled,
-      desktopRuntime,
-      desktopSource,
-      enabled,
-      wsConnected,
-    ],
-  );
+  const connected = desktopRuntime ? desktopTasksReady : enabled && wsConnected;
+  const remoteTasksReady = desktopRuntime ? true : enabled && remoteSnapshotReady;
+  const tasksSettled = desktopRuntime
+    ? desktopSnapshotReady
+    : !enabled || remoteSnapshotReady;
 
   const pauseTask = async (taskId: string) => {
-    const task = tasks.find((item) => item.id === taskId);
-    if (!task) {
+    if (desktopRuntime) {
+      await desktopTaskService.pauseTask(taskId);
       return;
     }
-    await getTaskSourceForTask(taskSources, task)?.pauseTask(taskId);
+    sendPause?.(taskId);
   };
 
   const pauseLocalTasks = async () => {
-    await desktopSource.pauseAll(tasks);
+    if (!desktopRuntime) {
+      return;
+    }
+    const activeDesktopTasks = tasks.filter(
+      (task) => task.status === "pending" || task.status === "running",
+    );
+    await Promise.all(activeDesktopTasks.map((task) => desktopTaskService.pauseTask(task.id)));
   };
 
   const pauseRemoteTasks = async () => {
-    if (desktopOwnsTaskState) {
+    if (desktopRuntime) {
       return;
     }
-    await backendSource.pauseAll(tasks);
+    if (tasks.some((task) => isTaskActive(task))) {
+      await apiClient.pauseAllTasks();
+    }
   };
 
   const pauseAllTasks = async () => {
     await pauseLocalTasks();
-    if (!desktopOwnsTaskState) {
-      await pauseRemoteTasks();
-    }
+    await pauseRemoteTasks();
   };
 
   const resumeTask = async (taskId: string) => {
-    const task = tasks.find((item) => item.id === taskId);
-    if (!task) {
+    if (desktopRuntime) {
+      await desktopTaskService.resumeTask(taskId);
       return;
     }
-    await getTaskSourceForTask(taskSources, task)?.resumeTask(taskId);
+    await apiClient.resumeTask(taskId);
   };
 
   const deleteTask = async (taskId: string) => {
-    const task = tasks.find((item) => item.id === taskId);
-    if (!task) {
+    if (desktopRuntime) {
+      await desktopTaskService.cancelTask(taskId);
+      removeLocalTask(taskId);
       return;
     }
-    await getTaskSourceForTask(taskSources, task)?.deleteTask(task, removeLocalTask);
+    await apiClient.deleteTask(taskId);
+    removeLocalTask(taskId);
   };
 
   const clearTasks = async () => {
-    await desktopSource.clearTasks(tasks, removeLocalTask, clearLocalTasks);
-    if (!desktopOwnsTaskState) {
-      await backendSource.clearTasks(tasks, removeLocalTask, clearLocalTasks);
+    if (desktopRuntime) {
+      await Promise.all(tasks.map((task) => desktopTaskService.cancelTask(task.id)));
+      clearLocalTasks();
+      return;
     }
+    await apiClient.deleteAllTasks();
+    clearLocalTasks();
   };
 
   useEffect(() => {
@@ -157,7 +124,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
         applyTaskSnapshot(
           clearLocalTasks,
           applyMessage,
-          isDesktopTask,
+          () => true,
           desktopTasks,
           taskOwnerMode,
         );
@@ -182,7 +149,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
   }, [applyMessage, clearLocalTasks, desktopRuntime, desktopSnapshotReady, taskOwnerMode]);
 
   useEffect(() => {
-    if (!backendTaskSyncEnabled) {
+    if (!enabled || desktopRuntime) {
       return;
     }
 
@@ -190,7 +157,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
 
     const syncRemoteTasks = async () => {
       try {
-        const remoteTasks = await backendSource.loadSnapshot();
+        const remoteTasks = await apiClient.listTasks();
         if (cancelled) {
           return;
         }
@@ -198,7 +165,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
         applyTaskSnapshot(
           clearLocalTasks,
           applyMessage,
-          backendSource.clearPredicate,
+          () => true,
           remoteTasks,
           taskOwnerMode,
         );
@@ -210,7 +177,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
       }
     };
 
-    const shouldKeepPolling = !remoteSnapshotReady || backendSource.shouldPoll?.();
+    const shouldKeepPolling = !remoteSnapshotReady || shouldPollRemoteTasks;
     if (!shouldKeepPolling) {
       return;
     }
@@ -219,7 +186,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
 
     const interval = setInterval(() => {
       void syncRemoteTasks();
-    }, backendSource.pollIntervalMs);
+    }, 5000);
 
     return () => {
       cancelled = true;
@@ -227,17 +194,28 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
     };
   }, [
     applyMessage,
-    backendSource,
     clearLocalTasks,
-    backendTaskSyncEnabled,
+    desktopRuntime,
+    enabled,
     remoteSnapshotReady,
     shouldPollRemoteTasks,
     taskOwnerMode,
   ]);
 
   useEffect(() => {
-    const unsubscribe =
-      desktopSource.subscribe?.((message) => {
+    if (!desktopRuntime) {
+      return;
+    }
+
+    const unsubscribe = desktopEventsService.onTaskEvent((payload) => {
+      if (
+        payload &&
+        typeof payload === "object" &&
+        "type" in payload &&
+        typeof (payload as { type?: unknown }).type === "string"
+      ) {
+        setDesktopTasksReady(true);
+        const message = payload as Parameters<typeof applyMessage>[0];
         if (message.type === "update") {
           const normalizedTask = normalizeTaskForOwnerMode(
             message.task,
@@ -254,14 +232,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
           return;
         }
         applyMessage(message);
-      }, () => {
-      setDesktopTasksReady(true);
-    }) ?? (() => undefined);
+      }
+    });
 
     return () => {
       unsubscribe();
     };
-  }, [applyMessage, desktopSource, taskOwnerMode]);
+  }, [applyMessage, desktopRuntime, taskOwnerMode]);
 
   return React.createElement(
     TaskContext.Provider,

@@ -9,8 +9,8 @@ export default defineConfig({
     strictPort: true,
     watch: {
       ignored: [
-        '**/build-backend/**',
-        '**/dist-backend/**',
+        '**/build-desktop-worker/**',
+        '**/dist-desktop-worker/**',
         '**/dist/**',
         '**/node_modules/**',
       ],

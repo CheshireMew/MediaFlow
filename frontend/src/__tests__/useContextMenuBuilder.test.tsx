@@ -22,9 +22,6 @@ vi.mock("../services/domain", () => ({
     transcribeSegment: transcribeSegmentMock,
     translateSegments: translateSegmentsMock,
   },
-}));
-
-vi.mock("../services/domain/executionAccess", () => ({
   isAiTranslationSetupRequiredError: () => false,
 }));
 

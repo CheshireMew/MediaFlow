@@ -247,6 +247,7 @@ export const executionService = {
   },
 
   async synthesize(payload: {
+    task_id?: string;
     video_path?: string | null;
     video_ref?: MediaReference | null;
     srt_path?: string | null;
@@ -298,6 +299,7 @@ export const executionService = {
   async download(
     pipeline: PipelineRequest,
     settings?: DownloadExecutionSettings,
+    taskId?: string,
   ): Promise<ExecutionOutcome<never>> {
     const autoExecution = settings?.auto_execute_flow
       ? await buildSharedAutoExecutionSteps(true)
@@ -315,7 +317,7 @@ export const executionService = {
       normalizePayload: ({ pipeline: nextPipeline, desktopPayload }) => ({
         pipeline: nextPipeline,
         desktopPayload,
-        task_id: null,
+        task_id: taskId ?? null,
       }),
       desktopMethod: "desktopDownload",
       desktopUnavailableMessage: "Desktop download worker is unavailable.",

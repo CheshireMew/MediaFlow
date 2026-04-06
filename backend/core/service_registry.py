@@ -211,3 +211,35 @@ def build_service_assembly() -> ServiceAssembly:
 
 def register_all_services(container):
     return build_service_assembly().register_into(container)
+
+
+def build_desktop_worker_service_assembly() -> ServiceAssembly:
+    return ServiceAssembly(
+        [
+            ServiceProvider(Services.ASR, _create_asr_service),
+            ServiceProvider(Services.DOWNLOADER, _create_downloader_service),
+            ServiceProvider(Services.VIDEO_SYNTHESIZER, _create_video_synthesizer),
+            ServiceProvider(
+                Services.ENHANCER,
+                _create_enhancer_service,
+                enabled=lambda: settings.ENABLE_EXPERIMENTAL_PREPROCESSING,
+            ),
+            ServiceProvider(
+                Services.CLEANER,
+                _create_cleaner_service,
+                enabled=lambda: settings.ENABLE_EXPERIMENTAL_PREPROCESSING,
+            ),
+            ServiceProvider(Services.BROWSER, _create_browser_service),
+            ServiceProvider(Services.SNIFFER, _create_network_sniffer),
+            ServiceProvider(Services.COOKIE_MANAGER, _create_cookie_manager),
+            ServiceProvider(Services.PLATFORM_FACTORY, _create_platform_factory),
+            ServiceProvider(Services.ANALYZER, _create_analyzer_service),
+            ServiceProvider(Services.GLOSSARY, _create_glossary_service),
+            ServiceProvider(Services.SETTINGS_MANAGER, _create_settings_manager),
+            ServiceProvider(Services.LLM_TRANSLATOR, _create_llm_translator),
+        ]
+    )
+
+
+def register_desktop_worker_services(container):
+    return build_desktop_worker_service_assembly().register_into(container)

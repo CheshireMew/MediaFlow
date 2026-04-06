@@ -4,9 +4,14 @@ import { useTranslationTask } from "../hooks/useTranslationTask";
 import { useTranslatorStore } from "../stores/translatorStore";
 import type { Task } from "../types/task";
 import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
+import { createMockUserSettings } from "./testUtils/mockUserSettings";
 
 const translationServiceMock = vi.hoisted(() => ({
   startTranslation: vi.fn(),
+}));
+
+const apiClientMock = vi.hoisted(() => ({
+  getSettings: vi.fn(),
 }));
 
 const taskContextMock = vi.hoisted(() => ({
@@ -20,6 +25,10 @@ const taskContextMock = vi.hoisted(() => ({
 
 vi.mock("../services/domain/translationService", () => ({
   translationService: translationServiceMock,
+}));
+
+vi.mock("../api/client", () => ({
+  apiClient: apiClientMock,
 }));
 
 vi.mock("../context/taskContext", () => ({
@@ -60,6 +69,8 @@ describe("useTranslationTask", () => {
       taskError: null,
     });
     translationServiceMock.startTranslation.mockReset();
+    apiClientMock.getSettings.mockReset();
+    apiClientMock.getSettings.mockResolvedValue(createMockUserSettings());
     taskContextMock.addTask.mockReset();
     taskContextMock.tasks = [];
     taskContextMock.connected = true;

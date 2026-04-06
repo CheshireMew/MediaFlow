@@ -8,8 +8,6 @@ type AppRegionStyle = React.CSSProperties & {
 };
 
 interface EditorHeaderProps {
-    autoScroll: boolean;
-    setAutoScroll: (enabled: boolean) => void;
     onOpenFile: () => void;
     onOpenSubtitle: () => void;
     onSave: () => void;
@@ -19,8 +17,6 @@ interface EditorHeaderProps {
 }
 
 export function EditorHeader({
-    autoScroll: _autoScroll,
-    setAutoScroll: _setAutoScroll,
     onOpenFile,
     onOpenSubtitle,
     onSave,

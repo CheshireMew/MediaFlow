@@ -27,6 +27,44 @@ export interface NavigationEventDetail {
   payload?: NavigationPayload;
 }
 
+const NAVIGATION_DESTINATIONS: NavigationDestination[] = [
+  "dashboard",
+  "downloader",
+  "transcriber",
+  "translator",
+  "editor",
+  "preprocessing",
+  "settings",
+  "home",
+];
+
+function isNavigationDestination(value: unknown): value is NavigationDestination {
+  return typeof value === "string" && NAVIGATION_DESTINATIONS.includes(value as NavigationDestination);
+}
+
+export function parseNavigationEventDetail(value: unknown): NavigationEventDetail | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as {
+    destination?: unknown;
+    payload?: unknown;
+  };
+
+  if (!isNavigationDestination(candidate.destination)) {
+    return null;
+  }
+
+  return {
+    destination: candidate.destination,
+    payload:
+      candidate.payload && typeof candidate.payload === "object"
+        ? (candidate.payload as NavigationPayload)
+        : undefined,
+  };
+}
+
 export function resolveNavigationPath(detail: NavigationEventDetail): string {
   if (
     detail.destination === "settings" &&
@@ -156,8 +194,10 @@ export const NavigationService = {
 
   subscribe: (callback: (detail: NavigationEventDetail) => void) => {
     const handler = (event: Event) => {
-      const detail = (event as CustomEvent<NavigationEventDetail>).detail;
-      if (!detail || typeof detail !== "object") {
+      const detail = parseNavigationEventDetail(
+        (event as CustomEvent<unknown>).detail,
+      );
+      if (!detail) {
         return;
       }
       callback(detail);

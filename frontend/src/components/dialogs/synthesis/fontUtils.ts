@@ -1,8 +1,5 @@
-import { isBundledFont, loadBundledFontStyles } from "./fontCatalog";
-
 const FALLBACK_STACK = "monospace";
 const SAMPLE_TEXT = "MediaFlow 字幕预览 0123456789 ABCDEFG abcdefg ，。！？（）【】";
-const bundledFontLoads = new Map<string, Promise<boolean>>();
 
 function getCanvasContext(): CanvasRenderingContext2D | null {
   if (typeof document === "undefined") return null;
@@ -20,7 +17,7 @@ function measureWidth(fontFamily: string): number {
 export function isFontAvailable(fontFamily: string): boolean {
   if (typeof document === "undefined") return true;
 
-  const normalized = fontFamily.trim().toLowerCase();
+  const normalized = fontFamily.trim();
   if (!normalized) return false;
 
   if (document.fonts?.check?.(`16px "${fontFamily}"`)) {
@@ -30,39 +27,6 @@ export function isFontAvailable(fontFamily: string): boolean {
   const fallbackWidth = measureWidth(FALLBACK_STACK);
   const fontWidth = measureWidth(fontFamily);
   return Math.abs(fontWidth - fallbackWidth) > 0.5;
-}
-
-async function ensureBundledFont(fontFamily: string): Promise<boolean> {
-  const normalized = fontFamily.trim();
-  if (typeof document === "undefined") {
-    return false;
-  }
-
-  if (document.fonts?.check?.(`16px "${normalized}"`)) {
-    return true;
-  }
-
-  const cached = bundledFontLoads.get(normalized);
-  if (cached) {
-    return cached;
-  }
-
-  const loader = (async () => {
-    try {
-      const loaded = await loadBundledFontStyles(normalized);
-      if (!loaded) {
-        return false;
-      }
-      await document.fonts.load(`16px "${normalized}"`, SAMPLE_TEXT);
-      await document.fonts.ready;
-      return isFontAvailable(normalized);
-    } catch {
-      return false;
-    }
-  })();
-
-  bundledFontLoads.set(normalized, loader);
-  return loader;
 }
 
 export async function detectFontAvailability(fontFamily: string): Promise<boolean> {
@@ -75,8 +39,15 @@ export async function detectFontAvailability(fontFamily: string): Promise<boolea
     return true;
   }
 
-  if (!isBundledFont(normalized) || !document.fonts?.load) {
+  if (!document.fonts?.ready) {
     return false;
   }
-  return ensureBundledFont(normalized);
+
+  try {
+    await document.fonts.ready;
+  } catch {
+    return false;
+  }
+
+  return isFontAvailable(normalized);
 }

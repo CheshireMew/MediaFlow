@@ -1,12 +1,13 @@
 from typing import Any
 
-from backend.application.settings_service import SettingsApplicationService
 from backend.desktop.command_registry import register_worker_command
 from backend.desktop.worker_context import emit, settings_service
 from backend.services.settings_manager import UserSettings
 
 
-def _settings_application() -> SettingsApplicationService:
+def _settings_application():
+    from backend.application.settings_service import SettingsApplicationService
+
     return SettingsApplicationService(settings_service())
 
 

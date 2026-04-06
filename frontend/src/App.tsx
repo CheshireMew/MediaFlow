@@ -12,7 +12,11 @@ import {
   persistNavigationDestination,
   resolveCurrentNavigationPath,
 } from "./services/ui/navigationPersistence";
-import { resolveNavigationPath } from "./services/ui/navigation";
+import {
+  NavigationService,
+  parseNavigationEventDetail,
+  resolveNavigationPath,
+} from "./services/ui/navigation";
 import { ensureI18nNamespaces } from "./i18n";
 
 import { TaskProvider } from "./context/taskContext";
@@ -86,16 +90,16 @@ function ExternalNavListener() {
   // Event-based navigation (e.g. from Electron menu or other non-react sources)
   useEffect(() => {
     const handleNav = (e: Event) => {
-        const detail = (e as CustomEvent<{
-          destination?: string;
-          payload?: { settings_tab?: "llm" | "general" };
-        }>).detail;
-        if (detail?.destination) {
-          navigate(resolveNavigationPath(detail));
-        }
+      const detail = parseNavigationEventDetail(
+        (e as CustomEvent<unknown>).detail,
+      );
+      if (!detail) {
+        return;
+      }
+      navigate(resolveNavigationPath(detail));
     };
-    window.addEventListener('mediaflow:navigate', handleNav);
-    return () => window.removeEventListener('mediaflow:navigate', handleNav);
+    window.addEventListener(NavigationService.eventName, handleNav);
+    return () => window.removeEventListener(NavigationService.eventName, handleNav);
   }, [navigate]);
   return null;
 }

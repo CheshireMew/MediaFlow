@@ -1,4 +1,3 @@
-import { callBackendFallback } from "./backendFallback";
 import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop/bridge";
 import type { GlossaryTerm } from "../../types/api";
 
@@ -10,9 +9,7 @@ export const glossaryService = {
         "Desktop glossary worker is unavailable.",
       )();
     }
-    return await callBackendFallback("glossaryService", "listTerms", () =>
-      import("../../api/client").then(({ apiClient }) => apiClient.listGlossaryTerms()),
-    );
+    return await import("../../api/client").then(({ apiClient }) => apiClient.listGlossaryTerms());
   },
 
   async addTerm(term: {
@@ -27,9 +24,7 @@ export const glossaryService = {
         "Desktop glossary worker is unavailable.",
       )(term);
     }
-    return await callBackendFallback("glossaryService", "addTerm", () =>
-      import("../../api/client").then(({ apiClient }) => apiClient.addGlossaryTerm(term)),
-    );
+    return await import("../../api/client").then(({ apiClient }) => apiClient.addGlossaryTerm(term));
   },
 
   async deleteTerm(termId: string): Promise<void> {
@@ -40,8 +35,6 @@ export const glossaryService = {
       )(termId);
       return;
     }
-    await callBackendFallback("glossaryService", "deleteTerm", () =>
-      import("../../api/client").then(({ apiClient }) => apiClient.deleteGlossaryTerm(termId)),
-    );
+    await import("../../api/client").then(({ apiClient }) => apiClient.deleteGlossaryTerm(termId));
   },
 };

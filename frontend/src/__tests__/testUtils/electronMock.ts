@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import type { ElectronAPI } from "../../types/electron-api";
+import { createMockUserSettings } from "./mockUserSettings";
 
 type MockFn = ReturnType<typeof vi.fn>;
 
@@ -49,7 +50,7 @@ function createBaseElectronMock(): MockedElectronAPI {
     desktopTranscribe: vi.fn(),
     desktopTranslate: vi.fn(),
     desktopSynthesize: vi.fn(),
-    getDesktopSettings: vi.fn(),
+    getDesktopSettings: vi.fn().mockResolvedValue(createMockUserSettings()),
     updateDesktopSettings: vi.fn(),
     setDesktopActiveProvider: vi.fn(),
     testDesktopProvider: vi.fn(),

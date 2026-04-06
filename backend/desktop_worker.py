@@ -8,43 +8,11 @@ from pydantic import ValidationError
 from backend.config import settings
 from backend.desktop import commands  # noqa: F401
 from backend.desktop.command_registry import dispatch_worker_command
-from backend.desktop.commands import editor_commands, media_commands, ocr_commands
-from backend.desktop.worker_context import emit, emit_error, get_ocr_engine
+from backend.desktop.worker_context import emit, emit_error
 from backend.core.container import container
-from backend.core.service_registry import register_all_services
-from backend.core.tasks.registry import (
-    register_all_task_handlers,
-    validate_required_task_handlers,
-)
+from backend.core.service_registry import register_desktop_worker_services
 
 DESKTOP_WORKER_PROTOCOL_VERSION = 1
-
-
-def handle_transcribe(request_id: str | None, payload: dict[str, object]) -> None:
-    media_commands.emit = emit
-    media_commands.handle_transcribe(request_id, payload)
-
-
-def handle_translate(request_id: str | None, payload: dict[str, object]) -> None:
-    media_commands.emit = emit
-    media_commands.handle_translate(request_id, payload)
-
-
-def handle_synthesize(request_id: str | None, payload: dict[str, object]) -> None:
-    media_commands.emit = emit
-    media_commands.handle_synthesize(request_id, payload)
-
-
-def handle_extract(request_id: str | None, payload: dict[str, object]) -> None:
-    ocr_commands.emit = emit
-    ocr_commands.get_ocr_engine = get_ocr_engine
-    ocr_commands.handle_extract(request_id, payload)
-
-
-def handle_transcribe_segment(request_id: str | None, payload: dict[str, object]) -> None:
-    editor_commands.emit = emit
-    editor_commands.handle_transcribe_segment(request_id, payload)
-
 
 def configure_worker_stdio() -> None:
     reconfigure_in = getattr(sys.stdin, "reconfigure", None)
@@ -89,9 +57,8 @@ def configure_worker_logging() -> None:
 
 def bootstrap_worker() -> None:
     settings.init_dirs()
-    register_all_services(container)
-    register_all_task_handlers()
-    validate_required_task_handlers()
+    container.clear()
+    register_desktop_worker_services(container)
 
 
 def handle_request(request: dict[str, object]) -> None:

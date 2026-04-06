@@ -17,7 +17,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }
         fontSize, fontColor, fontName, isBold, isItalic,
         outlineSize, shadowSize, outlineColor,
         bgEnabled, bgColor, bgOpacity, bgPadding, alignment, multilineAlign,
-        effectiveFontName, isFontAvailable, fontAvailabilityMessage,
+        isFontAvailable, fontAvailabilityMessage,
         setFontSize, setFontColor, setFontName, setIsBold, setIsItalic,
         setOutlineSize, setShadowSize, setOutlineColor,
         setBgEnabled, setBgColor, setBgOpacity, setBgPadding, setAlignment, setMultilineAlign,
@@ -133,7 +133,6 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }
                     {!isFontAvailable && (
                         <p className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
                             {fontAvailabilityMessage}
-                            {effectiveFontName !== fontName ? ` 当前回退：${effectiveFontName}` : ''}
                         </p>
                     )}
                 </div>
