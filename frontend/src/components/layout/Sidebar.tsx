@@ -77,7 +77,7 @@ export function Sidebar() {
   ];
 
   if (ENABLE_EXPERIMENTAL_PREPROCESSING) {
-    menuItems.splice(4, 0, {
+    menuItems.splice(5, 0, {
       id: 'preprocessing',
       labelKey: 'preprocess',
       icon: Wand2,

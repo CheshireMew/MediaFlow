@@ -28,9 +28,28 @@ describe("text splitter heuristics", () => {
   it("prefers CJK pause punctuation instead of raw midpoint fallback", () => {
     const text = "在市场经济中，价格变化是因为世界上的冲击，而不是每天都在发生根本变化。";
 
-    const splitIndex = getBestSplitIndex(text);
+    const splitIndex = getBestSplitIndex(text, { requirePunctuation: true });
 
     expect(text.slice(0, splitIndex)).toContain("，");
+  });
+
+  it("does not split a long sentence without punctuation in smart mode", () => {
+    const text =
+      "this is a very long subtitle sentence with plenty of words but absolutely no punctuation so smart split should leave it untouched";
+
+    expect(getBestSplitIndex(text, { requirePunctuation: true })).toBe(-1);
+  });
+
+  it("only splits at a pause mark when both sides are substantial in smart mode", () => {
+    const validText = "这是前半句足够长的说明内容部分，这也是后半句足够长的说明内容部分";
+    const shortTailText = "这是前半句足够长的说明内容部分，很短";
+
+    const validSplitIndex = getBestSplitIndex(validText, {
+      requirePunctuation: true,
+    });
+
+    expect(validText.slice(0, validSplitIndex)).toContain("，");
+    expect(getBestSplitIndex(shortTailText, { requirePunctuation: true })).toBe(-1);
   });
 
   it("uses token-weighted timing instead of plain character ratio", () => {

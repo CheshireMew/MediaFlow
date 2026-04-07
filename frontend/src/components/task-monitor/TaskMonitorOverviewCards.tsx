@@ -1,6 +1,11 @@
 import { ActivitySquare, HardDrive, ServerCog } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useTaskMonitorOverview } from './useTaskMonitorOverview';
+import {
+    OverviewCardHeader,
+    overviewCardClassName,
+    overviewInnerPanelClassName,
+} from './overviewCardPrimitives';
 
 const statBadgeClassNames = {
     pending: 'bg-amber-400/10 text-amber-300 border-amber-400/20',
@@ -20,8 +25,6 @@ const statusClassNames = {
         text: 'text-rose-400',
     },
 } as const;
-
-const panelClassName = 'bg-[#1a1a1a] p-4 rounded-xl border border-white/5 shadow-xl hover:bg-[#222] transition-colors group';
 
 export const TaskMonitorOverviewCards = () => {
     const { t } = useTranslation(['dashboard', 'taskmonitor']);
@@ -57,44 +60,54 @@ export const TaskMonitorOverviewCards = () => {
 
     return (
         <>
-            <section className={panelClassName}>
-                <div className="flex items-center gap-3 mb-3">
-                    <div className="p-1.5 bg-indigo-500/10 rounded-lg group-hover:bg-indigo-500/20 transition-colors">
-                        <ActivitySquare className="w-4 h-4 text-indigo-300" />
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-slate-200 text-sm">{t('dashboard:taskOverview.title')}</h3>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{t('dashboard:taskOverview.subtitle')}</p>
-                    </div>
-                </div>
+            <section className={overviewCardClassName}>
+                <OverviewCardHeader
+                    icon={ActivitySquare}
+                    title={t('dashboard:taskOverview.title')}
+                    subtitle={t('dashboard:taskOverview.subtitle')}
+                    iconAccentClassName="bg-indigo-500/10 group-hover:bg-indigo-500/20"
+                    iconClassName="text-indigo-300"
+                />
                 <div className="grid grid-cols-3 gap-2">
                     {taskStats.map((item) => (
-                        <div key={item.key} className={`rounded-xl border px-3 py-3 ${statBadgeClassNames[item.key]}`}>
+                        <div key={item.key} className={`rounded-xl border px-3 py-2 flex flex-col gap-1 ${statBadgeClassNames[item.key]}`}>
                             <div className="text-[10px] uppercase tracking-[0.18em] opacity-80">{item.label}</div>
-                            <div className="mt-2 text-xl font-semibold text-white">{item.value}</div>
+                            <div className="text-xl font-semibold text-white leading-none">{item.value}</div>
                         </div>
                     ))}
                 </div>
-            </section>
-
-            <section className={panelClassName}>
-                <div className="flex items-center gap-3 mb-3">
-                    <div className="p-1.5 bg-cyan-500/10 rounded-lg group-hover:bg-cyan-500/20 transition-colors">
-                        <ServerCog className="w-4 h-4 text-cyan-300" />
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-slate-200 text-sm">{t('dashboard:runtimeOverview.title')}</h3>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{t('dashboard:runtimeOverview.subtitle')}</p>
+                <div className={`mt-3 min-h-[60px] ${overviewInnerPanelClassName}`}>
+                    <div className="text-xs text-slate-400 mb-2">{t('dashboard:taskOverview.execution')}</div>
+                    <div className="flex flex-wrap gap-2">
+                        {executionBadges.length > 0 ? (
+                            executionBadges.map((badge) => (
+                                <span key={badge.key} className={`px-2 py-1 rounded-md border text-[10px] font-mono ${badge.className}`}>
+                                    {badge.label} {badge.count}
+                                </span>
+                            ))
+                        ) : (
+                            <span className="text-[11px] text-slate-500">{t('dashboard:taskOverview.executionIdle')}</span>
+                        )}
                     </div>
                 </div>
+            </section>
+
+            <section className={overviewCardClassName}>
+                <OverviewCardHeader
+                    icon={ServerCog}
+                    title={t('dashboard:runtimeOverview.title')}
+                    subtitle={t('dashboard:runtimeOverview.subtitle')}
+                    iconAccentClassName="bg-cyan-500/10 group-hover:bg-cyan-500/20"
+                    iconClassName="text-cyan-300"
+                />
                 <div className="space-y-2">
-                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                    <div className={`${overviewInnerPanelClassName} flex items-center justify-between min-h-[60px]`}>
                         <span className="text-xs text-slate-400">{t('dashboard:runtimeOverview.owner')}</span>
                         <span className="px-2 py-1 rounded-md bg-cyan-400/10 text-cyan-300 border border-cyan-400/20 text-[10px] font-mono">
                             owner {taskOwnerMode}
                         </span>
                     </div>
-                    <div className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                    <div className={`${overviewInnerPanelClassName} min-h-[60px]`}>
                         <div className="flex items-center gap-2 mb-2 text-xs text-slate-400">
                             <HardDrive className="w-3.5 h-3.5" />
                             {t('dashboard:runtimeOverview.sources')}
@@ -111,18 +124,6 @@ export const TaskMonitorOverviewCards = () => {
                             ))}
                         </div>
                     </div>
-                    {executionBadges.length > 0 && (
-                        <div className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
-                            <div className="text-xs text-slate-400 mb-2">{t('dashboard:runtimeOverview.execution')}</div>
-                            <div className="flex flex-wrap gap-2">
-                                {executionBadges.map((badge) => (
-                                    <span key={badge.key} className={`px-2 py-1 rounded-md border text-[10px] font-mono ${badge.className}`}>
-                                        {badge.label} {badge.count}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
             </section>
         </>

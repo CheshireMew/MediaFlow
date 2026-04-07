@@ -83,6 +83,9 @@ function splitLongSubtitleSegment<T extends SubtitleSegmentLike>(
   const split = splitSubtitleSegment(segment, {
     minPartLength: MIN_PART_LENGTH,
     minPartDuration: MIN_PART_DURATION,
+    heuristics: {
+      requirePunctuation: true,
+    },
   });
 
   return split ? split.parts : null;

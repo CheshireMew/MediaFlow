@@ -15,6 +15,7 @@ import { SubtitleStylePanel } from './synthesis/components/SubtitleStylePanel';
 import { WatermarkPanel } from './synthesis/components/WatermarkPanel';
 import { OutputSettingsPanel } from './synthesis/components/OutputSettingsPanel';
 import { VideoPreview } from './synthesis/components/VideoPreview';
+import { resolvePreviewViewportMetrics } from './synthesis/previewViewport';
 import { desktopEventsService } from '../../services/desktop';
 import { buildSynthesisOptionsFromPreferences } from '../../services/domain';
 import {
@@ -64,6 +65,13 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         });
     }, [subtitleEnabled, watermarkEnabled]);
 
+    const crop = useCrop();
+    const outputViewportMetrics = resolvePreviewViewportMetrics({
+        sourceWidth: videoSize.w,
+        sourceHeight: videoSize.h,
+        crop: crop.isEnabled ? crop.crop : null,
+    });
+
     // --- Hooks ---
     const style = useSubtitleStyle(
         isOpen,
@@ -76,7 +84,10 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     const watermark = useWatermark(
         isOpen,
         style.isInitialized,
-        videoSize,
+        {
+            w: outputViewportMetrics.outputSourceWidth,
+            h: outputViewportMetrics.outputSourceHeight,
+        },
         persistedPreferences,
     );
     const output = useOutputSettings(
@@ -85,7 +96,6 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         style.isInitialized,
         persistedPreferences,
     );
-    const crop = useCrop();
 
     useEffect(() => {
         if (!isOpen) return;

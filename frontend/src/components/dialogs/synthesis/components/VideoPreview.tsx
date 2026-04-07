@@ -8,11 +8,12 @@ import type { OutputSettingsState } from '../hooks/useOutputSettings';
 import type { CropState } from '../hooks/useCrop';
 import { CropOverlay } from './CropOverlay';
 import {
-    computePreviewScaledValue,
     computeSubtitleLineBottomMargins,
     shapeSubtitleText,
 } from '../textShaper';
-import { resolveSubtitlePlacementMetrics } from '../subtitlePlacement';
+import { computeSubtitleMarginV } from '../subtitlePlacement';
+import { resolvePreviewViewportMetrics } from '../previewViewport';
+import { resolvePreviewSubtitleMetrics } from '../subtitleSizing';
 import {
     buildAssLikeTextShadow,
     getSubtitlePadding,
@@ -154,32 +155,37 @@ export const VideoPreview: React.FC<Props> = ({
     const isCurrentMediaLoaded = mediaUrl !== null && loadedMediaUrl === mediaUrl;
     const effectiveVideoSize = isCurrentMediaLoaded ? videoSize : { w: 0, h: 0 };
     const effectiveDuration = isCurrentMediaLoaded ? duration : 0;
+    const previewViewportMetrics = resolvePreviewViewportMetrics({
+        sourceWidth: effectiveVideoSize.w,
+        sourceHeight: effectiveVideoSize.h,
+        crop: crop.isEnabled ? crop.crop : null,
+    });
     const previewVideoHeight = frameSize.height || effectiveVideoSize.h;
-    const previewFontSize = computePreviewScaledValue(
+    const previewMetrics = resolvePreviewSubtitleMetrics({
         fontSize,
-        effectiveVideoSize.h,
-        previewVideoHeight,
-    );
-    const previewOutlineSize = bgEnabled
-        ? computePreviewScaledValue(bgPadding, effectiveVideoSize.h, previewVideoHeight)
-        : computePreviewScaledValue(outlineSize, effectiveVideoSize.h, previewVideoHeight);
-    const previewShadowSize = computePreviewScaledValue(
+        outlineSize,
         shadowSize,
-        effectiveVideoSize.h,
+        backgroundEnabled: bgEnabled,
+        backgroundPadding: bgPadding,
+        sourceVideoHeight: previewViewportMetrics.outputSourceHeight,
         previewVideoHeight,
-    );
-    const previewBackgroundPadding = computePreviewScaledValue(
-        bgPadding,
-        effectiveVideoSize.h,
-        previewVideoHeight,
-    );
+    });
+    const previewSideMargin = frameSize.width > 0 && previewViewportMetrics.outputSourceWidth > 0
+        ? Math.max(
+            1,
+            Math.round(
+                (Math.max(10, Math.round(previewViewportMetrics.outputSourceWidth * 0.02)) * frameSize.width)
+                / previewViewportMetrics.outputSourceWidth,
+            ),
+        )
+        : 0;
     const subtitleAvailableWidth = frameSize.width
-        ? Math.max(0, frameSize.width - Math.max(20, frameSize.width * 0.04))
+        ? Math.max(0, frameSize.width - previewSideMargin * 2)
         : 0;
     const shapedSubtitle = shapeSubtitleText(
         currentSubtitle || t('preview.subtitlePosition'),
         subtitleAvailableWidth,
-        previewFontSize,
+        previewMetrics.fontSize,
         {
             fontFamily: fontName,
             isBold,
@@ -187,20 +193,12 @@ export const VideoPreview: React.FC<Props> = ({
         },
     );
     const subtitleLines = shapedSubtitle.split('\n');
-    const subtitlePlacement = resolveSubtitlePlacementMetrics({
-        normalizedY: subPos.y,
-        sourceVideoHeight: effectiveVideoSize.h,
-        previewVideoHeight: frameSize.height,
-        crop: crop.isEnabled ? crop.crop : null,
-    });
-    const previewMarginV = subtitlePlacement.previewHeight > 0
-        ? subtitlePlacement.previewMarginV
-        : computePreviewScaledValue(
-            subtitlePlacement.sourceMarginV,
-            subtitlePlacement.sourceHeight,
-            frameSize.height,
-        );
-    const previewLineStep = previewFontSize + previewOutlineSize * 2;
+    const subtitlePreviewReady =
+        previewMetrics.isReady && frameSize.height > 0;
+    const previewMarginV = subtitlePreviewReady
+        ? computeSubtitleMarginV(subPos.y, frameSize.height)
+        : 0;
+    const previewLineStep = previewMetrics.lineStep;
     const lineBottomMargins = computeSubtitleLineBottomMargins(
         subtitleLines.length,
         previewMarginV,
@@ -217,15 +215,15 @@ export const VideoPreview: React.FC<Props> = ({
         { id: 'small', label: t('preview.qualitySmall'), desc: t('preview.qualitySmallDesc') }
     ];
     const previewTextShadow = buildAssLikeTextShadow({
-        outlineSize: previewOutlineSize,
+        outlineSize: previewMetrics.outlineSize,
         outlineColor,
-        shadowSize: previewShadowSize,
+        shadowSize: previewMetrics.shadowSize,
         backgroundEnabled: bgEnabled,
     });
     const previewBackgroundColor = bgEnabled
         ? hexWithOpacity(bgColor, bgOpacity)
         : 'transparent';
-    const previewPadding = getSubtitlePadding(bgEnabled, previewBackgroundPadding);
+    const previewPadding = getSubtitlePadding(bgEnabled, previewMetrics.backgroundPadding);
 
     return (
         <div
@@ -383,22 +381,38 @@ export const VideoPreview: React.FC<Props> = ({
                     /* The frame is sized by the browser's actual rendered video box, and overlays attach to that exact box */
                     <div 
                         ref={frameRef}
-                        className="relative flex items-center justify-center shadow-2xl shadow-black/50 border border-white/10 bg-black rounded-lg overflow-hidden ring-1 ring-white/5 max-w-full max-h-full"
+                        className="relative shadow-2xl shadow-black/50 border border-white/10 bg-black rounded-lg overflow-hidden ring-1 ring-white/5 max-w-full max-h-full"
+                        style={{
+                            aspectRatio: `${previewViewportMetrics.aspectRatio}`,
+                            width: effectiveVideoSize.w > 0 && effectiveVideoSize.h > 0 ? 'min(100%, calc((100vh - 240px) * var(--preview-aspect)))' : undefined,
+                            height: 'auto',
+                            ['--preview-aspect' as string]: `${previewViewportMetrics.aspectRatio}`,
+                        }}
                     >
-                        <video 
-                            key={mediaUrl}
-                            ref={videoRef}
-                            src={mediaUrl}
-                            className="block max-w-full max-h-full"
-                            onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
-                            onLoadedMetadata={(e) => {
-                                const t = e.currentTarget;
-                                setLoadedMediaUrl(mediaUrl);
-                                setVideoSize({ w: t.videoWidth, h: t.videoHeight });
-                                setDuration(t.duration || 0);
+                        <div
+                            className="absolute inset-0"
+                            style={{
+                                width: `${previewViewportMetrics.contentWidthPercent}%`,
+                                height: `${previewViewportMetrics.contentHeightPercent}%`,
+                                left: `${previewViewportMetrics.contentOffsetXPercent}%`,
+                                top: `${previewViewportMetrics.contentOffsetYPercent}%`,
                             }}
-                            onDurationChange={(e) => setDuration(e.currentTarget.duration || 0)}
-                        />
+                        >
+                            <video 
+                                key={mediaUrl}
+                                ref={videoRef}
+                                src={mediaUrl}
+                                className="block w-full h-full"
+                                onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
+                                onLoadedMetadata={(e) => {
+                                    const t = e.currentTarget;
+                                    setLoadedMediaUrl(mediaUrl);
+                                    setVideoSize({ w: t.videoWidth, h: t.videoHeight });
+                                    setDuration(t.duration || 0);
+                                }}
+                                onDurationChange={(e) => setDuration(e.currentTarget.duration || 0)}
+                            />
+                        </div>
 
                         {/* --- Overlays Layer --- */}
                         
@@ -437,9 +451,9 @@ export const VideoPreview: React.FC<Props> = ({
                         )}
                         
                         {/* Subtitle Overlay */}
-                        {subtitleEnabled && (
+                        {subtitleEnabled && subtitlePreviewReady && (
                         <div 
-                            className="absolute inset-0 select-none group transition-colors px-6 pointer-events-none"
+                            className="absolute inset-0 select-none group transition-colors pointer-events-none"
                             style={{
                                 zIndex: 30,
                                 textAlign: alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center',
@@ -449,32 +463,35 @@ export const VideoPreview: React.FC<Props> = ({
                                 subtitleLines.map((lineText, index) => (
                                     <div
                                         key={`${index}-${lineText}`}
-                                        className="absolute left-6 right-6"
+                                        className="absolute"
                                         style={{
+                                            left: `${previewSideMargin}px`,
+                                            right: `${previewSideMargin}px`,
                                             bottom: `${lineBottomMargins[index] ?? previewMarginV}px`,
                                             textAlign: alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center',
                                         }}
                                     >
                                         <span 
                                             className={`
-                                                inline-block rounded text-lg md:text-xl leading-relaxed max-w-full cursor-move pointer-events-auto
+                                                inline-block text-lg md:text-xl leading-relaxed max-w-full cursor-move pointer-events-auto
                                                 transition-all duration-75
                                                 ${dragging === 'sub' ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-black/50' : 'group-hover:ring-1 group-hover:ring-white/30'}
                                             `}
                                             onMouseDown={handleSubtitleDragStart}
                                             style={{ 
-                                                fontSize: `${previewFontSize}px`, 
+                                                fontSize: `${previewMetrics.fontSize}px`, 
                                                 color: fontColor,
                                                 fontFamily: `"${fontName}", sans-serif`,
                                                 fontWeight: isBold ? 'bold' : 'normal',
                                                 fontStyle: isItalic ? 'italic' : 'normal',
                                                 fontSynthesis: 'style',
-                                                lineHeight: `${previewFontSize + previewOutlineSize * 2}px`,
+                                                lineHeight: `${previewMetrics.lineStep}px`,
                                                 WebkitTextStroke: undefined,
                                                 paintOrder: undefined,
                                                 textShadow: previewTextShadow,
                                                 backgroundColor: previewBackgroundColor,
                                                 padding: previewPadding,
+                                                borderRadius: bgEnabled ? 0 : undefined,
                                                 whiteSpace: 'pre',
                                             }}
                                         >

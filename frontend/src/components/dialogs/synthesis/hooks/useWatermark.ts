@@ -25,7 +25,7 @@ export interface WatermarkState {
 export function useWatermark(
   isOpen: boolean,
   isInitialized: React.MutableRefObject<boolean>,
-  videoSize: { w: number; h: number },
+  outputSize: { w: number; h: number },
   persistedPreferences: SynthesisExecutionPreferences,
 ): WatermarkState {
   const [watermarkPath, setWatermarkPath] = useState<string | null>(null);
@@ -111,8 +111,8 @@ export function useWatermark(
         setWatermarkSize({ w, h });
 
         // --- Smart Default Position (Top-Right) ---
-        const vidW = videoSize.w || 1920;
-        const vidH = videoSize.h || 1080;
+        const vidW = outputSize.w || 1920;
+        const vidH = outputSize.h || 1080;
 
         // Target Scale: 20% width
         const scale = 0.2;
@@ -146,7 +146,7 @@ export function useWatermark(
   const applyWmPositionPreset = (
     pos: "TL" | "TC" | "TR" | "BL" | "BC" | "BR" | "C" | "LC" | "RC",
   ) => {
-    if (!videoSize.w || !watermarkSize.w) {
+    if (!outputSize.w || !watermarkSize.w) {
       // Fallback for missing metadata
       const map: Record<string, { x: number; y: number }> = {
         TL: { x: 0.1, y: 0.1 },
@@ -165,12 +165,12 @@ export function useWatermark(
 
     // 1. Calculate Watermark Target Dimensions (in pixels)
     // wmScale is "Target Width as % of Video Width"
-    const targetW = videoSize.w * wmScale;
+    const targetW = outputSize.w * wmScale;
     const targetH = targetW * (watermarkSize.h / watermarkSize.w);
 
     // 2. Normalized Dimensions
-    const normW = targetW / videoSize.w;
-    const normH = targetH / videoSize.h;
+    const normW = targetW / outputSize.w;
+    const normH = targetH / outputSize.h;
 
     // 3. Margin
     const marginX = 0.03;

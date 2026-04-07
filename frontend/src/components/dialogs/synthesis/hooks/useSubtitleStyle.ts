@@ -7,7 +7,7 @@ import {
 } from "../types";
 import type { SubtitlePreset } from "../types";
 import { detectFontAvailability } from "../fontUtils";
-import { computeDefaultSubtitleFontSize } from "../textShaper";
+import { computeDefaultSubtitleFontSize } from "../subtitleSizing";
 import {
   updateStoredSynthesisExecutionPreferences,
   type SynthesisExecutionPreferences,
@@ -148,6 +148,7 @@ export function useSubtitleStyle(
 
       try {
         const subtitleStyle = persistedPreferences.subtitleStyle;
+        const recommendedFontSize = computeDefaultSubtitleFontSize(videoHeight);
 
         setCustomPresets(subtitleStyle.customPresets);
         lastRecommendedVideoKey.current = null;
@@ -164,7 +165,7 @@ export function useSubtitleStyle(
         setBgPadding(subtitleStyle.bgPadding);
         setAlignment(subtitleStyle.alignment);
         setMultilineAlign(subtitleStyle.multilineAlign);
-        setFontSizeState(subtitleStyle.fontSize);
+        setFontSizeState(recommendedFontSize);
         setFontColor(subtitleStyle.fontColor);
         setSubPos(subtitleStyle.subPos);
       } catch (e) {

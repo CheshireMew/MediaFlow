@@ -43,5 +43,5 @@ export function getSubtitlePadding(
     const padding = Math.max(0, Math.round(backgroundPadding));
     return `${padding}px`;
   }
-  return "8px 16px";
+  return "0px";
 }

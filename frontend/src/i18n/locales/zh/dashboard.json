@@ -17,7 +17,9 @@
     "subtitle": "排队与运行态势",
     "queue": "Queue",
     "running": "Running",
-    "paused": "Paused"
+    "paused": "Paused",
+    "execution": "执行模式",
+    "executionIdle": "当前无活跃执行模式"
   },
   "runtimeOverview": {
     "title": "运行状态",

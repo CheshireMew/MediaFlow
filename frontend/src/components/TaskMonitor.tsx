@@ -14,6 +14,7 @@ import {
 } from '../services/ui/taskMedia';
 import { createTaskDiagnostic } from '../services/debug/runtimeDiagnostics';
 import { useTaskMonitorOverview } from './task-monitor/useTaskMonitorOverview';
+import { formatTaskDisplayId } from './task-monitor/taskIdDisplay';
 import { canRetryTask, retryFailedTask } from '../services/tasks/taskRetry';
 
 type TaskWithDetails = Task & { result?: TaskResult };
@@ -324,7 +325,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
                                             })()}
                                             {renderQueueBadge(task)}
                                             <span className="text-[10px] text-slate-600 font-mono tracking-wide">
-                                                #{task.id.slice(0, 8)}
+                                                {formatTaskDisplayId(task.id)}
                                             </span>
                                         </div>
                                         

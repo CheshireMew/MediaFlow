@@ -10,17 +10,17 @@ interface Props {
 export const CropOverlay: React.FC<Props> = ({ crop, setCrop, containerRef }) => {
     const [dragMode, setDragMode] = useState<'move' | 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null>(null);
     const startPos = useRef<{ x: number; y: number } | null>(null);
+    const startRect = useRef<{ width: number; height: number } | null>(null);
     const startCrop = useRef(crop);
 
     useEffect(() => {
         if (!dragMode) return;
 
         const handleMouseMove = (e: MouseEvent) => {
-            if (!containerRef.current || !startPos.current) return;
+            if (!containerRef.current || !startPos.current || !startRect.current) return;
 
-            const rect = containerRef.current.getBoundingClientRect();
-            const dx = (e.clientX - startPos.current.x) / rect.width;
-            const dy = (e.clientY - startPos.current.y) / rect.height;
+            const dx = ((e.clientX - startPos.current.x) / startRect.current.width) * startCrop.current.w;
+            const dy = ((e.clientY - startPos.current.y) / startRect.current.height) * startCrop.current.h;
 
             const next = { ...startCrop.current };
 
@@ -98,6 +98,13 @@ export const CropOverlay: React.FC<Props> = ({ crop, setCrop, containerRef }) =>
         setDragMode(mode);
         startPos.current = { x: e.clientX, y: e.clientY };
         startCrop.current = crop;
+        if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            startRect.current = {
+                width: Math.max(1, rect.width),
+                height: Math.max(1, rect.height),
+            };
+        }
     };
 
     const handleStyle = {
@@ -114,11 +121,7 @@ export const CropOverlay: React.FC<Props> = ({ crop, setCrop, containerRef }) =>
         <div 
             className="absolute z-40"
             style={{
-                left: `${crop.x * 100}%`,
-                top: `${crop.y * 100}%`,
-                width: `${crop.w * 100}%`,
-                height: `${crop.h * 100}%`,
-                boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.7)', // Dim outside
+                inset: 0,
                 border: '1px solid #6366f1'
             }}
             onMouseDown={(e) => handleMouseDown(e, 'move')}

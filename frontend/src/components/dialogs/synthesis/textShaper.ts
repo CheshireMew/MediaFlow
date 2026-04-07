@@ -220,39 +220,3 @@ export function computeSubtitleLineBottomMargins(
 
   return margins;
 }
-
-export function computeSynthesisFontSize(
-  previewFontSize: number,
-): number {
-  if (previewFontSize <= 0) return 0;
-
-  // libass renders glyphs slightly smaller than the browser for the same
-  // numeric size, so we compensate here instead of scaling by preview height.
-  const ASS_FONT_COMPENSATION = 1.25;
-  return Math.max(1, Math.round(previewFontSize * ASS_FONT_COMPENSATION));
-}
-
-export function computeDefaultSubtitleFontSize(videoHeight: number): number {
-  if (videoHeight <= 0) {
-    return 24;
-  }
-
-  const suggested = Math.round((videoHeight * 0.022) / 2) * 2;
-  return Math.min(42, Math.max(18, suggested));
-}
-
-export function computePreviewScaledValue(
-  sourceValue: number,
-  sourceVideoHeight: number,
-  previewVideoHeight: number,
-): number {
-  if (sourceValue <= 0) return 0;
-  if (sourceVideoHeight <= 0 || previewVideoHeight <= 0) {
-    return Math.round(sourceValue);
-  }
-
-  return Math.max(
-    1,
-    Math.round((sourceValue * previewVideoHeight) / sourceVideoHeight),
-  );
-}

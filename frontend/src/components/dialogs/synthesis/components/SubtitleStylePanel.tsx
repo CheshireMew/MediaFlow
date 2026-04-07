@@ -147,6 +147,9 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }
                             onChange={e => setFontSize(Number(e.target.value))}
                             className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono"
                         />
+                        <p className="text-[10px] leading-relaxed text-slate-500">
+                            {t('style.sizeHint')}
+                        </p>
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.color')}</label>

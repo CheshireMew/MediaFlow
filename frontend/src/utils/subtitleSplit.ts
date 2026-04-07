@@ -1,4 +1,8 @@
-import { getBestSplitIndex, getSplitTimingRatio } from "./textSplitter";
+import {
+  getBestSplitIndex,
+  getSplitTimingRatio,
+  type SplitHeuristicOptions,
+} from "./textSplitter";
 
 type SegmentLike = {
   start: number;
@@ -11,6 +15,7 @@ type SplitSubtitleOptions = {
   minPartLength?: number;
   minPartDuration?: number;
   fallbackToMidpoint?: boolean;
+  heuristics?: SplitHeuristicOptions;
 };
 
 type SplitSubtitleResult<T extends SegmentLike> = {
@@ -32,6 +37,7 @@ export function splitSubtitleSegment<T extends SegmentLike>(
     minPartLength = 1,
     minPartDuration = 0,
     fallbackToMidpoint = false,
+    heuristics = {},
   } = options;
 
   const text = (segment.text || "").trim();
@@ -41,7 +47,7 @@ export function splitSubtitleSegment<T extends SegmentLike>(
   }
 
   const midpointIndex = Math.floor(text.length / 2);
-  const smartIndex = getBestSplitIndex(text);
+  const smartIndex = getBestSplitIndex(text, heuristics);
   const hasSmartSplit = smartIndex > 0 && smartIndex < text.length;
 
   let splitIndex = -1;

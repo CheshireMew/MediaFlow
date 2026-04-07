@@ -9,17 +9,21 @@ import { useCrop } from "../components/dialogs/synthesis/hooks/useCrop";
 import { useSubtitleStyle } from "../components/dialogs/synthesis/hooks/useSubtitleStyle";
 import { restoreStoredSynthesisExecutionPreferences } from "../services/persistence/synthesisExecutionPreferences";
 import {
-  computeDefaultSubtitleFontSize,
-  computePreviewScaledValue,
   computeSubtitleLineBottomMargins,
-  computeSynthesisFontSize,
   shapeSubtitleLine,
 } from "../components/dialogs/synthesis/textShaper";
+import {
+  computeDefaultSubtitleFontSize,
+  computePreviewScaledValue,
+  computeSynthesisFontSize,
+  resolvePreviewSubtitleMetrics,
+} from "../components/dialogs/synthesis/subtitleSizing";
 import {
   buildAssLikeTextShadow,
   getSubtitlePadding,
   hexWithOpacity,
 } from "../components/dialogs/synthesis/previewStyle";
+import { resolvePreviewViewportMetrics } from "../components/dialogs/synthesis/previewViewport";
 import {
   DEFAULT_SUBTITLE_POSITION,
   hexToAss,
@@ -87,7 +91,7 @@ describe("editor subtitle behaviors", () => {
         id: "7",
         start: 0,
         end: 6,
-        text: "hello world this sentence is intentionally long enough to trigger smart split behavior here",
+        text: "hello world this sentence is intentionally long enough, and the second clause is also long enough to split cleanly",
       },
       {
         id: "9",
@@ -113,7 +117,7 @@ describe("editor subtitle behaviors", () => {
         id: "1",
         start: 0,
         end: 6,
-        text: "这是一个长度刚好足以触发当前智能分割规则的中文字幕文本示例",
+        text: "这是一个刚好触发智能分割的前半句，而且后半句也足够长",
       },
     ];
 
@@ -123,6 +127,29 @@ describe("editor subtitle behaviors", () => {
     expect(
       smartSplitSubtitleSegments(input, { textLimit: 40 }).splitCount,
     ).toBe(0);
+  });
+
+  test("smart split skips long lines that have no punctuation boundary", () => {
+    const input = [
+      {
+        id: "1",
+        start: 0,
+        end: 6,
+        text: "this is a very long subtitle sentence with enough words to trigger the length limit but there is no punctuation anywhere in it",
+      },
+    ];
+
+    const result = smartSplitSubtitleSegments(input);
+
+    expect(result.splitCount).toBe(0);
+    expect(result.segments).toEqual([
+      {
+        id: "1",
+        start: 0,
+        end: 6,
+        text: "this is a very long subtitle sentence with enough words to trigger the length limit but there is no punctuation anywhere in it",
+      },
+    ]);
   });
 
   test("editor only accepts srt subtitle files", () => {
@@ -335,6 +362,70 @@ describe("editor subtitle behaviors", () => {
     expect(computePreviewScaledValue(48, 1080, 1440)).toBe(64);
   });
 
+  test("preview subtitle sizing waits for source metadata before rendering scaled styles", () => {
+    expect(
+      resolvePreviewSubtitleMetrics({
+        fontSize: 24,
+        outlineSize: 2,
+        shadowSize: 1,
+        backgroundEnabled: false,
+        backgroundPadding: 5,
+        sourceVideoHeight: 0,
+        previewVideoHeight: 540,
+      }),
+    ).toEqual({
+      isReady: false,
+      scaleFactor: 0,
+      fontSize: 0,
+      outlineSize: 0,
+      shadowSize: 0,
+      backgroundPadding: 0,
+      lineInsetSize: 0,
+      lineStep: 0,
+    });
+  });
+
+  test("preview subtitle sizing comes from a single scaled source once metadata is ready", () => {
+    expect(
+      resolvePreviewSubtitleMetrics({
+        fontSize: 48,
+        outlineSize: 4,
+        shadowSize: 2,
+        backgroundEnabled: true,
+        backgroundPadding: 6,
+        sourceVideoHeight: 1080,
+        previewVideoHeight: 540,
+      }),
+    ).toEqual({
+      isReady: true,
+      scaleFactor: 0.5,
+      fontSize: 24,
+      outlineSize: 2,
+      shadowSize: 1,
+      backgroundPadding: 3,
+      lineInsetSize: 3,
+      lineStep: 30,
+    });
+  });
+
+  test("cropped preview viewport exposes the final output aspect and content offsets", () => {
+    expect(
+      resolvePreviewViewportMetrics({
+        sourceWidth: 1920,
+        sourceHeight: 1080,
+        crop: { x: 0.1, y: 0.2, w: 0.5, h: 0.5 },
+      }),
+    ).toMatchObject({
+      outputSourceWidth: 960,
+      outputSourceHeight: 540,
+      aspectRatio: 960 / 540,
+      contentWidthPercent: 200,
+      contentHeightPercent: 200,
+      contentOffsetXPercent: -20,
+      contentOffsetYPercent: -40,
+    });
+  });
+
   test("preview subtitle margin falls back to the visible frame height before metadata arrives", () => {
     expect(
       resolveSubtitlePlacementMetrics({
@@ -415,6 +506,73 @@ describe("editor subtitle behaviors", () => {
       await act(async () => {
         await Promise.resolve();
       });
+      expect(result.current.fontSize).toBe(18);
+    } finally {
+      HTMLCanvasElement.prototype.getContext = originalGetContext;
+    }
+  });
+
+  test("subtitle style ignores the last persisted font size when opening and recomputes from video height", async () => {
+    localStorage.setItem(
+      "synthesis_execution_preferences",
+      JSON.stringify({
+        schema_version: 1,
+        payload: {
+          subtitleEnabled: true,
+          watermarkEnabled: true,
+          quality: "balanced",
+          useGpu: true,
+          lastOutputDir: null,
+          subtitleStyle: {
+            fontSize: 40,
+            fontColor: "#FFFFFF",
+            fontName: "Arial",
+            isBold: false,
+            isItalic: false,
+            outlineSize: 2,
+            shadowSize: 0,
+            outlineColor: "#000000",
+            bgEnabled: false,
+            bgColor: "#000000",
+            bgOpacity: 0.5,
+            bgPadding: 5,
+            alignment: 2,
+            multilineAlign: "center",
+            subPos: { x: 0.5, y: 0.9 },
+            customPresets: [],
+          },
+          watermark: {
+            wmScale: 0.2,
+            wmOpacity: 0.8,
+            wmPos: { x: 0.5, y: 0.5 },
+          },
+        },
+      }),
+    );
+    const persistedPreferences = restoreStoredSynthesisExecutionPreferences();
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = (() =>
+      ({
+        font: "",
+        measureText: () => ({ width: 10 }),
+      }) as unknown as CanvasRenderingContext2D) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const { result } = renderHook(() =>
+        useSubtitleStyle(
+          true,
+          [],
+          0,
+          720,
+          "E:/video-a.mp4",
+          persistedPreferences,
+        ),
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
       expect(result.current.fontSize).toBe(18);
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext;
@@ -535,6 +693,7 @@ describe("editor subtitle behaviors", () => {
 
     expect(shadow).toBe("2px 2px 0 rgba(0,0,0,0.88), 2px 2px 2px rgba(0,0,0,0.35)");
     expect(getSubtitlePadding(true, 5)).toBe("5px");
+    expect(getSubtitlePadding(false, 5)).toBe("0px");
     expect(hexWithOpacity("#000000", 0.5)).toBe("#00000080");
   });
 

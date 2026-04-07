@@ -8,6 +8,10 @@
 type SplitReason = "dialog" | "sentence" | "pause" | "space" | "midpoint";
 type TextProfile = "latin" | "cjk" | "mixed";
 
+export type SplitHeuristicOptions = {
+  requirePunctuation?: boolean;
+};
+
 interface SplitCandidate {
   index: number;
   reason: SplitReason;
@@ -93,6 +97,12 @@ const BAD_END_WORDS = new Set([
 
 const BAD_START_CJK = new Set(["的", "了", "呢", "吗", "は", "が", "を", "に", "で", "と", "か"]);
 const BAD_END_CJK = new Set(["的", "了", "和", "与", "及", "は", "が", "を", "に", "で", "と"]);
+
+const MIN_PUNCTUATION_UNITS: Record<TextProfile, number> = {
+  latin: 4,
+  cjk: 8,
+  mixed: 6,
+};
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -257,14 +267,62 @@ function getCandidatePenalty(
   return penalty;
 }
 
+function countMeaningfulUnits(text: string, profile: TextProfile): number {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return 0;
+  }
+
+  const cjkUnits = (trimmed.match(REGEX_CJK) || []).join("").length;
+  const latinUnits = Array.from(trimmed.matchAll(REGEX_LATIN_WORD)).length;
+
+  if (profile === "latin") {
+    return latinUnits;
+  }
+  if (profile === "cjk") {
+    return cjkUnits;
+  }
+  return cjkUnits + latinUnits;
+}
+
+function hasEnoughPunctuationContext(
+  text: string,
+  splitIndex: number,
+  reason: SplitReason,
+  profile: TextProfile,
+  options: SplitHeuristicOptions,
+): boolean {
+  if (!options.requirePunctuation) {
+    return true;
+  }
+
+  if (reason !== "dialog" && reason !== "sentence" && reason !== "pause") {
+    return false;
+  }
+
+  const before = text.slice(0, splitIndex);
+  const after = text.slice(splitIndex);
+  const minUnits = MIN_PUNCTUATION_UNITS[profile];
+
+  return (
+    countMeaningfulUnits(before, profile) >= minUnits &&
+    countMeaningfulUnits(after, profile) >= minUnits
+  );
+}
+
 function addCandidate(
   candidates: SplitCandidate[],
   text: string,
   splitIndex: number,
   reason: SplitReason,
   profile: TextProfile,
+  options: SplitHeuristicOptions,
 ): void {
   if (splitIndex <= 0 || splitIndex >= text.length) {
+    return;
+  }
+
+  if (!hasEnoughPunctuationContext(text, splitIndex, reason, profile, options)) {
     return;
   }
 
@@ -347,7 +405,10 @@ export function getSplitTimingRatio(text: string, splitIndex: number): number {
  * The split should happen at the returned index, i.e. the second part starts
  * at text[index].
  */
-export function getBestSplitIndex(text: string): number {
+export function getBestSplitIndex(
+  text: string,
+  options: SplitHeuristicOptions = {},
+): number {
   if (!text || text.length < 2) {
     return -1;
   }
@@ -358,7 +419,7 @@ export function getBestSplitIndex(text: string): number {
 
   for (let i = 1; i < len - 1; i++) {
     if (text[i] === "-" && (text[i - 1] === " " || text[i - 1] === "\n")) {
-      addCandidate(candidates, text, i, "dialog", profile);
+      addCandidate(candidates, text, i, "dialog", profile, options);
     }
   }
 
@@ -372,15 +433,18 @@ export function getBestSplitIndex(text: string): number {
     }
 
     if (sentenceEndings.includes(char)) {
-      addCandidate(candidates, text, i + 1, "sentence", profile);
+      addCandidate(candidates, text, i + 1, "sentence", profile, options);
     } else if (pauseMarks.includes(char)) {
-      addCandidate(candidates, text, i + 1, "pause", profile);
-    } else if (char === " " && profile !== "cjk") {
-      addCandidate(candidates, text, i + 1, "space", profile);
+      addCandidate(candidates, text, i + 1, "pause", profile, options);
+    } else if (char === " " && profile !== "cjk" && !options.requirePunctuation) {
+      addCandidate(candidates, text, i + 1, "space", profile, options);
     }
   }
 
   if (candidates.length === 0) {
+    if (options.requirePunctuation) {
+      return -1;
+    }
     return Math.floor(len / 2);
   }
 

@@ -3,6 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { TaskMonitor } from '../components/TaskMonitor';
 import { Activity, Server } from 'lucide-react';
 import { TaskMonitorOverviewCards } from '../components/task-monitor/TaskMonitorOverviewCards';
+import {
+    OverviewCardHeader,
+    overviewCardClassName,
+    overviewInnerPanelClassName,
+} from '../components/task-monitor/overviewCardPrimitives';
 
 export const DashboardPage = () => {
     const { t } = useTranslation('dashboard');
@@ -20,24 +25,26 @@ export const DashboardPage = () => {
 
             <div className="flex-none grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 {/* System Stats */}
-                <div className="bg-[#1a1a1a] p-4 rounded-xl border border-white/5 shadow-xl hover:bg-[#222] transition-colors group">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="p-1.5 bg-emerald-500/10 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
-                            <Server className="w-4 h-4 text-emerald-400" />
-                        </div>
-                        <h3 className="font-semibold text-slate-200 text-sm">{t('stats.systemStatus')}</h3>
-                    </div>
+                <section className={overviewCardClassName}>
+                    <OverviewCardHeader
+                        icon={Server}
+                        title={t('stats.systemStatus')}
+                        iconAccentClassName="bg-emerald-500/10 group-hover:bg-emerald-500/20"
+                        iconClassName="text-emerald-400"
+                    />
                     <div className="space-y-2">
-                         <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                             <span className="text-xs text-slate-400">{t('stats.backendConnection')}</span>
-                             <span className="text-[10px] font-medium px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20">{t('stats.online')}</span>
-                         </div>
-                         <div className="flex justify-between items-center py-1.5">
-                             <span className="text-xs text-slate-400">{t('stats.computeResources')}</span>
-                             <span className="text-xs font-medium text-slate-300">{t('stats.autoScaling')}</span>
-                         </div>
+                        <div className={`${overviewInnerPanelClassName} flex items-center justify-between min-h-[60px]`}>
+                            <span className="text-xs text-slate-400">{t('stats.backendConnection')}</span>
+                            <span className="text-[10px] font-medium px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20">
+                                {t('stats.online')}
+                            </span>
+                        </div>
+                        <div className={`${overviewInnerPanelClassName} flex items-center justify-between min-h-[60px]`}>
+                            <span className="text-xs text-slate-400">{t('stats.computeResources')}</span>
+                            <span className="text-xs font-medium text-slate-300">{t('stats.autoScaling')}</span>
+                        </div>
                     </div>
-                </div>
+                </section>
                 
                 <TaskMonitorOverviewCards />
             </div>

@@ -206,6 +206,17 @@ class LLMTranslator:
         except Exception as exc:
             logger.warning(f"[LLM IO] Failed to serialize {mode_label} response payload: {exc}")
 
+    @staticmethod
+    def _build_output_style_rules() -> str:
+        return (
+            "Output style requirements:\n"
+            "- Follow the normal writing and punctuation conventions of the output language.\n"
+            "- If the output text is Chinese, do not casually use the em dash '——'. "
+            "Prefer commas, periods, colons, or semicolons unless the source clearly requires a strong interruption or abrupt break.\n"
+            "- If the output text is Chinese, follow standard Chinese typography: use full-width Chinese punctuation, "
+            "and insert spaces between Chinese text and standalone English words, abbreviations, or acronyms."
+        )
+
     # --- Single-line fallback ---
 
     def _translate_single_fallback(
@@ -225,7 +236,8 @@ class LLMTranslator:
                             "You MUST preserve the original id exactly.\n"
                             "You MUST copy source_text exactly from the input.\n"
                             "Translated text must not be empty.\n"
-                            "Do not merge, split, or rewrite surrounding lines."
+                            "Do not merge, split, or rewrite surrounding lines.\n"
+                            f"{self._build_output_style_rules()}"
                         ),
                     },
                     {
@@ -351,6 +363,7 @@ class LLMTranslator:
 
         system_prompt = f"You are a professional subtitle translator translating to {target_language}."
         system_prompt += "\nThe source text is transcribed from audio and may contain errors. Use context to correct errors during translation."
+        system_prompt += f"\n{self._build_output_style_rules()}"
 
         if relevant_terms:
             glossary_block = "\nGLOSSARY (Strictly follow these translations):\n"

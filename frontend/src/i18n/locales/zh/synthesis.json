@@ -11,6 +11,7 @@
     "presetNamePlaceholder": "预设名称...",
     "font": "字体",
     "sizePx": "大小 (px)",
+    "sizeHint": "这里的数值是导出字幕样式值，预览会随着视频缩放，不等于屏幕上的固定像素。",
     "color": "颜色",
     "bold": "粗体",
     "italic": "斜体",

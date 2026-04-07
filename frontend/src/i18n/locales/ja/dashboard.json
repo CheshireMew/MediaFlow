@@ -17,7 +17,9 @@
     "subtitle": "キューと実行状況",
     "queue": "Queue",
     "running": "Running",
-    "paused": "Paused"
+    "paused": "Paused",
+    "execution": "実行モード",
+    "executionIdle": "現在アクティブな実行モードはありません"
   },
   "runtimeOverview": {
     "title": "実行状態",

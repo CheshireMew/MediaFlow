@@ -11,6 +11,7 @@
     "presetNamePlaceholder": "Preset name...",
     "font": "Font",
     "sizePx": "Size (px)",
+    "sizeHint": "This value is the exported subtitle style size. The preview scales with the video, so it is not a fixed on-screen pixel size.",
     "color": "Color",
     "bold": "Bold",
     "italic": "Italic",

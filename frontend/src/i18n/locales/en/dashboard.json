@@ -17,7 +17,9 @@
     "subtitle": "Queue and runtime load",
     "queue": "Queue",
     "running": "Running",
-    "paused": "Paused"
+    "paused": "Paused",
+    "execution": "Execution modes",
+    "executionIdle": "No active execution modes"
   },
   "runtimeOverview": {
     "title": "Runtime Status",

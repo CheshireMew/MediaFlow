@@ -1,6 +1,6 @@
 import { hexToAss } from "../../components/dialogs/synthesis/types";
-import { computeSynthesisFontSize } from "../../components/dialogs/synthesis/textShaper";
 import { resolveSubtitlePlacementMetrics } from "../../components/dialogs/synthesis/subtitlePlacement";
+import { computeSynthesisFontSize } from "../../components/dialogs/synthesis/subtitleSizing";
 import type { SynthesizeOptions } from "../../types/api";
 import { editorService } from "./editorService";
 import type { SynthesisExecutionPreferences } from "../persistence/synthesisExecutionPreferences";
