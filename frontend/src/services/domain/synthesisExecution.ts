@@ -1,6 +1,8 @@
-import { hexToAss } from "../../components/dialogs/synthesis/types";
-import { resolveSubtitlePlacementMetrics } from "../../components/dialogs/synthesis/subtitlePlacement";
-import { computeSynthesisFontSize } from "../../components/dialogs/synthesis/subtitleSizing";
+import { resolvePreviewViewportMetrics } from "../../components/dialogs/synthesis/previewViewport";
+import {
+  buildSubtitleSynthesisOptions,
+  resolveSubtitleRenderSourceSpec,
+} from "../../components/dialogs/synthesis/subtitleRender";
 import type { SynthesizeOptions } from "../../types/api";
 import { editorService } from "./editorService";
 import type { SynthesisExecutionPreferences } from "../persistence/synthesisExecutionPreferences";
@@ -44,11 +46,11 @@ export function buildSynthesisOptionsFromPreferences(
   overrides?: SynthesisExecutionOverrides,
 ): SynthesizeOptions {
   const subtitleStyle = preferences.subtitleStyle;
-  const bgAlphaHex = Math.round((1 - subtitleStyle.bgOpacity) * 255)
-    .toString(16)
-    .padStart(2, "0")
-    .toUpperCase();
-  const assBackgroundColor = hexToAss(subtitleStyle.bgColor, bgAlphaHex);
+  const outputViewportMetrics = resolvePreviewViewportMetrics({
+    sourceWidth: overrides?.videoSize?.w ?? 0,
+    sourceHeight: overrides?.videoSize?.h ?? 0,
+    crop: overrides?.crop ?? null,
+  });
 
   const options: SynthesizeOptions = {
     ...resolveQualityOptions(preferences.quality),
@@ -65,35 +67,17 @@ export function buildSynthesisOptionsFromPreferences(
   }
 
   if (preferences.subtitleEnabled) {
-    const subtitlePlacement = resolveSubtitlePlacementMetrics({
-      normalizedY: subtitleStyle.subPos.y,
-      sourceVideoHeight: overrides?.videoSize?.h ?? 0,
-      previewVideoHeight: 0,
-      crop: overrides?.crop ?? null,
+    const subtitleRenderSpec = resolveSubtitleRenderSourceSpec({
+      ...subtitleStyle,
+      outputWidth: outputViewportMetrics.outputSourceWidth,
+      outputHeight: outputViewportMetrics.outputSourceHeight,
     });
-    const subtitleOptions: SynthesizeOptions = {
-      font_name: subtitleStyle.fontName,
-      font_size: computeSynthesisFontSize(subtitleStyle.fontSize),
-      font_color: hexToAss(subtitleStyle.fontColor),
-      bold: subtitleStyle.isBold,
-      italic: subtitleStyle.isItalic,
-      outline: subtitleStyle.bgEnabled
-        ? subtitleStyle.bgPadding
-        : subtitleStyle.outlineSize,
-      shadow: subtitleStyle.shadowSize,
-      outline_color: subtitleStyle.bgEnabled
-        ? assBackgroundColor
-        : hexToAss(subtitleStyle.outlineColor),
-      back_color: subtitleStyle.bgEnabled
-        ? assBackgroundColor
-        : hexToAss(subtitleStyle.bgColor, bgAlphaHex),
-      border_style: subtitleStyle.bgEnabled ? 3 : 1,
-      alignment: subtitleStyle.alignment,
-      multiline_align: subtitleStyle.multilineAlign,
-    };
+    const subtitleOptions: SynthesizeOptions = buildSubtitleSynthesisOptions(
+      subtitleRenderSpec,
+    );
 
-    if (subtitlePlacement.sourceHeight > 0) {
-      subtitleOptions.margin_v = subtitlePlacement.sourceMarginV;
+    if (subtitleRenderSpec.isReady) {
+      subtitleOptions.margin_v = subtitleRenderSpec.marginV;
     } else {
       subtitleOptions.subtitle_position_y = subtitleStyle.subPos.y;
     }

@@ -119,9 +119,18 @@ class SubtitleWriter:
             # Dynamic Margins (2% of width, min 10px scaled)
             # Keep margins small to maximize usable subtitle width
             dynamic_margin = max(int(10 * scale_factor), int(play_res_x * 0.02))
-            
-            margin_l = style_options.get('margin_l', dynamic_margin)
-            margin_r = style_options.get('margin_r', dynamic_margin)
+
+            base_margin_l = style_options.get('margin_l')
+            if isinstance(base_margin_l, (int, float)):
+                margin_l = max(0, int(float(base_margin_l) * scale_factor))
+            else:
+                margin_l = dynamic_margin
+
+            base_margin_r = style_options.get('margin_r')
+            if isinstance(base_margin_r, (int, float)):
+                margin_r = max(0, int(float(base_margin_r) * scale_factor))
+            else:
+                margin_r = dynamic_margin
             
             # WrapStyle: 2 = Only break at \N (we control all line breaks via TextShaper)
             # libass cannot auto-wrap CJK without libunibreak, so we must handle it ourselves.
@@ -170,9 +179,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             # Effective width for line breaking (PlayRes minus both side margins)
             effective_width = play_res_x - margin_l - margin_r
 
-            # Line height for multi-line splitting
-            # = text bounding box (font_size) + box padding top+bottom (2*outline)
-            line_step = font_size + outline * 2
+            # Line height for multi-line splitting.
+            # Keep it explicit in the render contract when the caller provides one.
+            base_line_step = style_options.get('line_step')
+            if isinstance(base_line_step, (int, float)) and float(base_line_step) > 0:
+                line_step = max(1, int(float(base_line_step) * scale_factor))
+            else:
+                line_step = font_size + outline * 2
 
             # Convert timestamp (seconds) to ASS format (H:MM:SS.cc)
             def format_time(s):

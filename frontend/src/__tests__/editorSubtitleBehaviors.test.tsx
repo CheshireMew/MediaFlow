@@ -13,22 +13,18 @@ import {
   shapeSubtitleLine,
 } from "../components/dialogs/synthesis/textShaper";
 import {
+  buildPreviewTextShadow,
   computeDefaultSubtitleFontSize,
-  computePreviewScaledValue,
-  computeSynthesisFontSize,
-  resolvePreviewSubtitleMetrics,
-} from "../components/dialogs/synthesis/subtitleSizing";
-import {
-  buildAssLikeTextShadow,
-  getSubtitlePadding,
+  computeSubtitleExportFontSize,
   hexWithOpacity,
-} from "../components/dialogs/synthesis/previewStyle";
+  resolveSubtitlePreviewRenderSpec,
+  resolveSubtitleRenderSourceSpec,
+} from "../components/dialogs/synthesis/subtitleRender";
 import { resolvePreviewViewportMetrics } from "../components/dialogs/synthesis/previewViewport";
 import {
   DEFAULT_SUBTITLE_POSITION,
   hexToAss,
 } from "../components/dialogs/synthesis/types";
-import { resolveSubtitlePlacementMetrics } from "../components/dialogs/synthesis/subtitlePlacement";
 import {
   resolveSubtitleReferenceForTranslation,
   resolveSubtitlePathForTranslation,
@@ -356,55 +352,93 @@ describe("editor subtitle behaviors", () => {
     ]);
   });
 
-  test("preview font size scales with the displayed video height", () => {
-    expect(computePreviewScaledValue(48, 1080, 540)).toBe(24);
-    expect(computePreviewScaledValue(48, 1080, 1080)).toBe(48);
-    expect(computePreviewScaledValue(48, 1080, 1440)).toBe(64);
-  });
+  test("preview subtitle render waits for source metadata before scaling styles", () => {
+    const source = resolveSubtitleRenderSourceSpec({
+      fontSize: 24,
+      fontColor: "#FFFFFF",
+      fontName: "Arial",
+      isBold: false,
+      isItalic: false,
+      outlineSize: 2,
+      shadowSize: 1,
+      outlineColor: "#000000",
+      bgEnabled: false,
+      bgColor: "#000000",
+      bgOpacity: 0.5,
+      bgPadding: 5,
+      alignment: 2,
+      multilineAlign: "center",
+      subPos: { x: 0.5, y: 0.9 },
+      outputWidth: 0,
+      outputHeight: 0,
+    });
 
-  test("preview subtitle sizing waits for source metadata before rendering scaled styles", () => {
     expect(
-      resolvePreviewSubtitleMetrics({
-        fontSize: 24,
-        outlineSize: 2,
-        shadowSize: 1,
-        backgroundEnabled: false,
-        backgroundPadding: 5,
-        sourceVideoHeight: 0,
-        previewVideoHeight: 540,
+      resolveSubtitlePreviewRenderSpec({
+        source,
+        previewWidth: 960,
+        previewHeight: 540,
       }),
     ).toEqual({
       isReady: false,
-      scaleFactor: 0,
+      width: 960,
+      height: 540,
       fontSize: 0,
       outlineSize: 0,
       shadowSize: 0,
       backgroundPadding: 0,
       lineInsetSize: 0,
       lineStep: 0,
+      marginV: 0,
+      marginL: 0,
+      marginR: 0,
+      availableWidth: 0,
+      backgroundColor: "transparent",
+      padding: "0px",
     });
   });
 
-  test("preview subtitle sizing comes from a single scaled source once metadata is ready", () => {
+  test("preview subtitle render comes from a single source spec once metadata is ready", () => {
+    const source = resolveSubtitleRenderSourceSpec({
+      fontSize: 48,
+      fontColor: "#FFFFFF",
+      fontName: "Arial",
+      isBold: false,
+      isItalic: false,
+      outlineSize: 4,
+      shadowSize: 2,
+      outlineColor: "#000000",
+      bgEnabled: true,
+      bgColor: "#000000",
+      bgOpacity: 0.5,
+      bgPadding: 6,
+      alignment: 2,
+      multilineAlign: "center",
+      subPos: { x: 0.5, y: 0.9 },
+      outputWidth: 1920,
+      outputHeight: 1080,
+    });
+
     expect(
-      resolvePreviewSubtitleMetrics({
-        fontSize: 48,
-        outlineSize: 4,
-        shadowSize: 2,
-        backgroundEnabled: true,
-        backgroundPadding: 6,
-        sourceVideoHeight: 1080,
-        previewVideoHeight: 540,
+      resolveSubtitlePreviewRenderSpec({
+        source,
+        previewWidth: 960,
+        previewHeight: 540,
       }),
-    ).toEqual({
+    ).toMatchObject({
       isReady: true,
-      scaleFactor: 0.5,
       fontSize: 24,
       outlineSize: 2,
       shadowSize: 1,
       backgroundPadding: 3,
       lineInsetSize: 3,
       lineStep: 30,
+      marginV: 54,
+      marginL: 19,
+      marginR: 19,
+      availableWidth: 922,
+      backgroundColor: "#00000080",
+      padding: "3px",
     });
   });
 
@@ -426,48 +460,49 @@ describe("editor subtitle behaviors", () => {
     });
   });
 
-  test("preview subtitle margin falls back to the visible frame height before metadata arrives", () => {
-    expect(
-      resolveSubtitlePlacementMetrics({
-        normalizedY: 0.9,
-        sourceVideoHeight: 0,
-        previewVideoHeight: 540,
-      }),
-    ).toMatchObject({
-      sourceHeight: 0,
-      previewHeight: 540,
-      sourceMarginV: 0,
-      previewMarginV: 54,
+  test("source render spec anchors subtitles against the cropped output height", () => {
+    const viewport = resolvePreviewViewportMetrics({
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+      crop: { x: 0, y: 0.1, w: 1, h: 0.8 },
     });
+
+    const source = resolveSubtitleRenderSourceSpec({
+      fontSize: 24,
+      fontColor: "#FFFFFF",
+      fontName: "Arial",
+      isBold: false,
+      isItalic: false,
+      outlineSize: 2,
+      shadowSize: 0,
+      outlineColor: "#000000",
+      bgEnabled: false,
+      bgColor: "#000000",
+      bgOpacity: 0.5,
+      bgPadding: 5,
+      alignment: 2,
+      multilineAlign: "center",
+      subPos: { x: 0.5, y: 0.9 },
+      outputWidth: viewport.outputSourceWidth,
+      outputHeight: viewport.outputSourceHeight,
+    });
+
+    expect(source.outputHeight).toBe(864);
+    expect(source.marginV).toBe(86);
   });
 
-  test("preview subtitle margin follows the cropped viewport instead of the full frame", () => {
-    expect(
-      resolveSubtitlePlacementMetrics({
-        normalizedY: 0.9,
-        sourceVideoHeight: 1080,
-        previewVideoHeight: 540,
-        crop: { x: 0, y: 0.1, w: 1, h: 0.8 },
-      }),
-    ).toMatchObject({
-      sourceHeight: 864,
-      previewHeight: 432,
-      previewBottomOffset: 54,
-      sourceMarginV: 86,
-      previewMarginV: 97,
-    });
-  });
-
-  test("synthesis font size compensates for ass rendering being smaller than css", () => {
-    expect(computeSynthesisFontSize(24)).toBe(30);
-    expect(computeSynthesisFontSize(40)).toBe(50);
+  test("subtitle export font size compensates for ass rendering being smaller than css", () => {
+    expect(computeSubtitleExportFontSize(24)).toBe(30);
+    expect(computeSubtitleExportFontSize(40)).toBe(50);
   });
 
   test("default subtitle font size adapts to the video height", () => {
     expect(computeDefaultSubtitleFontSize(0)).toBe(24);
-    expect(computeDefaultSubtitleFontSize(720)).toBe(18);
-    expect(computeDefaultSubtitleFontSize(1080)).toBe(24);
-    expect(computeDefaultSubtitleFontSize(2160)).toBe(42);
+    expect(computeDefaultSubtitleFontSize(240)).toBe(12);
+    expect(computeDefaultSubtitleFontSize(320)).toBe(16);
+    expect(computeDefaultSubtitleFontSize(720)).toBe(40);
+    expect(computeDefaultSubtitleFontSize(1080)).toBe(60);
+    expect(computeDefaultSubtitleFontSize(2160)).toBe(120);
   });
 
   test("subtitle style recommends a new font size when switching videos before manual override", async () => {
@@ -500,13 +535,13 @@ describe("editor subtitle behaviors", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(result.current.fontSize).toBe(24);
+      expect(result.current.fontSize).toBe(60);
 
       rerender({ videoHeight: 720, videoPath: "E:/video-b.mp4" });
       await act(async () => {
         await Promise.resolve();
       });
-      expect(result.current.fontSize).toBe(18);
+      expect(result.current.fontSize).toBe(40);
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext;
     }
@@ -573,7 +608,7 @@ describe("editor subtitle behaviors", () => {
         await Promise.resolve();
       });
 
-      expect(result.current.fontSize).toBe(18);
+      expect(result.current.fontSize).toBe(40);
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext;
     }
@@ -617,7 +652,7 @@ describe("editor subtitle behaviors", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(result.current.fontSize).toBe(18);
+      expect(result.current.fontSize).toBe(40);
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext;
     }
@@ -670,7 +705,7 @@ describe("editor subtitle behaviors", () => {
   });
 
   test("ass-like preview shadow includes outline ring and drop shadow", () => {
-    const shadow = buildAssLikeTextShadow({
+    const shadow = buildPreviewTextShadow({
       outlineSize: 2,
       outlineColor: "#000000",
       shadowSize: 2,
@@ -684,7 +719,7 @@ describe("editor subtitle behaviors", () => {
   });
 
   test("background panel mode suppresses outline ring but keeps drop shadow", () => {
-    const shadow = buildAssLikeTextShadow({
+    const shadow = buildPreviewTextShadow({
       outlineSize: 3,
       outlineColor: "#000000",
       shadowSize: 2,
@@ -692,8 +727,6 @@ describe("editor subtitle behaviors", () => {
     });
 
     expect(shadow).toBe("2px 2px 0 rgba(0,0,0,0.88), 2px 2px 2px rgba(0,0,0,0.35)");
-    expect(getSubtitlePadding(true, 5)).toBe("5px");
-    expect(getSubtitlePadding(false, 5)).toBe("0px");
     expect(hexWithOpacity("#000000", 0.5)).toBe("#00000080");
   });
 

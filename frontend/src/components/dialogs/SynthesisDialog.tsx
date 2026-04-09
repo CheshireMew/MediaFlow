@@ -50,6 +50,17 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     const [synthesisProgress, setSynthesisProgress] = useState(0);
     const [synthesisMessage, setSynthesisMessage] = useState('');
 
+    useEffect(() => {
+        if (!isOpen) {
+            setVideoSize({ w: 0, h: 0 });
+            setCurrentTime(0);
+            return;
+        }
+
+        setVideoSize({ w: 0, h: 0 });
+        setCurrentTime(0);
+    }, [isOpen, videoPath, mediaUrl]);
+
     // --- Toggle switches with localStorage persistence ---
     const [subtitleEnabled, setSubtitleEnabled] = useState(() => {
         return persistedPreferences.subtitleEnabled;
@@ -231,7 +242,6 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                     synthesisProgress={synthesisProgress}
                     synthesisMessage={synthesisMessage}
                     videoRef={videoRef}
-                    videoSize={videoSize}
                     setVideoSize={setVideoSize}
                     currentTime={currentTime}
                     onTimeUpdate={setCurrentTime}

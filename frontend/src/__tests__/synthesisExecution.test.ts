@@ -40,6 +40,9 @@ describe("buildSynthesisOptionsFromPreferences", () => {
     });
 
     expect(options.margin_v).toBe(108);
+    expect(options.margin_l).toBe(38);
+    expect(options.margin_r).toBe(38);
+    expect(options.line_step).toBe(34);
     expect("subtitle_position_y" in options).toBe(false);
   });
 
@@ -50,12 +53,16 @@ describe("buildSynthesisOptionsFromPreferences", () => {
     });
 
     expect(options.margin_v).toBe(86);
+    expect(options.margin_l).toBe(38);
+    expect(options.margin_r).toBe(38);
   });
 
   it("falls back to normalized subtitle position when source height is unavailable", () => {
     const options = buildSynthesisOptionsFromPreferences(preferences);
 
     expect(options.subtitle_position_y).toBe(0.9);
+    expect(options.margin_l).toBe(10);
+    expect(options.margin_r).toBe(10);
     expect("margin_v" in options).toBe(false);
   });
 });

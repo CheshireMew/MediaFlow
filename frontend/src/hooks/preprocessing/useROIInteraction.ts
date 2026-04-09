@@ -1,4 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
+import {
+  hasEditableKeyboardTarget,
+  isKeyboardEventComposing,
+} from "../../utils/keyboardShortcuts";
 
 // ─── Types ──────────────────────────────────────────────────────
 export type InteractionMode = "idle" | "drawing" | "moving" | "resizing";
@@ -69,9 +73,11 @@ export function useROIInteraction({
   // Delete / Backspace to clear ROI
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isKeyboardEventComposing(e) || hasEditableKeyboardTarget(e)) {
+        return;
+      }
+
       if (e.key === "Delete" || e.key === "Backspace") {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA") return;
         if (roi) setRoi(null);
       }
     };

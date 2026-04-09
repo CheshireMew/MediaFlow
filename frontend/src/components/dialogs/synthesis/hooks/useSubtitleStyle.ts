@@ -7,7 +7,7 @@ import {
 } from "../types";
 import type { SubtitlePreset } from "../types";
 import { detectFontAvailability } from "../fontUtils";
-import { computeDefaultSubtitleFontSize } from "../subtitleSizing";
+import { computeDefaultSubtitleFontSize } from "../subtitleRender";
 import {
   updateStoredSynthesisExecutionPreferences,
   type SynthesisExecutionPreferences,

@@ -3,6 +3,7 @@ import { Search, ArrowUp, ArrowDown, X, Replace } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
 import { findTextMatches, replaceAllLiteral } from './findReplaceUtils';
+import { isKeyboardEventComposing } from '../../utils/keyboardShortcuts';
 
 interface FindReplaceDialogProps {
     isOpen: boolean;
@@ -194,6 +195,9 @@ export const FindReplaceDialog: React.FC<FindReplaceDialogProps> = ({
                         placeholder={t('findReplace.findPlaceholder')}
                         className="w-full bg-slate-900/80 border border-slate-700 rounded-md pl-8 pr-16 py-2 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-500 relative z-10"
                         onKeyDown={e => {
+                            if (isKeyboardEventComposing(e.nativeEvent)) {
+                                return;
+                            }
                             if (e.key === 'Enter') {
                                 if (e.shiftKey) handlePrev();
                                 else handleNext();

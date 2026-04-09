@@ -11,14 +11,11 @@ import {
     computeSubtitleLineBottomMargins,
     shapeSubtitleText,
 } from '../textShaper';
-import { computeSubtitleMarginV } from '../subtitlePlacement';
 import { resolvePreviewViewportMetrics } from '../previewViewport';
-import { resolvePreviewSubtitleMetrics } from '../subtitleSizing';
 import {
-    buildAssLikeTextShadow,
-    getSubtitlePadding,
-    hexWithOpacity,
-} from '../previewStyle';
+    resolveSubtitlePreviewRenderSpec,
+    resolveSubtitleRenderSourceSpec,
+} from '../subtitleRender';
 
 interface Props {
     mediaUrl: string | null;
@@ -34,10 +31,31 @@ interface Props {
     synthesisProgress: number;
     synthesisMessage: string;
     videoRef: React.RefObject<HTMLVideoElement | null>;
-    videoSize: { w: number; h: number };
     setVideoSize: (v: { w: number; h: number }) => void;
     currentTime: number;
     onTimeUpdate: (time: number) => void;
+}
+
+type PreviewMediaState = {
+    url: string | null;
+    hasMetadata: boolean;
+    hasFrame: boolean;
+    hasError: boolean;
+    width: number;
+    height: number;
+    duration: number;
+};
+
+function createPreviewMediaState(url: string | null): PreviewMediaState {
+    return {
+        url,
+        hasMetadata: false,
+        hasFrame: false,
+        hasError: false,
+        width: 0,
+        height: 0,
+        duration: 0,
+    };
 }
 
 export const VideoPreview: React.FC<Props> = ({
@@ -46,19 +64,32 @@ export const VideoPreview: React.FC<Props> = ({
     onClose,
     onSynthesizeClick, isSynthesizing,
     synthesisProgress, synthesisMessage,
-    videoRef, videoSize, setVideoSize,
+    videoRef, setVideoSize,
     currentTime, onTimeUpdate,
 }) => {
     const frameRef = useRef<HTMLDivElement>(null);
     const { t } = useTranslation('synthesis');
     const [dragging, setDragging] = useState<'wm' | 'sub' | null>(null);
     const [isTrimOpen, setIsTrimOpen] = useState(false);
-    const [duration, setDuration] = useState(0);
-    const [loadedMediaUrl, setLoadedMediaUrl] = useState<string | null>(null);
+    const [mediaState, setMediaState] = useState<PreviewMediaState>(() =>
+        createPreviewMediaState(mediaUrl),
+    );
     const [frameSize, setFrameSize] = useState({
         width: 0,
         height: 0,
     });
+
+    useEffect(() => {
+        setMediaState(createPreviewMediaState(mediaUrl));
+    }, [mediaUrl]);
+
+    useEffect(() => {
+        if (!mediaUrl || !videoRef.current) {
+            return;
+        }
+
+        videoRef.current.load();
+    }, [mediaUrl, videoRef]);
 
     // --- Drag Logic ---
     const handleDragStart = (e: React.MouseEvent, type: 'wm' | 'sub') => {
@@ -152,39 +183,52 @@ export const VideoPreview: React.FC<Props> = ({
         trimStart, setTrimStart, trimEnd, setTrimEnd,
     } = output;
 
-    const isCurrentMediaLoaded = mediaUrl !== null && loadedMediaUrl === mediaUrl;
-    const effectiveVideoSize = isCurrentMediaLoaded ? videoSize : { w: 0, h: 0 };
-    const effectiveDuration = isCurrentMediaLoaded ? duration : 0;
+    const isCurrentMediaMetadataReady =
+        mediaUrl !== null &&
+        mediaState.url === mediaUrl &&
+        mediaState.hasMetadata &&
+        !mediaState.hasError;
+    const isCurrentMediaFrameReady =
+        mediaUrl !== null &&
+        mediaState.url === mediaUrl &&
+        mediaState.hasFrame &&
+        !mediaState.hasError;
+    const effectiveVideoSize = isCurrentMediaMetadataReady
+        ? { w: mediaState.width, h: mediaState.height }
+        : { w: 0, h: 0 };
+    const effectiveDuration = isCurrentMediaMetadataReady ? mediaState.duration : 0;
     const previewViewportMetrics = resolvePreviewViewportMetrics({
         sourceWidth: effectiveVideoSize.w,
         sourceHeight: effectiveVideoSize.h,
         crop: crop.isEnabled ? crop.crop : null,
     });
-    const previewVideoHeight = frameSize.height || effectiveVideoSize.h;
-    const previewMetrics = resolvePreviewSubtitleMetrics({
+    const sourceRenderSpec = resolveSubtitleRenderSourceSpec({
         fontSize,
+        fontColor,
+        fontName,
+        isBold,
+        isItalic,
         outlineSize,
         shadowSize,
-        backgroundEnabled: bgEnabled,
-        backgroundPadding: bgPadding,
-        sourceVideoHeight: previewViewportMetrics.outputSourceHeight,
-        previewVideoHeight,
+        outlineColor,
+        bgEnabled,
+        bgColor,
+        bgOpacity,
+        bgPadding,
+        alignment,
+        multilineAlign,
+        subPos,
+        outputWidth: previewViewportMetrics.outputSourceWidth,
+        outputHeight: previewViewportMetrics.outputSourceHeight,
     });
-    const previewSideMargin = frameSize.width > 0 && previewViewportMetrics.outputSourceWidth > 0
-        ? Math.max(
-            1,
-            Math.round(
-                (Math.max(10, Math.round(previewViewportMetrics.outputSourceWidth * 0.02)) * frameSize.width)
-                / previewViewportMetrics.outputSourceWidth,
-            ),
-        )
-        : 0;
-    const subtitleAvailableWidth = frameSize.width
-        ? Math.max(0, frameSize.width - previewSideMargin * 2)
-        : 0;
+    const previewMetrics = resolveSubtitlePreviewRenderSpec({
+        source: sourceRenderSpec,
+        previewWidth: frameSize.width,
+        previewHeight: frameSize.height,
+    });
     const shapedSubtitle = shapeSubtitleText(
         currentSubtitle || t('preview.subtitlePosition'),
-        subtitleAvailableWidth,
+        previewMetrics.availableWidth,
         previewMetrics.fontSize,
         {
             fontFamily: fontName,
@@ -193,16 +237,11 @@ export const VideoPreview: React.FC<Props> = ({
         },
     );
     const subtitleLines = shapedSubtitle.split('\n');
-    const subtitlePreviewReady =
-        previewMetrics.isReady && frameSize.height > 0;
-    const previewMarginV = subtitlePreviewReady
-        ? computeSubtitleMarginV(subPos.y, frameSize.height)
-        : 0;
-    const previewLineStep = previewMetrics.lineStep;
+    const subtitlePreviewReady = previewMetrics.isReady;
     const lineBottomMargins = computeSubtitleLineBottomMargins(
         subtitleLines.length,
-        previewMarginV,
-        previewLineStep,
+        previewMetrics.marginV,
+        previewMetrics.lineStep,
         multilineAlign,
     );
     const qualityOptions: Array<{
@@ -214,17 +253,6 @@ export const VideoPreview: React.FC<Props> = ({
         { id: 'balanced', label: t('preview.qualityBalanced'), desc: t('preview.qualityBalancedDesc') },
         { id: 'small', label: t('preview.qualitySmall'), desc: t('preview.qualitySmallDesc') }
     ];
-    const previewTextShadow = buildAssLikeTextShadow({
-        outlineSize: previewMetrics.outlineSize,
-        outlineColor,
-        shadowSize: previewMetrics.shadowSize,
-        backgroundEnabled: bgEnabled,
-    });
-    const previewBackgroundColor = bgEnabled
-        ? hexWithOpacity(bgColor, bgOpacity)
-        : 'transparent';
-    const previewPadding = getSubtitlePadding(bgEnabled, previewMetrics.backgroundPadding);
-
     return (
         <div
             className="flex-1 flex flex-col bg-[#050505] relative min-w-0"
@@ -402,22 +430,111 @@ export const VideoPreview: React.FC<Props> = ({
                                 key={mediaUrl}
                                 ref={videoRef}
                                 src={mediaUrl}
-                                className="block w-full h-full"
+                                preload="auto"
+                                playsInline
+                                className={`block w-full h-full transition-opacity duration-150 ${isCurrentMediaFrameReady ? 'opacity-100' : 'opacity-0'}`}
+                                onLoadStart={() => {
+                                    setMediaState(createPreviewMediaState(mediaUrl));
+                                }}
                                 onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
                                 onLoadedMetadata={(e) => {
-                                    const t = e.currentTarget;
-                                    setLoadedMediaUrl(mediaUrl);
-                                    setVideoSize({ w: t.videoWidth, h: t.videoHeight });
-                                    setDuration(t.duration || 0);
+                                    const target = e.currentTarget;
+                                    const nextSize = {
+                                        w: target.videoWidth || 0,
+                                        h: target.videoHeight || 0,
+                                    };
+                                    const nextDuration = Number.isFinite(target.duration)
+                                        ? target.duration
+                                        : 0;
+
+                                    setVideoSize(nextSize);
+                                    setMediaState({
+                                        url: mediaUrl,
+                                        hasMetadata: true,
+                                        hasFrame: false,
+                                        hasError: false,
+                                        width: nextSize.w,
+                                        height: nextSize.h,
+                                        duration: nextDuration,
+                                    });
                                 }}
-                                onDurationChange={(e) => setDuration(e.currentTarget.duration || 0)}
+                                onLoadedData={(e) => {
+                                    const target = e.currentTarget;
+                                    setMediaState((current) => ({
+                                        url: mediaUrl,
+                                        hasMetadata: true,
+                                        hasFrame: true,
+                                        hasError: false,
+                                        width: target.videoWidth || current.width,
+                                        height: target.videoHeight || current.height,
+                                        duration: Number.isFinite(target.duration)
+                                            ? target.duration
+                                            : current.duration,
+                                    }));
+                                }}
+                                onCanPlay={(e) => {
+                                    const target = e.currentTarget;
+                                    setMediaState((current) => ({
+                                        url: mediaUrl,
+                                        hasMetadata: current.hasMetadata || target.videoWidth > 0,
+                                        hasFrame: true,
+                                        hasError: false,
+                                        width: target.videoWidth || current.width,
+                                        height: target.videoHeight || current.height,
+                                        duration: Number.isFinite(target.duration)
+                                            ? target.duration
+                                            : current.duration,
+                                    }));
+                                }}
+                                onDurationChange={(e) => {
+                                    const nextDuration = Number.isFinite(e.currentTarget.duration)
+                                        ? e.currentTarget.duration
+                                        : 0;
+                                    setMediaState((current) => ({
+                                        ...current,
+                                        duration: nextDuration,
+                                    }));
+                                }}
+                                onError={() => {
+                                    setVideoSize({ w: 0, h: 0 });
+                                    setMediaState({
+                                        url: mediaUrl,
+                                        hasMetadata: false,
+                                        hasFrame: false,
+                                        hasError: true,
+                                        width: 0,
+                                        height: 0,
+                                        duration: 0,
+                                    });
+                                }}
                             />
                         </div>
+
+                        {!isCurrentMediaFrameReady && !mediaState.hasError && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-slate-300 pointer-events-none">
+                                <div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-indigo-400 animate-spin" />
+                                <span className="text-xs font-medium text-slate-400">
+                                    {t('preview.loadingMediaFrame', '正在加载视频画面...')}
+                                </span>
+                            </div>
+                        )}
+
+                        {mediaState.hasError && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 text-slate-300 pointer-events-none">
+                                <Play size={32} className="opacity-30" />
+                                <span className="text-sm font-medium text-slate-300">
+                                    {t('preview.mediaLoadError', '视频预览加载失败')}
+                                </span>
+                                <span className="text-xs text-slate-500">
+                                    {t('preview.mediaLoadErrorHint', '请重新打开合成界面或检查视频编码')}
+                                </span>
+                            </div>
+                        )}
 
                         {/* --- Overlays Layer --- */}
                         
                         {/* Crop Overlay */}
-                        {crop.isEnabled && (
+                        {crop.isEnabled && isCurrentMediaMetadataReady && (
                             <CropOverlay 
                                 crop={crop.crop} 
                                 setCrop={crop.setCrop} 
@@ -426,7 +543,7 @@ export const VideoPreview: React.FC<Props> = ({
                         )}
                         
                         {/* Watermark Overlay */}
-                        {watermarkEnabled && watermarkPreviewUrl && (
+                        {watermarkEnabled && watermarkPreviewUrl && isCurrentMediaFrameReady && (
                             <div
                                 className="absolute cursor-move select-none group"
                                 style={{
@@ -451,7 +568,7 @@ export const VideoPreview: React.FC<Props> = ({
                         )}
                         
                         {/* Subtitle Overlay */}
-                        {subtitleEnabled && subtitlePreviewReady && (
+                        {subtitleEnabled && subtitlePreviewReady && isCurrentMediaFrameReady && (
                         <div 
                             className="absolute inset-0 select-none group transition-colors pointer-events-none"
                             style={{
@@ -465,9 +582,9 @@ export const VideoPreview: React.FC<Props> = ({
                                         key={`${index}-${lineText}`}
                                         className="absolute"
                                         style={{
-                                            left: `${previewSideMargin}px`,
-                                            right: `${previewSideMargin}px`,
-                                            bottom: `${lineBottomMargins[index] ?? previewMarginV}px`,
+                                            left: `${previewMetrics.marginL}px`,
+                                            right: `${previewMetrics.marginR}px`,
+                                            bottom: `${lineBottomMargins[index] ?? previewMetrics.marginV}px`,
                                             textAlign: alignment === 1 ? 'left' : alignment === 3 ? 'right' : 'center',
                                         }}
                                     >
@@ -488,9 +605,9 @@ export const VideoPreview: React.FC<Props> = ({
                                                 lineHeight: `${previewMetrics.lineStep}px`,
                                                 WebkitTextStroke: undefined,
                                                 paintOrder: undefined,
-                                                textShadow: previewTextShadow,
-                                                backgroundColor: previewBackgroundColor,
-                                                padding: previewPadding,
+                                                textShadow: previewMetrics.textShadow,
+                                                backgroundColor: previewMetrics.backgroundColor,
+                                                padding: previewMetrics.padding,
                                                 borderRadius: bgEnabled ? 0 : undefined,
                                                 whiteSpace: 'pre',
                                             }}

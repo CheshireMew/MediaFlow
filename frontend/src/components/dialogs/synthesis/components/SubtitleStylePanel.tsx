@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Type, Bold, Italic, AlignLeft, AlignCenter, AlignRight, Save, Trash2, X, MonitorPlay, AlignStartVertical, AlignCenterVertical, AlignEndVertical, RotateCcw } from 'lucide-react';
 import { FONT_PRESETS, DEFAULT_PRESETS } from '../types';
 import type { SubtitleStyleState } from '../hooks/useSubtitleStyle';
+import { isKeyboardEventComposing } from '../../../../utils/keyboardShortcuts';
 
 interface Props {
     style: SubtitleStyleState;
@@ -93,6 +94,9 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }
                                     value={presetNameInput}
                                     onChange={e => setPresetNameInput(e.target.value)}
                                     onKeyDown={e => {
+                                        if (isKeyboardEventComposing(e.nativeEvent)) {
+                                            return;
+                                        }
                                         if (e.key === 'Escape') { setPresetNameInput(null); return; }
                                         if (e.key === 'Enter') confirmSavePreset();
                                     }}

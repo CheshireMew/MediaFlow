@@ -755,7 +755,7 @@ describe("useTranscriber", () => {
           },
           result: {
             text:
-              "hello world this sentence is intentionally long enough to trigger smart split behavior in the desktop runtime",
+              "hello world this sentence is intentionally long enough to trigger smart split behavior, and the desktop runtime should persist the split output",
             language: "en",
             srt_path: "E:/legacy/sample.srt",
             subtitle_ref: {
@@ -768,7 +768,7 @@ describe("useTranscriber", () => {
                 start: 0,
                 end: 6,
                 text:
-                  "hello world this sentence is intentionally long enough to trigger smart split behavior in the desktop runtime",
+                  "hello world this sentence is intentionally long enough to trigger smart split behavior, and the desktop runtime should persist the split output",
               },
             ],
           },

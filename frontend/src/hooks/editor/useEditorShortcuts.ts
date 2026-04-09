@@ -1,4 +1,8 @@
 import { useEffect } from "react";
+import {
+  hasEditableKeyboardTarget,
+  isKeyboardEventComposing,
+} from "../../utils/keyboardShortcuts";
 
 interface EditorShortcutsProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -25,10 +29,11 @@ export function useEditorShortcuts({
 }: EditorShortcutsProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if input/textarea is focused, UNLESS it's Ctrl+Z/Y
-      const isInput = ["INPUT", "TEXTAREA"].includes(
-        (e.target as HTMLElement).tagName,
-      );
+      if (isKeyboardEventComposing(e)) {
+        return;
+      }
+
+      const isEditableTarget = hasEditableKeyboardTarget(e);
 
       if (e.ctrlKey || e.metaKey) {
         // Ctrl+S: Save
@@ -66,7 +71,7 @@ export function useEditorShortcuts({
         }
       }
 
-      if (isInput) return;
+      if (isEditableTarget) return;
 
       switch (e.code) {
         case "Space":

@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  hasEditableKeyboardTarget,
+  isKeyboardEventComposing,
+} from '../../utils/keyboardShortcuts';
 
 export interface ContextMenuItem {
   label: string;
@@ -46,6 +50,10 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     
     // Handle Esc key
     const handleKeyDown = (event: KeyboardEvent) => {
+        if (isKeyboardEventComposing(event) || hasEditableKeyboardTarget(event)) {
+          return;
+        }
+
         if(event.key === 'Escape') onClose();
     }
 

@@ -193,6 +193,9 @@ export interface SynthesizeOptions {
   alignment?: number;
   multiline_align?: "bottom" | "center" | "top";
   margin_v?: number;
+  margin_l?: number;
+  margin_r?: number;
+  line_step?: number;
   subtitle_position_y?: number;
   crf?: number;
   preset?: string;
