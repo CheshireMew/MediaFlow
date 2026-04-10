@@ -4,11 +4,12 @@ import {
   DESKTOP_TASK_EVENT_CHANNEL,
   DESKTOP_WORKER_INVOCATIONS,
 } from "./desktop/bridgeContract";
+import type { OpenFileDialogRequest } from "../src/contracts/openFileContract";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   sendMessage: (message: string) => ipcRenderer.send("message-from-ui", message),
-  openFile: (defaultPath?: string) =>
-    ipcRenderer.invoke("dialog:openFile", defaultPath),
+  openFile: (request: OpenFileDialogRequest) =>
+    ipcRenderer.invoke("dialog:openFile", request),
   openSubtitleFile: () => ipcRenderer.invoke("dialog:openSubtitleFile"),
   readFile: (filePath: string) => ipcRenderer.invoke("fs:readFile", filePath),
   showSaveDialog: (options: {

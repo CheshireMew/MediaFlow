@@ -32,7 +32,7 @@ export interface DesktopRuntimeInfo {
 export interface ElectronAPI {
   sendMessage: (message: string) => void;
   openFile: (
-    defaultPath?: string,
+    request: import("../contracts/openFileContract").OpenFileDialogRequest,
   ) => Promise<{ path: string; name: string; size: number } | null>;
   openSubtitleFile: () => Promise<{ path: string; name: string } | null>;
   readFile: (filePath: string) => Promise<string>;

@@ -48,7 +48,7 @@ function getLatinWordThreshold(textLimit: number) {
   return roundThreshold((textLimit * MIN_WORD_COUNT) / MIN_CJK_LENGTH);
 }
 
-function shouldSplitSegment(
+function isLongSmartSplitSegment(
   text: string,
   duration: number,
   textLimit: number,
@@ -69,6 +69,33 @@ function shouldSplitSegment(
   );
 }
 
+function getStructuredSmartSplit<T extends SubtitleSegmentLike>(
+  segment: T,
+): [T, T] | null {
+  const split = splitSubtitleSegment(segment, {
+    minPartLength: MIN_PART_LENGTH,
+    minPartDuration: MIN_PART_DURATION,
+    heuristics: {
+      requirePunctuation: true,
+      relaxRepeatedBoundaryUnits: true,
+    },
+  });
+
+  return split ? split.parts : null;
+}
+
+function getLengthTriggeredSmartSplit<T extends SubtitleSegmentLike>(
+  segment: T,
+): [T, T] | null {
+  const split = splitSubtitleSegment(segment, {
+    minPartLength: MIN_PART_LENGTH,
+    minPartDuration: MIN_PART_DURATION,
+    fallbackToMidpoint: true,
+  });
+
+  return split ? split.parts : null;
+}
+
 function splitLongSubtitleSegment<T extends SubtitleSegmentLike>(
   segment: T,
   textLimit: number,
@@ -76,19 +103,15 @@ function splitLongSubtitleSegment<T extends SubtitleSegmentLike>(
   const text = segment.text.trim();
   const duration = segment.end - segment.start;
 
-  if (!shouldSplitSegment(text, duration, textLimit)) {
+  if (!text || duration < MIN_SEGMENT_DURATION) {
     return null;
   }
 
-  const split = splitSubtitleSegment(segment, {
-    minPartLength: MIN_PART_LENGTH,
-    minPartDuration: MIN_PART_DURATION,
-    heuristics: {
-      requirePunctuation: true,
-    },
-  });
+  if (isLongSmartSplitSegment(text, duration, textLimit)) {
+    return getLengthTriggeredSmartSplit(segment);
+  }
 
-  return split ? split.parts : null;
+  return getStructuredSmartSplit(segment);
 }
 
 export function smartSplitSubtitleSegments<T extends SubtitleSegmentLike>(

@@ -3,6 +3,10 @@ import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isDesktopRuntime } from '../../services/domain';
 import { fileService } from '../../services/fileService';
+import {
+    isSupportedTranslatorSubtitlePath,
+    TRANSLATOR_SUBTITLE_EXTENSIONS,
+} from '../../hooks/translator/translatorFileHelpers';
 
 type DragFileWithPath = File & { path?: string };
 
@@ -14,11 +18,12 @@ interface FileUploaderProps {
 export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) => {
     const { t } = useTranslation('translator');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const acceptedSubtitleTypes = TRANSLATOR_SUBTITLE_EXTENSIONS.join(",");
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         const file = e.dataTransfer.files[0] as DragFileWithPath | undefined;
-        if (file && isDesktopRuntime()) {
+        if (file && isDesktopRuntime() && isSupportedTranslatorSubtitlePath(file.name)) {
             const filePath = file.path ?? fileService.getPathForFile(file);
             if (filePath) onFileSelect(filePath);
         }
@@ -30,7 +35,7 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
 
     const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] as DragFileWithPath | undefined;
-        if (file) {
+        if (file && isSupportedTranslatorSubtitlePath(file.name)) {
              const filePath = file.path ?? (isDesktopRuntime() ? fileService.getPathForFile(file) : undefined);
              if (filePath) onFileSelect(filePath);
         }
@@ -57,7 +62,7 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
                 type="file" 
                 ref={fileInputRef} 
                 className="hidden" 
-                accept=".srt,.vtt,.ass,.ssa"
+                accept={acceptedSubtitleTypes}
                 onChange={handleInput}
             />
             

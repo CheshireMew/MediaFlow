@@ -10,6 +10,10 @@ import path from "path";
 import fs from "fs";
 import { resolvePathFromDirectoryEntries } from "../../src/services/filesystem/pathRepair";
 import { resolveDesktopWorkspaceDir } from "../desktopRuntime";
+import {
+  buildOpenFileDialogFilters,
+  type OpenFileDialogRequest,
+} from "../../src/contracts/openFileContract";
 
 // ─── Preferences Persistence ────────────────────────────────────
 
@@ -115,26 +119,13 @@ export function registerDialogHandlers() {
   // Open media file
   ipcMain.handle(
     "dialog:openFile",
-    async (_event: IpcMainInvokeEvent, defaultPath?: string) => {
+    async (_event: IpcMainInvokeEvent, request: OpenFileDialogRequest) => {
       ensureLoaded();
 
       const options: OpenDialogOptions = {
         properties: ["openFile"],
-        defaultPath: defaultPath || getDefaultStartPath(),
-        filters: [
-          {
-            name: "Media Files",
-            extensions: [
-              "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "ts", "mts",
-              "mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "opus",
-              "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif",
-            ],
-          },
-          {
-            name: "All Files",
-            extensions: ["*"],
-          },
-        ],
+        defaultPath: request.defaultPath || getDefaultStartPath(),
+        filters: buildOpenFileDialogFilters(request.profile),
       };
       const { canceled, filePaths } = await dialog.showOpenDialog(options);
 

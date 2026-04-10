@@ -4,6 +4,10 @@ import { useEditorStore } from "../../stores/editorStore";
 import { fileService } from "../../services/fileService";
 import { createMediaReference } from "../../services/ui/mediaReference";
 import {
+  buildHtmlFileAccept,
+  fileMatchesOpenDialogProfile,
+} from "../../contracts/openFileContract";
+import {
   buildRelatedSubtitleCandidates,
   findRelatedVideoForSubtitle,
   isSupportedEditorSubtitlePath,
@@ -18,6 +22,7 @@ type ElectronMediaFile = {
 };
 
 export function useEditorFileLoader() {
+  const fileProfile = "editor-media" as const;
   const replaceEditorDocument = useEditorStore(
     (state) => state.replaceEditorDocument,
   );
@@ -116,7 +121,9 @@ export function useEditorFileLoader() {
   const handleOpenFile = useCallback(async () => {
     if (isDesktopRuntime()) {
       try {
-        const result = await fileService.openFile();
+        const result = await fileService.openFile({
+          profile: fileProfile,
+        });
         const path = (result as ElectronMediaFile | null)?.path;
 
         if (path) {
@@ -130,17 +137,17 @@ export function useEditorFileLoader() {
 
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "video/*,audio/*";
+    input.accept = buildHtmlFileAccept(fileProfile);
     input.onchange = () => {
       const file = input.files?.[0];
-      if (file) {
+      if (file && fileMatchesOpenDialogProfile(file, fileProfile)) {
         setMediaUrl(URL.createObjectURL(file));
         setCurrentFileRef(null);
         setCurrentSubtitleRef(null);
       }
     };
     input.click();
-  }, [loadMediaAndResources, setCurrentFileRef, setCurrentSubtitleRef, setMediaUrl]);
+  }, [fileProfile, loadMediaAndResources, setCurrentFileRef, setCurrentSubtitleRef, setMediaUrl]);
 
   const handleOpenSubtitle = useCallback(async () => {
     if (!isDesktopRuntime()) {

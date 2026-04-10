@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { isDesktopRuntime } from "../../services/domain";
 import { fileService } from "../../services/fileService";
+import { fileMatchesOpenDialogProfile } from "../../contracts/openFileContract";
 import { isSupportedEditorSubtitlePath } from "./editorFileHelpers";
 
 type DragFileWithPath = File & { path?: string };
@@ -24,13 +25,14 @@ export function useEditorDragDrop({
   loadVideo,
   loadSubtitleFromPath,
 }: UseEditorDragDropArgs) {
+  const mediaProfile = "editor-media" as const;
   const handleVideoDrop = useCallback(
     async (event: React.DragEvent) => {
       event.preventDefault();
       event.stopPropagation();
 
       const file = event.dataTransfer.files[0] as DragFileWithPath | undefined;
-      if (!file) {
+      if (!file || !fileMatchesOpenDialogProfile(file, mediaProfile)) {
         return;
       }
 

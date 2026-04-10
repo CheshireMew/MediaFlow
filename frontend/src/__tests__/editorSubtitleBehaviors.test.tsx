@@ -107,7 +107,7 @@ describe("editor subtitle behaviors", () => {
     expect(result.segments[2].text).toBe("short");
   });
 
-  test("smart split text limit keeps the current default and can suppress splitting when raised", () => {
+  test("smart split still uses a strong boundary even when the length threshold is raised", () => {
     const input = [
       {
         id: "1",
@@ -120,12 +120,10 @@ describe("editor subtitle behaviors", () => {
     expect(DEFAULT_SMART_SPLIT_TEXT_LIMIT).toBe(24);
     expect(normalizeSmartSplitTextLimit(undefined)).toBe(24);
     expect(smartSplitSubtitleSegments(input).splitCount).toBe(1);
-    expect(
-      smartSplitSubtitleSegments(input, { textLimit: 40 }).splitCount,
-    ).toBe(0);
+    expect(smartSplitSubtitleSegments(input, { textLimit: 40 }).splitCount).toBe(1);
   });
 
-  test("smart split skips long lines that have no punctuation boundary", () => {
+  test("smart split can still split long lines that have no punctuation boundary", () => {
     const input = [
       {
         id: "1",
@@ -137,15 +135,46 @@ describe("editor subtitle behaviors", () => {
 
     const result = smartSplitSubtitleSegments(input);
 
-    expect(result.splitCount).toBe(0);
-    expect(result.segments).toEqual([
+    expect(result.splitCount).toBe(1);
+    expect(result.segments).toHaveLength(2);
+    expect(result.segments[0].text.length).toBeGreaterThan(0);
+    expect(result.segments[1].text.length).toBeGreaterThan(0);
+  });
+
+  test("smart split can use a balanced comma boundary even below the length threshold", () => {
+    const input = [
       {
         id: "1",
         start: 0,
         end: 6,
-        text: "this is a very long subtitle sentence with enough words to trigger the length limit but there is no punctuation anywhere in it",
+        text: "那就是大多数人从未获得那些经历，因为他们从不开口询问。",
       },
-    ]);
+    ];
+
+    const result = smartSplitSubtitleSegments(input, { textLimit: 28 });
+
+    expect(result.splitCount).toBe(1);
+    expect(result.segments).toHaveLength(2);
+    expect(result.segments[0].text).toBe("那就是大多数人从未获得那些经历，");
+    expect(result.segments[1].text).toBe("因为他们从不开口询问。");
+  });
+
+  test("smart split can use repeated short clauses separated by two punctuation marks", () => {
+    const input = [
+      {
+        id: "1",
+        start: 0,
+        end: 6,
+        text: "7 个有效单元，7 个有效单元，7 个有效单元",
+      },
+    ];
+
+    const result = smartSplitSubtitleSegments(input, { textLimit: 28 });
+
+    expect(result.splitCount).toBe(1);
+    expect(result.segments).toHaveLength(2);
+    expect(result.segments[0].text.length).toBeGreaterThan(0);
+    expect(result.segments[1].text.length).toBeGreaterThan(0);
   });
 
   test("editor only accepts srt subtitle files", () => {

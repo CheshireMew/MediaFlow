@@ -63,7 +63,7 @@
     "autoExecuteEnabled": "Auto-Execute Enabled",
     "autoExecuteDisabled": "Auto-Execute Disabled",
     "smartSplitTextLimit": "Smart Split Text Length",
-    "smartSplitTextLimitDesc": "Subtitles longer than this will be treated as long and eligible for smart split. CJK uses character count; other languages are converted with the current rule.",
+    "smartSplitTextLimitDesc": "Subtitles longer than this always enter smart split. Shorter lines can still split when a strong boundary is detected. CJK uses character count; other languages are converted with the current rule.",
     "smartSplitTextLimitUnit": "chars",
     "smartSplitTextLimitInvalid": "Enter an integer greater than or equal to 1",
     "ytDlpTitle": "yt-dlp Downloader",

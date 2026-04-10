@@ -63,7 +63,7 @@
     "autoExecuteEnabled": "自動実行が有効になりました",
     "autoExecuteDisabled": "自動実行が無効になりました",
     "smartSplitTextLimit": "スマート分割の文字数",
-    "smartSplitTextLimitDesc": "この長さを超える字幕は長い字幕として扱われ、スマート分割の対象になります。中日韓は文字数、それ以外は現在のルールで換算されます。",
+    "smartSplitTextLimitDesc": "この長さを超える字幕は必ずスマート分割の対象になります。超えていなくても、十分に明確な区切りが検出されれば分割を試みます。中日韓は文字数、それ以外は現在のルールで換算されます。",
     "smartSplitTextLimitUnit": "文字",
     "smartSplitTextLimitInvalid": "1 以上の整数を入力してください",
     "ytDlpTitle": "yt-dlp ダウンローダー",

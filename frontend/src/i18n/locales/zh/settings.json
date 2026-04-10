@@ -63,7 +63,7 @@
     "autoExecuteEnabled": "自动执行已开启",
     "autoExecuteDisabled": "自动执行已关闭",
     "smartSplitTextLimit": "智能分割文本长度",
-    "smartSplitTextLimitDesc": "超过这个长度的字幕会被视为过长并尝试智能分割。中日韩按字数，其他语言按当前规则自动换算。",
+    "smartSplitTextLimitDesc": "超过这个长度的字幕会直接进入智能分割；即使没超过，只要检测到足够明确的断句边界，也会尝试分割。中日韩按字数，其他语言按当前规则自动换算。",
     "smartSplitTextLimitUnit": "字",
     "smartSplitTextLimitInvalid": "请输入大于等于 1 的整数",
     "ytDlpTitle": "yt-dlp 下载工具",

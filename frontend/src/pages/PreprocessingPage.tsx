@@ -4,6 +4,7 @@ import { usePreprocessingStore } from '../stores/preprocessingStore';
 import { useTaskContext } from '../context/taskContext';
 import { fileService } from '../services/fileService';
 import { createMediaReference } from '../services/ui/mediaReference';
+import { fileMatchesOpenDialogProfile } from '../contracts/openFileContract';
 import {
     NavigationService,
     resolveNavigationMediaPayload,
@@ -38,6 +39,7 @@ type ElectronMediaFile = {
 };
 
 export const PreprocessingPage = () => {
+    const fileProfile = 'preprocessing-media' as const;
     const { t } = useTranslation('preprocessing');
     const {
         preprocessingActiveTool,
@@ -141,7 +143,7 @@ export const PreprocessingPage = () => {
         e.preventDefault();
         e.stopPropagation();
         const file = e.dataTransfer.files[0] as DragFileWithPath | undefined;
-        if (file) {
+        if (file && fileMatchesOpenDialogProfile(file, fileProfile)) {
             let path = file.path;
             if (!path) {
                 try {
@@ -160,11 +162,13 @@ export const PreprocessingPage = () => {
                 setRoi(null);
             }
         }
-    }, [addPreprocessingFile, setPreprocessingVideoRef, setVideoPath, setOcrResults, setRoi]);
+    }, [addPreprocessingFile, fileProfile, setPreprocessingVideoRef, setVideoPath, setOcrResults, setRoi]);
 
     const handleImportMedia = async () => {
         try {
-            const fileData = await fileService.openFile() as ElectronMediaFile | null;
+            const fileData = await fileService.openFile({
+                profile: fileProfile,
+            }) as ElectronMediaFile | null;
 
             if (fileData?.path) {
                 addPreprocessingFile({ path: fileData.path, name: fileData.name, size: fileData.size });

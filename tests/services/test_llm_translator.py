@@ -1,6 +1,9 @@
 import pytest
+from types import SimpleNamespace
 from backend.services.translator.llm_translator import (
+    IntelligentTranslationResponse,
     LLMTranslator,
+    TranslationOutcome,
     TranslationResponse,
     TranslatorSegment,
 )
@@ -133,7 +136,10 @@ def test_translate_with_correction_falls_back_when_ids_do_not_match(monkeypatch)
     monkeypatch.setattr(
         llm_translator,
         "_translate_single_fallback",
-        lambda *args, **kwargs: fallback_result,
+        lambda *args, **kwargs: TranslationOutcome(
+            segments=fallback_result,
+            cacheable=True,
+        ),
     )
 
     result = llm_translator._translate_with_correction(
@@ -146,7 +152,8 @@ def test_translate_with_correction_falls_back_when_ids_do_not_match(monkeypatch)
         mode_label="Standard",
     )
 
-    assert result == fallback_result
+    assert result.segments == fallback_result
+    assert result.cacheable is True
 
 
 def test_validate_response_rejects_empty_translated_text():
@@ -193,3 +200,189 @@ def test_validate_response_rejects_source_text_shift():
     assert is_valid is False
     assert mapped == []
     assert "shifted across segments" in error_msg
+
+
+def test_translate_with_correction_recovers_broken_tool_call_json():
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(
+            id="19",
+            start=54.76,
+            end=60.50,
+            text="And I've never found anyone who said no or hung up the phone when I called.",
+        ),
+    ]
+
+    broken_arguments = (
+        "{\"segments\": [{\"id\": \"19\", \"source_text\": "
+        "\"And I've never found anyone who said no or hung up the phone when I called.\", "
+        "\"text\": \"而且我从未遇到过任何人在我打电话时说\"不\"或挂断电话。\"}]}"
+    )
+    completion = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content="",
+                    tool_calls=[
+                        SimpleNamespace(
+                            function=SimpleNamespace(arguments=broken_arguments),
+                        )
+                    ],
+                )
+            )
+        ]
+    )
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            error = RuntimeError("Invalid JSON")
+            error.failed_attempts = [
+                SimpleNamespace(attempt_number=1, exception=RuntimeError("Invalid JSON"), completion=completion)
+            ]
+            raise error
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=FakeCompletions())
+    )
+
+    result = llm_translator._translate_with_correction(
+        client=client,
+        model_name="test-model",
+        system_prompt="test",
+        segments=segments,
+        input_json_str="""[{"id":"19","source_text":"And I've never found anyone who said no or hung up the phone when I called."}]""",
+        target_language="Chinese",
+        mode_label="Standard",
+    )
+
+    assert result.cacheable is True
+    assert result.segments[0].text == '而且我从未遇到过任何人在我打电话时说"不"或挂断电话。'
+
+
+def test_translate_single_fallback_uses_plain_text_completion():
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(
+            id="19",
+            start=54.76,
+            end=60.50,
+            text="And I've never found anyone who said no or hung up the phone when I called.",
+        ),
+    ]
+
+    completion = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content="而且我从未遇到过任何人在我打电话时说“不”或挂断电话。",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            return completion
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=FakeCompletions())
+    )
+
+    result = llm_translator._translate_single_fallback(
+        client=client,
+        model_name="test-model",
+        segments=segments,
+        target_language="Chinese",
+        mode_label="Standard",
+    )
+
+    assert result.cacheable is True
+    assert result.segments[0].text == "而且我从未遇到过任何人在我打电话时说“不”或挂断电话。"
+
+
+def test_translate_batch_struct_skips_cache_when_fallback_keeps_source(monkeypatch):
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(id="19", start=54.76, end=60.50, text="source line"),
+    ]
+
+    monkeypatch.setattr(
+        llm_translator,
+        "_get_client",
+        lambda: (SimpleNamespace(), "test-model"),
+    )
+
+    cache_put_calls = []
+    monkeypatch.setattr(llm_translator._cache, "get", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        llm_translator._cache,
+        "put",
+        lambda *args, **kwargs: cache_put_calls.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        llm_translator,
+        "_translate_with_correction",
+        lambda *args, **kwargs: TranslationOutcome(segments=segments, cacheable=False),
+    )
+
+    result = llm_translator._translate_batch_struct(
+        segments=segments,
+        target_language="Chinese",
+        mode="standard",
+    )
+
+    assert result == segments
+    assert cache_put_calls == []
+
+
+def test_intelligent_mode_recovers_broken_tool_call_json(monkeypatch):
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(id="1", start=0.0, end=2.0, text='He said "no".'),
+    ]
+
+    broken_arguments = (
+        "{\"segments\": [{\"text\": \"他说\"不\"。\", \"time_percentage\": 1.0}]}"
+    )
+    completion = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content="",
+                    tool_calls=[
+                        SimpleNamespace(
+                            function=SimpleNamespace(arguments=broken_arguments),
+                        )
+                    ],
+                )
+            )
+        ]
+    )
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            error = RuntimeError("Invalid JSON")
+            error.failed_attempts = [
+                SimpleNamespace(
+                    attempt_number=1,
+                    exception=RuntimeError("Invalid JSON"),
+                    completion=completion,
+                )
+            ]
+            raise error
+
+    monkeypatch.setattr(
+        llm_translator,
+        "_get_client",
+        lambda: (SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())), "test-model"),
+    )
+
+    result = llm_translator._translate_batch_struct(
+        segments=segments,
+        target_language="Chinese",
+        mode="intelligent",
+    )
+
+    assert len(result) == 1
+    assert result[0].text == '他说"不"。'

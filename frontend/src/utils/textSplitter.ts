@@ -10,6 +10,7 @@ type TextProfile = "latin" | "cjk" | "mixed";
 
 export type SplitHeuristicOptions = {
   requirePunctuation?: boolean;
+  relaxRepeatedBoundaryUnits?: boolean;
 };
 
 interface SplitCandidate {
@@ -102,6 +103,12 @@ const MIN_PUNCTUATION_UNITS: Record<TextProfile, number> = {
   latin: 4,
   cjk: 8,
   mixed: 6,
+};
+
+const RELAXED_REPEATED_BOUNDARY_UNITS: Record<TextProfile, number> = {
+  latin: 4,
+  cjk: 6,
+  mixed: 5,
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -280,9 +287,40 @@ function countMeaningfulUnits(text: string, profile: TextProfile): number {
     return latinUnits;
   }
   if (profile === "cjk") {
-    return cjkUnits;
+    return cjkUnits + latinUnits;
   }
   return cjkUnits + latinUnits;
+}
+
+function countStrongBoundaries(text: string): number {
+  return Array.from(text).filter((char) =>
+    [".", "?", "!", "。", "？", "！", ",", ";", ":", "，", "；", "：", "、"].includes(char),
+  ).length;
+}
+
+function getMinimumBoundaryUnits(
+  text: string,
+  profile: TextProfile,
+  options: SplitHeuristicOptions,
+): number {
+  const baseMinimum = MIN_PUNCTUATION_UNITS[profile];
+  if (!options.relaxRepeatedBoundaryUnits) {
+    return baseMinimum;
+  }
+
+  const clauseCount = countStrongBoundaries(text) + 1;
+  if (clauseCount < 3) {
+    return baseMinimum;
+  }
+
+  const repeatedClauseMinimum = Math.floor(
+    countMeaningfulUnits(text, profile) / clauseCount,
+  );
+
+  return Math.min(
+    baseMinimum,
+    Math.max(RELAXED_REPEATED_BOUNDARY_UNITS[profile], repeatedClauseMinimum),
+  );
 }
 
 function hasEnoughPunctuationContext(
@@ -302,7 +340,7 @@ function hasEnoughPunctuationContext(
 
   const before = text.slice(0, splitIndex);
   const after = text.slice(splitIndex);
-  const minUnits = MIN_PUNCTUATION_UNITS[profile];
+  const minUnits = getMinimumBoundaryUnits(text, profile, options);
 
   return (
     countMeaningfulUnits(before, profile) >= minUnits &&

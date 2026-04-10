@@ -1,4 +1,5 @@
 import { getDesktopApi, requireDesktopApiMethod } from "./desktop/bridge";
+import type { OpenFileDialogRequest } from "../contracts/openFileContract";
 
 function replaceBasename(filePath: string, fallbackName?: string) {
   if (!fallbackName || !filePath) {
@@ -21,19 +22,15 @@ export const fileService = {
     return requireDesktopApiMethod("getPathForFile", "File path resolution is unavailable.")(file);
   },
 
-  async openFile(defaultPath?: string) {
-    return await requireDesktopApiMethod("openFile", "Open file dialog is unavailable.")(defaultPath);
+  async openFile(request: OpenFileDialogRequest) {
+    return await requireDesktopApiMethod("openFile", "Open file dialog is unavailable.")(request);
   },
 
   async openSubtitleFile() {
-    try {
-      return await requireDesktopApiMethod(
-        "openSubtitleFile",
-        "Subtitle file dialog is unavailable.",
-      )();
-    } catch {
-      return await this.openFile();
-    }
+    return await requireDesktopApiMethod(
+      "openSubtitleFile",
+      "Subtitle file dialog is unavailable.",
+    )();
   },
 
   async showSaveDialog(options: {

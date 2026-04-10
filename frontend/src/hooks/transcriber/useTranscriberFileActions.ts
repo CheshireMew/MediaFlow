@@ -5,6 +5,10 @@ import type { ElectronFile } from "../../types/electron";
 import { fileService } from "../../services/fileService";
 import { createMediaReference, toElectronFile } from "../../services/ui/mediaReference";
 import { attachElectronFileSource } from "../../services/ui/electronFileSource";
+import {
+  buildHtmlFileAccept,
+  fileMatchesOpenDialogProfile,
+} from "../../contracts/openFileContract";
 
 type OpenedElectronFile = {
   path: string;
@@ -25,6 +29,8 @@ export function useTranscriberFileActions({
   setResult,
   setActiveTaskId,
 }: UseTranscriberFileActionsParams) {
+  const fileProfile = "transcriber-media" as const;
+
   const clearResultAndSetFile = useCallback(
     (nextFile: ElectronFile | null) => {
       if (nextFile?.path !== file?.path) {
@@ -40,12 +46,7 @@ export function useTranscriberFileActions({
     (e: React.DragEvent) => {
       e.preventDefault();
       const droppedFile = e.dataTransfer.files[0];
-      if (
-        droppedFile &&
-        (droppedFile.type.startsWith("audio/") ||
-          droppedFile.type.startsWith("video/") ||
-          droppedFile.name.endsWith(".mkv"))
-      ) {
+      if (droppedFile && fileMatchesOpenDialogProfile(droppedFile, fileProfile)) {
         if (isDesktopRuntime()) {
           try {
             const path = fileService.getPathForFile(droppedFile);
@@ -64,7 +65,9 @@ export function useTranscriberFileActions({
 
   const handleFileSelect = useCallback(async () => {
     if (isDesktopRuntime()) {
-      const fileData = (await fileService.openFile()) as OpenedElectronFile | null;
+      const fileData = (await fileService.openFile({
+        profile: fileProfile,
+      })) as OpenedElectronFile | null;
       if (fileData?.path) {
         clearResultAndSetFile(
           attachElectronFileSource(
@@ -83,12 +86,13 @@ export function useTranscriberFileActions({
 
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "audio/*,video/*";
+    input.accept = buildHtmlFileAccept(fileProfile);
     input.onchange = (e) => {
       const files = (e.target as HTMLInputElement).files;
-      if (files && files.length > 0) {
+      const nextFile = files?.[0];
+      if (nextFile && fileMatchesOpenDialogProfile(nextFile, fileProfile)) {
         clearResultAndSetFile(
-          attachElectronFileSource(files[0] as ElectronFile, "file-selection"),
+          attachElectronFileSource(nextFile as ElectronFile, "file-selection"),
         );
       }
     };

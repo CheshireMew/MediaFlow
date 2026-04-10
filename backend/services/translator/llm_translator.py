@@ -2,9 +2,10 @@
 import json
 import hashlib
 import time
-from pathlib import Path
-from typing import List, Dict, Optional, Literal
+from dataclasses import dataclass
+from typing import Any, List, Dict, Optional, Literal, Type
 from pydantic import BaseModel, Field
+from json_repair import repair_json
 from loguru import logger
 from backend.models.schemas import SubtitleSegment
 from backend.config import settings
@@ -33,6 +34,7 @@ class IntelligentTranslationResponse(BaseModel):
 
 CACHE_DIR = settings.TEMP_DIR / "translation_cache"
 CACHE_MAX_AGE_DAYS = 7
+CACHE_SCHEMA_VERSION = 2
 CONTEXT_OVERLAP = 3  # Number of lines from previous batch to include as context
 
 class TranslationCache:
@@ -45,7 +47,7 @@ class TranslationCache:
     def _key(texts: Dict[str, str], model: str, language: str, mode: str) -> str:
         """Stable hash from segment texts + model + language + mode."""
         payload = json.dumps(texts, sort_keys=True, ensure_ascii=False)
-        raw = f"{payload}|{model}|{language}|{mode}"
+        raw = f"v{CACHE_SCHEMA_VERSION}|{payload}|{model}|{language}|{mode}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def get(self, texts: Dict[str, str], model: str, language: str, mode: str) -> Optional[Dict[str, str]]:
@@ -85,6 +87,11 @@ class TranslationCache:
 
 
 # --- Translator ---
+
+@dataclass
+class TranslationOutcome:
+    segments: List[SubtitleSegment]
+    cacheable: bool
 
 class LLMTranslator:
     def __init__(self, *, settings_manager, glossary_service):
@@ -217,60 +224,233 @@ class LLMTranslator:
             "and insert spaces between Chinese text and standalone English words, abbreviations, or acronyms."
         )
 
+    @staticmethod
+    def _strip_code_fence(payload: str) -> str:
+        stripped = payload.strip()
+        if stripped.startswith("```") and stripped.endswith("```"):
+            lines = stripped.splitlines()
+            if len(lines) >= 2:
+                return "\n".join(lines[1:-1]).strip()
+        return stripped
+
+    @staticmethod
+    def _iter_completion_payloads(completion: Any) -> List[str]:
+        payloads: List[str] = []
+        choices = getattr(completion, "choices", None) or []
+        for choice in choices:
+            message = getattr(choice, "message", None)
+            if message is None:
+                continue
+
+            tool_calls = getattr(message, "tool_calls", None) or []
+            for tool_call in tool_calls:
+                function = getattr(tool_call, "function", None)
+                arguments = getattr(function, "arguments", None)
+                if isinstance(arguments, str) and arguments.strip():
+                    payloads.append(arguments)
+
+            content = getattr(message, "content", None)
+            if isinstance(content, str) and content.strip():
+                payloads.append(content)
+            elif isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict):
+                        text = part.get("text")
+                    else:
+                        text = getattr(part, "text", None)
+                    if isinstance(text, str) and text.strip():
+                        payloads.append(text)
+        return payloads
+
+    def _parse_structured_response_payload(
+        self,
+        payload: str,
+        response_model: Type[BaseModel],
+        mode_label: str,
+    ) -> Optional[BaseModel]:
+        normalized = self._strip_code_fence(payload)
+        if not normalized:
+            return None
+
+        try:
+            return response_model.model_validate_json(normalized)
+        except Exception as parse_error:
+            try:
+                repaired = repair_json(normalized, return_objects=True)
+                return response_model.model_validate(repaired)
+            except Exception as repair_error:
+                logger.debug(
+                    f"[LLM] {mode_label}: failed to recover structured payload. "
+                    f"parse_error={parse_error}; repair_error={repair_error}"
+                )
+                return None
+
+    def _recover_structured_response_from_exception(
+        self,
+        error: Exception,
+        response_model: Type[BaseModel],
+        mode_label: str,
+    ) -> Optional[BaseModel]:
+        failed_attempts = getattr(error, "failed_attempts", None) or []
+        for attempt in reversed(failed_attempts):
+            for payload in self._iter_completion_payloads(attempt.completion):
+                recovered = self._parse_structured_response_payload(
+                    payload,
+                    response_model,
+                    mode_label,
+                )
+                if recovered:
+                    logger.warning(
+                        f"[LLM] {mode_label}: recovered structured response from failed completion payload"
+                    )
+                    return recovered
+        return None
+
+    def _request_raw_structured_response(
+        self,
+        client,
+        model_name: str,
+        messages: List[Dict[str, str]],
+        response_model: Type[BaseModel],
+        mode_label: str,
+    ) -> Optional[BaseModel]:
+        try:
+            completion = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                temperature=0.3,
+            )
+        except Exception as error:
+            recovered = self._recover_structured_response_from_exception(
+                error,
+                response_model,
+                f"{mode_label} raw retry",
+            )
+            if recovered:
+                return recovered
+            logger.warning(
+                f"[LLM] {mode_label}: raw retry failed before recovery: {error}"
+            )
+            return None
+
+        for payload in self._iter_completion_payloads(completion):
+            recovered = self._parse_structured_response_payload(
+                payload,
+                response_model,
+                f"{mode_label} raw retry",
+            )
+            if recovered:
+                logger.warning(
+                    f"[LLM] {mode_label}: recovered structured response from raw retry payload"
+                )
+                return recovered
+        return None
+
+    def _extract_plain_text_from_payload(self, payload: str) -> Optional[str]:
+        normalized = self._strip_code_fence(payload)
+        if not normalized:
+            return None
+
+        try:
+            parsed = repair_json(normalized, return_objects=True)
+        except Exception:
+            parsed = None
+
+        if isinstance(parsed, dict):
+            text = parsed.get("text")
+            if isinstance(text, str) and text.strip():
+                return text.strip()
+
+            segments = parsed.get("segments")
+            if (
+                isinstance(segments, list)
+                and len(segments) == 1
+                and isinstance(segments[0], dict)
+            ):
+                segment_text = segments[0].get("text")
+                if isinstance(segment_text, str) and segment_text.strip():
+                    return segment_text.strip()
+
+        if isinstance(parsed, list) and len(parsed) == 1:
+            only_item = parsed[0]
+            if isinstance(only_item, str) and only_item.strip():
+                return only_item.strip()
+            if isinstance(only_item, dict):
+                segment_text = only_item.get("text")
+                if isinstance(segment_text, str) and segment_text.strip():
+                    return segment_text.strip()
+
+        if isinstance(parsed, str) and parsed.strip():
+            return parsed.strip()
+
+        return normalized.strip() or None
+
+    def _extract_plain_text_from_completion(self, completion: Any) -> Optional[str]:
+        for payload in self._iter_completion_payloads(completion):
+            extracted = self._extract_plain_text_from_payload(payload)
+            if extracted:
+                return extracted
+        return None
+
+    def _build_single_line_messages(
+        self,
+        seg: SubtitleSegment,
+        target_language: str,
+        mode_label: str,
+    ) -> List[Dict[str, str]]:
+        if mode_label == "Proofread":
+            system_content = (
+                "Proofread the following subtitle line.\n"
+                "Return only the corrected subtitle text as plain text.\n"
+                "Do not return JSON, markdown, labels, or explanations.\n"
+                "Keep the original language.\n"
+                "Do not merge, split, or rewrite surrounding lines.\n"
+                f"{self._build_output_style_rules()}"
+            )
+        else:
+            system_content = (
+                f"Translate the following subtitle line to {target_language}.\n"
+                "Return only the translated subtitle text as plain text.\n"
+                "Do not return JSON, markdown, labels, or explanations.\n"
+                "Do not merge, split, or rewrite surrounding lines.\n"
+                f"{self._build_output_style_rules()}"
+            )
+
+        return [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": seg.text},
+        ]
+
     # --- Single-line fallback ---
 
     def _translate_single_fallback(
         self, client, model_name: str, segments: List[SubtitleSegment], target_language: str, mode_label: str
-    ) -> List[SubtitleSegment]:
+    ) -> TranslationOutcome:
         """Translate one segment at a time as last resort."""
         logger.warning(f"[LLM] {mode_label}: falling back to single-line translation for {len(segments)} segments")
         result = []
+        cacheable = True
         for seg in segments:
             try:
-                messages = [
-                    {
-                        "role": "system",
-                        "content": (
-                            f"Translate the following subtitle line to {target_language}.\n"
-                            "Return exactly one segment.\n"
-                            "You MUST preserve the original id exactly.\n"
-                            "You MUST copy source_text exactly from the input.\n"
-                            "Translated text must not be empty.\n"
-                            "Do not merge, split, or rewrite surrounding lines.\n"
-                            f"{self._build_output_style_rules()}"
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": json.dumps(
-                            [{"id": str(seg.id), "source_text": seg.text}],
-                            ensure_ascii=False,
-                        ),
-                    }
-                ]
+                messages = self._build_single_line_messages(seg, target_language, mode_label)
                 self._log_llm_messages(f"{mode_label} single [{seg.id}]", messages)
-                resp = client.chat.completions.create(
+                completion = client.chat.completions.create(
                     model=model_name,
-                    response_model=TranslationResponse,
                     messages=messages,
                     temperature=0.3
                 )
-                self._log_llm_response(f"{mode_label} single [{seg.id}]", resp)
-                if (
-                    len(resp.segments) == 1
-                    and str(resp.segments[0].id) == str(seg.id)
-                    and resp.segments[0].source_text == seg.text
-                    and isinstance(resp.segments[0].text, str)
-                    and resp.segments[0].text.strip()
-                ):
-                    result.append(self._map_seg(seg, resp.segments[0].text))
+                translated_text = self._extract_plain_text_from_completion(completion)
+                if translated_text:
+                    result.append(self._map_seg(seg, translated_text))
                 else:
-                    logger.warning(f"[LLM] Single-line returned invalid id/count for [{seg.id}], keeping source text")
+                    logger.warning(f"[LLM] Single-line returned empty text for [{seg.id}], keeping source text")
+                    cacheable = False
                     result.append(seg)
             except Exception as e:
                 logger.warning(f"[LLM] Single-line failed for [{seg.id}]: {e}")
+                cacheable = False
                 result.append(seg)
-        return result
+        return TranslationOutcome(segments=result, cacheable=cacheable)
 
     # --- Shared correction loop ---
 
@@ -283,7 +463,7 @@ class LLMTranslator:
         input_json_str: str,
         target_language: str,
         mode_label: str = "Standard",
-    ) -> List[SubtitleSegment]:
+    ) -> TranslationOutcome:
         """Try one structured batch call, then immediately fall back to single-line translation."""
         n = len(segments)
         messages = [
@@ -299,17 +479,35 @@ class LLMTranslator:
                 temperature=0.3
             )
         except Exception as e:
-            logger.warning(
-                f"[LLM] {mode_label}: batch request failed, falling back to single-line for all {n} segments: {e}"
+            recovered = self._recover_structured_response_from_exception(
+                e,
+                TranslationResponse,
+                mode_label,
             )
-            return self._translate_single_fallback(client, model_name, segments, target_language, mode_label)
+            if recovered is None:
+                recovered = self._request_raw_structured_response(
+                    client,
+                    model_name,
+                    messages,
+                    TranslationResponse,
+                    mode_label,
+                )
+            if recovered is None:
+                logger.warning(
+                    f"[LLM] {mode_label}: batch request failed, falling back to single-line for all {n} segments: {e}"
+                )
+                return self._translate_single_fallback(client, model_name, segments, target_language, mode_label)
+            logger.warning(
+                f"[LLM] {mode_label}: recovered batch response after structured parse failure"
+            )
+            resp = recovered
 
         self._log_llm_response(mode_label, resp)
         logger.info(f"[LLM IO] {mode_label}: input {n}, output {len(resp.segments)}")
 
         is_valid, error_msg, mapped = self._validate_response(resp, segments)
         if is_valid:
-            return mapped
+            return TranslationOutcome(segments=mapped, cacheable=True)
 
         logger.warning(f"[LLM] {mode_label}: validation failed, falling back to single-line: {error_msg}")
         return self._translate_single_fallback(client, model_name, segments, target_language, mode_label)
@@ -394,12 +592,18 @@ Input: [{{"id":"1","source_text":"Hello everyone"}}, {{"id":"2","source_text":"w
 Correct output has 3 segments with unchanged source_text values.
 Wrong: any reordered, merged, empty, or source_text-edited output.
 """
-            result = self._translate_with_correction(
+            outcome = self._translate_with_correction(
                 client, model_name, system_prompt, segments, user_content, target_language, "Standard"
             )
-            # Cache successful result
-            self._cache.put(subtitle_dict, model_name, target_language, mode, {str(s.id): s.text for s in result})
-            return result
+            if outcome.cacheable:
+                self._cache.put(
+                    subtitle_dict,
+                    model_name,
+                    target_language,
+                    mode,
+                    {str(s.id): s.text for s in outcome.segments},
+                )
+            return outcome.segments
 
         # --- Proofread ---
         elif mode == "proofread":
@@ -416,11 +620,18 @@ Rules:
 7. NEVER merge semantic content from neighboring segments into the current one.
 8. If a line is incomplete, keep it incomplete instead of borrowing completion from the next line.
 {ctx_note}"""
-            result = self._translate_with_correction(
+            outcome = self._translate_with_correction(
                 client, model_name, system_prompt, segments, user_content, target_language, "Proofread"
             )
-            self._cache.put(subtitle_dict, model_name, target_language, mode, {str(s.id): s.text for s in result})
-            return result
+            if outcome.cacheable:
+                self._cache.put(
+                    subtitle_dict,
+                    model_name,
+                    target_language,
+                    mode,
+                    {str(s.id): s.text for s in outcome.segments},
+                )
+            return outcome.segments
 
         # --- Intelligent ---
         elif mode == "intelligent":
@@ -437,12 +648,33 @@ Rules:
                 {"role": "user", "content": user_content}
             ]
             self._log_llm_messages("Intelligent", messages)
-            resp = client.chat.completions.create(
-                model=model_name,
-                response_model=IntelligentTranslationResponse,
-                messages=messages,
-                temperature=0.7
-            )
+            try:
+                resp = client.chat.completions.create(
+                    model=model_name,
+                    response_model=IntelligentTranslationResponse,
+                    messages=messages,
+                    temperature=0.7
+                )
+            except Exception as e:
+                recovered = self._recover_structured_response_from_exception(
+                    e,
+                    IntelligentTranslationResponse,
+                    "Intelligent",
+                )
+                if recovered is None:
+                    recovered = self._request_raw_structured_response(
+                        client,
+                        model_name,
+                        messages,
+                        IntelligentTranslationResponse,
+                        "Intelligent",
+                    )
+                if recovered is None:
+                    raise
+                logger.warning(
+                    "[LLM] Intelligent: recovered batch response after structured parse failure"
+                )
+                resp = recovered
 
             self._log_llm_response("Intelligent", resp)
             logger.info(f"[LLM IO] Intelligent: input {len(segments)} -> output {len(resp.segments)}")

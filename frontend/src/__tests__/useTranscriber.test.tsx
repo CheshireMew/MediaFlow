@@ -4,6 +4,7 @@ import { useTranscriber } from "../hooks/useTranscriber";
 import type { Task } from "../types/task";
 import { apiClient } from "../api/client";
 import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
+import type { MockedElectronAPI } from "./testUtils/electronMock";
 
 const useTaskContextMock = vi.fn();
 const addTaskMock = vi.fn();
@@ -26,6 +27,8 @@ vi.mock("../api/client", () => ({
 }));
 
 describe("useTranscriber", () => {
+  let electronMock: MockedElectronAPI;
+
   const expectTranscriberResultMedia = (
     currentResult: ReturnType<typeof useTranscriber>["state"]["result"],
     expected: {
@@ -59,7 +62,29 @@ describe("useTranscriber", () => {
       addTask: addTaskMock,
     });
     addTaskMock.mockReset();
-    installElectronMock();
+    electronMock = installElectronMock();
+  });
+
+  it("opens the desktop picker with the transcriber media profile", async () => {
+    electronMock.openFile = vi.fn().mockResolvedValue({
+      path: "E:/sample.mp4",
+      name: "sample.mp4",
+      size: 1024,
+    });
+
+    const { result } = renderHook(() => useTranscriber());
+
+    await act(async () => {
+      await result.current.actions.onFileSelect();
+    });
+
+    expect(electronMock.openFile).toHaveBeenCalledWith({
+      profile: "transcriber-media",
+    });
+    expect(result.current.state.file).toMatchObject({
+      path: "E:/sample.mp4",
+      name: "sample.mp4",
+    });
   });
 
   it("recovers an active pipeline task containing a transcribe step", async () => {
