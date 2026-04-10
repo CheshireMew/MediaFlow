@@ -58,7 +58,7 @@ async def test_analyze_playlist():
 
 
 @pytest.mark.asyncio
-async def test_analyze_normalizes_mojibake_titles():
+async def test_analyze_preserves_upstream_title_without_guessing_encoding():
     with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
         analyzer_service = make_analyzer()
         mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
@@ -73,4 +73,4 @@ async def test_analyze_normalizes_mojibake_titles():
 
         result = await analyzer_service.analyze("http://example.com/video")
 
-        assert result.title == "Patient Investor - “Won’t Replace"
+        assert result.title == "Patient Investor - 鈥淲on鈥檛 Replace"

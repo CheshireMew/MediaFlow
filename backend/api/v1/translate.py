@@ -57,7 +57,11 @@ async def translate_subtitles(req: TranslateRequest):
         response = await submit_translation_task(req)
         
         return TranslateResponse(task_id=response["task_id"], status=response["status"])
-        
+    except ValueError as e:
+        logger.warning(f"Rejected translation request: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to submit translation task: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -91,3 +91,17 @@ def test_transcribe_flow_integration(isolated_api_client, tmp_path):
 
     delete_response = client.delete(f"/api/v1/tasks/{task_id}")
     assert delete_response.status_code == 200
+
+
+def test_transcribe_rejects_missing_audio_path_with_400(isolated_api_client):
+    response = isolated_api_client.post(
+        "/api/v1/transcribe/",
+        json={
+            "audio_path": None,
+            "model": "base",
+            "device": "cpu",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "audio path is required"

@@ -106,6 +106,7 @@ class Settings:
         self.ENABLE_FASTER_WHISPER_CLI = False
 
         self.ASR_MAX_WORKERS = 2
+        self.LLM_TRANSLATION_MAX_CONCURRENCY = 3
         self.ASR_MODEL_DIR = self.MODEL_DIR / "faster-whisper"
         self.OCR_MODEL_DIR = self.MODEL_DIR / "ocr"
 
@@ -149,6 +150,10 @@ class Settings:
         )
 
         self.ASR_MAX_WORKERS = _parse_int(env.get("ASR_MAX_WORKERS"), self.ASR_MAX_WORKERS)
+        self.LLM_TRANSLATION_MAX_CONCURRENCY = _parse_int(
+            env.get("LLM_TRANSLATION_MAX_CONCURRENCY"),
+            self.LLM_TRANSLATION_MAX_CONCURRENCY,
+        )
         self.LLM_MODEL = env.get("LLM_MODEL", self.LLM_MODEL)
         self.ASR_MODELS = _parse_json_dict(env.get("ASR_MODELS"), DEFAULT_ASR_MODELS)
         self.DOWNLOADER_PROXY = env.get("DOWNLOADER_PROXY", self.DOWNLOADER_PROXY)

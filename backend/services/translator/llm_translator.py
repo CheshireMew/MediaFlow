@@ -2,8 +2,10 @@
 import json
 import hashlib
 import time
+import threading
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
-from typing import Any, List, Dict, Optional, Literal, Type
+from typing import Any, Callable, List, Dict, Optional, Literal, Type
 from pydantic import BaseModel, Field
 from json_repair import repair_json
 from loguru import logger
@@ -36,6 +38,7 @@ CACHE_DIR = settings.TEMP_DIR / "translation_cache"
 CACHE_MAX_AGE_DAYS = 7
 CACHE_SCHEMA_VERSION = 2
 CONTEXT_OVERLAP = 3  # Number of lines from previous batch to include as context
+DEFAULT_TRANSLATION_MAX_CONCURRENCY = 3
 
 class TranslationCache:
     """Disk-based translation cache keyed by content hash + model + language."""
@@ -93,12 +96,92 @@ class TranslationOutcome:
     segments: List[SubtitleSegment]
     cacheable: bool
 
+
+@dataclass(frozen=True)
+class TranslationBatch:
+    index: int
+    segments: List[SubtitleSegment]
+    context_before: Optional[List[SubtitleSegment]]
+
 class LLMTranslator:
     def __init__(self, *, settings_manager, glossary_service):
         self._cache = TranslationCache()
         self.model = settings.LLM_MODEL
         self._settings_manager = settings_manager
         self._glossary_service = glossary_service
+
+    @staticmethod
+    def _normalize_batch_size(batch_size: int) -> int:
+        return max(1, int(batch_size))
+
+    @staticmethod
+    def _resolve_max_concurrency(
+        total_batches: int,
+        requested: Optional[int],
+    ) -> int:
+        if total_batches <= 1:
+            return 1
+
+        limit = requested
+        if limit is None:
+            limit = getattr(
+                settings,
+                "LLM_TRANSLATION_MAX_CONCURRENCY",
+                DEFAULT_TRANSLATION_MAX_CONCURRENCY,
+            )
+
+        try:
+            normalized = int(limit)
+        except (TypeError, ValueError):
+            normalized = 1
+
+        return max(1, min(total_batches, normalized))
+
+    @staticmethod
+    def _build_translation_batches(
+        segments: List[SubtitleSegment],
+        batch_size: int,
+        mode: str,
+    ) -> List[TranslationBatch]:
+        normalized_batch_size = max(1, int(batch_size))
+        batches: List[TranslationBatch] = []
+
+        for index, start in enumerate(range(0, len(segments), normalized_batch_size), start=1):
+            batch_segments = segments[start:start + normalized_batch_size]
+            context_before: Optional[List[SubtitleSegment]] = None
+            if mode != "intelligent" and start > 0:
+                context_start = max(0, start - CONTEXT_OVERLAP)
+                context_before = segments[context_start:start]
+            batches.append(
+                TranslationBatch(
+                    index=index,
+                    segments=batch_segments,
+                    context_before=context_before,
+                )
+            )
+
+        return batches
+
+    def _translate_planned_batch(
+        self,
+        batch: TranslationBatch,
+        target_language: str,
+        mode: str,
+        cancel_check: Optional[Callable[[], None]] = None,
+    ) -> List[SubtitleSegment]:
+        self._checkpoint(cancel_check)
+        return self._translate_batch_struct(
+            batch.segments,
+            target_language,
+            mode,
+            context_before=batch.context_before,
+            cancel_check=cancel_check,
+        )
+
+    @staticmethod
+    def _checkpoint(cancel_check: Optional[Callable[[], None]]) -> None:
+        if cancel_check is not None:
+            cancel_check()
 
     def _get_client(self):
         """Dynamically construct the OpenAI client based on active settings."""
@@ -424,13 +507,20 @@ class LLMTranslator:
     # --- Single-line fallback ---
 
     def _translate_single_fallback(
-        self, client, model_name: str, segments: List[SubtitleSegment], target_language: str, mode_label: str
+        self,
+        client,
+        model_name: str,
+        segments: List[SubtitleSegment],
+        target_language: str,
+        mode_label: str,
+        cancel_check: Optional[Callable[[], None]] = None,
     ) -> TranslationOutcome:
         """Translate one segment at a time as last resort."""
         logger.warning(f"[LLM] {mode_label}: falling back to single-line translation for {len(segments)} segments")
         result = []
         cacheable = True
         for seg in segments:
+            self._checkpoint(cancel_check)
             try:
                 messages = self._build_single_line_messages(seg, target_language, mode_label)
                 self._log_llm_messages(f"{mode_label} single [{seg.id}]", messages)
@@ -463,6 +553,7 @@ class LLMTranslator:
         input_json_str: str,
         target_language: str,
         mode_label: str = "Standard",
+        cancel_check: Optional[Callable[[], None]] = None,
     ) -> TranslationOutcome:
         """Try one structured batch call, then immediately fall back to single-line translation."""
         n = len(segments)
@@ -471,6 +562,7 @@ class LLMTranslator:
             {"role": "user", "content": input_json_str},
         ]
         self._log_llm_messages(mode_label, messages)
+        self._checkpoint(cancel_check)
         try:
             resp = client.chat.completions.create(
                 model=model_name,
@@ -496,7 +588,14 @@ class LLMTranslator:
                 logger.warning(
                     f"[LLM] {mode_label}: batch request failed, falling back to single-line for all {n} segments: {e}"
                 )
-                return self._translate_single_fallback(client, model_name, segments, target_language, mode_label)
+                return self._translate_single_fallback(
+                    client,
+                    model_name,
+                    segments,
+                    target_language,
+                    mode_label,
+                    cancel_check=cancel_check,
+                )
             logger.warning(
                 f"[LLM] {mode_label}: recovered batch response after structured parse failure"
             )
@@ -510,7 +609,14 @@ class LLMTranslator:
             return TranslationOutcome(segments=mapped, cacheable=True)
 
         logger.warning(f"[LLM] {mode_label}: validation failed, falling back to single-line: {error_msg}")
-        return self._translate_single_fallback(client, model_name, segments, target_language, mode_label)
+        return self._translate_single_fallback(
+            client,
+            model_name,
+            segments,
+            target_language,
+            mode_label,
+            cancel_check=cancel_check,
+        )
 
     # --- Mode dispatching ---
 
@@ -520,8 +626,10 @@ class LLMTranslator:
         target_language: str,
         mode: Literal["standard", "proofread", "intelligent"],
         context_before: Optional[List[SubtitleSegment]] = None,
+        cancel_check: Optional[Callable[[], None]] = None,
     ) -> List[SubtitleSegment]:
         """Internal batch translation using structured output."""
+        self._checkpoint(cancel_check)
         client, model_name = self._get_client()
         if not client:
             raise ValueError("LLM Client not initialized (Check Settings)")
@@ -593,8 +701,16 @@ Correct output has 3 segments with unchanged source_text values.
 Wrong: any reordered, merged, empty, or source_text-edited output.
 """
             outcome = self._translate_with_correction(
-                client, model_name, system_prompt, segments, user_content, target_language, "Standard"
+                client,
+                model_name,
+                system_prompt,
+                segments,
+                user_content,
+                target_language,
+                "Standard",
+                cancel_check=cancel_check,
             )
+            self._checkpoint(cancel_check)
             if outcome.cacheable:
                 self._cache.put(
                     subtitle_dict,
@@ -621,8 +737,16 @@ Rules:
 8. If a line is incomplete, keep it incomplete instead of borrowing completion from the next line.
 {ctx_note}"""
             outcome = self._translate_with_correction(
-                client, model_name, system_prompt, segments, user_content, target_language, "Proofread"
+                client,
+                model_name,
+                system_prompt,
+                segments,
+                user_content,
+                target_language,
+                "Proofread",
+                cancel_check=cancel_check,
             )
+            self._checkpoint(cancel_check)
             if outcome.cacheable:
                 self._cache.put(
                     subtitle_dict,
@@ -648,6 +772,7 @@ Rules:
                 {"role": "user", "content": user_content}
             ]
             self._log_llm_messages("Intelligent", messages)
+            self._checkpoint(cancel_check)
             try:
                 resp = client.chat.completions.create(
                     model=model_name,
@@ -688,6 +813,7 @@ Rules:
             new_segments = []
             current_time = total_start
             for i, seg in enumerate(resp.segments):
+                self._checkpoint(cancel_check)
                 duration = (seg.time_percentage / total_pct) * total_duration
                 seg_start = current_time
                 seg_end = current_time + duration
@@ -712,46 +838,143 @@ Rules:
         target_language: str,
         mode: str = "standard",
         batch_size: int = 10,
-        progress_callback=None
+        progress_callback=None,
+        max_concurrency: Optional[int] = None,
+        cancel_check: Optional[Callable[[], None]] = None,
     ) -> List[SubtitleSegment]:
-        """Orchestrates batch translation with context overlap."""
+        """Orchestrates batch translation with planned context and bounded parallelism."""
         if not segments:
             logger.warning("[Translate] Received empty segments list.")
             return []
 
         # Periodic cache cleanup
         self._cache.cleanup()
+        self._checkpoint(cancel_check)
 
-        translated_segments = []
-        total_batches = (len(segments) + batch_size - 1) // batch_size
         effective_mode = mode if mode in ["standard", "intelligent", "proofread"] else "standard"
-        logger.info(f"Starting translation: {len(segments)} segments, mode={effective_mode}, batch_size={batch_size}, batches={total_batches}")
+        normalized_batch_size = self._normalize_batch_size(batch_size)
+        batches = self._build_translation_batches(segments, normalized_batch_size, effective_mode)
+        total_batches = len(batches)
+        resolved_max_concurrency = self._resolve_max_concurrency(total_batches, max_concurrency)
+        translated_batches: List[Optional[List[SubtitleSegment]]] = [None] * total_batches
 
-        prev_batch: Optional[List[SubtitleSegment]] = None
+        logger.info(
+            f"Starting translation: {len(segments)} segments, mode={effective_mode}, "
+            f"batch_size={normalized_batch_size}, batches={total_batches}, "
+            f"max_concurrency={resolved_max_concurrency}"
+        )
 
-        for i in range(0, len(segments), batch_size):
-            batch = segments[i:i + batch_size]
-            batch_num = i // batch_size + 1
+        completed_batches = 0
+        progress_lock = threading.Lock()
 
-            if progress_callback:
+        def notify_progress(message: str) -> None:
+            if not progress_callback:
+                return
+            with progress_lock:
+                self._checkpoint(cancel_check)
                 progress_callback(
-                    int(((batch_num - 1) / total_batches) * 100),
-                    f"Translating batch {batch_num}/{total_batches} ({effective_mode})..."
+                    int((completed_batches / total_batches) * 100),
+                    message,
                 )
 
-            # Context: last N lines from previous batch
-            context = prev_batch[-CONTEXT_OVERLAP:] if prev_batch else None
+        notify_progress(
+            f"Translating 0/{total_batches} batches ({effective_mode}, concurrency={resolved_max_concurrency})..."
+        )
+
+        def store_batch_result(batch: TranslationBatch, result: List[SubtitleSegment]) -> None:
+            nonlocal completed_batches
+            translated_batches[batch.index - 1] = result
+            with progress_lock:
+                self._checkpoint(cancel_check)
+                completed_batches += 1
+                if progress_callback:
+                    progress_callback(
+                        int((completed_batches / total_batches) * 100),
+                        f"Translated {completed_batches}/{total_batches} batches ({effective_mode})..."
+                    )
+
+        if resolved_max_concurrency == 1:
+            for batch in batches:
+                self._checkpoint(cancel_check)
+                try:
+                    result = self._translate_planned_batch(
+                        batch,
+                        target_language,
+                        effective_mode,
+                        cancel_check=cancel_check,
+                    )
+                except Exception as e:
+                    raise RuntimeError(
+                        "Translation failed before single-line fallback could complete. "
+                        f"Batch {batch.index}/{total_batches}. Last error: {e}"
+                    ) from e
+                store_batch_result(batch, result)
+        else:
+            executor = ThreadPoolExecutor(max_workers=resolved_max_concurrency)
+            batch_iter = iter(batches)
+            pending: dict[Any, TranslationBatch] = {}
+            fast_abort = False
+
+            def submit_next_batch() -> bool:
+                self._checkpoint(cancel_check)
+                try:
+                    next_batch = next(batch_iter)
+                except StopIteration:
+                    return False
+
+                future = executor.submit(
+                    self._translate_planned_batch,
+                    next_batch,
+                    target_language,
+                    effective_mode,
+                    cancel_check,
+                )
+                pending[future] = next_batch
+                return True
 
             try:
-                result = self._translate_batch_struct(batch, target_language, effective_mode, context_before=context)
-                translated_segments.extend(result)
-            except Exception as e:
-                raise RuntimeError(
-                    "Translation failed before single-line fallback could complete. "
-                    f"Batch {batch_num}/{total_batches}. Last error: {e}"
-                ) from e
+                while len(pending) < resolved_max_concurrency and submit_next_batch():
+                    pass
 
-            prev_batch = batch
+                while pending:
+                    self._checkpoint(cancel_check)
+                    done, _ = wait(
+                        tuple(pending.keys()),
+                        timeout=0.05,
+                        return_when=FIRST_COMPLETED,
+                    )
+                    if not done:
+                        continue
+
+                    for future in done:
+                        batch = pending.pop(future)
+                        try:
+                            result = future.result()
+                        except Exception as e:
+                            fast_abort = True
+                            for pending_future in pending:
+                                pending_future.cancel()
+                            raise RuntimeError(
+                                "Translation failed before single-line fallback could complete. "
+                                f"Batch {batch.index}/{total_batches}. Last error: {e}"
+                            ) from e
+
+                        store_batch_result(batch, result)
+
+                        while len(pending) < resolved_max_concurrency and submit_next_batch():
+                            pass
+            except Exception:
+                fast_abort = True
+                raise
+            finally:
+                executor.shutdown(wait=not fast_abort, cancel_futures=True)
+
+        translated_segments = [
+            segment
+            for batch_result in translated_batches
+            if batch_result is not None
+            for segment in batch_result
+        ]
 
         # Re-index IDs for intelligent mode
         if effective_mode == "intelligent":

@@ -1,11 +1,11 @@
-from backend.services.downloader.service import _infer_media_file_type
+from backend.services.downloader.artifacts import infer_media_file_type
 
 
 def test_infer_media_file_type_returns_audio_for_audio_extensions():
-    assert _infer_media_file_type("sample.m4a") == "audio"
-    assert _infer_media_file_type("sample.mp3") == "audio"
+    assert infer_media_file_type("sample.m4a") == "audio"
+    assert infer_media_file_type("sample.mp3") == "audio"
 
 
 def test_infer_media_file_type_returns_video_for_video_extensions():
-    assert _infer_media_file_type("sample.mp4") == "video"
-    assert _infer_media_file_type("sample.webm") == "video"
+    assert infer_media_file_type("sample.mp4") == "video"
+    assert infer_media_file_type("sample.webm") == "video"

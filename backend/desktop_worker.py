@@ -17,6 +17,9 @@ DESKTOP_WORKER_PROTOCOL_VERSION = 1
 def configure_worker_stdio() -> None:
     reconfigure_in = getattr(sys.stdin, "reconfigure", None)
     if callable(reconfigure_in):
+        # Desktop IPC payloads are always exchanged as UTF-8 JSON. On Windows the
+        # process locale may default to GBK, which used to corrupt non-ASCII text
+        # between the frontend and the Python worker before any app logic ran.
         sys.stdin.reconfigure(encoding="utf-8")
         
     reconfigure = getattr(sys.stdout, "reconfigure", None)

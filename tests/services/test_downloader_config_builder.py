@@ -7,7 +7,7 @@ from backend.services.downloader.config_builder import YtDlpConfigBuilder
 def test_config_builder_uses_custom_output_directory(tmp_path: Path):
     builder = YtDlpConfigBuilder(tmp_path, cookie_manager=CookieManager())
 
-    options = builder.build(
+    options = builder.build_media_download(
         url="https://example.com/video",
         filename="sample-video",
     )

@@ -1,5 +1,8 @@
 import pytest
+import threading
+import time
 from types import SimpleNamespace
+from backend.core.task_control import TaskCancelRequested
 from backend.services.translator.llm_translator import (
     IntelligentTranslationResponse,
     LLMTranslator,
@@ -56,6 +59,131 @@ def test_translate_segments_fails_immediately_when_batch_translation_cannot_fall
 
     with pytest.raises(RuntimeError, match="before single-line fallback could complete"):
         llm_translator.translate_segments(segments, "Chinese", batch_size=10)
+
+
+def test_build_translation_batches_uses_source_overlap():
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(id=str(i + 1), start=float(i), end=float(i + 1), text=f"line {i + 1}")
+        for i in range(25)
+    ]
+
+    batches = llm_translator._build_translation_batches(segments, batch_size=10, mode="standard")
+
+    assert [batch.index for batch in batches] == [1, 2, 3]
+    assert batches[0].context_before is None
+    assert [segment.id for segment in batches[1].context_before] == ["8", "9", "10"]
+    assert [segment.id for segment in batches[2].context_before] == ["18", "19", "20"]
+
+
+def test_translate_segments_parallel_batches_preserve_output_order(monkeypatch):
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(id=str(i + 1), start=float(i), end=float(i + 1), text=f"line {i + 1}")
+        for i in range(6)
+    ]
+
+    lock = threading.Lock()
+    active_calls = 0
+    peak_active_calls = 0
+
+    def fake_translate_planned_batch(batch, target_language, mode, cancel_check=None):
+        nonlocal active_calls, peak_active_calls
+        with lock:
+            active_calls += 1
+            peak_active_calls = max(peak_active_calls, active_calls)
+        time.sleep(0.02 * (4 - batch.index))
+        translated = []
+        for segment in batch.segments:
+            updated = segment.model_copy()
+            updated.text = f"translated-{segment.id}"
+            translated.append(updated)
+        with lock:
+            active_calls -= 1
+        return translated
+
+    monkeypatch.setattr(llm_translator, "_translate_planned_batch", fake_translate_planned_batch)
+
+    result = llm_translator.translate_segments(
+        segments,
+        "Chinese",
+        batch_size=2,
+        max_concurrency=3,
+    )
+
+    assert [segment.id for segment in result] == ["1", "2", "3", "4", "5", "6"]
+    assert [segment.text for segment in result] == [
+        "translated-1",
+        "translated-2",
+        "translated-3",
+        "translated-4",
+        "translated-5",
+        "translated-6",
+    ]
+    assert peak_active_calls >= 2
+
+
+def test_translate_segments_parallel_batches_fail_fast_without_waiting_for_other_batches(monkeypatch):
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(id=str(i + 1), start=float(i), end=float(i + 1), text=f"line {i + 1}")
+        for i in range(4)
+    ]
+
+    def fake_translate_planned_batch(batch, target_language, mode, cancel_check=None):
+        if batch.index == 1:
+            raise ConnectionError("batch 1 failed")
+        time.sleep(0.4)
+        return batch.segments
+
+    monkeypatch.setattr(llm_translator, "_translate_planned_batch", fake_translate_planned_batch)
+
+    started = time.perf_counter()
+    with pytest.raises(RuntimeError, match="Batch 1/2. Last error: batch 1 failed"):
+        llm_translator.translate_segments(
+            segments,
+            "Chinese",
+            batch_size=2,
+            max_concurrency=2,
+        )
+
+    assert time.perf_counter() - started < 0.25
+
+
+def test_translate_segments_parallel_batches_respect_cancel_check(monkeypatch):
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(id=str(i + 1), start=float(i), end=float(i + 1), text=f"line {i + 1}")
+        for i in range(4)
+    ]
+
+    started_batch = threading.Event()
+    cancel_checks = 0
+
+    def fake_translate_planned_batch(batch, target_language, mode, cancel_check=None):
+        started_batch.set()
+        time.sleep(0.4)
+        return batch.segments
+
+    def cancel_check():
+        nonlocal cancel_checks
+        cancel_checks += 1
+        if started_batch.is_set() and cancel_checks >= 3:
+            raise TaskCancelRequested("Task cancelled by user")
+
+    monkeypatch.setattr(llm_translator, "_translate_planned_batch", fake_translate_planned_batch)
+
+    started = time.perf_counter()
+    with pytest.raises(TaskCancelRequested, match="Task cancelled by user"):
+        llm_translator.translate_segments(
+            segments,
+            "Chinese",
+            batch_size=2,
+            max_concurrency=2,
+            cancel_check=cancel_check,
+        )
+
+    assert time.perf_counter() - started < 0.25
 
 
 def test_validate_response_rejects_same_count_but_wrong_ids():

@@ -14,6 +14,9 @@ from backend.utils.subtitle_manager import SubtitleManager
 def sanitize_filename(name: str) -> str:
     if not name:
         return "download"
+    # This layer is intentionally narrow: only remove characters that the local
+    # filesystem rejects. We do not attempt mojibake repair here because the
+    # earlier heuristic re-decoding path caused secondary corruption.
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)
 
 
@@ -231,6 +234,10 @@ class DownloadArtifactResolver:
         *,
         preferred_stem: Optional[str],
     ) -> tuple[Path, Optional[Path]]:
+        # Keep the title bytes-as-text we already have and only make it safe for
+        # the filesystem. Display/title normalization and filename sanitation must
+        # not be conflated; otherwise a front/back encoding issue gets "fixed"
+        # twice and ends up with a different wrong filename.
         repaired_stem = sanitize_filename(preferred_stem or media_path.stem) or "download"
         if repaired_stem == media_path.stem:
             return media_path, subtitle_path

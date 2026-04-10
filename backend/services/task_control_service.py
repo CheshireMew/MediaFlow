@@ -44,6 +44,7 @@ class TaskControlService:
             return False
 
         if task.status == "pending":
+            task_manager._stop_requests[task_id] = "pause"
             task_manager._queued_ids.discard(task_id)
             if task_id in task_manager._queued_order:
                 task_manager._queued_order.remove(task_id)
@@ -68,10 +69,10 @@ class TaskControlService:
             return False
 
         if task.status == "pending":
+            task_manager._stop_requests[task_id] = "cancel"
             task_manager._queued_ids.discard(task_id)
             if task_id in task_manager._queued_order:
                 task_manager._queued_order.remove(task_id)
-            self.clear_stop_request(task_manager._stop_requests, task_id)
             await task_manager.update_task(
                 task_id,
                 status="cancelled",

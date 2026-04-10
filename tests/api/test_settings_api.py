@@ -1,10 +1,16 @@
-from backend.api.v1.settings import ProviderConnectionRequest, _test_provider_connection
+from backend.api.v1.settings import ProviderConnectionRequest
+from backend.application.settings_service import SettingsApplicationService
 
 
 def test_test_provider_connection_requires_fields():
+    service = SettingsApplicationService(object())
     try:
-        _test_provider_connection(
-            ProviderConnectionRequest(base_url="", api_key="key", model="gpt-4o")
+        request = ProviderConnectionRequest(base_url="", api_key="key", model="gpt-4o")
+        service.test_provider_connection(
+            name=request.name,
+            base_url=request.base_url,
+            api_key=request.api_key,
+            model=request.model,
         )
     except ValueError as exc:
         assert "Base URL is required" in str(exc)
@@ -13,6 +19,7 @@ def test_test_provider_connection_requires_fields():
 
 
 def test_test_provider_connection_uses_openai_client(monkeypatch):
+    service = SettingsApplicationService(object())
     calls = {}
 
     class FakeCompletions:
@@ -29,17 +36,19 @@ def test_test_provider_connection_uses_openai_client(monkeypatch):
             calls["client_kwargs"] = kwargs
             self.chat = FakeChat()
 
-    import openai
+    monkeypatch.setattr("backend.application.settings_service.OpenAI", FakeClient)
 
-    monkeypatch.setattr(openai, "OpenAI", FakeClient)
-
-    _test_provider_connection(
-        ProviderConnectionRequest(
-            name="Test",
-            base_url="https://api.example.com/v1",
-            api_key="secret",
-            model="gpt-test",
-        )
+    request = ProviderConnectionRequest(
+        name="Test",
+        base_url="https://api.example.com/v1",
+        api_key="secret",
+        model="gpt-test",
+    )
+    service.test_provider_connection(
+        name=request.name,
+        base_url=request.base_url,
+        api_key=request.api_key,
+        model=request.model,
     )
 
     assert calls["client_kwargs"]["base_url"] == "https://api.example.com/v1"

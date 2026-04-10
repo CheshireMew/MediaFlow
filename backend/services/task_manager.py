@@ -136,6 +136,12 @@ class TaskManager:
             try:
                 task = self.get_task(task_id)
                 if not task:
+                    self.clear_stop_request(task_id)
+                    continue
+                request = self.get_stop_request(task_id)
+                if request and task.status != "running":
+                    message = "Paused in queue" if request == "pause" else "Cancelled in queue"
+                    await self.mark_controlled_stop(task_id, request, message)
                     continue
                 if task.status != "pending":
                     continue
@@ -228,6 +234,7 @@ class TaskManager:
         if task_id in self._running_ids or task_id in self._queued_ids:
             return
 
+        self.clear_stop_request(task_id)
         self._runtime_state.mark_queued(task_id)
         updates = {"status": "pending", "cancelled": False}
         if queued_message is not None:
@@ -327,7 +334,11 @@ class TaskManager:
 
     async def pause_all_tasks(self) -> int:
         count = 0
-        for task in list(self.tasks.values()):
+        priority = {"pending": 0, "paused": 1, "running": 2}
+        for task in sorted(
+            list(self.tasks.values()),
+            key=lambda task: priority.get(task.status, 99),
+        ):
             if task.status in {"pending", "running"}:
                 changed = await self.pause_task(task.id)
                 if changed:
@@ -336,7 +347,11 @@ class TaskManager:
 
     async def cancel_all_tasks(self):
         cancelled_count = 0
-        for task in list(self.tasks.values()):
+        priority = {"pending": 0, "paused": 1, "running": 2}
+        for task in sorted(
+            list(self.tasks.values()),
+            key=lambda task: priority.get(task.status, 99),
+        ):
             if task.status in {"pending", "running", "paused"}:
                 changed = await self.cancel_task(task.id)
                 if changed:

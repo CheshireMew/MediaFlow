@@ -4,7 +4,7 @@ from typing import List, Optional
 from loguru import logger
 from pydantic import BaseModel
 
-from backend.core.runtime_access import RuntimeServices
+from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
 from backend.core.task_runner import BackgroundTaskRunner
 from backend.models.schemas import FileRef, MediaReference, SubtitleSegment, TaskResult
 from backend.services.media_refs import create_media_ref
@@ -98,6 +98,7 @@ def build_translation_task_result(
 
 async def run_translation_task(task_id: str, req: TranslationRequest) -> None:
     llm_translator = RuntimeServices.translator()
+    runtime = TaskRuntimeContext.for_task(task_id)
 
     await BackgroundTaskRunner.run(
         task_id=task_id,
@@ -107,6 +108,7 @@ async def run_translation_task(task_id: str, req: TranslationRequest) -> None:
             "target_language": req.target_language,
             "mode": req.mode,
             "batch_size": 10,
+            "cancel_check": runtime.checkpoint,
         },
         start_message="Starting translation...",
         success_message="Translation completed",

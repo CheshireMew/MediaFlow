@@ -100,6 +100,10 @@ class AnalyzerService:
                 items = []
                 for i, entry in enumerate(entries):
                     if entry:  # Skip None entries
+                        # Keep upstream titles verbatim. A previous mojibake "repair"
+                        # layer guessed encodings here and could turn one bad string
+                        # into a different bad string. The actual front/back fix was
+                        # to keep IPC and file IO on UTF-8, not to re-decode titles.
                         items.append(PlaylistItem(
                             index=i + 1,
                             title=entry.get('title') or f'Video {i+1}',
@@ -111,6 +115,8 @@ class AnalyzerService:
                 logger.success(f"Detected playlist with {len(items)} items: {info.get('title')}")
                 return AnalyzeResult(
                     type="playlist",
+                    # UI display should see the raw upstream title; filename safety is
+                    # handled later by the downloader artifact resolver.
                     title=info.get('title') or 'Unknown Playlist',
                     url=url,
                     thumbnail=info.get('thumbnail'),
@@ -124,6 +130,9 @@ class AnalyzerService:
                 logger.success(f"Detected single video: {info.get('title')}")
                 return AnalyzeResult(
                     type="single",
+                    # Do not guess-decode mojibake here. If the provider already gave
+                    # us a broken title, preserving it is safer than mutating it into
+                    # another irreversible form.
                     title=info.get('title') or 'Unknown Video',
                     url=url,
                     thumbnail=info.get('thumbnail'),

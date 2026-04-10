@@ -28,7 +28,11 @@ async def transcribe_audio(req: TranscribeRequest):
         validate_path(req.audio_path, "audio_path")
         response = await submit_transcription_task(req)
         return TaskResponse(task_id=response["task_id"], status=response["status"])
-
+    except ValueError as e:
+        logger.warning(f"Rejected transcription request: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to submit task: {e}")
         raise HTTPException(status_code=500, detail=str(e))
