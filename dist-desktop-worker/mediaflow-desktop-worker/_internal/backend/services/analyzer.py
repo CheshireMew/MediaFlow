@@ -1,0 +1,154 @@
+"""
+URL Analyzer Service - Detects playlists and extracts metadata using yt-dlp.
+"""
+import yt_dlp
+from loguru import logger
+from backend.services.platforms.factory import PlatformFactory
+from backend.models.schemas import AnalyzeResult, PlaylistItem
+from backend.services.cookie_manager import CookieManager
+from urllib.parse import urlparse
+
+
+
+class AnalyzerService:
+    """Analyzes URLs to detect if they contain playlists."""
+
+    def __init__(
+        self,
+        *,
+        platform_factory: PlatformFactory,
+        cookie_manager: CookieManager,
+    ):
+        self._platform_factory = platform_factory
+        self._cookie_manager = cookie_manager
+
+    async def analyze(self, url: str) -> AnalyzeResult:
+        """
+        Analyze a URL to determine if it's a single video or playlist.
+        Uses PlatformFactory for custom logic, falls back to yt-dlp.
+        """
+        logger.info(f"Analyzing URL: {url}")
+
+        # 1. Try Custom Platform Logic
+        platform_handler = await self._platform_factory.get_handler(url)
+        if platform_handler:
+            logger.info(f"Using Custom Platform Handler: {platform_handler.__class__.__name__}")
+            result = await platform_handler.analyze(url)
+            if result:
+                # If custom handler returns a result (even a partial one), use it.
+                # If it returns None, it means it wants to fallback to default logic.
+                logger.success(f"Custom Handler Success: {result.title}")
+                return self._adapt_result(result)
+
+        # 2. Fallback to yt-dlp (Standard Logic)
+        from backend.config import settings
+        logger.info(f"Fallback to yt-dlp (Version: {yt_dlp.version.__version__})")
+        
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': 'in_playlist',  # Don't download, just extract info
+            'ignoreerrors': True,
+            'ffmpeg_location': settings.FFMPEG_PATH,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        }
+
+        # Apply Proxy
+        if settings.DOWNLOADER_PROXY:
+            logger.info(f"Using Proxy: {settings.DOWNLOADER_PROXY}")
+            ydl_opts['proxy'] = settings.DOWNLOADER_PROXY
+
+        # Apply Cookies
+        try:
+            domain = urlparse(url).netloc
+            # Handle x.com / twitter.com specifically
+            if "x.com" in domain or "twitter.com" in domain:
+                # Try to find valid cookies for either domain
+                cookie_path = None
+                if self._cookie_manager.has_valid_cookies("x.com"):
+                    cookie_path = self._cookie_manager.get_cookie_path("x.com")
+                elif self._cookie_manager.has_valid_cookies("twitter.com"):
+                    cookie_path = self._cookie_manager.get_cookie_path("twitter.com")
+                
+                if cookie_path:
+                    logger.info(f"Using Cookies: {cookie_path}")
+                    ydl_opts['cookiefile'] = str(cookie_path)
+            else:
+                # Generic domain cookie support
+                if self._cookie_manager.has_valid_cookies(domain):
+                    cookie_path = self._cookie_manager.get_cookie_path(domain)
+                    ydl_opts['cookiefile'] = str(cookie_path)
+                    logger.info(f"Using Cookies: {cookie_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load cookies: {e}")
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # yt-dlp is blocking, so we should technically run this in a thread pool executor
+            # but for now we keep it simple as this is a fast operation in flat mode.
+            try:
+                info = ydl.extract_info(url, download=False)
+            except Exception as e:
+                logger.error(f"yt-dlp extraction failed: {e}")
+                raise
+
+            if info is None:
+                raise ValueError("Could not extract info from URL (info is None)")
+
+            # Check if it's a playlist
+            if info.get('_type') == 'playlist':
+                entries = info.get('entries', [])
+                items = []
+                for i, entry in enumerate(entries):
+                    if entry:  # Skip None entries
+                        # Keep upstream titles verbatim. A previous mojibake "repair"
+                        # layer guessed encodings here and could turn one bad string
+                        # into a different bad string. The actual front/back fix was
+                        # to keep IPC and file IO on UTF-8, not to re-decode titles.
+                        items.append(PlaylistItem(
+                            index=i + 1,
+                            title=entry.get('title') or f'Video {i+1}',
+                            url=entry.get('url') or entry.get('webpage_url', ''),
+                            duration=entry.get('duration'),
+                            uploader=entry.get('uploader')
+                        ))
+
+                logger.success(f"Detected playlist with {len(items)} items: {info.get('title')}")
+                return AnalyzeResult(
+                    type="playlist",
+                    # UI display should see the raw upstream title; filename safety is
+                    # handled later by the downloader artifact resolver.
+                    title=info.get('title') or 'Unknown Playlist',
+                    url=url,
+                    thumbnail=info.get('thumbnail'),
+                    count=len(items),
+                    items=items,
+                    uploader=info.get('uploader'),
+                    webpage_url=info.get('webpage_url')
+                )
+            else:
+                # Single video
+                logger.success(f"Detected single video: {info.get('title')}")
+                return AnalyzeResult(
+                    type="single",
+                    # Do not guess-decode mojibake here. If the provider already gave
+                    # us a broken title, preserving it is safer than mutating it into
+                    # another irreversible form.
+                    title=info.get('title') or 'Unknown Video',
+                    url=url,
+                    thumbnail=info.get('thumbnail'),
+                    duration=info.get('duration'),
+                    uploader=info.get('uploader'),
+                    webpage_url=info.get('webpage_url')
+                )
+    
+    def _adapt_result(self, result) -> AnalyzeResult:
+        """Adapt platform result model to internal AnalyzeResult model if needed."""
+        # Currently the platform returns AnalyzeResult compatible dict/obj, 
+        # but we ensure strict typing here.
+        if isinstance(result, AnalyzeResult):
+            return result
+        
+        # If the platform returns the raw Pydantic model (which it should), just return it.
+        # This is a placeholder if we ever need to map fields.
+        return result
+

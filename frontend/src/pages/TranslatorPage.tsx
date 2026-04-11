@@ -7,7 +7,6 @@ import {
 import { useTranslator } from '../hooks/useTranslator';
 import { glossaryService } from '../services/domain';
 import { fileService } from '../services/fileService';
-import { getExecutionModeDisplay } from '../services/ui/executionModeDisplay';
 import { SegmentsTable } from '../components/translator/SegmentsTable';
 import { Sidebar } from '../components/translator/Sidebar';
 import type { TranslatorMode } from '../hooks/useTranslator';
@@ -29,7 +28,6 @@ export const TranslatorPage = () => {
         taskStatus,
         progress,
         taskError,
-        executionMode,
         isTranslating,
         updateTargetSegment,
         setTargetLang,
@@ -43,9 +41,6 @@ export const TranslatorPage = () => {
     } = useTranslator();
 
     const { t } = useTranslation('translator');
-    const executionModeDisplay = executionMode
-        ? getExecutionModeDisplay(executionMode)
-        : null;
     
     // UI Local State for Sidebar
     const [showGlossary, setShowGlossary] = useState(false);
@@ -223,15 +218,6 @@ export const TranslatorPage = () => {
                         {taskError}
                      </div>
                  )}
-
-                 {executionModeDisplay && (
-                     <div className="flex-none px-4 py-2 border-b border-white/5 bg-black/20 flex items-center gap-2 text-xs text-slate-300">
-                        <span className={`px-2 py-1 rounded-md border font-mono ${executionModeDisplay.className}`}>
-                            {executionModeDisplay.label}
-                        </span>
-                        <span>execution mode</span>
-                     </div>
-                 )}
     
                  <SegmentsTable 
                     sourceSegments={sourceSegments} 
@@ -249,7 +235,6 @@ export const TranslatorPage = () => {
                          </div>
                          <div className="text-center">
                              <p className="text-lg font-bold text-white mb-1">{t('loading.message')}</p>
-                             <p className="text-sm text-indigo-300 font-mono">{taskStatus}</p>
                          </div>
                      </div>
                  )}
