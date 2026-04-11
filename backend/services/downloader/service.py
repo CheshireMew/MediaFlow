@@ -10,6 +10,7 @@ from loguru import logger
 from backend.config import settings
 from backend.models.schemas import TaskResult
 from backend.services.cookie_manager import CookieManager
+from backend.services.download_errors import classify_download_error
 from backend.services.platforms.factory import PlatformFactory
 
 from .artifacts import DownloadArtifactResolver, sanitize_filename
@@ -157,8 +158,11 @@ class DownloaderService:
                 require_prepared_path=True,
             )
         except Exception as e:
-            logger.error(f"yt-dlp media download failed: {e}")
-            return TaskResult(success=False, error=f"Download failed: {e}")
+            classified_error = classify_download_error(e, url=start_url or url)
+            logger.error(
+                f"yt-dlp media download failed [{classified_error.code}]: {e}"
+            )
+            return TaskResult(success=False, error=classified_error.display_message)
 
         subtitle_error: Optional[str] = None
         if download_subs:

@@ -78,7 +78,7 @@ export function DownloaderPage() {
               {error && (
                 <div className="mt-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm flex items-start gap-3">
                   <span className="text-lg">⚠️</span>
-                  <p className="leading-relaxed">{error}</p>
+                  <p className="leading-relaxed whitespace-pre-line">{error}</p>
                 </div>
               )}
               <div className="mt-auto pt-6 border-t border-white/5">

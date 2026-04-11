@@ -6,6 +6,11 @@ from loguru import logger
 from backend.services.platforms.factory import PlatformFactory
 from backend.models.schemas import AnalyzeResult, PlaylistItem
 from backend.services.cookie_manager import CookieManager
+from backend.services.download_errors import (
+    DownloadExtractionError,
+    YtDlpErrorCapture,
+    classify_download_error,
+)
 from urllib.parse import urlparse
 
 
@@ -44,11 +49,13 @@ class AnalyzerService:
         from backend.config import settings
         logger.info(f"Fallback to yt-dlp (Version: {yt_dlp.version.__version__})")
         
+        error_capture = YtDlpErrorCapture()
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'extract_flat': 'in_playlist',  # Don't download, just extract info
             'ignoreerrors': True,
+            'logger': error_capture,
             'ffmpeg_location': settings.FFMPEG_PATH,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
@@ -88,11 +95,22 @@ class AnalyzerService:
             try:
                 info = ydl.extract_info(url, download=False)
             except Exception as e:
-                logger.error(f"yt-dlp extraction failed: {e}")
-                raise
+                classified_error = classify_download_error(e, url=url)
+                logger.error(
+                    f"yt-dlp extraction failed [{classified_error.code}]: {e}"
+                )
+                raise DownloadExtractionError(classified_error) from e
 
             if info is None:
-                raise ValueError("Could not extract info from URL (info is None)")
+                classified_error = classify_download_error(
+                    error_capture.text or None,
+                    url=url,
+                    fallback_code="no_info",
+                )
+                logger.error(
+                    f"yt-dlp extraction returned no info [{classified_error.code}]"
+                )
+                raise DownloadExtractionError(classified_error)
 
             # Check if it's a playlist
             if info.get('_type') == 'playlist':
