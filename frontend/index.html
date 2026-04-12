@@ -30,6 +30,71 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (() => {
+        const root = document.getElementById("root");
+        const showStartupError = (detail) => {
+          if (!root || root.childElementCount > 0) {
+            return;
+          }
+
+          root.innerHTML = `
+            <main style="
+              box-sizing: border-box;
+              min-height: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              padding: 24px;
+              background: #0a0a0a;
+              color: #e5e7eb;
+              font-family: 'Segoe UI', sans-serif;
+            ">
+              <section style="
+                width: min(640px, 100%);
+                border: 1px solid #374151;
+                border-radius: 8px;
+                padding: 24px;
+                background: #111827;
+              ">
+                <h1 style="margin: 0 0 12px; font-size: 22px;">MediaFlow 启动失败</h1>
+                <p style="margin: 0 0 12px; line-height: 1.6; color: #cbd5e1;">
+                  前端启动文件没有加载完成。开发模式下请确认本机 Vite 窗口仍在运行，然后刷新。
+                </p>
+                <code style="
+                  display: block;
+                  white-space: pre-wrap;
+                  word-break: break-word;
+                  padding: 12px;
+                  border-radius: 8px;
+                  background: #020617;
+                  color: #f8fafc;
+                "></code>
+              </section>
+            </main>
+          `;
+          const code = root.querySelector("code");
+          if (code) {
+            code.textContent = detail;
+          }
+        };
+
+        window.addEventListener(
+          "error",
+          (event) => {
+            const target = event.target;
+            if (target instanceof HTMLScriptElement) {
+              showStartupError(`Script failed: ${target.src || "unknown"}`);
+            }
+          },
+          true,
+        );
+
+        window.addEventListener("unhandledrejection", (event) => {
+          showStartupError(String(event.reason?.message || event.reason || "Startup module failed"));
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

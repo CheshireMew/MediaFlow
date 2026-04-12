@@ -9,7 +9,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "electron:build": "tsc -p tsconfig.electron.json",
-    "electron:dev": "tsc -p tsconfig.electron.json && concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env IS_DEV=true electron .\"",
+    "electron:dev": "tsc -p tsconfig.electron.json && concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173/index.html && cross-env IS_DEV=true electron .\"",
     "test": "vitest run"
   },
   "dependencies": {

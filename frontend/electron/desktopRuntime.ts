@@ -1,7 +1,7 @@
 import { app } from "electron";
 import path from "path";
 
-const DESKTOP_DEV_SERVER_URL = "http://localhost:5173";
+const DESKTOP_DEV_SERVER_URL = "http://127.0.0.1:5173";
 const DESKTOP_RUNTIME_DIRNAME = "runtime";
 const MEDIAFLOW_RUNTIME_DIR_ENV = "MEDIAFLOW_RUNTIME_DIR";
 
