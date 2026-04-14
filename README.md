@@ -135,3 +135,20 @@ npm run test
 - **Refactor**: 这里的代码库经历了深度重构，提升了可维护性和扩展性。
 - **Settings**: 新增 LLM 供应商预设、独立翻译目标语言、默认下载目录、测试连接与本地加密/明文回退标记。
 
+## ⭐ Star History
+
+<picture>
+  <source
+    media="(prefers-color-scheme: dark)"
+    srcset="https://api.star-history.com/svg?repos=CheshireMew/MediaFlow&type=Date&theme=dark"
+  />
+  <source
+    media="(prefers-color-scheme: light)"
+    srcset="https://api.star-history.com/svg?repos=CheshireMew/MediaFlow&type=Date"
+  />
+  <img
+    alt="Star History Chart"
+    src="https://api.star-history.com/svg?repos=CheshireMew/MediaFlow&type=Date"
+  />
+</picture>
+
