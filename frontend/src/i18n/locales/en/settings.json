@@ -35,12 +35,17 @@
     "testSucceeded": "Connection test succeeded",
     "testFailed": "Connection test failed",
     "testMissingFields": "Fill in the base URL, API key, and model first",
+    "reasoningMode": "Reasoning Mode",
     "presetCustomDesc": "Manually enter the API base URL and model",
     "presets": {
-      "openai": "OpenAI / GPT",
       "deepseek": "DeepSeek",
-      "openrouter": "OpenRouter",
-      "custom": "Custom"
+      "openai": "OpenAI",
+      "google-gemini": "Google Gemini",
+      "anthropic-claude": "Anthropic Claude",
+      "glm": "GLM",
+      "minimax": "MiniMax",
+      "siliconflow": "SiliconFlow",
+      "custom-local": "Custom / Local"
     }
   },
   "general": {

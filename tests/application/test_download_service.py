@@ -1,7 +1,5 @@
-from backend.application.download_service import (
-    DesktopDownloadFlowRequest,
-    execute_desktop_download,
-)
+from backend.application.desktop_download_flow_service import DesktopDownloadFlowRequest
+from backend.application.download_service import execute_desktop_download
 
 
 class FakeDesktopFlowService:
@@ -45,7 +43,7 @@ def test_execute_desktop_download_injects_runtime_services(monkeypatch):
         return FakeDesktopFlowService(**kwargs)
 
     monkeypatch.setattr(
-        "backend.application.download_service.DesktopDownloadFlowService",
+        "backend.application.desktop_download_flow_service.DesktopDownloadFlowService",
         fake_factory,
     )
 

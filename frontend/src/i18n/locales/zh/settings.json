@@ -35,12 +35,17 @@
     "testSucceeded": "连接测试成功",
     "testFailed": "连接测试失败",
     "testMissingFields": "请先填写接口地址、API 密钥和模型名称",
+    "reasoningMode": "推理模式",
     "presetCustomDesc": "手动填写接口地址和模型",
     "presets": {
-      "openai": "OpenAI / GPT",
       "deepseek": "DeepSeek",
-      "openrouter": "OpenRouter",
-      "custom": "自定义"
+      "openai": "OpenAI",
+      "google-gemini": "Google Gemini",
+      "anthropic-claude": "Anthropic Claude",
+      "glm": "GLM",
+      "minimax": "MiniMax",
+      "siliconflow": "SiliconFlow",
+      "custom-local": "Custom / Local"
     }
   },
   "general": {

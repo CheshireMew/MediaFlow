@@ -1,11 +1,11 @@
 import asyncio
+from typing import TYPE_CHECKING
 
-from backend.application.desktop_download_flow_service import (
-    DesktopDownloadFlowRequest,
-    DesktopDownloadFlowService,
-)
 from backend.core.runtime_access import RuntimeServices
 from backend.models.schemas import AnalyzeResult, PipelineRequest
+
+if TYPE_CHECKING:
+    from backend.application.desktop_download_flow_service import DesktopDownloadFlowRequest
 
 
 async def submit_download_pipeline(req: PipelineRequest) -> dict:
@@ -26,10 +26,12 @@ def save_cookies(domain: str, cookies: list[dict]) -> dict[str, str | bool]:
 
 
 def execute_desktop_download(
-    request: DesktopDownloadFlowRequest,
+    request: "DesktopDownloadFlowRequest",
     *,
     progress_callback,
 ):
+    from backend.application.desktop_download_flow_service import DesktopDownloadFlowService
+
     return asyncio.run(
         DesktopDownloadFlowService(
             downloader=RuntimeServices.downloader(),

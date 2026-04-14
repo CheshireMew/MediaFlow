@@ -8,9 +8,6 @@ echo ==========================================
 echo [1/2] Launching Backend (Python)...
 start "MediaFlow Backend" cmd /k "npm run backend:dev"
 
-:: Wait for backend to potentially initialize
-timeout /t 2 /nobreak >nul
-
 :: 2. Start Frontend Application
 echo [2/2] Launching Frontend (Electron)...
 start "MediaFlow Frontend" cmd /k "npm run dev"

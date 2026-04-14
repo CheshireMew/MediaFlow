@@ -3,10 +3,10 @@ import sys
 from importlib import import_module
 from typing import Optional
 
-from openai import OpenAI
-
 from backend.core.runtime_access import RuntimeServices
 from backend.services.settings_manager import LLMProvider, UserSettings
+
+OpenAI = None
 
 
 class SettingsApplicationService:
@@ -38,6 +38,12 @@ class SettingsApplicationService:
             raise ValueError("API key is required")
         if not model.strip():
             raise ValueError("Model is required")
+        client_factory = OpenAI
+        if client_factory is None:
+            from openai import OpenAI as imported_openai
+
+            globals()["OpenAI"] = imported_openai
+            client_factory = imported_openai
 
         provider = LLMProvider(
             id="test-provider",
@@ -47,7 +53,7 @@ class SettingsApplicationService:
             model=model,
             is_active=False,
         )
-        client = OpenAI(
+        client = client_factory(
             api_key=provider.api_key,
             base_url=provider.base_url,
             timeout=15.0,

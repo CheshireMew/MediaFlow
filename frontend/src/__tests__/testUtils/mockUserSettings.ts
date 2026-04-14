@@ -12,7 +12,7 @@ export function createMockUserSettings(
           name: "OpenAI",
           base_url: "https://api.openai.com/v1",
           api_key: "test-api-key",
-          model: "gpt-4o-mini",
+          model: "gpt-4o",
           is_active: true,
         },
       ],

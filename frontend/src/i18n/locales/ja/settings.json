@@ -35,12 +35,17 @@
     "testSucceeded": "接続テストに成功しました",
     "testFailed": "接続テストに失敗しました",
     "testMissingFields": "ベース URL、API キー、モデル名を先に入力してください",
+    "reasoningMode": "推論モード",
     "presetCustomDesc": "ベース URL とモデルを手動入力します",
     "presets": {
-      "openai": "OpenAI / GPT",
       "deepseek": "DeepSeek",
-      "openrouter": "OpenRouter",
-      "custom": "カスタム"
+      "openai": "OpenAI",
+      "google-gemini": "Google Gemini",
+      "anthropic-claude": "Anthropic Claude",
+      "glm": "GLM",
+      "minimax": "MiniMax",
+      "siliconflow": "SiliconFlow",
+      "custom-local": "Custom / Local"
     }
   },
   "general": {

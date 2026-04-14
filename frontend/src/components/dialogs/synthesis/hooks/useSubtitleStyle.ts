@@ -94,6 +94,7 @@ export function useSubtitleStyle(
   const [subPos, setSubPos] = useState({ ...DEFAULT_SUBTITLE_POSITION });
 
   const isInitialized = useRef(false);
+  const videoHeightRef = useRef(videoHeight);
   const lastRecommendedVideoKey = useRef<string | null>(null);
   const lastManualFontSizeVideoKey = useRef<string | null>(null);
 
@@ -130,6 +131,10 @@ export function useSubtitleStyle(
     ? null
     : `字体 "${fontName}" 当前不可用，预览可能回退到替代字体。`;
 
+  useEffect(() => {
+    videoHeightRef.current = videoHeight;
+  }, [videoHeight]);
+
   // --- Restore from localStorage ---
   useEffect(() => {
     if (!isOpen) {
@@ -148,7 +153,7 @@ export function useSubtitleStyle(
 
       try {
         const subtitleStyle = persistedPreferences.subtitleStyle;
-        const recommendedFontSize = computeDefaultSubtitleFontSize(videoHeight);
+        const recommendedFontSize = computeDefaultSubtitleFontSize(videoHeightRef.current);
 
         setCustomPresets(subtitleStyle.customPresets);
         lastRecommendedVideoKey.current = null;

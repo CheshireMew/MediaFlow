@@ -8,36 +8,20 @@ import { fileService } from "../services/fileService";
 import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay, Globe, Scissors, Wrench } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "../i18n";
 import {
+    CUSTOM_LLM_PROVIDER_PRESET_KEY,
+    DEFAULT_LLM_PROVIDER_PRESET_KEY,
+    LLM_PROVIDER_PRESETS,
+    detectLlmProviderPreset,
+    getLlmProviderPreset,
+    isDeepSeekReasoningModel,
+    resolveLlmProviderModel,
+    supportsReasoningMode,
+    type LLMProviderPresetKey,
+} from "../config/llmProviderPresets";
+import {
     DEFAULT_SMART_SPLIT_TEXT_LIMIT,
     normalizeSmartSplitTextLimit,
 } from "../utils/subtitleSmartSplit";
-
-const PROVIDER_PRESETS = [
-    {
-        key: "openai",
-        name: "OpenAI",
-        base_url: "https://api.openai.com/v1",
-        model: "gpt-4o-mini",
-    },
-    {
-        key: "deepseek",
-        name: "DeepSeek",
-        base_url: "https://api.deepseek.com/v1",
-        model: "deepseek-chat",
-    },
-    {
-        key: "openrouter",
-        name: "OpenRouter",
-        base_url: "https://openrouter.ai/api/v1",
-        model: "openai/gpt-4o-mini",
-    },
-    {
-        key: "custom",
-        name: "",
-        base_url: "",
-        model: "",
-    },
-] as const;
 
 interface Notification {
     message: string;
@@ -60,13 +44,14 @@ const SettingsPage: React.FC = () => {
     const [isTestingConnection, setIsTestingConnection] = useState(false);
     const [isUpdatingYtDlp, setIsUpdatingYtDlp] = useState(false);
     const [ytDlpUpdateInfo, setYtDlpUpdateInfo] = useState<ToolUpdateResponse | null>(null);
-    const [selectedProviderPreset, setSelectedProviderPreset] = useState<(typeof PROVIDER_PRESETS)[number]["key"]>("openai");
+    const [selectedProviderPreset, setSelectedProviderPreset] = useState<LLMProviderPresetKey>(DEFAULT_LLM_PROVIDER_PRESET_KEY);
+    const [deepSeekReasoningMode, setDeepSeekReasoningMode] = useState(false);
     const [smartSplitTextLimitInput, setSmartSplitTextLimitInput] = useState(String(DEFAULT_SMART_SPLIT_TEXT_LIMIT));
     
     // Form State
     const [editingProvider, setEditingProvider] = useState<LLMProvider | null>(null);
     const [formData, setFormData] = useState<Partial<LLMProvider>>({
-        name: "", base_url: "https://api.openai.com/v1", api_key: "", model: "gpt-3.5-turbo"
+        name: "DeepSeek", base_url: "https://api.deepseek.com/v1", api_key: "", model: "deepseek-chat"
     });
 
     const showNotification = (message: string, type: "success" | "error" = "success") => {
@@ -125,6 +110,19 @@ const SettingsPage: React.FC = () => {
 
     const handleSaveProvider = async () => {
         if (!settings) return;
+
+        const preset = getLlmProviderPreset(selectedProviderPreset);
+        const normalizedProvider = {
+            name: formData.name?.trim() || preset.label,
+            base_url: formData.base_url?.trim() || "",
+            api_key: formData.api_key?.trim() || "",
+            model: formData.model?.trim() || "",
+        };
+
+        if (!normalizedProvider.base_url || !normalizedProvider.api_key || !normalizedProvider.model) {
+            showNotification(t("llm.testMissingFields"), "error");
+            return;
+        }
         
         const newProviders = [...settings.llm_providers];
         
@@ -132,7 +130,7 @@ const SettingsPage: React.FC = () => {
             // Edit existing
             const index = newProviders.findIndex(p => p.id === editingProvider.id);
             if (index !== -1) {
-                newProviders[index] = { ...editingProvider, ...formData } as LLMProvider;
+                newProviders[index] = { ...editingProvider, ...normalizedProvider } as LLMProvider;
             }
         } else {
             // Add new
@@ -140,7 +138,7 @@ const SettingsPage: React.FC = () => {
             newProviders.push({ 
                 id: newId, 
                 is_active: false,
-                ...formData 
+                ...normalizedProvider
             } as LLMProvider);
         }
 
@@ -198,50 +196,73 @@ const SettingsPage: React.FC = () => {
         }
     };
 
-    const detectProviderPreset = (provider?: Partial<LLMProvider> | null) => {
-        if (!provider?.base_url) return "custom" as const;
-        const matched = PROVIDER_PRESETS.find(
-            (preset) => preset.key !== "custom" && preset.base_url === provider.base_url,
-        );
-        return matched?.key || "custom";
-    };
-
     const applyProviderPreset = (
-        presetKey: (typeof PROVIDER_PRESETS)[number]["key"],
-        current?: Partial<LLMProvider>,
+        presetKey: LLMProviderPresetKey,
+        reasoningMode = false,
     ) => {
-        const preset = PROVIDER_PRESETS.find((item) => item.key === presetKey);
-        if (!preset) return;
+        const preset = getLlmProviderPreset(presetKey);
+        const nextReasoningMode = supportsReasoningMode(presetKey) && reasoningMode;
 
         setSelectedProviderPreset(presetKey);
+        setDeepSeekReasoningMode(nextReasoningMode);
         setFormData((prev) => ({
             ...prev,
-            ...current,
             name:
-                preset.key === "custom"
-                    ? current?.name ?? prev.name ?? ""
-                    : preset.name,
-            base_url: preset.base_url,
-            model: preset.model,
-            api_key: current?.api_key ?? prev.api_key ?? "",
+                preset.key === CUSTOM_LLM_PROVIDER_PRESET_KEY
+                    ? (prev.name?.trim() && !LLM_PROVIDER_PRESETS.some((item) => item.label === prev.name?.trim())
+                        ? prev.name
+                        : preset.label)
+                    : preset.label,
+            base_url: preset.baseUrl,
+            model: resolveLlmProviderModel(presetKey, nextReasoningMode),
         }));
     };
 
+    const setDeepSeekReasoning = (enabled: boolean) => {
+        setDeepSeekReasoningMode(enabled);
+        setFormData((prev) => ({
+            ...prev,
+            model: resolveLlmProviderModel("deepseek", enabled),
+        }));
+    };
+
+    const handleBaseUrlChange = (base_url: string) => {
+        const nextPreset = detectLlmProviderPreset(base_url);
+        setSelectedProviderPreset(nextPreset);
+        if (nextPreset === "deepseek") {
+            setDeepSeekReasoningMode(isDeepSeekReasoningModel(formData.model));
+        } else if (!supportsReasoningMode(nextPreset)) {
+            setDeepSeekReasoningMode(false);
+        }
+        setFormData((prev) => ({ ...prev, base_url }));
+    };
+
+    const handleModelChange = (model: string) => {
+        setFormData((prev) => ({ ...prev, model }));
+        if (selectedProviderPreset === "deepseek") {
+            setDeepSeekReasoningMode(isDeepSeekReasoningModel(model));
+        }
+    };
+
     const openAdd = () => {
+        const preset = getLlmProviderPreset(DEFAULT_LLM_PROVIDER_PRESET_KEY);
         setEditingProvider(null);
-        setSelectedProviderPreset("openai");
+        setSelectedProviderPreset(DEFAULT_LLM_PROVIDER_PRESET_KEY);
+        setDeepSeekReasoningMode(false);
         setFormData({
-            name: "OpenAI",
-            base_url: "https://api.openai.com/v1",
+            name: preset.label,
+            base_url: preset.baseUrl,
             api_key: "",
-            model: "gpt-4o-mini",
+            model: preset.defaultModel,
         });
         setOpenModal(true);
     };
 
     const openEdit = (provider: LLMProvider) => {
+        const presetKey = detectLlmProviderPreset(provider.base_url);
         setEditingProvider(provider);
-        setSelectedProviderPreset(detectProviderPreset(provider));
+        setSelectedProviderPreset(presetKey);
+        setDeepSeekReasoningMode(presetKey === "deepseek" && isDeepSeekReasoningModel(provider.model));
         setFormData(provider);
         setOpenModal(true);
     };
@@ -685,11 +706,11 @@ const SettingsPage: React.FC = () => {
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.providerPreset")}</label>
                                 <div className="grid grid-cols-2 gap-2">
-                                    {PROVIDER_PRESETS.map((preset) => (
+                                    {LLM_PROVIDER_PRESETS.map((preset) => (
                                         <button
                                             key={preset.key}
                                             type="button"
-                                            onClick={() => applyProviderPreset(preset.key, editingProvider ?? formData)}
+                                            onClick={() => applyProviderPreset(preset.key)}
                                             className={`rounded-lg border px-3 py-2 text-left transition-colors ${
                                                 selectedProviderPreset === preset.key
                                                     ? "border-indigo-500/50 bg-indigo-500/10 text-white"
@@ -700,14 +721,40 @@ const SettingsPage: React.FC = () => {
                                                 {t(`llm.presets.${preset.key}`)}
                                             </div>
                                             <div className="mt-1 text-[10px] text-slate-500">
-                                                {preset.key === "custom"
+                                                {preset.key === CUSTOM_LLM_PROVIDER_PRESET_KEY
                                                     ? t("llm.presetCustomDesc")
-                                                    : preset.model}
+                                                    : preset.defaultModel}
                                             </div>
                                         </button>
                                     ))}
                                 </div>
                             </div>
+
+                            {selectedProviderPreset === "deepseek" && (
+                                <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                                    <div>
+                                        <div className="text-sm font-medium text-slate-200">{t("llm.reasoningMode")}</div>
+                                        <div className="text-[10px] text-slate-500">
+                                            {deepSeekReasoningMode ? "deepseek-reasoner" : "deepseek-chat"}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={deepSeekReasoningMode}
+                                        onClick={() => setDeepSeekReasoning(!deepSeekReasoningMode)}
+                                        className={`relative h-6 w-11 rounded-full transition-colors ${
+                                            deepSeekReasoningMode ? "bg-indigo-500" : "bg-white/10"
+                                        }`}
+                                    >
+                                        <span
+                                            className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${
+                                                deepSeekReasoningMode ? "translate-x-5" : "translate-x-1"
+                                            }`}
+                                        />
+                                    </button>
+                                </div>
+                            )}
 
                             <div className="space-y-1.5">
                                 <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.displayName")}</label>
@@ -724,7 +771,7 @@ const SettingsPage: React.FC = () => {
                                 <input 
                                     className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-600"
                                     value={formData.base_url}
-                                    onChange={(e) => setFormData({...formData, base_url: e.target.value})}
+                                    onChange={(e) => handleBaseUrlChange(e.target.value)}
                                     placeholder="https://api.openai.com/v1"
                                 />
                             </div>
@@ -745,7 +792,7 @@ const SettingsPage: React.FC = () => {
                                 <input 
                                     className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-600"
                                     value={formData.model}
-                                    onChange={(e) => setFormData({...formData, model: e.target.value})}
+                                    onChange={(e) => handleModelChange(e.target.value)}
                                     placeholder="e.g. gpt-4o, deepseek-chat"
                                 />
                             </div>
