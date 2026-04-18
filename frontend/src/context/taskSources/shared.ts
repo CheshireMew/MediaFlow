@@ -6,7 +6,6 @@ import {
   type TaskOwnerMode,
 } from "../../contracts/runtimeContracts";
 import { reportTaskSourceIssue } from "./diagnostics";
-import { normalizeLegacyTaskMediaContract } from "../../services/tasks/taskMediaResolver";
 import { isTaskActive } from "../../services/tasks/taskRuntimeState";
 
 export const SUPPORTED_TASK_CONTRACT_VERSION = TASK_CONTRACT_VERSION;
@@ -30,24 +29,23 @@ export function hasSupportedTaskContract(task: Task) {
 }
 
 export function normalizeTaskContract(task: Task): Task {
-  const { task: legacyNormalizedTask, normalizedFromLegacy } =
-    normalizeLegacyTaskMediaContract(task);
   const taskSource =
-    legacyNormalizedTask.task_source ??
-    (isDesktopTask(legacyNormalizedTask) ? "desktop" : "backend");
-  const persistenceScope = legacyNormalizedTask.persistence_scope ?? "runtime";
+    task.task_source ??
+    (isDesktopTask(task) ? "desktop" : "backend");
+  const persistenceScope = task.persistence_scope ?? "runtime";
   return {
-    ...legacyNormalizedTask,
+    ...task,
     task_source: taskSource,
     task_contract_version:
-      legacyNormalizedTask.task_contract_version ?? SUPPORTED_TASK_CONTRACT_VERSION,
-    task_contract_normalized_from_legacy: normalizedFromLegacy,
+      task.task_contract_version ?? SUPPORTED_TASK_CONTRACT_VERSION,
+    task_contract_normalized_from_legacy:
+      task.task_contract_normalized_from_legacy ?? false,
     lifecycle:
-      legacyNormalizedTask.lifecycle ??
+      task.lifecycle ??
       getTaskLifecycle({
         taskSource,
         persistenceScope,
-        status: legacyNormalizedTask.status,
+        status: task.status,
       }),
   };
 }

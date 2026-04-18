@@ -4,72 +4,89 @@ from typing import Any
 
 from backend.core.container import Services, container
 
+_runtime_container = None
+
+
+def configure_runtime_services(service_container) -> None:
+    global _runtime_container
+    _runtime_container = service_container
+
+
+def reset_runtime_services() -> None:
+    global _runtime_container
+    _runtime_container = None
+
+
+def _get_runtime_container():
+    return _runtime_container or container
+
+
 class RuntimeServices:
     """Single access point for runtime services used by task execution flows."""
 
     @staticmethod
     def task_manager():
-        return container.get(Services.TASK_MANAGER)
+        return _get_runtime_container().get(Services.TASK_MANAGER)
 
     @staticmethod
     def pipeline_runner():
-        return container.get(Services.PIPELINE)
+        return _get_runtime_container().get(Services.PIPELINE)
 
     @staticmethod
     def task_orchestrator():
-        return container.get(Services.TASK_ORCHESTRATOR)
+        return _get_runtime_container().get(Services.TASK_ORCHESTRATOR)
 
     @staticmethod
     def asr():
-        return container.get(Services.ASR)
+        return _get_runtime_container().get(Services.ASR)
 
     @staticmethod
     def downloader():
-        return container.get(Services.DOWNLOADER)
+        return _get_runtime_container().get(Services.DOWNLOADER)
 
     @staticmethod
     def translator():
-        return container.get(Services.LLM_TRANSLATOR)
+        return _get_runtime_container().get(Services.LLM_TRANSLATOR)
 
     @staticmethod
     def video_synthesizer():
-        return container.get(Services.VIDEO_SYNTHESIZER)
+        return _get_runtime_container().get(Services.VIDEO_SYNTHESIZER)
 
     @staticmethod
     def enhancer():
-        return container.get(Services.ENHANCER)
+        return _get_runtime_container().get(Services.ENHANCER)
 
     @staticmethod
     def cleaner():
-        return container.get(Services.CLEANER)
+        return _get_runtime_container().get(Services.CLEANER)
 
     @staticmethod
     def analyzer():
-        return container.get(Services.ANALYZER)
+        return _get_runtime_container().get(Services.ANALYZER)
 
     @staticmethod
     def ws_notifier():
-        return container.get(Services.WS_NOTIFIER)
+        return _get_runtime_container().get(Services.WS_NOTIFIER)
 
     @staticmethod
     def settings_manager():
-        return container.get(Services.SETTINGS_MANAGER)
+        return _get_runtime_container().get(Services.SETTINGS_MANAGER)
 
     @staticmethod
     def glossary():
-        return container.get(Services.GLOSSARY)
+        return _get_runtime_container().get(Services.GLOSSARY)
 
     @staticmethod
     def cookie_manager():
-        return container.get(Services.COOKIE_MANAGER)
+        return _get_runtime_container().get(Services.COOKIE_MANAGER)
 
     @staticmethod
     def browser():
-        return container.get(Services.BROWSER)
+        return _get_runtime_container().get(Services.BROWSER)
 
     @staticmethod
     def sniffer():
-        return container.get(Services.SNIFFER)
+        return _get_runtime_container().get(Services.SNIFFER)
 
 
 class TaskRuntimeContext:

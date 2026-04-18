@@ -11,6 +11,7 @@ from json_repair import repair_json
 from loguru import logger
 from backend.models.schemas import SubtitleSegment
 from backend.config import settings
+from backend.services.translator.text_normalizer import normalize_text_for_target_language
 
 # --- Schemas for Structured Output ---
 
@@ -202,7 +203,10 @@ class LLMTranslator:
     # --- Validation ---
 
     def _validate_response(
-        self, resp: TranslationResponse, segments: List[SubtitleSegment]
+        self,
+        resp: TranslationResponse,
+        segments: List[SubtitleSegment],
+        target_language: str,
     ) -> tuple[bool, str, List[SubtitleSegment]]:
         expected_ids = [str(s.id) for s in segments]
         expected_source_texts = [s.text for s in segments]
@@ -248,7 +252,12 @@ class LLMTranslator:
                 )
                 return False, error, []
             result = [
-                self._map_seg(orig, translated.text)
+                self._map_seg(
+                    orig,
+                    translated.text,
+                    target_language=target_language,
+                    source_text=translated.source_text,
+                )
                 for orig, translated in zip(segments, resp.segments, strict=False)
             ]
             return True, "", result
@@ -271,9 +280,19 @@ class LLMTranslator:
         return False, error, []
 
     @staticmethod
-    def _map_seg(original: SubtitleSegment, translated_text: str) -> SubtitleSegment:
+    def _map_seg(
+        original: SubtitleSegment,
+        translated_text: str,
+        *,
+        target_language: Optional[str] = None,
+        source_text: Optional[str] = None,
+    ) -> SubtitleSegment:
         new = original.model_copy()
-        new.text = translated_text
+        new.text = normalize_text_for_target_language(
+            translated_text,
+            target_language=target_language,
+            source_text=source_text or original.text,
+        )
         return new
 
     @staticmethod
@@ -531,7 +550,13 @@ class LLMTranslator:
                 )
                 translated_text = self._extract_plain_text_from_completion(completion)
                 if translated_text:
-                    result.append(self._map_seg(seg, translated_text))
+                    result.append(
+                        self._map_seg(
+                            seg,
+                            translated_text,
+                            target_language=target_language,
+                        )
+                    )
                 else:
                     logger.warning(f"[LLM] Single-line returned empty text for [{seg.id}], keeping source text")
                     cacheable = False
@@ -604,7 +629,7 @@ class LLMTranslator:
         self._log_llm_response(mode_label, resp)
         logger.info(f"[LLM IO] {mode_label}: input {n}, output {len(resp.segments)}")
 
-        is_valid, error_msg, mapped = self._validate_response(resp, segments)
+        is_valid, error_msg, mapped = self._validate_response(resp, segments, target_language)
         if is_valid:
             return TranslationOutcome(segments=mapped, cacheable=True)
 
@@ -645,7 +670,24 @@ class LLMTranslator:
         if mode in ("standard", "proofread"):
             cached = self._cache.get(subtitle_dict, model_name, target_language, mode)
             if cached:
-                return [self._map_seg(seg, cached.get(str(seg.id), seg.text)) for seg in segments]
+                normalized_cached = {
+                    str(seg.id): self._map_seg(
+                        seg,
+                        cached.get(str(seg.id), seg.text),
+                        target_language=target_language,
+                    ).text
+                    for seg in segments
+                }
+                if normalized_cached != cached:
+                    self._cache.put(subtitle_dict, model_name, target_language, mode, normalized_cached)
+                return [
+                    self._map_seg(
+                        seg,
+                        normalized_cached.get(str(seg.id), seg.text),
+                        target_language=target_language,
+                    )
+                    for seg in segments
+                ]
 
         # --- Build user content with optional context ---
         if context_before and mode != "intelligent":
@@ -821,7 +863,11 @@ Rules:
                     seg_end = total_end
                 new_segments.append(SubtitleSegment(
                     id=str(start_id + i),
-                    text=seg.text,
+                    text=normalize_text_for_target_language(
+                        seg.text,
+                        target_language=target_language,
+                        source_text=None,
+                    ),
                     start=round(seg_start, 3),
                     end=round(seg_end, 3)
                 ))

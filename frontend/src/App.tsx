@@ -127,17 +127,13 @@ function routeElement(
     | "translator"
     | "preprocessing"
     | "settings",
-  useTaskProvider: boolean = false,
 ) {
   const requiresBackend = variant === "editor" && !isDesktopRuntime();
 
   if (appReady && (!requiresBackend || remoteBackendReady)) {
-    const pageContent = useTaskProvider
-      ? <TaskProvider enabled={remoteBackendReady}>{page}</TaskProvider>
-      : page;
     return (
       <Suspense fallback={<StartupPlaceholderPage variant={variant} message={startupMessage} />}>
-        {pageContent}
+        {page}
       </Suspense>
     );
   }
@@ -150,58 +146,63 @@ function App({
   remoteBackendReady = true,
   startupMessage = "",
 }: AppProps) {
+  const desktopRuntime = isDesktopRuntime();
+  const taskProviderEnabled = appReady && (desktopRuntime || remoteBackendReady);
+
   return (
-    <TaskSummaryProvider enabled={appReady}>
-      <HashRouter>
-        <ExternalNavListener />
-        <ToastContainer />
-        <Layout>
-          <ErrorBoundary>
-            <Routes>
-              <Route
-                path="/"
-                element={<Navigate to={resolveCurrentNavigationPath()} replace />}
-              />
-              <Route
-                path="/editor"
-                element={routeElement(appReady, remoteBackendReady, startupMessage, <EditorPage />, "editor", true)}
-              />
-              <Route
-                path="/dashboard"
-                element={routeElement(appReady, remoteBackendReady, startupMessage, <DashboardPage />, "dashboard", true)}
-              />
-              <Route
-                path="/downloader"
-                element={routeElement(appReady, remoteBackendReady, startupMessage, <DownloaderPage />, "downloader", true)}
-              />
-              <Route
-                path="/transcriber"
-                element={routeElement(appReady, remoteBackendReady, startupMessage, <TranscriberPage />, "transcriber", true)}
-              />
-              <Route
-                path="/translator"
-                element={routeElement(appReady, remoteBackendReady, startupMessage, <TranslatorPage />, "translator", true)}
-              />
-              {ENABLE_EXPERIMENTAL_PREPROCESSING && (
+    <TaskProvider enabled={taskProviderEnabled}>
+      <TaskSummaryProvider enabled={appReady}>
+        <HashRouter>
+          <ExternalNavListener />
+          <ToastContainer />
+          <Layout>
+            <ErrorBoundary>
+              <Routes>
                 <Route
-                  path="/preprocessing"
-                  element={routeElement(appReady, remoteBackendReady, startupMessage, <PreprocessingPage />, "preprocessing", true)}
+                  path="/"
+                  element={<Navigate to={resolveCurrentNavigationPath()} replace />}
                 />
-              )}
-              <Route
-                path="/settings"
-                element={routeElement(appReady, remoteBackendReady, startupMessage, <SettingsPage />, "settings")}
-              />
-              <Route
-                path="*"
-                element={routeElement(appReady, remoteBackendReady, startupMessage, <DownloaderPage />, "downloader", true)}
-              />
-            </Routes>
-          </ErrorBoundary>
-        </Layout>
-        <NavigationStateSync />
-      </HashRouter>
-    </TaskSummaryProvider>
+                <Route
+                  path="/editor"
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, <EditorPage />, "editor")}
+                />
+                <Route
+                  path="/dashboard"
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, <DashboardPage />, "dashboard")}
+                />
+                <Route
+                  path="/downloader"
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, <DownloaderPage />, "downloader")}
+                />
+                <Route
+                  path="/transcriber"
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, <TranscriberPage />, "transcriber")}
+                />
+                <Route
+                  path="/translator"
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, <TranslatorPage />, "translator")}
+                />
+                {ENABLE_EXPERIMENTAL_PREPROCESSING && (
+                  <Route
+                    path="/preprocessing"
+                    element={routeElement(appReady, remoteBackendReady, startupMessage, <PreprocessingPage />, "preprocessing")}
+                  />
+                )}
+                <Route
+                  path="/settings"
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, <SettingsPage />, "settings")}
+                />
+                <Route
+                  path="*"
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, <DownloaderPage />, "downloader")}
+                />
+              </Routes>
+            </ErrorBoundary>
+          </Layout>
+          <NavigationStateSync />
+        </HashRouter>
+      </TaskSummaryProvider>
+    </TaskProvider>
   );
 }
 

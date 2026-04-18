@@ -141,6 +141,26 @@ describe("editor subtitle behaviors", () => {
     expect(result.segments[1].text.length).toBeGreaterThan(0);
   });
 
+  test("smart split keeps english words intact inside mixed CJK subtitles", () => {
+    const input = [
+      {
+        id: "1",
+        start: 0,
+        end: 6,
+        text: "但他不允许史蒂夫·乔布斯对 Apple One 电脑做任何改动这真的非常离谱",
+      },
+    ];
+
+    const result = smartSplitSubtitleSegments(input, { textLimit: 24 });
+    const joined = result.segments.map((segment) => segment.text).join("|");
+
+    expect(result.splitCount).toBe(1);
+    expect(result.segments).toHaveLength(2);
+    expect(joined.includes("Ap|ple")).toBe(false);
+    expect(joined.includes("O|ne")).toBe(false);
+    expect(result.segments.some((segment) => segment.text.includes("Apple"))).toBe(true);
+  });
+
   test("smart split can use a balanced comma boundary even below the length threshold", () => {
     const input = [
       {

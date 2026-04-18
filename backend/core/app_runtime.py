@@ -4,6 +4,7 @@ from loguru import logger
 from backend.config import settings
 from backend.core.container import Services
 from backend.core.database import shutdown_db
+from backend.core.runtime_access import configure_runtime_services, reset_runtime_services
 from backend.core.service_registry import register_all_services
 from backend.core.tasks.registry import (
     register_all_task_handlers,
@@ -24,6 +25,7 @@ class ApplicationRuntime:
 
     async def start(self) -> int:
         registered_count = self.register_services()
+        configure_runtime_services(self._container)
         self.register_task_handlers()
         await self._container.get(Services.TASK_MANAGER).warm_start_async()
         return registered_count
@@ -34,6 +36,7 @@ class ApplicationRuntime:
         if self._container.is_instantiated(Services.BROWSER):
             await self._container.get(Services.BROWSER).stop()
         await shutdown_db()
+        reset_runtime_services()
         self._container.reset()
 
 

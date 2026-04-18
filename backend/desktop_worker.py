@@ -6,13 +6,17 @@ from loguru import logger
 from pydantic import ValidationError
 
 from backend.config import settings
-from backend.desktop import commands  # noqa: F401
-from backend.desktop.command_registry import dispatch_worker_command
+from backend.desktop.command_registry import (
+    command_requires_runtime,
+    dispatch_worker_command,
+)
 from backend.desktop.worker_context import emit, emit_error
 from backend.core.container import container
+from backend.core.runtime_access import configure_runtime_services
 from backend.core.service_registry import register_desktop_worker_services
 
 DESKTOP_WORKER_PROTOCOL_VERSION = 1
+_worker_runtime_bootstrapped = False
 
 def configure_worker_stdio() -> None:
     reconfigure_in = getattr(sys.stdin, "reconfigure", None)
@@ -58,10 +62,15 @@ def configure_worker_logging() -> None:
     )
 
 
-def bootstrap_worker() -> None:
+def ensure_worker_runtime_bootstrapped() -> None:
+    global _worker_runtime_bootstrapped
+    if _worker_runtime_bootstrapped:
+        return
     settings.init_dirs()
     container.clear()
     register_desktop_worker_services(container)
+    configure_runtime_services(container)
+    _worker_runtime_bootstrapped = True
 
 
 def handle_request(request: dict[str, object]) -> None:
@@ -86,6 +95,8 @@ def handle_request(request: dict[str, object]) -> None:
         raise ValueError("Worker command must be a string")
     if not isinstance(payload, dict):
         raise ValueError("Worker payload must be an object")
+    if command_requires_runtime(command):
+        ensure_worker_runtime_bootstrapped()
 
     dispatch_worker_command(
         command,
@@ -97,7 +108,6 @@ def handle_request(request: dict[str, object]) -> None:
 def main() -> None:
     configure_worker_stdio()
     configure_worker_logging()
-    bootstrap_worker()
     emit({"type": "ready"})
 
     for raw_line in sys.stdin:

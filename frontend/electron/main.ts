@@ -58,6 +58,7 @@ function createWindow() {
   const revealFallbackTimer = setTimeout(revealWindow, 4000);
   mainWindow.once("show", () => {
     clearTimeout(revealFallbackTimer);
+    desktopWorkerSupervisor.prewarm();
   });
   mainWindow.once("ready-to-show", () => {
     firstFrameReady = true;

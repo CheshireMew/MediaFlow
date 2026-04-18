@@ -98,6 +98,8 @@ const BAD_END_WORDS = new Set([
 
 const BAD_START_CJK = new Set(["的", "了", "呢", "吗", "は", "が", "を", "に", "で", "と", "か"]);
 const BAD_END_CJK = new Set(["的", "了", "和", "与", "及", "は", "が", "を", "に", "で", "と"]);
+const LOW_PRIORITY_PAUSE_MARKS = new Set(["、"]);
+const LOW_PRIORITY_CJK_BOUNDARIES = new Set(["的"]);
 
 const MIN_PUNCTUATION_UNITS: Record<TextProfile, number> = {
   latin: 4,
@@ -132,6 +134,10 @@ function detectTextProfile(text: string): TextProfile {
     return "latin";
   }
   return "mixed";
+}
+
+function hasLatinWords(text: string): boolean {
+  return Array.from(text.matchAll(REGEX_LATIN_WORD)).length > 0;
 }
 
 function getLastWord(text: string): string {
@@ -271,6 +277,17 @@ function getCandidatePenalty(
     penalty += 6;
   }
 
+  const prevChar = text[splitIndex - 1] ?? "";
+  if (reason === "pause" && LOW_PRIORITY_PAUSE_MARKS.has(prevChar)) {
+    penalty += 18;
+  }
+  if (prevCjk && LOW_PRIORITY_CJK_BOUNDARIES.has(prevCjk)) {
+    penalty += 12;
+  }
+  if (nextCjk && LOW_PRIORITY_CJK_BOUNDARIES.has(nextCjk)) {
+    penalty += 12;
+  }
+
   return penalty;
 }
 
@@ -294,7 +311,7 @@ function countMeaningfulUnits(text: string, profile: TextProfile): number {
 
 function countStrongBoundaries(text: string): number {
   return Array.from(text).filter((char) =>
-    [".", "?", "!", "。", "？", "！", ",", ";", ":", "，", "；", "：", "、"].includes(char),
+    [".", "?", "!", "。", "？", "！", ",", ";", ":", "，", "；", "："].includes(char),
   ).length;
 }
 
@@ -408,6 +425,39 @@ function getWeightedTokens(text: string, profile: TextProfile): WeightedToken[] 
   });
 }
 
+function shouldUseWhitespaceBoundary(text: string, profile: TextProfile): boolean {
+  return profile !== "cjk" || hasLatinWords(text);
+}
+
+function getMidpointBoundaryIndex(text: string, profile: TextProfile): number {
+  const tokens = getWeightedTokens(text, profile);
+  const midpoint = text.length / 2;
+
+  let bestIndex = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let bestPenalty = Number.POSITIVE_INFINITY;
+
+  for (const token of tokens) {
+    if (token.end <= 0 || token.end >= text.length) {
+      continue;
+    }
+
+    const distance = Math.abs(token.end - midpoint);
+    const penalty = getCandidatePenalty(text, token.end, "midpoint", profile);
+
+    if (
+      distance < bestDistance ||
+      (distance === bestDistance && penalty < bestPenalty)
+    ) {
+      bestIndex = token.end;
+      bestDistance = distance;
+      bestPenalty = penalty;
+    }
+  }
+
+  return bestIndex > 0 ? bestIndex : Math.floor(text.length / 2);
+}
+
 export function getSplitTimingRatio(text: string, splitIndex: number): number {
   if (!text) {
     return 0.5;
@@ -474,7 +524,11 @@ export function getBestSplitIndex(
       addCandidate(candidates, text, i + 1, "sentence", profile, options);
     } else if (pauseMarks.includes(char)) {
       addCandidate(candidates, text, i + 1, "pause", profile, options);
-    } else if (char === " " && profile !== "cjk" && !options.requirePunctuation) {
+    } else if (
+      char === " " &&
+      !options.requirePunctuation &&
+      shouldUseWhitespaceBoundary(text, profile)
+    ) {
       addCandidate(candidates, text, i + 1, "space", profile, options);
     }
   }
@@ -483,7 +537,7 @@ export function getBestSplitIndex(
     if (options.requirePunctuation) {
       return -1;
     }
-    return Math.floor(len / 2);
+    return getMidpointBoundaryIndex(text, profile);
   }
 
   candidates.sort((a, b) => a.score - b.score);

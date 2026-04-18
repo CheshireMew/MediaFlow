@@ -199,7 +199,7 @@ def test_validate_response_rejects_same_count_but_wrong_ids():
         ]
     )
 
-    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments)
+    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments, "Chinese")
 
     assert is_valid is False
     assert mapped == []
@@ -223,7 +223,7 @@ def test_validate_response_rejects_duplicate_ids():
         ]
     )
 
-    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments)
+    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments, "Chinese")
 
     assert is_valid is False
     assert mapped == []
@@ -295,7 +295,7 @@ def test_validate_response_rejects_empty_translated_text():
         ]
     )
 
-    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments)
+    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments, "Chinese")
 
     assert is_valid is False
     assert mapped == []
@@ -323,11 +323,29 @@ def test_validate_response_rejects_source_text_shift():
         ]
     )
 
-    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments)
+    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments, "Chinese")
 
     assert is_valid is False
     assert mapped == []
     assert "shifted across segments" in error_msg
+
+
+def test_validate_response_normalizes_casual_em_dash_for_chinese():
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(id="14", start=40.0, end=44.0, text="Line 14"),
+    ]
+    resp = TranslationResponse(
+        segments=[
+            TranslatorSegment(id="14", source_text="Line 14", text="这里——不是重点"),
+        ]
+    )
+
+    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments, "Chinese")
+
+    assert is_valid is True
+    assert error_msg == ""
+    assert mapped[0].text == "这里，不是重点"
 
 
 def test_translate_with_correction_recovers_broken_tool_call_json():
@@ -429,6 +447,48 @@ def test_translate_single_fallback_uses_plain_text_completion():
     assert result.segments[0].text == "而且我从未遇到过任何人在我打电话时说“不”或挂断电话。"
 
 
+def test_translate_single_fallback_normalizes_casual_em_dash_for_chinese():
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(
+            id="19",
+            start=54.76,
+            end=60.50,
+            text="And I've never found anyone who said no or hung up the phone when I called.",
+        ),
+    ]
+
+    completion = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content="而且——我从未遇到过任何人在我打电话时说“不”或挂断电话。",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            return completion
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=FakeCompletions())
+    )
+
+    result = llm_translator._translate_single_fallback(
+        client=client,
+        model_name="test-model",
+        segments=segments,
+        target_language="Chinese",
+        mode_label="Standard",
+    )
+
+    assert result.cacheable is True
+    assert result.segments[0].text == "而且，我从未遇到过任何人在我打电话时说“不”或挂断电话。"
+
+
 def test_translate_batch_struct_skips_cache_when_fallback_keeps_source(monkeypatch):
     llm_translator = make_translator()
     segments = [
@@ -462,6 +522,41 @@ def test_translate_batch_struct_skips_cache_when_fallback_keeps_source(monkeypat
 
     assert result == segments
     assert cache_put_calls == []
+
+
+def test_translate_batch_struct_normalizes_cached_chinese_text(monkeypatch):
+    llm_translator = make_translator()
+    segments = [
+        SubtitleSegment(id="19", start=54.76, end=60.50, text="source line"),
+    ]
+
+    monkeypatch.setattr(
+        llm_translator,
+        "_get_client",
+        lambda: (SimpleNamespace(), "test-model"),
+    )
+
+    cache_put_calls = []
+    monkeypatch.setattr(
+        llm_translator._cache,
+        "get",
+        lambda *args, **kwargs: {"19": "缓存——结果"},
+    )
+    monkeypatch.setattr(
+        llm_translator._cache,
+        "put",
+        lambda *args, **kwargs: cache_put_calls.append((args, kwargs)),
+    )
+
+    result = llm_translator._translate_batch_struct(
+        segments=segments,
+        target_language="Chinese",
+        mode="standard",
+    )
+
+    assert result[0].text == "缓存，结果"
+    assert len(cache_put_calls) == 1
+    assert cache_put_calls[0][0][-1] == {"19": "缓存，结果"}
 
 
 def test_intelligent_mode_recovers_broken_tool_call_json(monkeypatch):

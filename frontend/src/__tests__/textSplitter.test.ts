@@ -33,11 +33,32 @@ describe("text splitter heuristics", () => {
     expect(text.slice(0, splitIndex)).toContain("，");
   });
 
+  it("treats enumeration commas as lower-priority pause boundaries", () => {
+    const text =
+      "这个方案需要速度、稳定性和兼容性，后半句也需要足够长才能形成更自然的分割结果";
+
+    const splitIndex = getBestSplitIndex(text, { requirePunctuation: true });
+
+    expect(text.slice(0, splitIndex)).toBe("这个方案需要速度、稳定性和兼容性，");
+  });
+
   it("does not split a long sentence without punctuation in smart mode", () => {
     const text =
       "this is a very long subtitle sentence with plenty of words but absolutely no punctuation so smart split should leave it untouched";
 
     expect(getBestSplitIndex(text, { requirePunctuation: true })).toBe(-1);
+  });
+
+  it("keeps mixed-language latin words intact when falling back near the midpoint", () => {
+    const text = "这一句很长而且没有标点AppleOne电脑做任何改动真的非常离谱";
+
+    const splitIndex = getBestSplitIndex(text);
+
+    expect(splitIndex).toBeGreaterThan(0);
+    expect(text.slice(0, splitIndex).endsWith("Ap")).toBe(false);
+    expect(text.slice(0, splitIndex).endsWith("AppleO")).toBe(false);
+    expect(text.slice(splitIndex).startsWith("pple")).toBe(false);
+    expect(text.slice(splitIndex).startsWith("ne")).toBe(false);
   });
 
   it("only splits at a pause mark when both sides are substantial in smart mode", () => {
@@ -50,6 +71,15 @@ describe("text splitter heuristics", () => {
 
     expect(validText.slice(0, validSplitIndex)).toContain("，");
     expect(getBestSplitIndex(shortTailText, { requirePunctuation: true })).toBe(-1);
+  });
+
+  it("lowers the priority of boundaries that land right after 的", () => {
+    const text =
+      "这是一个需要反复说明的，而且前半句还没有真正结束，后半句也需要足够长才能形成完整表达";
+
+    const splitIndex = getBestSplitIndex(text, { requirePunctuation: true });
+
+    expect(text.slice(0, splitIndex)).toBe("这是一个需要反复说明的，而且前半句还没有真正结束，");
   });
 
   it("uses token-weighted timing instead of plain character ratio", () => {

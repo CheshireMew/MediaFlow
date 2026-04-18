@@ -58,6 +58,10 @@ export class DesktopWorkerSupervisor {
     this.stopDesktopWorker();
   }
 
+  prewarm() {
+    this.startDesktopWorker();
+  }
+
   listTasks() {
     this.historyStore.ensureLoaded();
     return getDesktopTaskSnapshot({

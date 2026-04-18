@@ -32,18 +32,6 @@ function normalizeTaskMediaRef(candidate: unknown): MediaReference | null {
   });
 }
 
-function createTaskMediaRef(filePath: unknown, type?: string) {
-  if (!filePath || typeof filePath !== "string" || !filePath.trim()) {
-    return null;
-  }
-
-  return createMediaReference({
-    path: filePath.trim(),
-    type,
-    origin: "task",
-  });
-}
-
 function appendPathCandidate(
   candidates: Array<string | undefined>,
   candidate: string | null | undefined,
@@ -71,105 +59,6 @@ export function getTaskStructuredMediaRefs(task: TaskWithDetails) {
     outputRef:
       normalizeTaskMediaRef(meta.output_ref) ??
       normalizeTaskMediaRef(params.output_ref),
-  };
-}
-
-export function normalizeLegacyTaskMediaContract(task: Task): {
-  task: Task;
-  normalizedFromLegacy: boolean;
-} {
-  const requestParams = task.request_params;
-
-  if (!requestParams || typeof requestParams !== "object") {
-    return {
-      task,
-      normalizedFromLegacy: task.task_contract_normalized_from_legacy === true,
-    };
-  }
-
-  let normalizedFromLegacy = task.task_contract_normalized_from_legacy === true;
-  const nextRequestParams = { ...requestParams } as Record<string, unknown>;
-  const nextResult =
-    task.result && typeof task.result === "object"
-      ? {
-          ...task.result,
-          meta:
-            task.result.meta && typeof task.result.meta === "object"
-              ? { ...task.result.meta }
-              : {},
-        }
-      : task.result;
-  const nextResultMeta =
-    nextResult && typeof nextResult === "object" && nextResult.meta && typeof nextResult.meta === "object"
-      ? (nextResult.meta as Record<string, unknown>)
-      : null;
-
-  const legacyRequestSubtitlePath =
-    typeof nextRequestParams.context_path === "string"
-      ? nextRequestParams.context_path
-      : typeof nextRequestParams.srt_path === "string"
-        ? nextRequestParams.srt_path
-        : null;
-
-  if (task.type === "translate" && legacyRequestSubtitlePath) {
-    if (!nextRequestParams.context_ref) {
-      nextRequestParams.context_ref = createTaskMediaRef(
-        legacyRequestSubtitlePath,
-        "application/x-subrip",
-      );
-      normalizedFromLegacy = true;
-    }
-    if (!nextRequestParams.subtitle_ref) {
-      nextRequestParams.subtitle_ref = createTaskMediaRef(
-        legacyRequestSubtitlePath,
-        "application/x-subrip",
-      );
-      normalizedFromLegacy = true;
-    }
-  }
-
-  if (nextResultMeta) {
-    const legacyResultSubtitlePath =
-      typeof nextResultMeta.srt_path === "string"
-        ? nextResultMeta.srt_path
-        : Array.isArray(nextResult?.files)
-          ? (
-              nextResult.files.find(
-                (file) =>
-                  file &&
-                  typeof file === "object" &&
-                  file.type === "subtitle" &&
-                  typeof file.path === "string",
-              )?.path ?? null
-            )
-          : null;
-
-    if (task.type === "translate" && legacyResultSubtitlePath) {
-      if (!nextResultMeta.subtitle_ref) {
-        nextResultMeta.subtitle_ref = createTaskMediaRef(
-          legacyResultSubtitlePath,
-          "application/x-subrip",
-        );
-        normalizedFromLegacy = true;
-      }
-      if (!nextResultMeta.output_ref) {
-        nextResultMeta.output_ref = createTaskMediaRef(
-          legacyResultSubtitlePath,
-          "application/x-subrip",
-        );
-        normalizedFromLegacy = true;
-      }
-    }
-  }
-
-  return {
-    task: {
-      ...task,
-      task_contract_normalized_from_legacy: normalizedFromLegacy,
-      request_params: nextRequestParams as Task["request_params"],
-      result: nextResult,
-    },
-    normalizedFromLegacy,
   };
 }
 
