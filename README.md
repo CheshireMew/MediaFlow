@@ -104,6 +104,10 @@ npm run test
 - **Python**: 3.10+ (推荐使用 uv 管理依赖)
 - **Node.js**: 18+
 - **FFmpeg**: 需配置系统环境变量或放入 `bin/` 目录
+- **Faster-Whisper CLI**: 推荐使用 Purfview 的 Windows 独立 CLI 包；本机已解压到 `bin/Faster-Whisper-XXL/faster-whisper-xxl.exe`
+  - 官方仓库: https://github.com/Purfview/whisper-standalone-win
+  - Release 页面: https://github.com/Purfview/whisper-standalone-win/releases/tag/Faster-Whisper-XXL
+  - Windows 下载直链: https://github.com/Purfview/whisper-standalone-win/releases/download/Faster-Whisper-XXL/Faster-Whisper-XXL_r245.4_windows.7z
 - **GPU**: 推荐 NVIDIA 显卡以获得最佳转录速度 (CUDA 11.8+)
 - **安装依赖**: Python 依赖见 `pyproject.toml` / `requirements.txt`，前端依赖见 `frontend/package.json`
 

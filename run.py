@@ -1,7 +1,5 @@
-import sys
 import asyncio
-import uvicorn
-from backend.config import settings
+import sys
 
 def main():
     if "--desktop-worker" in sys.argv:
@@ -9,6 +7,9 @@ def main():
 
         worker_main()
         return
+
+    import uvicorn
+    from backend.config import settings
 
     # Critical: Force ProactorEventLoop on Windows BEFORE uvicorn starts
     if sys.platform == "win32":

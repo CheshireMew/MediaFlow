@@ -20,7 +20,7 @@ async function clearBuildReady() {
 
 const buildContext = await context({
   entryPoints: ["electron/main.ts", "electron/preload.ts"],
-  outdir: "dist-electron/frontend/electron",
+  outdir: "dist-electron/frontend",
   outbase: ".",
   bundle: true,
   platform: "node",
