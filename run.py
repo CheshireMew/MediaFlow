@@ -1,14 +1,50 @@
 import asyncio
+import os
+from pathlib import Path
 import sys
 
+
+def _ensure_project_venv():
+    if getattr(sys, "frozen", False):
+        return
+
+    if sys.prefix != sys.base_prefix:
+        return
+
+    project_root = Path(__file__).resolve().parent
+    if sys.platform == "win32":
+        venv_python = project_root / ".venv" / "Scripts" / "python.exe"
+    else:
+        venv_python = project_root / ".venv" / "bin" / "python"
+
+    if not venv_python.exists():
+        return
+
+    if Path(sys.executable).resolve() == venv_python.resolve():
+        return
+
+    os.execv(str(venv_python), [str(venv_python), str(Path(__file__).resolve()), *sys.argv[1:]])
+
+
 def main():
+    _ensure_project_venv()
+
     if "--desktop-worker" in sys.argv:
         from backend.desktop_worker import main as worker_main
 
         worker_main()
         return
 
-    import uvicorn
+    try:
+        import uvicorn
+    except ModuleNotFoundError as exc:
+        if exc.name != "uvicorn":
+            raise
+
+        print("Missing backend dependencies.")
+        print("Run setup.bat first, or run: npm run setup")
+        raise SystemExit(1) from exc
+
     from backend.config import settings
 
     # Critical: Force ProactorEventLoop on Windows BEFORE uvicorn starts

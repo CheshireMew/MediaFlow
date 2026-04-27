@@ -152,7 +152,7 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
                 line = line.strip()
                 # Progress parsing
                 if match := re.search(r"(\d+)%", line):
-                    p = int(match.group(1))
+                    p = max(0, min(100, int(match.group(1))))
                     if "MB" not in line and "kB" not in line and progress_callback: 
                         progress_callback(10 + int(p * 0.8), f"Transcribing... {p}%")
                 
@@ -175,9 +175,11 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
             if has_output:
                 logger.warning(f"CLI succeeded (output found) but process crashed on exit with code {process.returncode}. This is likely a Windows-specific shutdown issue and can be ignored.")
             else:
-                # True failure
-                stderr_output = process.stdout.read() if process.stdout else "" # stdout was redirected to stderr in Popen? No, merged.
-                raise RuntimeError(f"CLI process failed with code {process.returncode}. No output generated.")
+                detail = self._summarize_cli_failure(notable_output)
+                raise RuntimeError(
+                    f"CLI process failed with code {process.returncode}. "
+                    f"No output generated. {detail}"
+                )
 
         unknown_model_line = next(
             (line for line in notable_output if "Unknown model not found at:" in line),
@@ -196,3 +198,24 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         content = srt_path.read_text(encoding='utf-8')
         
         return SubtitleManager.parse_srt(content)
+
+    @staticmethod
+    def _summarize_cli_failure(notable_output: List[str]) -> str:
+        if not notable_output:
+            return "No CLI details captured."
+
+        combined_output = "\n".join(notable_output)
+        cuda_match = re.search(r"(CUDA failed with error .+)", combined_output)
+        if cuda_match:
+            return (
+                f"{cuda_match.group(1)}. CUDA 不可用：NVIDIA 驱动版本低于当前 CLI 的 CUDA 运行时要求。"
+                "请切换到 CPU，或更新 NVIDIA 驱动后再使用 GPU/CUDA。"
+            )
+
+        error_lines = [
+            line
+            for line in notable_output
+            if re.search(r"error|exception|traceback|failed|runtimeerror", line, re.IGNORECASE)
+        ]
+        selected_lines = error_lines[-6:] if error_lines else notable_output[-6:]
+        return "CLI details: " + " | ".join(selected_lines)

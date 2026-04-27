@@ -171,6 +171,14 @@ class Settings:
         if local_ffprobe.exists():
             self.FFPROBE_PATH = str(local_ffprobe)
 
+        local_faster_whisper_cli = self.BIN_DIR / "Faster-Whisper-XXL" / "faster-whisper-xxl.exe"
+        if not self.FASTER_WHISPER_CLI_PATH and local_faster_whisper_cli.exists():
+            self.FASTER_WHISPER_CLI_PATH = str(local_faster_whisper_cli)
+
+        bundled_faster_whisper_ffmpeg = self.BIN_DIR / "Faster-Whisper-XXL" / "ffmpeg.exe"
+        if self.FFMPEG_PATH == "ffmpeg" and bundled_faster_whisper_ffmpeg.exists():
+            self.FFMPEG_PATH = str(bundled_faster_whisper_ffmpeg)
+
     @staticmethod
     def _resolve_resource_dir() -> Path:
         if getattr(sys, "frozen", False):

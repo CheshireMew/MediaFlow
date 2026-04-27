@@ -60,7 +60,35 @@ Mediaflow/
 
 ## 🚀 快速启动
 
-### 1. 后端启动 (Dev)
+### 1. 首次初始化
+
+新机器从 GitHub 拉取项目后，需要先在本机重建 Python 虚拟环境和前端依赖。`.venv/` 与 `node_modules/` 是本地生成目录，不会提交到 Git。
+
+```powershell
+git clone https://github.com/CheshireMew/MediaFlow.git
+cd MediaFlow
+npm run setup
+```
+
+国内网络如果 Electron 或 npm 包下载较慢，优先使用镜像初始化：
+
+```powershell
+npm run setup:cn
+```
+
+也可以直接运行 Windows 批处理入口：
+
+```powershell
+setup.bat
+```
+
+初始化脚本会自动执行：
+
+- 创建 `.venv/`
+- 安装 `requirements.txt`
+- 安装 `frontend/package-lock.json` 对应的前端依赖
+
+### 2. 后端启动 (Dev)
 
 ```powershell
 # 推荐使用 Python 3.10+
@@ -68,7 +96,7 @@ Mediaflow/
 npm run backend:dev
 ```
 
-### 2. 前端启动 (Dev)
+### 3. 前端启动 (Dev)
 
 ```powershell
 npm run frontend:dev
@@ -76,7 +104,7 @@ npm run frontend:dev
 # npm run dev
 ```
 
-### 3. Windows 一键启动
+### 4. Windows 一键启动
 
 ```powershell
 start.bat
@@ -103,6 +131,7 @@ npm run test
 
 - **Python**: 3.10+ (推荐使用 uv 管理依赖)
 - **Node.js**: 18+
+- **项目依赖安装**: Windows 下运行 `npm run setup`；国内网络可运行 `npm run setup:cn`
 - **FFmpeg**: 需配置系统环境变量或放入 `bin/` 目录
 - **Faster-Whisper CLI**: 推荐使用 Purfview 的 Windows 独立 CLI 包；本机已解压到 `bin/Faster-Whisper-XXL/faster-whisper-xxl.exe`
   - 官方仓库: https://github.com/Purfview/whisper-standalone-win
@@ -155,4 +184,3 @@ npm run test
     src="https://api.star-history.com/svg?repos=CheshireMew/MediaFlow&type=Date"
   />
 </picture>
-

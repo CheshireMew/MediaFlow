@@ -20,6 +20,7 @@ export type {
   ProviderConnectionRequest,
   ProviderConnectionResponse,
   ToolUpdateResponse,
+  FasterWhisperCliInstallResponse,
   ImagePreviewResponse,
   SynthesizeOptions,
   SynthesizeRequest,
@@ -50,6 +51,7 @@ import type {
   ProviderConnectionRequest,
   ProviderConnectionResponse,
   ToolUpdateResponse,
+  FasterWhisperCliInstallResponse,
   ImagePreviewResponse,
   SynthesizeRequest,
   TranscribeSegmentRequest,
@@ -307,6 +309,12 @@ export const apiClient = {
     return request<ToolUpdateResponse>("/settings/update-yt-dlp", {
       method: "POST",
     }, 300_000);
+  },
+
+  installFasterWhisperCli: () => {
+    return request<FasterWhisperCliInstallResponse>("/settings/install-faster-whisper-cli", {
+      method: "POST",
+    }, 1_800_000);
   },
 
   synthesizeVideo: (payload: SynthesizeRequest) => {

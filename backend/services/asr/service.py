@@ -80,7 +80,17 @@ class ASRService:
                     device=device,
                 )
 
-                final_segments = self.adapter.execute(config, progress_callback)
+                try:
+                    final_segments = self.adapter.execute(config, progress_callback)
+                except RuntimeError as cli_error:
+                    if device == "cuda" and self._is_cli_cuda_unavailable_error(cli_error):
+                        logger.warning(f"CLI CUDA unavailable, retrying on CPU: {cli_error}")
+                        if progress_callback:
+                            progress_callback(0, "CUDA 不可用，已自动切换到 CPU 重试...")
+                        cpu_config = config.model_copy(update={"device": "cpu"})
+                        final_segments = self.adapter.execute(cpu_config, progress_callback)
+                    else:
+                        raise
                 
             except TaskControlRequested:
                 raise
@@ -156,6 +166,15 @@ class ASRService:
                 "subtitle_ref": subtitle_ref,
                 "output_ref": subtitle_ref,
             }
+        )
+
+    @staticmethod
+    def _is_cli_cuda_unavailable_error(error: Exception) -> bool:
+        message = str(error).lower()
+        return (
+            "cuda failed" in message
+            or "cuda driver version is insufficient" in message
+            or "no cuda" in message
         )
 
     def transcribe_segment(

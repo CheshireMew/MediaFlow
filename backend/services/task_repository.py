@@ -10,6 +10,13 @@ from backend.core.database import get_session_context
 from backend.models.task_model import Task
 
 
+def _clamp_progress(value):
+    try:
+        return max(0.0, min(100.0, float(value)))
+    except (TypeError, ValueError):
+        return value
+
+
 class TaskRepository:
     async def load_all(self) -> dict[str, Task]:
         tasks_by_id: dict[str, Task] = {}
@@ -69,6 +76,9 @@ class TaskRepository:
 
     async def update_task(self, task_id: str, cached_task: Optional[Task] = None, **kwargs) -> Task | None:
         updated_task = None
+        if "progress" in kwargs:
+            kwargs["progress"] = _clamp_progress(kwargs["progress"])
+
         async with get_session_context() as session:
             db_task = await session.get(Task, task_id)
             if db_task:

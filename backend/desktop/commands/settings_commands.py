@@ -69,3 +69,26 @@ def handle_update_yt_dlp(request_id: str | None, _payload: dict[str, Any]) -> No
         "ok": True,
         "result": _settings_application().update_yt_dlp(),
     })
+
+
+@register_worker_command("install_faster_whisper_cli")
+def handle_install_faster_whisper_cli(request_id: str | None, _payload: dict[str, Any]) -> None:
+    def progress_callback(progress: int | float, message: str) -> None:
+        emit({
+            "type": "event",
+            "id": request_id,
+            "event": "settings_progress",
+            "payload": {
+                "progress": progress,
+                "message": message,
+            },
+        })
+
+    emit({
+        "type": "response",
+        "id": request_id,
+        "ok": True,
+        "result": _settings_application().install_faster_whisper_cli(
+            progress_callback=progress_callback,
+        ),
+    })

@@ -6,13 +6,78 @@ import { TranscriptionConfig } from '../components/transcriber/TranscriptionConf
 import { TranscriptionResults } from '../components/transcriber/TranscriptionResults';
 import { getExecutionModeDisplay } from '../services/ui/executionModeDisplay';
 
+type ProgressCardState = {
+  status: string;
+  progress: number;
+  message: string;
+  active: boolean;
+};
+
+const BYTE_UNITS: Record<string, number> = {
+  B: 1,
+  KB: 1024,
+  MB: 1024 ** 2,
+  GB: 1024 ** 3,
+  TB: 1024 ** 4,
+};
+
+function clampProgress(progress: number) {
+  if (!Number.isFinite(progress)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, progress));
+}
+
+function parseByteValue(value: string, unit: string) {
+  return Number.parseFloat(value) * (BYTE_UNITS[unit.toUpperCase()] ?? 1);
+}
+
+function resolveModelDownloadProgress(progress: number, message: string) {
+  if (!/model download|downloading model|downloaded model|modelscope|hugging face/i.test(message)) {
+    return null;
+  }
+
+  if (/downloaded model/i.test(message)) {
+    return 100;
+  }
+
+  const bytesMatch = message.match(
+    /([\d.]+)\s*(B|KB|MB|GB|TB)\s*\/\s*([\d.]+)\s*(B|KB|MB|GB|TB)/i,
+  );
+  if (bytesMatch) {
+    const downloadedBytes = parseByteValue(bytesMatch[1], bytesMatch[2]);
+    const totalBytes = parseByteValue(bytesMatch[3], bytesMatch[4]);
+    if (totalBytes > 0) {
+      return clampProgress((downloadedBytes / totalBytes) * 100);
+    }
+  }
+
+  return clampProgress(progress * 12.5);
+}
+
+function normalizeProgressCardState(state: ProgressCardState): ProgressCardState {
+  const modelDownloadProgress = resolveModelDownloadProgress(state.progress, state.message);
+  if (modelDownloadProgress !== null) {
+    return {
+      ...state,
+      status: "model download",
+      progress: modelDownloadProgress,
+    };
+  }
+
+  return {
+    ...state,
+    progress: clampProgress(state.progress),
+  };
+}
+
 export const TranscriberPage = () => {
   const { t } = useTranslation('transcriber');
   const { state, actions } = useTranscriber();
   const executionModeDisplay = state.executionMode
     ? getExecutionModeDisplay(state.executionMode)
     : null;
-  const progressState = state.activeTask
+  const progressState = normalizeProgressCardState(state.activeTask
     ? {
         status: state.activeTask.status,
         progress: state.activeTask.progress,
@@ -33,7 +98,8 @@ export const TranscriberPage = () => {
           progress: 0,
           message: t('progressCard.waitingMessage'),
           active: false,
-        };
+        });
+  const progressPercent = Math.round(progressState.progress);
 
   return (
     <div className="w-full h-full px-6 pb-6 pt-5 flex flex-col overflow-hidden">
@@ -100,7 +166,7 @@ export const TranscriberPage = () => {
                        )}
                      </div>
                      <span className={`text-xs font-mono transition-colors duration-300 ${progressState.active ? "text-purple-300" : "text-slate-600"}`}>
-                        {progressState.progress.toFixed(0)}%
+                        {progressPercent}%
                      </span>
                    </div>
                    <div className={`h-1.5 rounded-full overflow-hidden mb-3 transition-colors duration-300 ${progressState.active ? "bg-purple-900/40" : "bg-white/5"}`}>

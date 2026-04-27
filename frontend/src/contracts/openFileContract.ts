@@ -1,7 +1,8 @@
 export type OpenFileDialogProfile =
   | "editor-media"
   | "transcriber-media"
-  | "preprocessing-media";
+  | "preprocessing-media"
+  | "executable";
 
 export type OpenFileDialogRequest = {
   defaultPath?: string;
@@ -20,6 +21,7 @@ const OPEN_FILE_PROFILE_KINDS: Record<OpenFileDialogProfile, MediaKind[]> = {
   "editor-media": ["audio", "video"],
   "transcriber-media": ["audio", "video"],
   "preprocessing-media": ["video", "image"],
+  executable: [],
 };
 
 function getProfileKinds(profile: OpenFileDialogProfile) {
@@ -38,6 +40,8 @@ function getProfileLabel(profile: OpenFileDialogProfile) {
       return "Audio and Video Files";
     case "preprocessing-media":
       return "Video and Image Files";
+    case "executable":
+      return "Executable Files";
   }
 }
 
@@ -47,6 +51,19 @@ function getNormalizedExtension(fileName: string) {
 }
 
 export function buildOpenFileDialogFilters(profile: OpenFileDialogProfile) {
+  if (profile === "executable") {
+    return [
+      {
+        name: "Executable Files",
+        extensions: ["exe"],
+      },
+      {
+        name: "All Files",
+        extensions: ["*"],
+      },
+    ];
+  }
+
   return [
     {
       name: getProfileLabel(profile),

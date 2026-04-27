@@ -38,7 +38,8 @@ class SettingsManager:
 
     @staticmethod
     def _apply_runtime_settings(user_settings: UserSettings) -> None:
-        settings.FASTER_WHISPER_CLI_PATH = user_settings.faster_whisper_cli_path or ""
+        if user_settings.faster_whisper_cli_path:
+            settings.FASTER_WHISPER_CLI_PATH = user_settings.faster_whisper_cli_path
 
     @staticmethod
     def _normalize_settings(user_settings: UserSettings) -> UserSettings:
@@ -176,5 +177,4 @@ class SettingsManager:
             self.save()
         else:
             raise ValueError(f"Provider {provider_id} not found")
-
 

@@ -107,6 +107,7 @@ export interface ElectronAPI {
   }) => Promise<import("./api").GlossaryTerm>;
   deleteDesktopGlossaryTerm?: (termId: string) => Promise<{ status: string }>;
   updateDesktopYtDlp?: () => Promise<import("./api").ToolUpdateResponse>;
+  installDesktopFasterWhisperCli?: () => Promise<import("./api").FasterWhisperCliInstallResponse>;
   analyzeDesktopUrl?: (url: string) => Promise<import("./api").AnalyzeResult>;
   saveDesktopCookies?: (
     domain: string,
@@ -173,6 +174,9 @@ export interface ElectronAPI {
     callback: (payload: { progress: number; message: string }) => void,
   ) => () => void;
   onDesktopSynthesizeProgress?: (
+    callback: (payload: { progress: number; message: string }) => void,
+  ) => () => void;
+  onDesktopSettingsProgress?: (
     callback: (payload: { progress: number; message: string }) => void,
   ) => () => void;
   minimize: () => void;

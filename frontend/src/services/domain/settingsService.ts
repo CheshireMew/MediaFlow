@@ -1,5 +1,6 @@
 import type {
   ActiveProviderResponse,
+  FasterWhisperCliInstallResponse,
   ProviderConnectionRequest,
   ProviderConnectionResponse,
   ToolUpdateResponse,
@@ -59,6 +60,16 @@ export const settingsService = {
       )();
     }
     return import("../../api/client").then(({ apiClient }) => apiClient.updateYtDlp());
+  },
+
+  installFasterWhisperCli(): Promise<FasterWhisperCliInstallResponse> {
+    if (isDesktopRuntime()) {
+      return requireDesktopApiMethod(
+        "installDesktopFasterWhisperCli",
+        "Desktop settings worker is unavailable.",
+      )();
+    }
+    return import("../../api/client").then(({ apiClient }) => apiClient.installFasterWhisperCli());
   },
 
   async getSmartSplitTextLimit(): Promise<number> {

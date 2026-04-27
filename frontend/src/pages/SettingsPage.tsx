@@ -4,8 +4,9 @@ import i18n from "i18next";
 import { useLocation } from "react-router-dom";
 import type { LLMProvider, UserSettings, ToolUpdateResponse } from "../types/api";
 import { settingsService } from "../services/domain";
+import { getDesktopApi } from "../services/desktop/bridge";
 import { fileService } from "../services/fileService";
-import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay, Globe, Scissors, Wrench } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle, X, AlertCircle, Settings, Cpu, HardDrive, Shield, MonitorPlay, Globe, Scissors, Wrench, Download } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "../i18n";
 import {
     CUSTOM_LLM_PROVIDER_PRESET_KEY,
@@ -43,6 +44,11 @@ const SettingsPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'llm' | 'general'>(() => resolveSettingsTab(location.search));
     const [isTestingConnection, setIsTestingConnection] = useState(false);
     const [isUpdatingYtDlp, setIsUpdatingYtDlp] = useState(false);
+    const [isInstallingFasterWhisperCli, setIsInstallingFasterWhisperCli] = useState(false);
+    const [fasterWhisperCliInstallProgress, setFasterWhisperCliInstallProgress] = useState<{
+        progress: number;
+        message: string;
+    } | null>(null);
     const [ytDlpUpdateInfo, setYtDlpUpdateInfo] = useState<ToolUpdateResponse | null>(null);
     const [selectedProviderPreset, setSelectedProviderPreset] = useState<LLMProviderPresetKey>(DEFAULT_LLM_PROVIDER_PRESET_KEY);
     const [deepSeekReasoningMode, setDeepSeekReasoningMode] = useState(false);
@@ -107,6 +113,15 @@ const SettingsPage: React.FC = () => {
             normalizeSmartSplitTextLimit(settings.smart_split_text_limit),
         ));
     }, [settings]);
+
+    useEffect(() => {
+        const unsubscribe = getDesktopApi()?.onDesktopSettingsProgress?.((payload) => {
+            setFasterWhisperCliInstallProgress(payload);
+        });
+        return () => {
+            unsubscribe?.();
+        };
+    }, []);
 
     const handleSaveProvider = async () => {
         if (!settings) return;
@@ -306,6 +321,29 @@ const SettingsPage: React.FC = () => {
             showNotification(message, "error");
         } finally {
             setIsUpdatingYtDlp(false);
+        }
+    };
+
+    const handleInstallFasterWhisperCli = async () => {
+        setIsInstallingFasterWhisperCli(true);
+        setFasterWhisperCliInstallProgress({
+            progress: 0,
+            message: t("general.cliInstalling"),
+        });
+        try {
+            const result = await settingsService.installFasterWhisperCli();
+            setSettings((current) => current ? {
+                ...current,
+                faster_whisper_cli_path: result.cli_path,
+            } : current);
+            await fetchSettings();
+            showNotification(t("general.cliInstallSuccess"));
+        } catch (error) {
+            const message = error instanceof Error ? error.message : t("general.cliInstallFailed");
+            showNotification(message, "error");
+        } finally {
+            setIsInstallingFasterWhisperCli(false);
+            setTimeout(() => setFasterWhisperCliInstallProgress(null), 3000);
         }
     };
 
@@ -604,27 +642,46 @@ const SettingsPage: React.FC = () => {
                                             placeholder={t("general.cliPathPlaceholder")}
                                             className="mt-3 w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all"
                                         />
+                                        {fasterWhisperCliInstallProgress && (
+                                            <div className="mt-3 space-y-2">
+                                                <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-indigo-400 transition-all"
+                                                        style={{
+                                                            width: `${Math.max(0, Math.min(100, fasterWhisperCliInstallProgress.progress))}%`,
+                                                        }}
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-slate-400">
+                                                    {Math.round(fasterWhisperCliInstallProgress.progress)}% · {fasterWhisperCliInstallProgress.message}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0 self-end">
                                         <button
+                                            onClick={handleInstallFasterWhisperCli}
+                                            disabled={isInstallingFasterWhisperCli}
+                                            className="px-3 py-2 rounded-lg text-sm font-medium bg-indigo-500/15 text-indigo-200 hover:bg-indigo-500/25 border border-indigo-400/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                                        >
+                                            <Download size={14} />
+                                            {isInstallingFasterWhisperCli && fasterWhisperCliInstallProgress
+                                                ? `${Math.round(fasterWhisperCliInstallProgress.progress)}%`
+                                                : t("general.cliInstall")}
+                                        </button>
+                                        <button
                                             onClick={async () => {
-                                                const input = document.createElement("input");
-                                                input.type = "file";
-                                                input.accept = ".exe";
-                                                input.onchange = async (event) => {
-                                                    const target = event.target as HTMLInputElement;
-                                                    const selected = target.files?.[0];
-                                                    if (!selected || !settings) return;
-                                                    const filePath = fileService.getPathForFile(selected);
-                                                    if (!filePath) return;
-                                                    const nextSettings = {
-                                                        ...settings,
-                                                        faster_whisper_cli_path: filePath,
-                                                    };
-                                                    setSettings(nextSettings);
-                                                    await updateSettingsField(nextSettings);
+                                                if (!settings) return;
+                                                const selected = await fileService.openFile({
+                                                    profile: "executable",
+                                                });
+                                                if (!selected?.path) return;
+                                                const nextSettings = {
+                                                    ...settings,
+                                                    faster_whisper_cli_path: selected.path,
                                                 };
-                                                input.click();
+                                                setSettings(nextSettings);
+                                                await updateSettingsField(nextSettings);
                                             }}
                                             className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors"
                                         >

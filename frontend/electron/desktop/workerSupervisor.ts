@@ -610,8 +610,16 @@ export class DesktopWorkerSupervisor {
 
       const onReady = () => {
         clearTimeout(timer);
+        this.desktopWorkerProcess?.removeListener("close", onExit);
         resolve();
       };
+      const onExit = () => {
+        clearTimeout(timer);
+        this.desktopWorkerReadyWaiters = this.desktopWorkerReadyWaiters.filter((waiter) => waiter !== onReady);
+        reject(new Error("Desktop worker exited before becoming ready"));
+      };
+
+      this.desktopWorkerProcess?.once("close", onExit);
 
       this.desktopWorkerReadyWaiters.push(onReady);
     });

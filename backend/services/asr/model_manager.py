@@ -165,7 +165,11 @@ class _ModelDownloadProgressReporter:
         if not self._progress_callback:
             return
         self._last_emit_at = time.monotonic()
-        self._progress_callback(round(progress, 2), message)
+        bounded_progress = max(
+            self._progress_start,
+            min(self._progress_start + self._progress_span, float(progress)),
+        )
+        self._progress_callback(round(bounded_progress, 2), message)
 
     def _build_message(self, active_filename: Optional[str], total_bytes: int) -> str:
         prefix = f"Downloading model {self._model_name} from {self._source_label}"

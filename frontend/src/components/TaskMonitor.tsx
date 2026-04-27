@@ -19,6 +19,13 @@ import { canRetryTask, retryFailedTask } from '../services/tasks/taskRetry';
 
 type TaskWithDetails = Task & { result?: TaskResult };
 
+const clampProgress = (progress: number) => {
+    if (!Number.isFinite(progress)) {
+        return 0;
+    }
+    return Math.max(0, Math.min(100, progress));
+};
+
 export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?: boolean }> = ({
     filterTypes,
     showHeaderOverview = true,
@@ -501,11 +508,11 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
                                                 <div className="h-1.5 flex-1 bg-slate-800 rounded-full overflow-hidden">
                                                     <div 
                                                         className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300 ease-out"
-                                                        style={{ width: `${Math.max(0, Math.min(100, task.progress))}%` }}
+                                                        style={{ width: `${clampProgress(task.progress)}%` }}
                                                     />
                                                 </div>
                                                 <div className="text-[10px] font-mono text-slate-400 w-8 text-right">
-                                                    {task.progress.toFixed(0)}%
+                                                    {Math.round(clampProgress(task.progress))}%
                                                 </div>
                                             </div>
                                         )}

@@ -31,6 +31,13 @@ class ToolUpdateResponse(BaseModel):
     current_version: Optional[str] = None
 
 
+class FasterWhisperCliInstallResponse(BaseModel):
+    status: str
+    message: str
+    cli_path: str
+    version: Optional[str] = None
+
+
 @router.get("/", response_model=UserSettings)
 async def get_records():
     """Get all user settings."""
@@ -82,3 +89,15 @@ async def update_yt_dlp():
         raise HTTPException(status_code=504, detail=f"yt-dlp update timed out: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to run updater: {e}")
+
+
+@router.post("/install-faster-whisper-cli", response_model=FasterWhisperCliInstallResponse)
+async def install_faster_whisper_cli():
+    try:
+        return FasterWhisperCliInstallResponse.model_validate(
+            _settings_application().install_faster_whisper_cli()
+        )
+    except subprocess.TimeoutExpired as e:
+        raise HTTPException(status_code=504, detail=f"Faster-Whisper CLI install timed out: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to install Faster-Whisper CLI: {e}")

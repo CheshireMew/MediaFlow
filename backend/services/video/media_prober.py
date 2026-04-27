@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import ffmpeg
 from loguru import logger
@@ -6,6 +7,19 @@ from backend.config import settings
 
 class MediaProber:
     _nvenc_available: bool | None = None  # Cached detection result
+
+    @staticmethod
+    def _ffmpeg_probe_output(video_path: str) -> str:
+        """Inspect media headers with ffmpeg when ffprobe is unavailable."""
+        result = subprocess.run(
+            [settings.FFMPEG_PATH, "-hide_banner", "-i", video_path],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+        return "\n".join(part for part in (result.stdout, result.stderr) if part)
 
     @staticmethod
     def detect_nvenc() -> bool:
@@ -30,7 +44,16 @@ class MediaProber:
         try:
             probe = ffmpeg.probe(video_path, cmd=settings.FFPROBE_PATH)
             return float(probe['format']['duration'])
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Duration probe failed, trying ffmpeg fallback: {e}")
+            try:
+                output = MediaProber._ffmpeg_probe_output(video_path)
+                match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", output)
+                if match:
+                    hours, minutes, seconds = match.groups()
+                    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+            except Exception as fallback_error:
+                logger.warning(f"Duration fallback probe failed: {fallback_error}")
             return 0.0
 
     @staticmethod
@@ -40,7 +63,12 @@ class MediaProber:
             probe = ffmpeg.probe(video_path, cmd=settings.FFPROBE_PATH)
             return any(stream.get('codec_type') == 'audio' for stream in probe.get('streams', []))
         except Exception as e:
-            logger.warning(f"Audio probe failed: {e}")
+            logger.debug(f"Audio probe failed, trying ffmpeg fallback: {e}")
+            try:
+                output = MediaProber._ffmpeg_probe_output(video_path)
+                return bool(re.search(r"Stream #\S+:\s*Audio:", output))
+            except Exception as fallback_error:
+                logger.warning(f"Audio fallback probe failed: {fallback_error}")
             return False
 
     @staticmethod
@@ -77,5 +105,12 @@ class MediaProber:
                 
             return w, h
         except Exception as e:
-            logger.warning(f"Probe resolution failed: {e}")
+            logger.debug(f"Probe resolution failed, trying ffmpeg fallback: {e}")
+            try:
+                output = MediaProber._ffmpeg_probe_output(video_path)
+                match = re.search(r"Stream #\S+:\s*Video:.*?(\d{2,5})x(\d{2,5})", output)
+                if match:
+                    return int(match.group(1)), int(match.group(2))
+            except Exception as fallback_error:
+                logger.warning(f"Resolution fallback probe failed: {fallback_error}")
             return 1920, 1080

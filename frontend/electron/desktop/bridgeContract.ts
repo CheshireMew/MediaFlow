@@ -4,12 +4,14 @@ export const DESKTOP_PROGRESS_CHANNELS = {
   onDesktopTranscribeProgress: "desktop:transcribe-progress",
   onDesktopTranslateProgress: "desktop:translate-progress",
   onDesktopSynthesizeProgress: "desktop:synthesize-progress",
+  onDesktopSettingsProgress: "desktop:settings-progress",
 } as const;
 
 export const DESKTOP_WORKER_EVENT_CHANNELS = {
   progress: DESKTOP_PROGRESS_CHANNELS.onDesktopTranscribeProgress,
   translate_progress: DESKTOP_PROGRESS_CHANNELS.onDesktopTranslateProgress,
   synthesize_progress: DESKTOP_PROGRESS_CHANNELS.onDesktopSynthesizeProgress,
+  settings_progress: DESKTOP_PROGRESS_CHANNELS.onDesktopSettingsProgress,
 } as const;
 
 export const DESKTOP_WORKER_INVOCATIONS = {
@@ -60,6 +62,10 @@ export const DESKTOP_WORKER_INVOCATIONS = {
   updateDesktopYtDlp: {
     ipcChannel: "desktop:update-yt-dlp",
     workerCommand: "update_yt_dlp",
+  },
+  installDesktopFasterWhisperCli: {
+    ipcChannel: "desktop:install-faster-whisper-cli",
+    workerCommand: "install_faster_whisper_cli",
   },
   analyzeDesktopUrl: {
     ipcChannel: "desktop:analyze-url",

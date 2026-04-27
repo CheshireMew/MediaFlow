@@ -170,6 +170,13 @@ export interface ToolUpdateResponse {
   current_version?: string | null;
 }
 
+export interface FasterWhisperCliInstallResponse {
+  status: string;
+  message: string;
+  cli_path: string;
+  version?: string | null;
+}
+
 // ─── Editor ─────────────────────────────────────────────────────
 
 export interface ImagePreviewResponse {

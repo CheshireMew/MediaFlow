@@ -22,6 +22,15 @@ function resolveDesktopDevPythonCommand() {
     return configuredPython;
   }
 
+  const projectRoot = resolveDesktopDevProjectRoot();
+  const venvPython =
+    process.platform === "win32"
+      ? path.join(projectRoot, ".venv", "Scripts", "python.exe")
+      : path.join(projectRoot, ".venv", "bin", "python");
+  if (existsSync(venvPython)) {
+    return venvPython;
+  }
+
   return process.platform === "win32" ? "python" : "python3";
 }
 

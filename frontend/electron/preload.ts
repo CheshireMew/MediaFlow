@@ -112,6 +112,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   deleteDesktopGlossaryTerm: (termId: string) =>
     ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.deleteDesktopGlossaryTerm.ipcChannel, { term_id: termId }),
   updateDesktopYtDlp: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.updateDesktopYtDlp.ipcChannel),
+  installDesktopFasterWhisperCli: () =>
+    ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.installDesktopFasterWhisperCli.ipcChannel),
   analyzeDesktopUrl: (url: string) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.analyzeDesktopUrl.ipcChannel, { url }),
   saveDesktopCookies: (domain: string, cookies: Array<Record<string, unknown>>) =>
     ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.saveDesktopCookies.ipcChannel, { domain, cookies }),
@@ -212,6 +214,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on(DESKTOP_PROGRESS_CHANNELS.onDesktopSynthesizeProgress, listener);
     return () => {
       ipcRenderer.removeListener(DESKTOP_PROGRESS_CHANNELS.onDesktopSynthesizeProgress, listener);
+    };
+  },
+  onDesktopSettingsProgress: (
+    callback: (payload: { progress: number; message: string }) => void,
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: { progress: number; message: string },
+    ) => callback(payload);
+
+    ipcRenderer.on(DESKTOP_PROGRESS_CHANNELS.onDesktopSettingsProgress, listener);
+    return () => {
+      ipcRenderer.removeListener(DESKTOP_PROGRESS_CHANNELS.onDesktopSettingsProgress, listener);
     };
   },
 });
