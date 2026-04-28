@@ -6,7 +6,6 @@ $ErrorActionPreference = "Stop"
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $venvPython = Join-Path $root ".venv\Scripts\python.exe"
-$requirements = Join-Path $root "requirements.txt"
 $frontendDir = Join-Path $root "frontend"
 
 function Invoke-Step($Name, [scriptblock]$Action) {
@@ -69,7 +68,7 @@ Invoke-Step "Creating Python virtual environment" {
 
 Invoke-Step "Installing Python dependencies" {
     & $venvPython -m pip install --upgrade pip setuptools wheel
-    & $venvPython -m pip install -r $requirements
+    & $venvPython -m pip install -e ".[dev]"
 }
 
 Invoke-Step "Checking Node.js and npm" {
@@ -98,4 +97,3 @@ Write-Host ""
 Write-Host "Setup complete."
 Write-Host "Run backend: npm run backend:dev"
 Write-Host "Run frontend: npm run frontend:dev"
-

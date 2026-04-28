@@ -1,7 +1,5 @@
 import type React from "react";
 
-import type { PreviewMediaState } from "../hooks/usePreviewMediaState";
-
 type PreviewMediaElementProps = {
   mediaUrl: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -44,23 +42,5 @@ export function PreviewMediaElement({
         {...videoEvents}
       />
     </div>
-  );
-}
-
-export function isCurrentMediaMetadataReady(mediaUrl: string | null, mediaState: PreviewMediaState) {
-  return (
-    mediaUrl !== null &&
-    mediaState.url === mediaUrl &&
-    mediaState.hasMetadata &&
-    !mediaState.hasError
-  );
-}
-
-export function isCurrentMediaFrameReady(mediaUrl: string | null, mediaState: PreviewMediaState) {
-  return (
-    mediaUrl !== null &&
-    mediaState.url === mediaUrl &&
-    mediaState.hasFrame &&
-    !mediaState.hasError
   );
 }

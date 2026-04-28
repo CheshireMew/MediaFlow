@@ -4,6 +4,7 @@ import os
 from backend.application.synthesis_service import submit_synthesis_task
 from backend.core.runtime_access import RuntimeServices
 from backend.models.schemas import SynthesisRequest
+from backend.utils.path_validator import validate_input_file, validate_output_file
 import uuid
 
 router = APIRouter(prefix="/editor", tags=["Editor"])
@@ -123,16 +124,22 @@ async def start_synthesis_task(req: SynthesisRequest):
     if not req.srt_path:
         raise HTTPException(status_code=400, detail="synthesis subtitle path is required")
 
-    if not os.path.exists(req.video_path):
-        raise HTTPException(status_code=404, detail=f"Video not found: {req.video_path}")
-    
-    if not os.path.exists(req.srt_path):
-        raise HTTPException(status_code=404, detail=f"Subtitle not found: {req.srt_path}")
+    try:
+        req.video_path = str(validate_input_file(req.video_path, label="video_path"))
+        req.srt_path = str(validate_input_file(req.srt_path, label="srt_path"))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Determine output path if not provided
     if not req.output_path:
         base, ext = os.path.splitext(req.video_path)
         req.output_path = f"{base}_burned.mp4"
+    try:
+        req.output_path = str(validate_output_file(req.output_path, label="output_path"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     response = await submit_synthesis_task(req)
 

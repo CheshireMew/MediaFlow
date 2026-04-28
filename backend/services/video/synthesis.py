@@ -38,7 +38,7 @@ class SynthesisOrchestrator:
         temp_fonts_dir = None
         sr_result = self._super_resolution_stage.prepare(video_path, options, progress_callback)
         try:
-            self._validate_paths(sr_result.video_path, srt_path)
+            self._ensure_media_inputs_exist(sr_result.video_path, srt_path)
             duration = self._calculate_duration(sr_result.video_path, sr_result.options)
             input_video, audio = self._create_input_streams(sr_result.video_path, sr_result.options)
             video_stream, temp_ass, temp_fonts_dir = self._filter_graph_builder.build(
@@ -71,7 +71,7 @@ class SynthesisOrchestrator:
                     logger.warning(f"Failed to delete temp SR file: {exc}")
 
     @staticmethod
-    def _validate_paths(video_path: str, srt_path: str) -> None:
+    def _ensure_media_inputs_exist(video_path: str, srt_path: str) -> None:
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Video not found: {video_path}")
         if not os.path.exists(srt_path):

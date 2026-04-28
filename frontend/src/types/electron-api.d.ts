@@ -1,6 +1,7 @@
 import type {
   SaveFileDialogRequest,
   SaveFileDialogResult,
+  SelectDirectoryRequest,
 } from "../contracts/desktopFileSystemContract";
 
 export interface DesktopRuntimeInfo {
@@ -24,7 +25,7 @@ export interface ElectronAPI {
   showSaveDialog: (
     options: SaveFileDialogRequest,
   ) => Promise<SaveFileDialogResult>;
-  selectDirectory: () => Promise<string | null>;
+  selectDirectory: (request?: SelectDirectoryRequest) => Promise<string | null>;
   showInExplorer: (filePath: string) => Promise<void>;
   fetchCookies: (targetUrl: string) => Promise<unknown>;
   getPathForFile: (file: File) => string;

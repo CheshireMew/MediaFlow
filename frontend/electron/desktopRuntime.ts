@@ -110,6 +110,18 @@ export function resolveDesktopRuntimeDataRoot() {
   return path.join(app.getPath("userData"), DESKTOP_RUNTIME_DIRNAME);
 }
 
+export function resolveDesktopResourceDir() {
+  if (isDesktopDevMode()) {
+    return resolveDesktopDevProjectRoot();
+  }
+
+  return process.resourcesPath;
+}
+
+export function resolveDesktopManagedBinDir() {
+  return path.join(resolveDesktopResourceDir(), "bin");
+}
+
 export function resolveDesktopWorkspaceDir() {
   return path.join(resolveDesktopRuntimeDataRoot(), "workspace");
 }

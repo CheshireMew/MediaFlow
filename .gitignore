@@ -49,6 +49,8 @@ user_data/
 # Build Artifacts (PyInstaller)
 /build-backend/
 /dist-backend/
+/build-desktop-worker/
+/dist-desktop-worker/
 *.spec
 !mediaflow-backend.spec
 

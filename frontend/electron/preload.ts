@@ -4,7 +4,11 @@ import {
   DESKTOP_TASK_EVENT_CHANNEL,
   DESKTOP_WORKER_INVOCATIONS,
 } from "./desktop/bridgeContract";
-import { DESKTOP_FILE_SYSTEM_CHANNELS, type SaveFileDialogRequest } from "../src/contracts/desktopFileSystemContract";
+import {
+  DESKTOP_FILE_SYSTEM_CHANNELS,
+  type SaveFileDialogRequest,
+  type SelectDirectoryRequest,
+} from "../src/contracts/desktopFileSystemContract";
 import type { OpenFileDialogRequest } from "../src/contracts/openFileContract";
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -14,7 +18,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readFile: (filePath: string) => ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.readTextFile, filePath),
   showSaveDialog: (options: SaveFileDialogRequest) =>
     ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.saveFileDialog, options),
-  selectDirectory: () => ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.selectDirectory),
+  selectDirectory: (request?: SelectDirectoryRequest) =>
+    ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.selectDirectory, request),
   showInExplorer: (filePath: string) =>
     ipcRenderer.invoke("shell:showInExplorer", filePath),
   // Window Controls

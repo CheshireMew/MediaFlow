@@ -10,6 +10,7 @@ from backend.application.transcription_service import (
 from backend.core.runtime_access import RuntimeServices
 from backend.models.schemas import TranscribeRequest, TranscribeSegmentRequest, TaskResponse
 from backend.core.task_runner import BackgroundTaskRunner
+from backend.utils.path_validator import validate_input_file
 
 router = APIRouter(prefix="/transcribe", tags=["Transcription"])
 
@@ -22,10 +23,9 @@ async def transcribe_audio(req: TranscribeRequest):
     """
     logger.info(f"Received transcription request: {req.model_dump()}")
     try:
-        from backend.utils.path_validator import validate_path
         if not req.audio_path:
             raise ValueError("audio path is required")
-        validate_path(req.audio_path, "audio_path")
+        req.audio_path = str(validate_input_file(req.audio_path, label="audio_path"))
         response = await submit_transcription_task(req)
         return TaskResponse(task_id=response["task_id"], status=response["status"])
     except ValueError as e:
@@ -48,6 +48,14 @@ async def transcribe_segment(req: TranscribeSegmentRequest):
     duration = req.end - req.start
     if duration <= 0:
         raise HTTPException(status_code=400, detail="Invalid duration")
+    if not req.audio_path:
+        raise HTTPException(status_code=400, detail="audio_path is required")
+    try:
+        req.audio_path = str(validate_input_file(req.audio_path, label="audio_path"))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     logger.info(f"Segment Transcription Request: {duration:.2f}s ({req.start}-{req.end})")
 

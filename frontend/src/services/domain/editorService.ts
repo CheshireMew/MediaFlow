@@ -7,7 +7,7 @@ import type {
   TranslateRequest,
   TranslateResponse,
 } from "../../types/api";
-import { isDesktopRuntime } from "../desktop/bridge";
+import { isDesktopRuntime } from "../desktop";
 import { executeBackendDirectCall } from "./executionExecutor";
 import {
   ensureAiTranslationConfigured,

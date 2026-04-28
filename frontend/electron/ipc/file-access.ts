@@ -1,9 +1,14 @@
+import { app } from "electron";
 import fs from "fs";
 import path from "path";
 
 import { resolvePathFromDirectoryEntries } from "../../src/services/filesystem/pathRepair";
 import { visitDesktopWorkerPayloadPaths } from "../../src/contracts/desktopWorkerPathPolicy";
-import { resolveDesktopRuntimeDataRoot, resolveDesktopWorkspaceDir } from "../desktopRuntime";
+import {
+  resolveDesktopManagedBinDir,
+  resolveDesktopRuntimeDataRoot,
+  resolveDesktopWorkspaceDir,
+} from "../desktopRuntime";
 
 function normalizePath(candidate: string) {
   return path.resolve(candidate);
@@ -20,19 +25,87 @@ function isPathInside(candidate: string, directory: string) {
 }
 
 class DesktopFileAccessRegistry {
-  private readonly rendererDirectories = new Set<string>();
-  private readonly rendererFiles = new Set<string>();
-  private readonly workerManagedDirectories = new Set<string>();
+  private readonly rendererReadDirectories = new Set<string>();
+  private readonly rendererReadFiles = new Set<string>();
+  private readonly rendererWriteDirectories = new Set<string>();
+  private readonly rendererWriteFiles = new Set<string>();
+  private readonly workerManagedReadDirectories = new Set<string>();
+  private readonly workerManagedWriteDirectories = new Set<string>();
+  private hasLoadedPersistedWriteDirectories = false;
 
   constructor() {
-    this.grantRendererDirectory(resolveDesktopWorkspaceDir());
-    this.workerManagedDirectories.add(normalizeForCompare(resolveDesktopRuntimeDataRoot()));
+    const workspaceDir = resolveDesktopWorkspaceDir();
+    const runtimeDataRoot = resolveDesktopRuntimeDataRoot();
+    this.grantRendererReadDirectory(workspaceDir);
+    this.grantRendererWriteDirectory(workspaceDir, { persist: false });
+    this.workerManagedReadDirectories.add(normalizeForCompare(workspaceDir));
+    this.workerManagedReadDirectories.add(normalizeForCompare(runtimeDataRoot));
+    this.workerManagedReadDirectories.add(normalizeForCompare(resolveDesktopManagedBinDir()));
+    this.workerManagedWriteDirectories.add(normalizeForCompare(workspaceDir));
+    this.workerManagedWriteDirectories.add(normalizeForCompare(runtimeDataRoot));
   }
 
-  grantRendererFile(filePath: string) {
+  private getWriteAuthorizationStorePath() {
+    return path.join(app.getPath("userData"), "authorized-write-roots.json");
+  }
+
+  private loadPersistedWriteDirectories() {
+    if (this.hasLoadedPersistedWriteDirectories) {
+      return;
+    }
+    this.hasLoadedPersistedWriteDirectories = true;
+
+    try {
+      const storePath = this.getWriteAuthorizationStorePath();
+      if (!fs.existsSync(storePath)) {
+        return;
+      }
+
+      const data = JSON.parse(fs.readFileSync(storePath, "utf-8")) as {
+        version?: number;
+        directories?: unknown;
+      };
+      if (!Array.isArray(data.directories)) {
+        return;
+      }
+
+      for (const directoryPath of data.directories) {
+        if (typeof directoryPath !== "string" || !directoryPath) {
+          continue;
+        }
+        const normalized = normalizePath(directoryPath);
+        if (fs.existsSync(normalized) && fs.statSync(normalized).isDirectory()) {
+          this.rendererWriteDirectories.add(normalizeForCompare(normalized));
+          this.rendererReadDirectories.add(normalizeForCompare(normalized));
+        }
+      }
+    } catch (error) {
+      console.error("[DesktopFileAccess] Failed to load write authorizations:", error);
+    }
+  }
+
+  private persistWriteDirectories() {
+    try {
+      const directories = [...this.rendererWriteDirectories].sort();
+      fs.writeFileSync(
+        this.getWriteAuthorizationStorePath(),
+        JSON.stringify({ version: 1, directories }, null, 2),
+      );
+    } catch (error) {
+      console.error("[DesktopFileAccess] Failed to persist write authorizations:", error);
+    }
+  }
+
+  grantRendererReadFile(filePath: string) {
     const normalized = normalizeForCompare(filePath);
-    this.rendererFiles.add(normalized);
-    this.grantRendererDirectory(path.dirname(filePath));
+    this.rendererReadFiles.add(normalized);
+    this.grantRendererReadDirectory(path.dirname(filePath));
+  }
+
+  grantRendererWriteFile(filePath: string) {
+    const normalized = normalizeForCompare(filePath);
+    this.rendererWriteFiles.add(normalized);
+    this.rendererReadFiles.add(normalized);
   }
 
   rememberRendererSelectedFile(filePath: string) {
@@ -45,24 +118,55 @@ class DesktopFileAccessRegistry {
       throw new Error(`Selected file does not exist: ${filePath}`);
     }
 
-    this.grantRendererFile(normalized);
+    this.grantRendererReadFile(normalized);
   }
 
-  grantRendererDirectory(directoryPath: string) {
-    this.rendererDirectories.add(normalizeForCompare(directoryPath));
+  grantRendererReadDirectory(directoryPath: string) {
+    this.rendererReadDirectories.add(normalizeForCompare(directoryPath));
   }
 
-  assertRendererFileSystemAccess(filePath: string, operation: string) {
+  grantRendererWriteDirectory(directoryPath: string, options: { persist: boolean }) {
+    const normalized = normalizePath(directoryPath);
+    this.rendererWriteDirectories.add(normalizeForCompare(normalized));
+    this.rendererReadDirectories.add(normalizeForCompare(normalized));
+    if (options.persist) {
+      this.loadPersistedWriteDirectories();
+      this.persistWriteDirectories();
+    }
+  }
+
+  assertRendererReadAccess(filePath: string, operation: string) {
     if (!filePath || typeof filePath !== "string") {
       throw new Error(`${operation} requires a file path`);
     }
 
     const normalized = normalizeForCompare(filePath);
-    if (this.rendererFiles.has(normalized)) {
+    if (this.rendererReadFiles.has(normalized)) {
       return;
     }
 
-    for (const directory of this.rendererDirectories) {
+    for (const directory of this.rendererReadDirectories) {
+      if (isPathInside(normalized, directory)) {
+        return;
+      }
+    }
+
+    throw new Error(`${operation} denied for unauthorized path: ${filePath}`);
+  }
+
+  assertRendererWriteAccess(filePath: string, operation: string) {
+    if (!filePath || typeof filePath !== "string") {
+      throw new Error(`${operation} requires a file path`);
+    }
+
+    this.loadPersistedWriteDirectories();
+
+    const normalized = normalizeForCompare(filePath);
+    if (this.rendererWriteFiles.has(normalized)) {
+      return;
+    }
+
+    for (const directory of this.rendererWriteDirectories) {
       if (isPathInside(normalized, directory)) {
         return;
       }
@@ -76,23 +180,27 @@ class DesktopFileAccessRegistry {
       if (!filePath) {
         return;
       }
-      if (intent === "write") {
-        return;
-      }
 
       const normalized = normalizeForCompare(filePath);
-      for (const directory of this.workerManagedDirectories) {
+      const workerManagedDirectories =
+        intent === "write" ? this.workerManagedWriteDirectories : this.workerManagedReadDirectories;
+      for (const directory of workerManagedDirectories) {
         if (isPathInside(normalized, directory)) {
           return;
         }
       }
 
-      this.assertRendererFileSystemAccess(filePath, "Desktop worker payload");
+      if (intent === "write") {
+        this.assertRendererWriteAccess(filePath, "Desktop worker payload");
+        return;
+      }
+
+      this.assertRendererReadAccess(filePath, "Desktop worker payload");
     });
   }
 
   resolveExistingPath(filePath: string, fallbackName?: string, expectedSize?: number) {
-    this.assertRendererFileSystemAccess(filePath, "Resolve path");
+    this.assertRendererReadAccess(filePath, "Resolve path");
 
     const candidateDir = path.dirname(filePath);
     if (!fs.existsSync(candidateDir)) {
@@ -102,7 +210,7 @@ class DesktopFileAccessRegistry {
     const directoryEntries = fs.readdirSync(candidateDir);
     const resolved = resolvePathFromDirectoryEntries(filePath, directoryEntries, fallbackName);
     if (resolved && fs.existsSync(resolved)) {
-      this.grantRendererFile(resolved);
+      this.grantRendererReadFile(resolved);
       return resolved;
     }
 
@@ -121,7 +229,7 @@ class DesktopFileAccessRegistry {
 
       if (sizeMatches.length === 1) {
         const repairedPath = path.join(candidateDir, sizeMatches[0]);
-        this.grantRendererFile(repairedPath);
+        this.grantRendererReadFile(repairedPath);
         return repairedPath;
       }
     }

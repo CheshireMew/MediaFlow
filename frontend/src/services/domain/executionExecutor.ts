@@ -1,5 +1,5 @@
 import type { TaskResponse } from "../../types/api";
-import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop/bridge";
+import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop";
 import {
   createDesktopTaskExecutionOutcome,
   createDirectExecutionOutcome,

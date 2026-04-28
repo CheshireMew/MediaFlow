@@ -1,4 +1,4 @@
-import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop/bridge";
+import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop";
 import type { GlossaryTerm } from "../../types/api";
 
 export const glossaryService = {

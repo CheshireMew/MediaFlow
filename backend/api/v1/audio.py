@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List, Tuple
 from loguru import logger
 from backend.utils.audio_processor import AudioProcessor
-import os
+from backend.utils.path_validator import validate_input_file
 
 router = APIRouter(tags=["Audio"])
 
@@ -21,8 +21,12 @@ async def detect_silence(req: DetectSilenceRequest):
     """
     Detect silence intervals in an audio file.
     """
-    if not os.path.exists(req.file_path):
-        raise HTTPException(status_code=404, detail=f"File not found: {req.file_path}")
+    try:
+        req.file_path = str(validate_input_file(req.file_path, label="file_path"))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     try:
         intervals = AudioProcessor.detect_silence(

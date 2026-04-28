@@ -85,7 +85,7 @@ setup.bat
 初始化脚本会自动执行：
 
 - 创建 `.venv/`
-- 安装 `requirements.txt`
+- 安装 `pyproject.toml` 中声明的 Python 依赖
 - 安装 `frontend/package-lock.json` 对应的前端依赖
 
 ### 2. 后端启动 (Dev)
@@ -138,7 +138,7 @@ npm run test
   - Release 页面: https://github.com/Purfview/whisper-standalone-win/releases/tag/Faster-Whisper-XXL
   - Windows 下载直链: https://github.com/Purfview/whisper-standalone-win/releases/download/Faster-Whisper-XXL/Faster-Whisper-XXL_r245.4_windows.7z
 - **GPU**: 推荐 NVIDIA 显卡以获得最佳转录速度 (CUDA 11.8+)
-- **安装依赖**: Python 依赖见 `pyproject.toml` / `requirements.txt`，前端依赖见 `frontend/package.json`
+- **安装依赖**: Python 依赖见 `pyproject.toml`，前端依赖见 `frontend/package.json`
 
 ## ⚙️ 设置说明
 

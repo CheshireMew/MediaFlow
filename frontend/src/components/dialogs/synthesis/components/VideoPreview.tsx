@@ -10,11 +10,11 @@ import { usePreviewFrameMetrics } from "../hooks/usePreviewFrameMetrics";
 import { usePreviewMediaState } from "../hooks/usePreviewMediaState";
 import { resolvePreviewViewportMetrics } from "../previewViewport";
 import { CropOverlay } from "./CropOverlay";
+import { PreviewMediaElement } from "./PreviewMediaElement";
 import {
   isCurrentMediaFrameReady,
   isCurrentMediaMetadataReady,
-  PreviewMediaElement,
-} from "./PreviewMediaElement";
+} from "./previewMediaReadiness";
 import { PreviewActionBar } from "./PreviewActionBar";
 import { PreviewToolbar } from "./PreviewToolbar";
 import { PreviewTrimPanel } from "./PreviewTrimPanel";

@@ -1,3 +1,4 @@
+import asyncio
 import subprocess
 from typing import Optional
 
@@ -69,7 +70,8 @@ async def set_active_provider(req: ActiveProviderRequest):
 async def test_provider_connection(req: ProviderConnectionRequest):
     """Test whether the given provider config can complete a minimal chat request."""
     try:
-        return _settings_application().test_provider_connection(
+        return await asyncio.to_thread(
+            _settings_application().test_provider_connection,
             name=req.name,
             base_url=req.base_url,
             api_key=req.api_key,
@@ -84,7 +86,8 @@ async def test_provider_connection(req: ProviderConnectionRequest):
 @router.post("/update-yt-dlp", response_model=ToolUpdateResponse)
 async def update_yt_dlp():
     try:
-        return ToolUpdateResponse.model_validate(_settings_application().update_yt_dlp())
+        result = await asyncio.to_thread(_settings_application().update_yt_dlp)
+        return ToolUpdateResponse.model_validate(result)
     except subprocess.TimeoutExpired as e:
         raise HTTPException(status_code=504, detail=f"yt-dlp update timed out: {e}")
     except Exception as e:
@@ -94,9 +97,8 @@ async def update_yt_dlp():
 @router.post("/install-faster-whisper-cli", response_model=FasterWhisperCliInstallResponse)
 async def install_faster_whisper_cli():
     try:
-        return FasterWhisperCliInstallResponse.model_validate(
-            _settings_application().install_faster_whisper_cli()
-        )
+        result = await asyncio.to_thread(_settings_application().install_faster_whisper_cli)
+        return FasterWhisperCliInstallResponse.model_validate(result)
     except subprocess.TimeoutExpired as e:
         raise HTTPException(status_code=504, detail=f"Faster-Whisper CLI install timed out: {e}")
     except Exception as e:

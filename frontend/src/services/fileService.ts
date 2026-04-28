@@ -1,6 +1,9 @@
-import { getDesktopApi, requireDesktopApiMethod } from "./desktop/bridge";
+import { getDesktopApi, requireDesktopApiMethod } from "./desktop";
 import type { OpenFileDialogRequest } from "../contracts/openFileContract";
-import type { SaveFileDialogRequest } from "../contracts/desktopFileSystemContract";
+import type {
+  SaveFileDialogRequest,
+  SelectDirectoryRequest,
+} from "../contracts/desktopFileSystemContract";
 
 function replaceBasename(filePath: string, fallbackName?: string) {
   if (!fallbackName || !filePath) {
@@ -41,11 +44,11 @@ export const fileService = {
     )(options);
   },
 
-  async selectDirectory() {
+  async selectDirectory(request: SelectDirectoryRequest = { access: "read" }) {
     return await requireDesktopApiMethod(
       "selectDirectory",
       "Directory selection is unavailable.",
-    )();
+    )(request);
   },
 
   async readFile(path: string) {

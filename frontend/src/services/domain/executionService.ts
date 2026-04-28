@@ -26,7 +26,7 @@ import {
   resolveSynthesisWatermarkPath,
 } from "./synthesisExecution";
 
-export { isDesktopRuntime } from "../desktop/bridge";
+export { isDesktopRuntime } from "../desktop";
 
 type DownloadExecutionSettings = {
   default_download_path: string | null;

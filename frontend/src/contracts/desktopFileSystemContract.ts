@@ -16,6 +16,10 @@ export type SaveFileDialogRequest = {
   filters?: Array<{ name: string; extensions: string[] }>;
 };
 
+export type SelectDirectoryRequest = {
+  access: "read" | "write";
+};
+
 export type SaveFileDialogResult =
   | { canceled: true; filePath: null }
   | { canceled: false; filePath: string };

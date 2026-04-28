@@ -92,7 +92,7 @@ export function useOutputSettings(
   // --- Select output folder ---
   const handleSelectOutputFolder = async () => {
     try {
-      const path = await fileService.selectDirectory();
+      const path = await fileService.selectDirectory({ access: "write" });
       if (path) {
         setOutputDir(path);
       }

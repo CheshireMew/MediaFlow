@@ -6,7 +6,7 @@ import type {
   ToolUpdateResponse,
   UserSettings,
 } from "../../types/api";
-import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop/bridge";
+import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop";
 import { resolveSmartSplitTextLimit } from "../../utils/subtitleSmartSplit";
 
 export const settingsService = {

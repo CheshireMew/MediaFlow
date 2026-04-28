@@ -40,7 +40,6 @@ def test_translate_endpoint_returns_400_for_client_value_errors(monkeypatch):
             "segments": [],
             "target_language": "Chinese",
             "mode": "standard",
-            "context_path": "E:/subs/demo.srt",
         },
     )
 

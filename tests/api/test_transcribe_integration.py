@@ -62,7 +62,7 @@ def test_transcribe_flow_integration(isolated_api_client, tmp_path):
     client = isolated_api_client
     container.override(Services.ASR, MockASRService())
 
-    audio_file = tmp_path / "test_audio.mp3"
+    audio_file = tmp_path / "api_runtime" / "workspace" / "test_audio.mp3"
     audio_file.write_text("dummy content", encoding="utf-8")
 
     response = client.post(

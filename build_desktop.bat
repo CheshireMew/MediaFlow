@@ -27,8 +27,8 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist "%ROOT_DIR%\requirements.txt" (
-  echo [ERROR] Backend requirements not found: %ROOT_DIR%\requirements.txt
+if not exist "%ROOT_DIR%\pyproject.toml" (
+  echo [ERROR] Backend project metadata not found: %ROOT_DIR%\pyproject.toml
   exit /b 1
 )
 
@@ -91,7 +91,7 @@ echo.
 
 echo [1/6] Installing backend build dependencies...
 pushd "%ROOT_DIR%"
-call python -m pip install -r requirements.txt pyinstaller
+call python -m pip install -e ".[build]"
 if errorlevel 1 (
   popd
   echo [ERROR] Backend dependency installation failed.

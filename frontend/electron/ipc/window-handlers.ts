@@ -27,7 +27,7 @@ export function registerWindowHandlers() {
     "shell:showInExplorer",
     async (_event: IpcMainInvokeEvent, filePath: string) => {
       if (filePath) {
-        desktopFileAccess.assertRendererFileSystemAccess(filePath, "Show in explorer");
+        desktopFileAccess.assertRendererReadAccess(filePath, "Show in explorer");
         shell.showItemInFolder(filePath);
       }
     },

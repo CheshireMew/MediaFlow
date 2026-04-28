@@ -288,12 +288,15 @@ async function submitTranslateRetry(task: Task): Promise<RetrySubmission | null>
     ["context_ref", "subtitle_ref", "context_path", "srt_path"],
     "application/x-subrip",
   );
-  const contextPath = contextRef?.path ?? null;
+  const contextPath = contextRef?.path;
   if (!contextPath) {
     return null;
   }
 
   const content = await fileService.readFile(contextPath);
+  if (content === null) {
+    throw new Error(`Retry failed: subtitle file could not be read: ${contextPath}`);
+  }
   const segments = parseSubtitleContent(content, contextPath);
   if (segments.length === 0) {
     throw new Error(`Retry failed: no subtitle segments found in ${contextPath}`);

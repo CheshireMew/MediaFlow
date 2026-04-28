@@ -9,6 +9,7 @@ import path from "path";
 import {
   DESKTOP_FILE_SYSTEM_CHANNELS,
   type SaveFileDialogRequest,
+  type SelectDirectoryRequest,
 } from "../../src/contracts/desktopFileSystemContract";
 import {
   buildOpenFileDialogFilters,
@@ -69,7 +70,7 @@ function getDefaultStartPath(): string | undefined {
 }
 
 function rememberFile(filePath: string) {
-  desktopFileAccess.grantRendererFile(filePath);
+  desktopFileAccess.grantRendererReadFile(filePath);
   lastOpenDir = path.dirname(filePath);
   if (lastOpenDir) {
     saveLastOpenDir(lastOpenDir);
@@ -106,7 +107,7 @@ export function registerDialogHandlers() {
       }
 
       const selectedPath = filePaths[0];
-      desktopFileAccess.grantRendererFile(selectedPath);
+      desktopFileAccess.grantRendererReadFile(selectedPath);
       const filePath = desktopFileAccess.resolveExistingPath(selectedPath) ?? selectedPath;
       rememberFile(filePath);
 
@@ -148,7 +149,7 @@ export function registerDialogHandlers() {
     }
 
     const selectedPath = filePaths[0];
-    desktopFileAccess.grantRendererFile(selectedPath);
+    desktopFileAccess.grantRendererReadFile(selectedPath);
     const filePath = desktopFileAccess.resolveExistingPath(selectedPath) ?? selectedPath;
     rememberFile(filePath);
     return {
@@ -157,23 +158,30 @@ export function registerDialogHandlers() {
     };
   });
 
-  ipcMain.handle(DESKTOP_FILE_SYSTEM_CHANNELS.selectDirectory, async () => {
-    ensureLoaded();
+  ipcMain.handle(
+    DESKTOP_FILE_SYSTEM_CHANNELS.selectDirectory,
+    async (_event: IpcMainInvokeEvent, request?: SelectDirectoryRequest) => {
+      ensureLoaded();
 
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-      properties: ["openDirectory"],
-      defaultPath: lastOpenDir || undefined,
-    });
-    if (canceled || filePaths.length === 0) {
-      return null;
-    }
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties: ["openDirectory"],
+        defaultPath: lastOpenDir || undefined,
+      });
+      if (canceled || filePaths.length === 0) {
+        return null;
+      }
 
-    const dirPath = filePaths[0];
-    desktopFileAccess.grantRendererDirectory(dirPath);
-    lastOpenDir = dirPath;
-    saveLastOpenDir(dirPath);
-    return dirPath;
-  });
+      const dirPath = filePaths[0];
+      if (request?.access === "write") {
+        desktopFileAccess.grantRendererWriteDirectory(dirPath, { persist: true });
+      } else {
+        desktopFileAccess.grantRendererReadDirectory(dirPath);
+      }
+      lastOpenDir = dirPath;
+      saveLastOpenDir(dirPath);
+      return dirPath;
+    },
+  );
 
   ipcMain.handle(
     DESKTOP_FILE_SYSTEM_CHANNELS.saveFileDialog,
@@ -190,6 +198,7 @@ export function registerDialogHandlers() {
         return { canceled: true, filePath: null };
       }
 
+      desktopFileAccess.grantRendererWriteFile(filePath);
       rememberFile(filePath);
       return { canceled: false, filePath };
     },
@@ -199,7 +208,7 @@ export function registerDialogHandlers() {
     DESKTOP_FILE_SYSTEM_CHANNELS.readTextFile,
     async (_event: IpcMainInvokeEvent, filePath: string) => {
       try {
-        desktopFileAccess.assertRendererFileSystemAccess(filePath, "Read file");
+        desktopFileAccess.assertRendererReadAccess(filePath, "Read file");
         return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf-8") : null;
       } catch (error) {
         console.error("[IPC] readTextFile error:", error);
@@ -212,7 +221,7 @@ export function registerDialogHandlers() {
     DESKTOP_FILE_SYSTEM_CHANNELS.writeTextFile,
     async (_event: IpcMainInvokeEvent, filePath: string, content: string) => {
       try {
-        desktopFileAccess.assertRendererFileSystemAccess(filePath, "Write file");
+        desktopFileAccess.assertRendererWriteAccess(filePath, "Write file");
         fs.writeFileSync(filePath, content, "utf-8");
         return true;
       } catch (error) {
@@ -226,7 +235,7 @@ export function registerDialogHandlers() {
     DESKTOP_FILE_SYSTEM_CHANNELS.getFileSize,
     async (_event: IpcMainInvokeEvent, filePath: string) => {
       try {
-        desktopFileAccess.assertRendererFileSystemAccess(filePath, "Get file size");
+        desktopFileAccess.assertRendererReadAccess(filePath, "Get file size");
         return fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
       } catch (error) {
         console.error("[IPC] getFileSize error:", error);

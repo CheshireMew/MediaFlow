@@ -26,7 +26,7 @@ vi.mock("../api/client", () => ({
   apiClient: apiClientMock,
 }));
 
-vi.mock("../services/desktop/bridge", () => ({
+vi.mock("../services/desktop", () => ({
   isDesktopRuntime: vi.fn(() => false),
   requireDesktopApiMethod: vi.fn(),
 }));

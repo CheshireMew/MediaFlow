@@ -20,7 +20,7 @@ export function DefaultDownloadPathSetting({ controller, t }: DefaultDownloadPat
         <>
           <button
             onClick={async () => {
-              const dir = await fileService.selectDirectory();
+              const dir = await fileService.selectDirectory({ access: "write" });
               if (!settings || !dir) return;
               await updateSettingsField({ ...settings, default_download_path: dir });
             }}

@@ -21,7 +21,7 @@
 
 ## Current Boundary
 
-- `services/desktop/bridge.ts` is the single runtime entry point for Electron APIs.
+- `services/desktop` is the single renderer entry point for Electron APIs.
 - Desktop runtime is worker-first.
   - Desktop mode talks to the Python desktop worker through Electron IPC only.
   - Web mode talks to the backend HTTP API directly.

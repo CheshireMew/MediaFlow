@@ -10,6 +10,7 @@ from backend.application.translation_service import (
 )
 from backend.models.schemas import SubtitleSegment
 from backend.core.runtime_access import RuntimeServices
+from backend.utils.path_validator import validate_input_file
 
 router = APIRouter(prefix="/translate", tags=["Translator"])
 
@@ -30,6 +31,8 @@ async def translate_segment_sync(req: TranslateRequest):
     from functools import partial
 
     try:
+        if req.context_path:
+            req.context_path = str(validate_input_file(req.context_path, label="context_path"))
         loop = asyncio.get_running_loop()
         func = partial(execute_translation, req, progress_callback=None)
         translated = await loop.run_in_executor(None, func)
@@ -49,10 +52,8 @@ async def translate_subtitles(req: TranslateRequest):
     Submit a translation task.
     """
     try:
-        # Extract filename from context_path if available
-        from backend.utils.path_validator import validate_path
         if req.context_path:
-            validate_path(req.context_path, "context_path")
+            req.context_path = str(validate_input_file(req.context_path, label="context_path"))
 
         response = await submit_translation_task(req)
         
@@ -60,6 +61,8 @@ async def translate_subtitles(req: TranslateRequest):
     except ValueError as e:
         logger.warning(f"Rejected translation request: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
