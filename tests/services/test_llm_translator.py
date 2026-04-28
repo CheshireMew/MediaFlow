@@ -3,13 +3,15 @@ import threading
 import time
 from types import SimpleNamespace
 from backend.core.task_control import TaskCancelRequested
-from backend.services.translator.llm_translator import (
+from backend.services.translator.llm_translator import LLMTranslator
+from backend.services.translator.translation_batch_runner import build_translation_batches
+from backend.services.translator.translation_models import (
     IntelligentTranslationResponse,
-    LLMTranslator,
     TranslationOutcome,
     TranslationResponse,
     TranslatorSegment,
 )
+from backend.services.translator.translation_validator import TranslationResponseValidator
 from backend.models.schemas import SubtitleSegment
 
 
@@ -28,6 +30,10 @@ def make_translator() -> LLMTranslator:
         settings_manager=FakeSettingsManager(),
         glossary_service=FakeGlossaryService(),
     )
+
+
+def validate_response(resp, segments, target_language):
+    return TranslationResponseValidator().validate(resp, segments, target_language)
 
 
 def test_translate_segments_empty():
@@ -62,13 +68,12 @@ def test_translate_segments_fails_immediately_when_batch_translation_cannot_fall
 
 
 def test_build_translation_batches_uses_source_overlap():
-    llm_translator = make_translator()
     segments = [
         SubtitleSegment(id=str(i + 1), start=float(i), end=float(i + 1), text=f"line {i + 1}")
         for i in range(25)
     ]
 
-    batches = llm_translator._build_translation_batches(segments, batch_size=10, mode="standard")
+    batches = build_translation_batches(segments, batch_size=10, mode="standard")
 
     assert [batch.index for batch in batches] == [1, 2, 3]
     assert batches[0].context_before is None
@@ -199,7 +204,7 @@ def test_validate_response_rejects_same_count_but_wrong_ids():
         ]
     )
 
-    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments, "Chinese")
+    is_valid, error_msg, mapped = validate_response(resp, segments, "Chinese")
 
     assert is_valid is False
     assert mapped == []
@@ -223,7 +228,7 @@ def test_validate_response_rejects_duplicate_ids():
         ]
     )
 
-    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments, "Chinese")
+    is_valid, error_msg, mapped = validate_response(resp, segments, "Chinese")
 
     assert is_valid is False
     assert mapped == []
@@ -295,7 +300,7 @@ def test_validate_response_rejects_empty_translated_text():
         ]
     )
 
-    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments, "Chinese")
+    is_valid, error_msg, mapped = validate_response(resp, segments, "Chinese")
 
     assert is_valid is False
     assert mapped == []
@@ -323,7 +328,7 @@ def test_validate_response_rejects_source_text_shift():
         ]
     )
 
-    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments, "Chinese")
+    is_valid, error_msg, mapped = validate_response(resp, segments, "Chinese")
 
     assert is_valid is False
     assert mapped == []
@@ -341,7 +346,7 @@ def test_validate_response_normalizes_casual_em_dash_for_chinese():
         ]
     )
 
-    is_valid, error_msg, mapped = llm_translator._validate_response(resp, segments, "Chinese")
+    is_valid, error_msg, mapped = validate_response(resp, segments, "Chinese")
 
     assert is_valid is True
     assert error_msg == ""
@@ -496,8 +501,8 @@ def test_translate_batch_struct_skips_cache_when_fallback_keeps_source(monkeypat
     ]
 
     monkeypatch.setattr(
-        llm_translator,
-        "_get_client",
+        llm_translator._client_factory,
+        "get_client",
         lambda: (SimpleNamespace(), "test-model"),
     )
 
@@ -531,8 +536,8 @@ def test_translate_batch_struct_normalizes_cached_chinese_text(monkeypatch):
     ]
 
     monkeypatch.setattr(
-        llm_translator,
-        "_get_client",
+        llm_translator._client_factory,
+        "get_client",
         lambda: (SimpleNamespace(), "test-model"),
     )
 
@@ -596,8 +601,8 @@ def test_intelligent_mode_recovers_broken_tool_call_json(monkeypatch):
             raise error
 
     monkeypatch.setattr(
-        llm_translator,
-        "_get_client",
+        llm_translator._client_factory,
+        "get_client",
         lambda: (SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())), "test-model"),
     )
 

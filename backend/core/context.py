@@ -23,14 +23,11 @@ class PipelineContext:
         ref_key: str,
         path: Optional[str],
         media_type: Optional[str] = None,
-        mirror_path_keys: tuple[str, ...] = (),
         extra_ref_keys: tuple[str, ...] = (),
     ):
         self.set(path_key, path)
         media_ref = create_media_ref(path, media_type) if path else None
         self.set(ref_key, media_ref)
-        for mirror_key in mirror_path_keys:
-            self.set(mirror_key, path)
         for extra_ref_key in extra_ref_keys:
             self.set(extra_ref_key, media_ref)
 

@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SubtitleSegment } from "../../types/task";
 import {
-  createMediaReference,
+  normalizeMediaReference,
   type MediaReference,
   resolveMediaReferencePath,
 } from "../../services/ui/mediaReference";
@@ -52,7 +52,7 @@ export function resolveSubtitleReferenceForTranslation(params: {
   if (typeof savedPath === "string" && savedPath) {
     return currentSubtitleRef?.path === savedPath
       ? currentSubtitleRef
-      : createMediaReference({ path: savedPath });
+      : normalizeMediaReference(savedPath)!;
   }
 
   if (currentSubtitleRef?.path) {
@@ -62,7 +62,7 @@ export function resolveSubtitleReferenceForTranslation(params: {
   const subtitlePath =
     resolveMediaReferencePath(null, currentSubtitlePath) ??
     currentFilePath.replace(/\.[^.]+$/, ".srt");
-  return createMediaReference({ path: subtitlePath });
+  return normalizeMediaReference(subtitlePath)!;
 }
 
 export function resolveSubtitlePathForTranslation(

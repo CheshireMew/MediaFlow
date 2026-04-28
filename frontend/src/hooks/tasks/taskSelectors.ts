@@ -10,7 +10,7 @@ import {
   resolveTranslationTaskMedia,
 } from "../../services/tasks/taskMediaResolver";
 import {
-  createMediaReference,
+  normalizeMediaReference,
   type MediaReference,
   resolveMediaReferencePath,
 } from "../../services/ui/mediaReference";
@@ -198,11 +198,11 @@ export const mapTaskToTranscribeResult = (
   const subtitleRef =
     taskMediaRefs.subtitleRef ??
     transcribeMediaRefs.subtitleRef ??
-    (srtFile?.path ? createMediaReference({ path: srtFile.path }) : null);
+    normalizeMediaReference(srtFile?.path);
   const videoRef =
     taskMediaRefs.videoRef ??
     transcribeMediaRefs.sourceMediaRef ??
-    (candidatePath ? createMediaReference({ path: candidatePath }) : null);
+    normalizeMediaReference(candidatePath);
   const resolvedCandidatePath =
     resolveMediaReferencePath(videoRef, candidatePath) ?? undefined;
 
@@ -217,7 +217,7 @@ export const mapTaskToTranscribeResult = (
     language: typeof meta.language === "string" ? meta.language : "auto",
     video_ref:
       videoRef ??
-      (resolvedCandidatePath ? createMediaReference({ path: resolvedCandidatePath }) : null),
+      normalizeMediaReference(resolvedCandidatePath),
     subtitle_ref: subtitleRef,
   };
 };

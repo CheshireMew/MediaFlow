@@ -432,50 +432,5 @@ describe("TaskMonitor integration", () => {
     });
   });
 
-  it("shows compat path usage summary in dev debug info", () => {
-    useTaskContextMock.mockReturnValue({
-      tasks: [
-        {
-          id: "legacy-translate-task",
-          type: "translate",
-          status: "completed",
-          progress: 100,
-          task_contract_normalized_from_legacy: true,
-          name: "Legacy translate task",
-          message: "Completed",
-          created_at: 1,
-          request_params: {
-            context_path: "E:/legacy/source.srt",
-            output_path: "E:/legacy/output.mp4",
-          },
-          result: {
-            meta: {
-              srt_path: "E:/legacy/output.srt",
-            },
-          },
-        },
-      ],
-      connected: true,
-      remoteTasksReady: true,
-      tasksSettled: true,
-      taskOwnerMode: "backend",
-      pauseLocalTasks: pauseLocalTasksMock,
-      pauseRemoteTasks: pauseRemoteTasksMock,
-      pauseAllTasks: pauseAllTasksMock,
-      pauseTask: pauseTaskMock,
-      resumeTask: resumeTaskMock,
-      addTask: addTaskMock,
-      deleteTask: deleteTaskMock,
-      clearTasks: clearTasksMock,
-    });
-
-    render(<TaskMonitor />);
-
-    fireEvent.click(screen.getByText("Debug Info"));
-
-    expect(screen.getByText("contract: legacy-normalized")).toBeTruthy();
-    expect(screen.queryByText("result.meta_srt_path: legacy_result_output")).toBeNull();
-  });
 });
-
 

@@ -1,60 +1,21 @@
-import path from "path";
-import type { Task } from "../src/types/task";
-import type { OCRTextEvent } from "../src/types/api";
-import type { SubtitleSegment } from "../src/types/task";
-import { TASK_CONTRACT_VERSION, TASK_LIFECYCLE } from "../src/contracts/runtimeContracts";
-export { TASK_CONTRACT_VERSION } from "../src/contracts/runtimeContracts";
+import type { Task } from "../../src/types/task";
+import type { OCRTextEvent } from "../../src/types/api";
+import type { SubtitleSegment } from "../../src/types/task";
+import { TASK_CONTRACT_VERSION, TASK_LIFECYCLE } from "../../src/contracts/runtimeContracts";
+export { TASK_CONTRACT_VERSION } from "../../src/contracts/runtimeContracts";
+import {
+  getDesktopTaskBasename,
+  getTaskMediaLabel,
+  normalizeDesktopTaskMediaReference,
+  resolveTaskMediaPath,
+} from "./taskMediaRef";
 import type {
-  MediaKind,
-  MediaOriginKind,
-  MediaRole,
-} from "../src/contracts/mediaContracts";
-export type DesktopTaskStatus = "pending" | "running" | "completed" | "failed";
-export type DesktopTaskType =
-  | "download"
-  | "transcribe"
-  | "translate"
-  | "synthesize"
-  | "extract"
-  | "enhance"
-  | "clean";
-
-export type DesktopWorkerRequest = {
-  command: string;
-  payload: Record<string, unknown>;
-};
-
-export type PausedDesktopWorkerTask = {
-  command: DesktopTaskType;
-  payload: Record<string, unknown>;
-};
-
-export type DesktopTaskCollections = {
-  activeTaskId: string | null;
-  queuedTaskIds: string[];
-  pausedTasks: Map<string, PausedDesktopWorkerTask>;
-  requests: Map<string, DesktopWorkerRequest>;
-};
-
-export type DesktopTaskActionPlan =
-  | { status: "ignored" }
-  | {
-      status: "paused" | "removed" | "cancelled" | "resumed";
-      removeRequest?: boolean;
-      removePaused?: boolean;
-      removeQueued?: boolean;
-      addPausedTask?: PausedDesktopWorkerTask;
-      rejectMessage?: string;
-      emitDelete?: boolean;
-      emitTask?: Task;
-      shouldRestartWorker?: boolean;
-      resumeTask?: PausedDesktopWorkerTask;
-    };
-
-export type DesktopWorkerEventPayload = {
-  progress?: number;
-  message?: string;
-};
+  DesktopTaskStatus,
+  DesktopTaskType,
+  DesktopWorkerEventPayload,
+  DesktopWorkerRequest,
+  PausedDesktopWorkerTask,
+} from "./taskTypes";
 
 function resolveDesktopTaskCreatedAt(payload: Record<string, unknown>) {
   return typeof payload.created_at === "number" && Number.isFinite(payload.created_at)
@@ -105,67 +66,6 @@ function normalizeOcrEvents(events: unknown): OCRTextEvent[] {
   return events as OCRTextEvent[];
 }
 
-function createTaskMediaRef(filePath: unknown, type?: string) {
-  if (filePath && typeof filePath === "object") {
-    const candidate = filePath as {
-      path?: unknown;
-      name?: unknown;
-      type?: unknown;
-      media_id?: unknown;
-      media_kind?: unknown;
-      role?: unknown;
-      origin?: unknown;
-    };
-    if (typeof candidate.path === "string" && candidate.path.trim()) {
-      return {
-        path: candidate.path,
-        name:
-          typeof candidate.name === "string" && candidate.name.trim()
-            ? candidate.name
-            : path.basename(candidate.path),
-        type: typeof candidate.type === "string" ? candidate.type : type,
-        media_id: typeof candidate.media_id === "string" ? candidate.media_id : undefined,
-        media_kind:
-          typeof candidate.media_kind === "string"
-            ? (candidate.media_kind as MediaKind)
-            : undefined,
-        role:
-          typeof candidate.role === "string"
-            ? (candidate.role as MediaRole)
-            : undefined,
-        origin:
-          typeof candidate.origin === "string"
-            ? (candidate.origin as MediaOriginKind)
-            : undefined,
-      };
-    }
-  }
-
-  if (typeof filePath !== "string" || !filePath.trim()) {
-    return null;
-  }
-
-  return {
-    path: filePath,
-    name: path.basename(filePath),
-    type,
-    origin: "task" as const,
-  };
-}
-
-function resolveTaskMediaPath(candidate: unknown) {
-  const mediaRef = createTaskMediaRef(candidate);
-  return mediaRef?.path ?? null;
-}
-
-function getTaskMediaLabel(candidate: unknown, fallback: string) {
-  const mediaRef = createTaskMediaRef(candidate);
-  if (mediaRef?.name) {
-    return mediaRef.name;
-  }
-  return fallback;
-}
-
 export function isTrackedDesktopCommand(command: string): command is DesktopTaskType {
   return (
     command === "download" ||
@@ -198,7 +98,7 @@ export function buildDesktopTask(
           : command;
   const name =
     command === "download"
-      ? `Download ${path.basename(String(payload.filename || payload.url || "media"))}`
+      ? `Download ${getDesktopTaskBasename(payload.filename || payload.url, "media")}`
       : command === "transcribe"
         ? `Transcribe ${getTaskMediaLabel(payload.audio_ref || payload.audio_path, "audio")}`
         : command === "translate"
@@ -211,17 +111,18 @@ export function buildDesktopTask(
                 ? `Clean ${getTaskMediaLabel(payload.video_ref || payload.video_path, "video")}`
                 : `Synthesize ${getTaskMediaLabel(payload.video_ref || payload.video_path, "video")}`;
 
-  const requestVideoRef = createTaskMediaRef(
+  const requestVideoRef = normalizeDesktopTaskMediaReference(
     payload.video_ref ||
       payload.audio_ref ||
       payload.file_ref ||
       payload.video_path ||
       payload.audio_path ||
       payload.file_path,
+    { media_kind: "video", role: "source" },
   );
-  const requestSubtitleRef = createTaskMediaRef(
+  const requestSubtitleRef = normalizeDesktopTaskMediaReference(
     payload.subtitle_ref || payload.context_ref || payload.srt_path || payload.context_path,
-    "application/x-subrip",
+    { type: "application/x-subrip" },
   );
 
   return {
@@ -239,7 +140,7 @@ export function buildDesktopTask(
     request_params: {
       ...payload,
       __desktop_worker: true,
-      video_ref: requestVideoRef ? { ...requestVideoRef, media_kind: "video", role: "source", origin: "task" } : null,
+      video_ref: requestVideoRef,
       subtitle_ref:
         command === "translate"
           ? null
@@ -263,9 +164,9 @@ export function buildDesktopTask(
                 subtitle_ref?: unknown;
                 output_ref?: unknown;
               } | undefined;
-              const subtitleRef = createTaskMediaRef(
+              const subtitleRef = normalizeDesktopTaskMediaReference(
                 transcribeResult?.subtitle_ref || transcribeResult?.output_ref,
-                "application/x-subrip",
+                { type: "application/x-subrip" },
               );
               const subtitlePath = resolveTaskMediaPath(subtitleRef);
               return {
@@ -277,14 +178,14 @@ export function buildDesktopTask(
                   segments: normalizeSubtitleSegments(transcribeResult?.segments),
                   text: transcribeResult?.text || "",
                   language: transcribeResult?.language || "auto",
-                  video_ref: createTaskMediaRef(
+                  video_ref: normalizeDesktopTaskMediaReference(
                     transcribeResult?.video_ref || payload.audio_ref || payload.audio_path,
-                    "video/mp4",
+                    { type: "video/mp4" },
                   ),
                   subtitle_ref: subtitleRef,
-                  output_ref: createTaskMediaRef(
+                  output_ref: normalizeDesktopTaskMediaReference(
                     transcribeResult?.output_ref || subtitleRef,
-                    "application/x-subrip",
+                    { type: "application/x-subrip" },
                   ),
                 },
               };
@@ -311,21 +212,21 @@ export function buildDesktopTask(
                 files: downloadResult?.files || [],
                 meta: {
                   ...(downloadResult?.meta || {}),
-                  video_ref: createTaskMediaRef(
+                  video_ref: normalizeDesktopTaskMediaReference(
                     downloadResult?.meta?.video_ref || downloadVideoPath,
-                    "video/mp4",
+                    { type: "video/mp4" },
                   ),
-                  subtitle_ref: createTaskMediaRef(
+                  subtitle_ref: normalizeDesktopTaskMediaReference(
                     downloadResult?.meta?.subtitle_ref ||
                       downloadResult?.meta?.output_ref ||
                       downloadSubtitlePath,
-                    "application/x-subrip",
+                    { type: "application/x-subrip" },
                   ),
-                  output_ref: createTaskMediaRef(
+                  output_ref: normalizeDesktopTaskMediaReference(
                     downloadResult?.meta?.output_ref ||
                       downloadResult?.meta?.video_ref ||
                       downloadVideoPath,
-                    "video/mp4",
+                    { type: "video/mp4" },
                   ),
                 },
                 error: downloadResult?.error,
@@ -341,9 +242,9 @@ export function buildDesktopTask(
                 output_ref?: unknown;
                 mode?: string;
               } | undefined;
-              const subtitleRef = createTaskMediaRef(
+              const subtitleRef = normalizeDesktopTaskMediaReference(
                 translateResult?.subtitle_ref || translateResult?.output_ref,
-                "application/x-subrip",
+                { type: "application/x-subrip" },
               );
               const subtitlePath = resolveTaskMediaPath(subtitleRef);
               return {
@@ -355,14 +256,14 @@ export function buildDesktopTask(
                   segments: normalizeSubtitleSegments(translateResult?.segments),
                   language: translateResult?.language || "",
                   mode: translateResult?.mode,
-                  context_ref: createTaskMediaRef(
+                  context_ref: normalizeDesktopTaskMediaReference(
                     translateResult?.context_ref || payload.context_ref || payload.context_path,
-                    "application/x-subrip",
+                    { type: "application/x-subrip" },
                   ),
                   subtitle_ref: subtitleRef,
-                  output_ref: createTaskMediaRef(
+                  output_ref: normalizeDesktopTaskMediaReference(
                     translateResult?.output_ref || subtitleRef,
-                    "application/x-subrip",
+                    { type: "application/x-subrip" },
                   ),
                 },
               };
@@ -378,8 +279,8 @@ export function buildDesktopTask(
                 success: true,
                 files: videoPath ? [{ type: "video", path: videoPath }] : [],
                 meta: {
-                  video_ref: createTaskMediaRef(videoPath, "video/mp4"),
-                  output_ref: createTaskMediaRef(videoPath, "video/mp4"),
+                  video_ref: normalizeDesktopTaskMediaReference(videoPath, { type: "video/mp4" }),
+                  output_ref: normalizeDesktopTaskMediaReference(videoPath, { type: "video/mp4" }),
                 },
               };
             }
@@ -473,111 +374,6 @@ export function getDesktopTaskSnapshot(params: {
   }
 
   return tasks.sort((a, b) => b.created_at - a.created_at);
-}
-
-export function planPauseDesktopTask(
-  taskId: string,
-  collections: DesktopTaskCollections,
-): DesktopTaskActionPlan {
-  const pending = collections.requests.get(taskId);
-  if (!pending || !isTrackedDesktopCommand(pending.command)) {
-    return { status: "ignored" };
-  }
-
-  return {
-    status: "paused",
-    removeRequest: true,
-    removeQueued: true,
-    addPausedTask: {
-      command: pending.command,
-      payload: {
-        ...pending.payload,
-        task_id: taskId,
-      },
-    },
-    rejectMessage: "Desktop worker task paused",
-    emitTask: {
-      ...buildDesktopTask(taskId, pending.command, pending.payload, "failed", 0, "Paused"),
-      status: "paused",
-      queue_state: "paused",
-      message: "Paused",
-    },
-    shouldRestartWorker: collections.activeTaskId === taskId,
-  };
-}
-
-export function planResumeDesktopTask(
-  taskId: string,
-  pausedTasks: Map<string, PausedDesktopWorkerTask>,
-): DesktopTaskActionPlan {
-  const pausedTask = pausedTasks.get(taskId);
-  if (!pausedTask) {
-    return { status: "ignored" };
-  }
-
-  return {
-    status: "resumed",
-    removePaused: true,
-    resumeTask: pausedTask,
-  };
-}
-
-export function planCancelDesktopTask(
-  taskId: string,
-  collections: DesktopTaskCollections,
-): DesktopTaskActionPlan {
-  if (collections.pausedTasks.has(taskId)) {
-    return {
-      status: "removed",
-      removePaused: true,
-      emitDelete: true,
-    };
-  }
-
-  const pending = collections.requests.get(taskId);
-  if (!pending || !isTrackedDesktopCommand(pending.command)) {
-    return { status: "ignored" };
-  }
-
-  if (collections.queuedTaskIds.includes(taskId)) {
-    return {
-      status: "removed",
-      removeRequest: true,
-      removeQueued: true,
-      emitDelete: true,
-      rejectMessage: "Desktop worker task removed",
-    };
-  }
-
-  if (collections.activeTaskId === taskId) {
-    return {
-      status: "cancelled",
-      removeRequest: true,
-      rejectMessage: "Desktop worker task cancelled",
-      shouldRestartWorker: true,
-      emitTask: {
-        ...buildDesktopTask(
-          taskId,
-          pending.command,
-          pending.payload,
-          "failed",
-          0,
-          "Cancelled",
-          undefined,
-          "Cancelled by user",
-        ),
-        status: "cancelled",
-        queue_state: "cancelled",
-      },
-    };
-  }
-
-  return {
-    status: "removed",
-    removeRequest: true,
-    emitDelete: true,
-    rejectMessage: "Desktop worker task removed",
-  };
 }
 
 export function buildDesktopTaskProgressUpdate(params: {

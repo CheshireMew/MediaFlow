@@ -1,8 +1,6 @@
 import type {
   TaskFileRef as FileRef,
   TaskMediaRef,
-  TaskMetaLegacyPathMirrors,
-  TaskRequestLegacyPathMirrors,
   TaskResultShape,
   TaskTraceItem,
 } from "../contracts/taskContract";
@@ -20,9 +18,9 @@ export interface TaskStep {
   params?: Record<string, unknown>;
 }
 
-export type { FileRef, TaskMediaRef, TaskMetaLegacyPathMirrors, TaskRequestLegacyPathMirrors, TaskTraceItem };
+export type { FileRef, TaskMediaRef, TaskTraceItem };
 
-export interface TaskMeta extends TaskMetaLegacyPathMirrors {
+export interface TaskMeta {
   segments?: SubtitleSegment[];
   text?: string;
   transcript?: string;
@@ -35,7 +33,9 @@ export interface TaskMeta extends TaskMetaLegacyPathMirrors {
   [key: string]: unknown;
 }
 
-export interface TaskRequestParams extends TaskRequestLegacyPathMirrors {
+export interface TaskRequestParams {
+  __desktop_worker?: boolean;
+  steps?: TaskStep[];
   video_ref?: TaskMediaRef | null;
   subtitle_ref?: TaskMediaRef | null;
   context_ref?: TaskMediaRef | null;
@@ -78,7 +78,6 @@ export interface Task {
   status: TaskStatus;
   task_source?: "desktop" | "backend";
   task_contract_version?: number;
-  task_contract_normalized_from_legacy?: boolean;
   persistence_scope?: "runtime" | "history";
   lifecycle?: import("../contracts/runtimeContracts").TaskLifecycle;
   progress: number;

@@ -158,7 +158,6 @@ describe("useTranscriber", () => {
         {
           step_name: "transcribe",
           params: {
-            audio_path: null,
             audio_ref: expect.objectContaining({
               path: "E:/sample.mp4",
               name: "sample.mp4",
@@ -169,8 +168,6 @@ describe("useTranscriber", () => {
             model: "base",
             device: "cpu",
             vad_filter: true,
-            language: undefined,
-            initial_prompt: undefined,
           },
         },
       ],
@@ -188,7 +185,6 @@ describe("useTranscriber", () => {
             expect.objectContaining({
               step_name: "transcribe",
               params: expect.objectContaining({
-                audio_path: null,
                 audio_ref: expect.objectContaining({
                   path: "E:/sample.mp4",
                   name: "sample.mp4",
@@ -250,8 +246,7 @@ describe("useTranscriber", () => {
       await result.current.actions.startTranscription();
     });
 
-    expect(desktopTranscribe).toHaveBeenCalledWith({
-      audio_path: null,
+    expect(desktopTranscribe).toHaveBeenCalledWith(expect.objectContaining({
       audio_ref: expect.objectContaining({
         path: "E:/sample.mp4",
         name: "sample.mp4",
@@ -261,7 +256,8 @@ describe("useTranscriber", () => {
       engine: "builtin",
       model: "base",
       device: "cpu",
-    });
+    }));
+    expect(desktopTranscribe.mock.calls[0]?.[0]).not.toHaveProperty("audio_path");
     expect(apiClient.runPipeline).not.toHaveBeenCalled();
     expect(result.current.state.result).toMatchObject({
       segments: [{ id: "1", start: 0, end: 1.5, text: "hello worker" }],
@@ -331,8 +327,7 @@ describe("useTranscriber", () => {
       await result.current.actions.startTranscription();
     });
 
-    expect(desktopTranscribe).toHaveBeenCalledWith({
-      audio_path: null,
+    expect(desktopTranscribe).toHaveBeenCalledWith(expect.objectContaining({
       audio_ref: expect.objectContaining({
         path: "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
         name: "Patient Investor - “AI Won’t Replace Software!.mp4",
@@ -342,7 +337,8 @@ describe("useTranscriber", () => {
       engine: "builtin",
       model: "base",
       device: "cpu",
-    });
+    }));
+    expect(desktopTranscribe.mock.calls[0]?.[0]).not.toHaveProperty("audio_path");
     expect(result.current.state.result?.video_ref?.path).toBe(
       "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
     );
@@ -546,8 +542,7 @@ describe("useTranscriber", () => {
       await result.current.actions.startTranscription();
     });
 
-    expect(desktopTranscribe).toHaveBeenCalledWith({
-      audio_path: null,
+    expect(desktopTranscribe).toHaveBeenCalledWith(expect.objectContaining({
       audio_ref: expect.objectContaining({
         path: "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
         name: "Patient Investor - “AI Won’t Replace Software!.mp4",
@@ -557,7 +552,8 @@ describe("useTranscriber", () => {
       engine: "builtin",
       model: "base",
       device: "cpu",
-    });
+    }));
+    expect(desktopTranscribe.mock.calls[0]?.[0]).not.toHaveProperty("audio_path");
   });
 
   it("maps a completed task result back into transcriber state", async () => {

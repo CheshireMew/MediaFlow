@@ -64,7 +64,6 @@ describe("taskMediaResolver", () => {
       status: "completed",
       progress: 100,
       created_at: 1,
-      task_contract_normalized_from_legacy: true,
       task_contract_version: 2,
       request_params: {
         context_path: "E:/legacy/source.srt",

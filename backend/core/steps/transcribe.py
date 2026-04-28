@@ -64,7 +64,6 @@ class TranscribeStep(PipelineStep):
                 ref_key="subtitle_ref",
                 path=srt_file.path,
                 media_type="application/x-subrip",
-                mirror_path_keys=("subtitle_path",),
                 extra_ref_keys=("context_ref", "output_ref"),
             )
             

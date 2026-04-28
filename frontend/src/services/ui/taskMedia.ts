@@ -12,7 +12,7 @@ import {
   resolvePrimaryTaskMedia,
   getTaskStructuredMediaRefs,
 } from "../tasks/taskMediaResolver";
-import { createMediaReference, type MediaReference } from "./mediaReference";
+import { normalizeMediaReference, type MediaReference } from "./mediaReference";
 import { resolvePreferredMediaPaths } from "./mediaPathResolver";
 
 type TaskWithDetails = Task & {
@@ -67,28 +67,16 @@ export async function resolveTaskNavigationPayload(
   const canonicalSubtitlePath = resolvedPaths.subtitlePath ?? primaryMedia.subtitleRef?.path ?? null;
   const videoRef =
     primaryMedia.videoRef && canonicalVideoPath !== primaryMedia.videoRef.path
-      ? createMediaReference({
+      ? normalizeMediaReference({
+          ...primaryMedia.videoRef,
           path: canonicalVideoPath ?? primaryMedia.videoRef.path,
-          name: primaryMedia.videoRef.name,
-          size: primaryMedia.videoRef.size,
-          type: primaryMedia.videoRef.type,
-          media_id: primaryMedia.videoRef.media_id,
-          media_kind: primaryMedia.videoRef.media_kind,
-          role: primaryMedia.videoRef.role,
-          origin: primaryMedia.videoRef.origin,
         })
       : primaryMedia.videoRef;
   const subtitleRef =
     primaryMedia.subtitleRef && canonicalSubtitlePath !== primaryMedia.subtitleRef.path
-      ? createMediaReference({
+      ? normalizeMediaReference({
+          ...primaryMedia.subtitleRef,
           path: canonicalSubtitlePath ?? primaryMedia.subtitleRef.path,
-          name: primaryMedia.subtitleRef.name,
-          size: primaryMedia.subtitleRef.size,
-          type: primaryMedia.subtitleRef.type,
-          media_id: primaryMedia.subtitleRef.media_id,
-          media_kind: primaryMedia.subtitleRef.media_kind,
-          role: primaryMedia.subtitleRef.role,
-          origin: primaryMedia.subtitleRef.origin,
         })
       : primaryMedia.subtitleRef;
 

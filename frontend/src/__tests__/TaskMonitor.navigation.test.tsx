@@ -116,10 +116,6 @@ describe("TaskMonitor navigation actions", () => {
           },
         },
       );
-      expect(JSON.parse(sessionStorage.getItem("mediaflow:pending_file") || "null")).toMatchObject({
-        video_path: null,
-        subtitle_path: null,
-      });
     });
     const translatorEvent = dispatchSpy.mock.calls[0]?.[0] as CustomEvent;
     expect(translatorEvent.type).toBe("mediaflow:navigate");
@@ -410,5 +406,4 @@ describe("TaskMonitor navigation actions", () => {
     expect(screen.getByText("badges.history")).toBeInTheDocument();
   });
 });
-
 

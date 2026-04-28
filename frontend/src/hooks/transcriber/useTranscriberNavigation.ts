@@ -4,7 +4,7 @@ import { isDesktopRuntime } from "../../services/domain";
 import type { ElectronFile } from "../../types/electron";
 import { fileService } from "../../services/fileService";
 import {
-  createMediaReference,
+  normalizeMediaReference,
   type MediaReference,
   toElectronFile,
 } from "../../services/ui/mediaReference";
@@ -54,16 +54,12 @@ export function useTranscriberNavigation(params: {
       setResult(null);
       setFile(
         attachElectronFileSource(
-          toElectronFile(createMediaReference({
-            path: resolvedVideoPath,
-            name: videoRef?.name,
-            size: videoRef?.size ?? fileSize,
-            type: videoRef?.type ?? "video/mp4",
-            media_id: videoRef?.media_id,
-            media_kind: videoRef?.media_kind,
-            role: videoRef?.role,
-            origin: videoRef?.origin,
-          })),
+          toElectronFile(
+            normalizeMediaReference(
+              videoRef ? { ...videoRef, path: resolvedVideoPath } : resolvedVideoPath,
+              { size: fileSize, type: "video/mp4" },
+            )!,
+          ),
           toNavigationFileSource(videoRef),
         ),
       );

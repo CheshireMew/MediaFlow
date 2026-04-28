@@ -5,11 +5,15 @@ from backend.core.task_runner import BackgroundTaskRunner
 from backend.models.schemas import (
     CleanRequest,
     EnhanceRequest,
-    FileRef,
-    PreprocessingResponse,
-    TaskResult,
 )
-from backend.services.media_refs import create_media_ref
+from backend.application.preprocessing_results import (
+    build_cleanup_result,
+    build_enhancement_result,
+    resolve_cleanup_method,
+    resolve_cleanup_output_path,
+    resolve_enhancement_output_path,
+    resolve_enhancement_scale,
+)
 
 
 async def submit_enhancement_task(request: EnhanceRequest) -> dict:
@@ -22,28 +26,8 @@ async def submit_enhancement_task(request: EnhanceRequest) -> dict:
         )
         raise RuntimeError(detail)
 
-    source = Path(request.video_path or "")
-    try:
-        scale_value = int(request.scale.lower().replace("x", ""))
-    except (AttributeError, ValueError):
-        scale_value = 4
-    output_path = source.parent / f"{source.stem}_{request.method}_{scale_value}x{source.suffix}"
-
-    def transform_result(path: str):
-        output_ref = create_media_ref(path, "video/mp4", role="output")
-        return TaskResult(
-            success=True,
-            files=[FileRef(type="video", path=path, label="upscaled_video")],
-            meta={
-                "video_path": path,
-                "original_path": request.video_path,
-                "video_ref": output_ref,
-                "output_ref": output_ref,
-                "model": request.model,
-                "scale": scale_value,
-                "method": request.method,
-            },
-        ).model_dump(mode="json")
+    scale_value = resolve_enhancement_scale(request)
+    output_path = resolve_enhancement_output_path(request)
 
     return await RuntimeServices.task_orchestrator().submit_task(
         task_type="enhancement",
@@ -63,7 +47,7 @@ async def submit_enhancement_task(request: EnhanceRequest) -> dict:
             },
             start_message=f"Running {request.method}...",
             success_message="Upscaling complete",
-            result_transformer=transform_result,
+            result_transformer=lambda path: build_enhancement_result(request, path),
         ),
     )
 
@@ -83,11 +67,8 @@ def execute_enhancement(
         raise RuntimeError(detail)
 
     source = Path(request.video_path or "")
-    try:
-        scale_value = int(request.scale.lower().replace("x", ""))
-    except (AttributeError, ValueError):
-        scale_value = 4
-    output_path = str(source.parent / f"{source.stem}_{request.method}_{scale_value}x{source.suffix}")
+    scale_value = resolve_enhancement_scale(request)
+    output_path = str(resolve_enhancement_output_path(request))
     final_path = enhancer.upscale(
         input_path=request.video_path,
         output_path=output_path,
@@ -96,40 +77,12 @@ def execute_enhancement(
         method=request.method,
         progress_callback=progress_callback,
     )
-    output_ref = create_media_ref(final_path, "video/mp4", role="output")
-    return TaskResult(
-        success=True,
-        files=[FileRef(type="video", path=final_path, label="upscaled_video")],
-        meta={
-            "video_path": final_path,
-            "original_path": request.video_path,
-            "video_ref": output_ref,
-            "output_ref": output_ref,
-            "model": request.model,
-            "scale": scale_value,
-            "method": request.method,
-        },
-    ).model_dump(mode="json")
+    return build_enhancement_result(request, final_path)
 
 
 async def submit_cleanup_task(request: CleanRequest) -> dict:
-    source = Path(request.video_path or "")
-    method = request.method or "telea"
-    output_path = source.with_name(f"{source.stem}_cleaned_{method}{source.suffix}")
-
-    def transform_result(out_path: str):
-        output_ref = create_media_ref(out_path, "video/mp4", role="output")
-        return TaskResult(
-            success=True,
-            files=[FileRef(type="video", path=out_path, label="cleaned")],
-            meta={
-                "video_path": out_path,
-                "video_ref": output_ref,
-                "output_ref": output_ref,
-                "original_path": request.video_path,
-                "method": method,
-            },
-        ).model_dump(mode="json")
+    method = resolve_cleanup_method(request)
+    output_path = resolve_cleanup_output_path(request)
 
     return await RuntimeServices.task_orchestrator().submit_task(
         task_type="cleanup",
@@ -148,7 +101,7 @@ async def submit_cleanup_task(request: CleanRequest) -> dict:
             },
             start_message=f"Running Watermark Removal ({method})...",
             success_message="Cleanup complete",
-            result_transformer=transform_result,
+            result_transformer=lambda path: build_cleanup_result(request, path),
         ),
     )
 
@@ -159,8 +112,8 @@ def execute_cleanup(
     progress_callback,
 ):
     source = Path(request.video_path or "")
-    method = request.method or "telea"
-    output_path = str(source.with_name(f"{source.stem}_cleaned_{method}{source.suffix}"))
+    method = resolve_cleanup_method(request)
+    output_path = str(resolve_cleanup_output_path(request))
     final_path = RuntimeServices.cleaner().clean_video(
         input_path=request.video_path,
         output_path=output_path,
@@ -168,15 +121,4 @@ def execute_cleanup(
         method=method,
         progress_callback=progress_callback,
     )
-    output_ref = create_media_ref(final_path, "video/mp4", role="output")
-    return TaskResult(
-        success=True,
-        files=[FileRef(type="video", path=final_path, label="cleaned")],
-        meta={
-            "video_path": final_path,
-            "video_ref": output_ref,
-            "output_ref": output_ref,
-            "original_path": request.video_path,
-            "method": method,
-        },
-    ).model_dump(mode="json")
+    return build_cleanup_result(request, final_path)

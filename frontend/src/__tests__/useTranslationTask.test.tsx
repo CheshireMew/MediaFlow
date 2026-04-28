@@ -317,18 +317,16 @@ describe("useTranslationTask", () => {
       await result.current.startTranslation();
     });
 
-    expect(desktopTranslate).toHaveBeenCalledWith({
+    expect(desktopTranslate).toHaveBeenCalledWith(expect.objectContaining({
       segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
       target_language: "Chinese",
       mode: "standard",
-      context_path: "E:/subs/demo.srt",
-      context_ref: {
+      context_ref: expect.objectContaining({
         path: "E:/subs/demo.srt",
         name: "demo.srt",
-        size: undefined,
-        type: undefined,
-      },
-    });
+      }),
+    }));
+    expect(desktopTranslate.mock.calls[0]?.[0]).not.toHaveProperty("context_path");
     expect(translationServiceMock.startTranslation).not.toHaveBeenCalled();
     expect(useTranslatorStore.getState().targetSegments).toEqual([
       { id: "1", start: 0, end: 1, text: "你好" },
@@ -377,24 +375,23 @@ describe("useTranslationTask", () => {
       await result.current.startTranslation();
     });
 
-    expect(translationServiceMock.startTranslation).toHaveBeenCalledWith({
+    expect(translationServiceMock.startTranslation).toHaveBeenCalledWith(expect.objectContaining({
       segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
       target_language: "Chinese",
       mode: "standard",
-      context_path: "E:/canonical/demo.srt",
-      context_ref: {
+      context_ref: expect.objectContaining({
         path: "E:/canonical/demo.srt",
         name: "demo.srt",
-      },
-    });
+      }),
+    }));
+    expect(translationServiceMock.startTranslation.mock.calls[0]?.[0]).not.toHaveProperty("context_path");
     expect(taskContextMock.addTask).toHaveBeenCalledWith(
       expect.objectContaining({
         request_params: expect.objectContaining({
-          context_path: "E:/canonical/demo.srt",
-          context_ref: {
+          context_ref: expect.objectContaining({
             path: "E:/canonical/demo.srt",
             name: "demo.srt",
-          },
+          }),
         }),
       }),
     );

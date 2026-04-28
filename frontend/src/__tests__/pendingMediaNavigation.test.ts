@@ -10,17 +10,21 @@ describe("pendingMediaNavigation", () => {
     sessionStorage.clear();
   });
 
-  it("normalizes path-only payloads into ref-first session storage", () => {
+  it("stores structured refs as the session media identity", () => {
     writePendingMediaNavigation({
       target: "editor",
-      video_path: "E:/workspace/video.mp4",
-      subtitle_path: "E:/workspace/video.srt",
+      video_ref: {
+        path: "E:/workspace/video.mp4",
+        name: "video.mp4",
+      },
+      subtitle_ref: {
+        path: "E:/workspace/video.srt",
+        name: "video.srt",
+      },
     });
 
     expect(JSON.parse(sessionStorage.getItem("mediaflow:pending_file") || "null")).toEqual({
       target: "editor",
-      video_path: null,
-      subtitle_path: null,
       video_ref: {
         path: "E:/workspace/video.mp4",
         name: "video.mp4",
@@ -32,7 +36,7 @@ describe("pendingMediaNavigation", () => {
     });
   });
 
-  it("ignores legacy path-only session payloads when reading", () => {
+  it("ignores path-only session payloads when reading", () => {
     sessionStorage.setItem(
       "mediaflow:pending_file",
       JSON.stringify({

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { usePreprocessingStore } from '../stores/preprocessingStore';
 import { useTaskContext } from '../context/taskContext';
 import { fileService } from '../services/fileService';
-import { createMediaReference } from '../services/ui/mediaReference';
+import { normalizeMediaReference } from '../services/ui/mediaReference';
 import { fileMatchesOpenDialogProfile } from '../contracts/openFileContract';
 import {
     NavigationService,
@@ -156,7 +156,7 @@ export const PreprocessingPage = () => {
                 addPreprocessingFile({ path, name: file.name, size: file.size });
                 setVideoPath(path);
                 setPreprocessingVideoRef(
-                    createMediaReference({ path, name: file.name, size: file.size }),
+                    normalizeMediaReference({ path, name: file.name, size: file.size }),
                 );
                 setOcrResults([]);
                 setRoi(null);
@@ -174,11 +174,7 @@ export const PreprocessingPage = () => {
                 addPreprocessingFile({ path: fileData.path, name: fileData.name, size: fileData.size });
                 setVideoPath(fileData.path);
                 setPreprocessingVideoRef(
-                    createMediaReference({
-                        path: fileData.path,
-                        name: fileData.name,
-                        size: fileData.size,
-                    }),
+                    normalizeMediaReference(fileData),
                 );
                 setOcrResults([]);
                 setRoi(null);
@@ -192,7 +188,7 @@ export const PreprocessingPage = () => {
         const file = files.find((candidate) => candidate.path === path);
         setVideoPath(path);
         setPreprocessingVideoRef(
-            createMediaReference({
+            normalizeMediaReference({
                 path,
                 name: file?.name,
                 size: file?.size,
@@ -215,7 +211,7 @@ export const PreprocessingPage = () => {
         const matchingFile = files.find((candidate) => candidate.path === navigatedVideoPath);
         setVideoPath(navigatedVideoPath);
         setPreprocessingVideoRef(
-            videoRef ?? createMediaReference({
+            videoRef ?? normalizeMediaReference({
                 path: navigatedVideoPath,
                 name: matchingFile?.name,
                 size: matchingFile?.size,

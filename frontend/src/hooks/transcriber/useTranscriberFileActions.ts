@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { isDesktopRuntime } from "../../services/domain";
 import type { ElectronFile } from "../../types/electron";
 import { fileService } from "../../services/fileService";
-import { createMediaReference, toElectronFile } from "../../services/ui/mediaReference";
+import { normalizeMediaReference, toElectronFile } from "../../services/ui/mediaReference";
 import { attachElectronFileSource } from "../../services/ui/electronFileSource";
 import {
   buildHtmlFileAccept,
@@ -71,12 +71,9 @@ export function useTranscriberFileActions({
       if (fileData?.path) {
         clearResultAndSetFile(
           attachElectronFileSource(
-            toElectronFile(createMediaReference({
-              path: fileData.path,
-              name: fileData.name,
-              size: fileData.size,
-              type: "video/mp4",
-            })),
+            toElectronFile(
+              normalizeMediaReference(fileData, { type: "video/mp4" })!,
+            ),
             "file-selection",
           ),
         );

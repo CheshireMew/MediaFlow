@@ -147,7 +147,6 @@ describe("PreprocessingPage task ownership", () => {
   it("restores preprocessing media from pending navigation using canonical refs", () => {
     writePendingMediaNavigation({
       target: "preprocessing",
-      video_path: "E:/workspace/video-c.mp4",
       video_ref: {
         path: "E:/canonical/video-c.mp4",
         name: "video-c.mp4",

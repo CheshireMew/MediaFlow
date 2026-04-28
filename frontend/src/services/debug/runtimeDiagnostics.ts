@@ -66,7 +66,6 @@ export function createTaskDiagnostic(
     task_source: task.task_source ?? null,
     lifecycle: task.lifecycle ?? null,
     task_contract_version: task.task_contract_version ?? null,
-    task_contract_normalized_from_legacy: task.task_contract_normalized_from_legacy ?? false,
     persistence_scope: task.persistence_scope ?? null,
     queue_state: task.queue_state ?? null,
     queue_position: task.queue_position ?? null,

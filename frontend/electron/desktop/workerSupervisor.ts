@@ -1,29 +1,28 @@
-import { app, BrowserWindow } from "electron";
-import fs from "fs";
-import path from "path";
-import { spawn, type ChildProcess } from "child_process";
+import { BrowserWindow } from "electron";
+import type { ChildProcess } from "child_process";
 import {
   buildDesktopTask,
   buildDesktopTaskProgressUpdate,
   buildDesktopTaskResponseUpdate,
   getDesktopTaskSnapshot,
   isTrackedDesktopCommand,
+} from "./taskMapper";
+import {
   planCancelDesktopTask,
   planPauseDesktopTask,
   planResumeDesktopTask,
-  type DesktopTaskType,
-} from "../desktopTaskState";
+} from "./taskPlans";
+import type { DesktopTaskType } from "./taskTypes";
 import { DesktopTaskHistoryStore } from "./historyStore";
 import {
   DESKTOP_TASK_EVENT_CHANNEL,
   DESKTOP_WORKER_EVENT_CHANNELS,
 } from "./bridgeContract";
+import { startDesktopWorkerProcess } from "./workerProcess";
 import {
-  buildDesktopRuntimeEnv,
-  isDesktopDevMode,
-  resolveDesktopDevWorkerLaunch,
-  resolveBundledDesktopWorkerExecutable,
-} from "../desktopRuntime";
+  handleDesktopWorkerProtocolLine,
+  type DesktopWorkerProtocolResponse,
+} from "./workerProtocol";
 
 type DesktopWorkerRequest = {
   command: string;
@@ -32,13 +31,10 @@ type DesktopWorkerRequest = {
   reject: (reason?: unknown) => void;
 };
 
-const DESKTOP_WORKER_PREFIX = "__MEDIAFLOW_WORKER__";
-
 export class DesktopWorkerSupervisor {
   private desktopWorkerProcess: ChildProcess | null = null;
   private desktopWorkerReady = false;
   private desktopWorkerId = 0;
-  private desktopWorkerStdoutBuffer = "";
   private desktopWorkerReadyWaiters: Array<() => void> = [];
   private activeDesktopWorkerTaskId: string | null = null;
   private desktopWorkerStopMode: "restart" | "shutdown" | null = null;
@@ -365,24 +361,6 @@ export class DesktopWorkerSupervisor {
     }
   }
 
-  private getDesktopWorkerCommand(): { command: string; args: string[]; cwd: string } | null {
-    if (!isDesktopDevMode() && app.isPackaged) {
-      const workerExe = resolveBundledDesktopWorkerExecutable();
-      if (!fs.existsSync(workerExe)) {
-        console.error("Bundled desktop worker executable not found at:", workerExe);
-        return null;
-      }
-
-      return {
-        command: workerExe,
-        args: [],
-        cwd: path.dirname(workerExe),
-      };
-    }
-
-    return resolveDesktopDevWorkerLaunch();
-  }
-
   private resolveDesktopWorkerReady() {
     this.desktopWorkerReady = true;
     const waiters = [...this.desktopWorkerReadyWaiters];
@@ -391,111 +369,89 @@ export class DesktopWorkerSupervisor {
   }
 
   private handleDesktopWorkerLine(line: string) {
-    if (!line.startsWith(DESKTOP_WORKER_PREFIX)) {
-      console.log(`[DesktopWorker] ${line}`);
-      return;
-    }
-
-    try {
-      const message = JSON.parse(line.slice(DESKTOP_WORKER_PREFIX.length)) as {
-        type: string;
-        id?: string;
-        ok?: boolean;
-        result?: unknown;
-        error?: string;
-        event?: string;
-        payload?: unknown;
-      };
-
-      if (message.type === "ready") {
+    handleDesktopWorkerProtocolLine(line, {
+      onLog: (rawLine) => {
+        console.log(`[DesktopWorker] ${rawLine}`);
+      },
+      onReady: () => {
         console.log("[DesktopWorker] ready");
         this.resolveDesktopWorkerReady();
         this.dispatchNextDesktopWorkerTask();
-        return;
-      }
-
-      if (message.type === "event") {
-        if (message.event) {
-          const channel =
-            DESKTOP_WORKER_EVENT_CHANNELS[
-              message.event as keyof typeof DESKTOP_WORKER_EVENT_CHANNELS
-            ];
-          if (channel) {
-            this.emitDesktopProgress(channel, message.payload);
-          } else {
-            console.log("[DesktopWorker event]", message.event, message.payload);
-          }
-        }
-
-        if (message.id) {
-          const pending = this.desktopWorkerRequests.get(message.id);
-          if (
-            pending &&
-            isTrackedDesktopCommand(pending.command) &&
-            message.payload &&
-            typeof message.payload === "object"
-          ) {
-            const taskUpdate = buildDesktopTaskProgressUpdate({
-              taskId: message.id,
-              request: pending,
-              payload: message.payload,
-            });
-            if (taskUpdate) {
-              this.emitDesktopTaskMessage({
-                type: "update",
-                task: taskUpdate,
-              });
-            }
-          }
-        }
-        return;
-      }
-
-      if (message.type === "response" && message.id) {
-        const pending = this.desktopWorkerRequests.get(message.id);
-        if (!pending) {
-          return;
-        }
-
-        this.desktopWorkerRequests.delete(message.id);
-        if (this.activeDesktopWorkerTaskId === message.id) {
-          this.activeDesktopWorkerTaskId = null;
-          this.dispatchNextDesktopWorkerTask();
-        }
-        if (message.ok) {
-          const taskUpdate = buildDesktopTaskResponseUpdate({
-            taskId: message.id,
-            request: pending,
-            ok: true,
-            result: message.result,
-          });
-          if (taskUpdate) {
-            this.historyStore.upsert(taskUpdate);
-            this.emitDesktopTaskMessage({
-              type: "update",
-              task: taskUpdate,
-            });
-          }
-          pending.resolve(message.result);
+      },
+      onEvent: (event, payload) => {
+        const channel =
+          DESKTOP_WORKER_EVENT_CHANNELS[
+            event as keyof typeof DESKTOP_WORKER_EVENT_CHANNELS
+          ];
+        if (channel) {
+          this.emitDesktopProgress(channel, payload);
         } else {
-          const taskUpdate = buildDesktopTaskResponseUpdate({
-            taskId: message.id,
-            request: pending,
-            ok: false,
-            error: message.error,
-          });
-          if (taskUpdate) {
-            this.historyStore.upsert(taskUpdate);
-            this.emitDesktopTaskMessage({
-              type: "update",
-              task: taskUpdate,
-            });
-          }
-          pending.reject(new Error(message.error || "Desktop worker request failed"));
+          console.log("[DesktopWorker event]", event, payload);
         }
-      }
-    } catch (error) {
-      console.error("[DesktopWorker] Failed to parse line", line, error);
+      },
+      onTaskEvent: (taskId, payload) => this.handleDesktopWorkerTaskEvent(taskId, payload),
+      onResponse: (response) => this.handleDesktopWorkerResponse(response),
+      onParseError: (rawLine, error) => {
+        console.error("[DesktopWorker] Failed to parse line", rawLine, error);
+      },
+    });
+  }
+
+  private handleDesktopWorkerTaskEvent(taskId: string, payload: unknown) {
+    const pending = this.desktopWorkerRequests.get(taskId);
+    if (
+      !pending ||
+      !isTrackedDesktopCommand(pending.command) ||
+      !payload ||
+      typeof payload !== "object"
+    ) {
+      return;
+    }
+
+    const taskUpdate = buildDesktopTaskProgressUpdate({
+      taskId,
+      request: pending,
+      payload,
+    });
+    if (taskUpdate) {
+      this.emitDesktopTaskMessage({
+        type: "update",
+        task: taskUpdate,
+      });
+    }
+  }
+
+  private handleDesktopWorkerResponse(message: DesktopWorkerProtocolResponse) {
+    const pending = this.desktopWorkerRequests.get(message.id);
+    if (!pending) {
+      return;
+    }
+
+    this.desktopWorkerRequests.delete(message.id);
+    if (this.activeDesktopWorkerTaskId === message.id) {
+      this.activeDesktopWorkerTaskId = null;
+      this.dispatchNextDesktopWorkerTask();
+    }
+
+    const taskUpdate = buildDesktopTaskResponseUpdate({
+      taskId: message.id,
+      request: pending,
+      ok: Boolean(message.ok),
+      result: message.result,
+      error: message.error,
+    });
+    if (taskUpdate) {
+      this.historyStore.upsert(taskUpdate);
+      this.emitDesktopTaskMessage({
+        type: "update",
+        task: taskUpdate,
+      });
+    }
+
+    if (message.ok) {
+      pending.resolve(message.result);
+    } else {
+      pending.reject(new Error(message.error || "Desktop worker request failed"));
     }
   }
 
@@ -504,75 +460,44 @@ export class DesktopWorkerSupervisor {
       return;
     }
 
-    const workerCommand = this.getDesktopWorkerCommand();
-    if (!workerCommand) {
-      return;
-    }
-
     this.desktopWorkerReady = false;
-    this.desktopWorkerStdoutBuffer = "";
-    console.log("Starting desktop worker:", workerCommand.command, workerCommand.args.join(" "));
-    this.desktopWorkerProcess = spawn(workerCommand.command, workerCommand.args, {
-      cwd: workerCommand.cwd,
-      detached: false,
-      stdio: ["pipe", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        ...buildDesktopRuntimeEnv(),
-      },
-    });
+    this.desktopWorkerProcess = startDesktopWorkerProcess({
+      onLine: (line) => this.handleDesktopWorkerLine(line),
+      onClose: (code) => {
+        console.log(`[DesktopWorker] exited with code ${code}`);
+        this.desktopWorkerReady = false;
+        this.desktopWorkerProcess = null;
+        this.activeDesktopWorkerTaskId = null;
 
-    this.desktopWorkerProcess.stdout?.on("data", (data) => {
-      this.desktopWorkerStdoutBuffer += data.toString();
-      let newlineIndex = this.desktopWorkerStdoutBuffer.indexOf("\n");
-      while (newlineIndex !== -1) {
-        const line = this.desktopWorkerStdoutBuffer.slice(0, newlineIndex).trim();
-        this.desktopWorkerStdoutBuffer = this.desktopWorkerStdoutBuffer.slice(newlineIndex + 1);
-        if (line) {
-          this.handleDesktopWorkerLine(line);
-        }
-        newlineIndex = this.desktopWorkerStdoutBuffer.indexOf("\n");
-      }
-    });
+        const stopMode = this.desktopWorkerStopMode;
+        this.desktopWorkerStopMode = null;
 
-    this.desktopWorkerProcess.stderr?.on("data", (data) => {
-      console.error(`[DesktopWorker ERR] ${data}`);
-    });
-
-    this.desktopWorkerProcess.on("close", (code) => {
-      console.log(`[DesktopWorker] exited with code ${code}`);
-      this.desktopWorkerReady = false;
-      this.desktopWorkerProcess = null;
-      this.activeDesktopWorkerTaskId = null;
-
-      const stopMode = this.desktopWorkerStopMode;
-      this.desktopWorkerStopMode = null;
-
-      if (stopMode === "restart") {
-        const queuedTaskIdSet = new Set(this.queuedDesktopWorkerTaskIds);
-        for (const [requestId, pending] of [...this.desktopWorkerRequests.entries()]) {
-          if (queuedTaskIdSet.has(requestId)) {
-            continue;
+        if (stopMode === "restart") {
+          const queuedTaskIdSet = new Set(this.queuedDesktopWorkerTaskIds);
+          for (const [requestId, pending] of [...this.desktopWorkerRequests.entries()]) {
+            if (queuedTaskIdSet.has(requestId)) {
+              continue;
+            }
+            pending.reject(new Error("Desktop worker restarted"));
+            this.desktopWorkerRequests.delete(requestId);
           }
-          pending.reject(new Error("Desktop worker restarted"));
-          this.desktopWorkerRequests.delete(requestId);
+          this.desktopWorkerReadyWaiters = [];
+          if (this.desktopWorkerRequests.size > 0 || this.queuedDesktopWorkerTaskIds.length > 0) {
+            this.startDesktopWorker();
+          }
+          return;
         }
-        this.desktopWorkerReadyWaiters = [];
-        if (this.desktopWorkerRequests.size > 0 || this.queuedDesktopWorkerTaskIds.length > 0) {
-          this.startDesktopWorker();
-        }
-        return;
-      }
 
-      this.queuedDesktopWorkerTaskIds.length = 0;
-      for (const [taskId, pending] of [...this.desktopWorkerRequests.entries()]) {
-        if (isTrackedDesktopCommand(pending.command)) {
-          this.emitTrackedTaskFailure(taskId, pending.command, pending.payload, "Desktop worker exited");
+        this.queuedDesktopWorkerTaskIds.length = 0;
+        for (const [taskId, pending] of [...this.desktopWorkerRequests.entries()]) {
+          if (isTrackedDesktopCommand(pending.command)) {
+            this.emitTrackedTaskFailure(taskId, pending.command, pending.payload, "Desktop worker exited");
+          }
+          pending.reject(new Error("Desktop worker exited"));
         }
-        pending.reject(new Error("Desktop worker exited"));
-      }
-      this.desktopWorkerRequests.clear();
-      this.desktopWorkerReadyWaiters = [];
+        this.desktopWorkerRequests.clear();
+        this.desktopWorkerReadyWaiters = [];
+      },
     });
   }
 

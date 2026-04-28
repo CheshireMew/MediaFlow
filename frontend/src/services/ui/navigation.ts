@@ -1,5 +1,5 @@
 import {
-  createMediaReference,
+  normalizeMediaReference,
   type MediaReference,
 } from "./mediaReference";
 import { writePendingMediaNavigation } from "./pendingMediaNavigation";
@@ -15,8 +15,6 @@ export type NavigationDestination =
   | "home";
 
 export interface NavigationPayload {
-  video_path?: string | null;
-  subtitle_path?: string | null;
   video_ref?: MediaReference | null;
   subtitle_ref?: MediaReference | null;
   settings_tab?: "llm" | "general";
@@ -76,25 +74,6 @@ export function resolveNavigationPath(detail: NavigationEventDetail): string {
   return `/${detail.destination}`;
 }
 
-function normalizeNavigationMediaRef(
-  reference?: MediaReference | null,
-): MediaReference | null {
-  if (!reference?.path) {
-    return null;
-  }
-
-  return createMediaReference({
-    path: reference.path,
-    name: reference.name,
-    size: reference.size,
-    type: reference.type,
-    media_id: reference.media_id,
-    media_kind: reference.media_kind,
-    role: reference.role,
-    origin: reference.origin,
-  });
-}
-
 export function createNavigationMediaPayload(params: {
   videoPath?: string | null;
   subtitlePath?: string | null;
@@ -113,25 +92,13 @@ export function createNavigationMediaPayload(params: {
   } = params;
 
   const resolvedVideoRef =
-    normalizeNavigationMediaRef(videoRef) ??
-    (videoPath
-      ? createMediaReference({
-        path: videoPath,
-        ...videoMeta,
-      })
-      : null);
+    normalizeMediaReference(videoRef) ??
+    normalizeMediaReference(videoPath, videoMeta);
   const resolvedSubtitleRef =
-    normalizeNavigationMediaRef(subtitleRef) ??
-    (subtitlePath
-      ? createMediaReference({
-        path: subtitlePath,
-        ...subtitleMeta,
-      })
-      : null);
+    normalizeMediaReference(subtitleRef) ??
+    normalizeMediaReference(subtitlePath, subtitleMeta);
 
   return {
-    video_path: resolvedVideoRef ? null : videoPath ?? null,
-    subtitle_path: resolvedSubtitleRef ? null : subtitlePath ?? null,
     video_ref: resolvedVideoRef,
     subtitle_ref: resolvedSubtitleRef,
   };
@@ -140,12 +107,12 @@ export function createNavigationMediaPayload(params: {
 export function resolveNavigationMediaPayload(
   payload?: NavigationPayload | null,
 ) {
-  const videoRef = normalizeNavigationMediaRef(payload?.video_ref);
-  const subtitleRef = normalizeNavigationMediaRef(payload?.subtitle_ref);
+  const videoRef = normalizeMediaReference(payload?.video_ref);
+  const subtitleRef = normalizeMediaReference(payload?.subtitle_ref);
 
   return {
-    videoPath: videoRef?.path ?? payload?.video_path ?? null,
-    subtitlePath: subtitleRef?.path ?? payload?.subtitle_path ?? null,
+    videoPath: videoRef?.path ?? null,
+    subtitlePath: subtitleRef?.path ?? null,
     videoRef,
     subtitleRef,
   };
@@ -167,8 +134,6 @@ function persistNavigationPayload(
   ) {
     writePendingMediaNavigation({
       target: destination,
-      video_path: payload.video_ref ? null : payload.video_path ?? null,
-      subtitle_path: payload.subtitle_ref ? null : payload.subtitle_path ?? null,
       video_ref: payload.video_ref ?? null,
       subtitle_ref: payload.subtitle_ref ?? null,
     });

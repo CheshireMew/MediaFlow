@@ -1,7 +1,7 @@
 from backend.core.context import PipelineContext
 
 
-def test_pipeline_context_media_adapter_keeps_ref_and_legacy_path_mirrors_in_sync():
+def test_pipeline_context_media_adapter_sets_primary_path_and_structured_refs():
     ctx = PipelineContext()
 
     ctx.set_media(
@@ -9,12 +9,11 @@ def test_pipeline_context_media_adapter_keeps_ref_and_legacy_path_mirrors_in_syn
         ref_key="subtitle_ref",
         path="E:/subs/demo_CN.srt",
         media_type="application/x-subrip",
-        mirror_path_keys=("subtitle_path",),
         extra_ref_keys=("context_ref", "output_ref"),
     )
 
     assert ctx.get("srt_path") == "E:/subs/demo_CN.srt"
-    assert ctx.get("subtitle_path") == "E:/subs/demo_CN.srt"
+    assert ctx.get("subtitle_path") is None
     assert ctx.get("subtitle_ref")["path"] == "E:/subs/demo_CN.srt"
     assert ctx.get("context_ref")["path"] == "E:/subs/demo_CN.srt"
     assert ctx.get("output_ref")["path"] == "E:/subs/demo_CN.srt"

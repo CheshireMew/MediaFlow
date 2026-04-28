@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { isDesktopRuntime } from "../../services/domain";
 import { useTranslatorStore } from "../../stores/translatorStore";
 import {
-  createMediaReference,
+  normalizeMediaReference,
   type MediaReference,
 } from "../../services/ui/mediaReference";
 import {
@@ -69,7 +69,7 @@ export function useTranslatorFileLoader() {
           );
           if (foundLang) setTargetLang(foundLang);
           setTargetSegments(parsed);
-          setTargetSubtitleRef(createMediaReference({ path: targetPath }));
+          setTargetSubtitleRef(normalizeMediaReference(targetPath));
           break;
         }
       } catch {
@@ -81,18 +81,8 @@ export function useTranslatorFileLoader() {
   const handleFileUpload = useCallback(async (input: string | MediaReference) => {
     if (!isDesktopRuntime()) return;
     const resolvedRef =
-      typeof input === "string"
-        ? createMediaReference({ path: input })
-        : createMediaReference({
-            path: input.path,
-            name: input.name,
-            size: input.size,
-            type: input.type,
-            media_id: input.media_id,
-            media_kind: input.media_kind,
-            role: input.role,
-            origin: input.origin,
-          });
+      normalizeMediaReference(input);
+    if (!resolvedRef) return;
     const path = resolvedRef.path;
     if (!isSupportedTranslatorSubtitlePath(path)) {
       alert("AI 翻译当前只支持导入字幕文件（如 .srt / .vtt / .ass / .ssa）。");

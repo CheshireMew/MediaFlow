@@ -79,7 +79,6 @@ describe("runtimeDiagnostics", () => {
       task_source: "backend",
       lifecycle: "resumable",
       task_contract_version: 1,
-      task_contract_normalized_from_legacy: false,
       persistence_scope: "runtime",
       queue_state: "running",
       queue_position: null,
@@ -136,7 +135,6 @@ describe("runtimeDiagnostics", () => {
           type: "translate",
           status: "completed",
           progress: 100,
-          task_contract_normalized_from_legacy: true,
           task_contract_version: 2,
           request_params: {},
           result: {

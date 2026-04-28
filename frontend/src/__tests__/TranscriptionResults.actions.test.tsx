@@ -27,15 +27,11 @@ describe("TranscriptionResults actions", () => {
   const expectTranslatorPayload = (
     payload: unknown,
     expected: {
-      videoPath?: string | null;
-      subtitlePath?: string | null;
       videoRef?: { path: string; name: string; type?: string };
       subtitleRef?: { path: string; name: string; type?: string };
     },
   ) => {
     expect(payload).toMatchObject({
-      video_path: expected.videoPath ?? null,
-      subtitle_path: expected.subtitlePath ?? null,
       video_ref: expected.videoRef,
       subtitle_ref: expected.subtitleRef,
     });
@@ -214,8 +210,6 @@ describe("TranscriptionResults actions", () => {
       });
 
     expect(payload).toEqual({
-      video_path: null,
-      subtitle_path: null,
       video_ref: {
         path: "E:/canonical/sample.mp4",
         name: "sample.mp4",
@@ -277,8 +271,6 @@ describe("TranscriptionResults actions", () => {
       });
 
     expect(payload).toEqual({
-      video_path: null,
-      subtitle_path: null,
       video_ref: {
         path: "E:/workspace/sample.mp4",
         name: "sample.mp4",

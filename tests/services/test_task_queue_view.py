@@ -49,7 +49,7 @@ def test_serialize_task_marks_terminal_backend_tasks_as_history():
     assert payload["lifecycle"] == "history-only"
 
 
-def test_serialize_task_adds_structured_media_refs():
+def test_serialize_task_does_not_synthesize_refs_from_path_fields():
     view = TaskQueueView()
     task = Task(
         id="task-media",
@@ -71,16 +71,13 @@ def test_serialize_task_adds_structured_media_refs():
         queued_order=[],
     )
 
-    assert payload["request_params"]["subtitle_ref"]["path"] == "E:/subs/demo.srt"
-    assert payload["request_params"]["context_ref"]["path"] == "E:/subs/demo.srt"
-    assert payload["request_params"]["subtitle_ref"]["media_kind"] == "subtitle"
-    assert payload["request_params"]["subtitle_ref"]["origin"] == "task"
-    assert payload["result"]["meta"]["subtitle_ref"]["path"] == "E:/subs/demo_zh.srt"
-    assert payload["result"]["meta"]["output_ref"]["path"] == "E:/subs/demo_zh.srt"
-    assert payload["task_contract_normalized_from_legacy"] is True
+    assert "subtitle_ref" not in payload["request_params"]
+    assert "context_ref" not in payload["request_params"]
+    assert "subtitle_ref" not in payload["result"]["meta"]
+    assert "output_ref" not in payload["result"]["meta"]
 
 
-def test_serialize_pipeline_transcribe_task_derives_video_ref_from_transcribe_step_only():
+def test_serialize_pipeline_transcribe_task_does_not_derive_video_ref_from_step_paths():
     view = TaskQueueView()
     task = Task(
         id="task-pipeline-transcribe",
@@ -105,11 +102,10 @@ def test_serialize_pipeline_transcribe_task_derives_video_ref_from_transcribe_st
         queued_order=[],
     )
 
-    assert payload["request_params"]["video_ref"]["path"] == "E:/media/demo.mp4"
-    assert payload["request_params"]["video_ref"]["media_kind"] == "video"
+    assert "video_ref" not in payload["request_params"]
 
 
-def test_serialize_translate_task_does_not_promote_context_path_to_video_ref():
+def test_serialize_translate_task_does_not_add_empty_video_ref_slot():
     view = TaskQueueView()
     task = Task(
         id="task-translate-no-video",
@@ -127,8 +123,7 @@ def test_serialize_translate_task_does_not_promote_context_path_to_video_ref():
         queued_order=[],
     )
 
-    assert payload["request_params"]["video_ref"] is None
-    assert payload["task_contract_normalized_from_legacy"] is True
+    assert "video_ref" not in payload["request_params"]
 
 
 def test_serialize_task_preserves_native_structured_refs_without_legacy_normalization():
@@ -178,4 +173,3 @@ def test_serialize_task_preserves_native_structured_refs_without_legacy_normaliz
 
     assert payload["request_params"]["context_ref"]["path"] == "E:/subs/demo.srt"
     assert payload["result"]["meta"]["subtitle_ref"]["path"] == "E:/subs/demo_zh.srt"
-    assert payload["task_contract_normalized_from_legacy"] is False

@@ -321,9 +321,7 @@ describe("editor subtitle behaviors", () => {
         },
         savedPath: false,
       }),
-    ).toEqual({
-      video_path: null,
-      subtitle_path: null,
+    ).toMatchObject({
       video_ref: {
         path: "E:/canonical/demo.mp4",
         name: "demo.mp4",

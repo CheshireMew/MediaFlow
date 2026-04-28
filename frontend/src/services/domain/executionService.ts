@@ -41,7 +41,7 @@ type DownloadStepParams = {
 function omitUndefinedFields<T extends Record<string, unknown>>(payload: T) {
   return Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined),
-  ) as Partial<T>;
+  ) as T;
 }
 
 export function resolveDownloadStepParams(pipeline: PipelineRequest) {
@@ -185,7 +185,7 @@ export const executionService = {
           steps: [
             {
               step_name: "transcribe",
-              params: {
+              params: omitUndefinedFields({
                 audio_path: normalizedPayload.audio_path,
                 audio_ref: normalizedPayload.audio_ref ?? null,
                 engine: normalizedPayload.engine ?? "builtin",
@@ -194,7 +194,7 @@ export const executionService = {
                 vad_filter: true,
                 language: normalizedPayload.language,
                 initial_prompt: normalizedPayload.initial_prompt,
-              },
+              }),
             },
           ],
         };
@@ -283,7 +283,7 @@ export const executionService = {
       desktopFailureLogLabel: "Desktop synthesis failed",
       backendSubmit: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
-          apiClient.synthesizeVideo({
+          apiClient.synthesizeVideo(omitUndefinedFields({
             video_path: normalizedPayload.video_path,
             video_ref: normalizedPayload.video_ref,
             srt_path: normalizedPayload.srt_path,
@@ -291,7 +291,7 @@ export const executionService = {
             watermark_path: normalizedPayload.watermark_path || null,
             output_path: normalizedPayload.output_path,
             options: normalizedPayload.options,
-          }),
+          })),
         ),
     });
   },

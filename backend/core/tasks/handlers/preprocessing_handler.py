@@ -1,13 +1,18 @@
 from collections.abc import Awaitable, Callable
-from backend.models.schemas import TaskResult, FileRef
 from backend.models.task_model import Task
 from backend.core.runtime_access import RuntimeServices
 from backend.core.tasks.base import TaskHandler
 from backend.core.tasks.registry import TaskHandlerRegistry
 from backend.core.task_runner import BackgroundTaskRunner
 from backend.models.schemas import CleanRequest, EnhanceRequest
-from backend.services.media_refs import create_media_ref
-from pathlib import Path
+from backend.application.preprocessing_results import (
+    build_cleanup_result,
+    build_enhancement_result,
+    resolve_cleanup_method,
+    resolve_cleanup_output_path,
+    resolve_enhancement_output_path,
+    resolve_enhancement_scale,
+)
 from loguru import logger
 
 @TaskHandlerRegistry.register("enhancement")
@@ -18,30 +23,8 @@ class EnhancementHandler(TaskHandler):
         try:
             req = EnhanceRequest(**task.request_params)
             enhancer = RuntimeServices.enhancer()
-            
-            p = Path(req.video_path)
-            try:
-                scale_val = int(req.scale.lower().replace('x', ''))
-            except (ValueError, AttributeError):
-                scale_val = 4
-            output_filename = f"{p.stem}_{req.method}_{scale_val}x{p.suffix}"
-            output_path = p.parent / output_filename
-
-            def transform_result(path):
-                output_ref = create_media_ref(path, "video/mp4", role="output")
-                return TaskResult(
-                    success=True,
-                    files=[FileRef(type="video", path=path, label="upscaled_video")],
-                    meta={
-                        "video_path": path,
-                        "original_path": req.video_path,
-                        "video_ref": output_ref,
-                        "output_ref": output_ref,
-                        "model": req.model,
-                        "scale": scale_val,
-                        "method": req.method
-                    }
-                ).dict()
+            scale_val = resolve_enhancement_scale(req)
+            output_path = resolve_enhancement_output_path(req)
 
             return lambda: BackgroundTaskRunner.run(
                 task_id=task.id,
@@ -55,7 +38,7 @@ class EnhancementHandler(TaskHandler):
                 },
                 start_message=f"Resuming {req.method}...",
                 success_message="Upscaling complete",
-                result_transformer=transform_result
+                result_transformer=lambda path: build_enhancement_result(req, path)
             )
 
         except Exception as e:
@@ -70,23 +53,8 @@ class CleanupHandler(TaskHandler):
         try:
             req = CleanRequest(**task.request_params)
             cleaner = RuntimeServices.cleaner()
-            
-            p = Path(req.video_path)
-            method = req.method or "telea"
-            output_path = p.with_name(f"{p.stem}_cleaned_{method}{p.suffix}")
-
-            def save_result(out_path):
-                output_ref = create_media_ref(out_path, "video/mp4", role="output")
-                return TaskResult(
-                    success=True,
-                    files=[FileRef(type="video", path=out_path, label="cleaned")],
-                    meta={
-                        "video_path": out_path,
-                        "video_ref": output_ref,
-                        "output_ref": output_ref,
-                        "original_path": req.video_path,
-                    }
-                ).dict()
+            method = resolve_cleanup_method(req)
+            output_path = resolve_cleanup_output_path(req)
 
             return lambda: BackgroundTaskRunner.run(
                 task_id=task.id,
@@ -99,7 +67,7 @@ class CleanupHandler(TaskHandler):
                 },
                 start_message=f"Resuming Watermark Removal ({method})...",
                 success_message="Cleanup complete",
-                result_transformer=save_result
+                result_transformer=lambda path: build_cleanup_result(req, path)
             )
 
         except Exception as e:

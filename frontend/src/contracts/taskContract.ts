@@ -17,21 +17,6 @@ export interface TaskTraceItem {
   timestamp: number;
 }
 
-export interface TaskMetaLegacyPathMirrors {
-  srt_path?: string | null;
-}
-
-export interface TaskRequestLegacyPathMirrors {
-  __desktop_worker?: boolean;
-  steps?: Array<{
-    step_name?: string;
-    action?: string;
-    params?: Record<string, unknown>;
-  }>;
-  context_path?: string;
-  output_path?: string;
-}
-
 export interface TaskStructuredMediaRefs {
   video_ref?: TaskMediaRef | null;
   subtitle_ref?: TaskMediaRef | null;
@@ -46,8 +31,7 @@ export interface TaskResultShape extends TaskStructuredMediaRefs {
   text?: string;
   language?: string;
   error?: string;
-  meta?: (TaskMetaLegacyPathMirrors &
-    TaskStructuredMediaRefs & {
+  meta?: (TaskStructuredMediaRefs & {
       segments?: Array<{ id: number | string; start: number; end: number; text: string }>;
       text?: string;
       transcript?: string;

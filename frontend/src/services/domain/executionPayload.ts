@@ -1,4 +1,4 @@
-import { getBasenameFromPath, type MediaReference } from "../ui/mediaReference";
+import { getBasenameFromPath, normalizeMediaReference, type MediaReference } from "../ui/mediaReference";
 
 export type ExecutionMediaFieldSpec = {
   pathKey: string;
@@ -16,17 +16,6 @@ function normalizeExecutionPath(value: unknown) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeExecutionRef(value: unknown) {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Partial<MediaReference>;
-  return typeof candidate.path === "string" && candidate.path.trim().length > 0
-    ? (candidate as MediaReference)
-    : null;
-}
-
 export function normalizeExecutionPayload<T extends Record<string, unknown>>(
   payload: T,
   specs: ExecutionMediaFieldSpec[],
@@ -35,14 +24,20 @@ export function normalizeExecutionPayload<T extends Record<string, unknown>>(
 
   for (const spec of specs) {
     const path = normalizeExecutionPath(normalizedPayload[spec.pathKey]);
-    const ref = normalizeExecutionRef(normalizedPayload[spec.refKey]);
+    const ref = normalizeMediaReference(normalizedPayload[spec.refKey]);
 
     if (spec.required && !path && !ref) {
       throw new Error(`${spec.label} path is required`);
     }
 
+    if (ref) {
+      delete normalizedPayload[spec.pathKey];
+      normalizedPayload[spec.refKey] = ref;
+      continue;
+    }
+
     normalizedPayload[spec.pathKey] = path;
-    normalizedPayload[spec.refKey] = ref;
+    normalizedPayload[spec.refKey] = null;
   }
 
   return normalizedPayload as T;

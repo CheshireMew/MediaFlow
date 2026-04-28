@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { isDesktopRuntime } from "../../services/domain";
 import { useEditorStore } from "../../stores/editorStore";
 import { fileService } from "../../services/fileService";
-import { createMediaReference } from "../../services/ui/mediaReference";
+import { normalizeMediaReference } from "../../services/ui/mediaReference";
 import {
   buildHtmlFileAccept,
   fileMatchesOpenDialogProfile,
@@ -44,7 +44,7 @@ export function useEditorFileLoader() {
           if (parsed.length > 0) {
             replaceEditorDocument(parsed);
             setCurrentSubtitlePath(subtitlePath);
-            setCurrentSubtitleRef(createMediaReference({ path: subtitlePath }));
+            setCurrentSubtitleRef(normalizeMediaReference(subtitlePath));
             return;
           }
         } catch {
@@ -64,7 +64,7 @@ export function useEditorFileLoader() {
       replaceEditorDocument([]);
       setCurrentFilePath(path);
       setCurrentSubtitlePath(null);
-      setCurrentFileRef(createMediaReference({ path }));
+      setCurrentFileRef(normalizeMediaReference(path));
       setCurrentSubtitleRef(null);
       setMediaUrl(pathToFileURL(path));
       await tryLoadRelatedSubtitle(path);
@@ -90,7 +90,7 @@ export function useEditorFileLoader() {
       const videoPath = await findRelatedVideoForSubtitle(path);
       if (videoPath) {
         setCurrentFilePath(videoPath);
-        setCurrentFileRef(createMediaReference({ path: videoPath }));
+        setCurrentFileRef(normalizeMediaReference(videoPath));
         setMediaUrl(pathToFileURL(videoPath));
       }
 
@@ -102,7 +102,7 @@ export function useEditorFileLoader() {
         }
         replaceEditorDocument(parsed);
         setCurrentSubtitlePath(path);
-        setCurrentSubtitleRef(createMediaReference({ path }));
+        setCurrentSubtitleRef(normalizeMediaReference(path));
       } catch (error) {
         console.error("[EditorIO] Failed to load subtitle:", error);
         alert("Failed to load subtitle file.");

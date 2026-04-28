@@ -1,5 +1,5 @@
 import type { FileRef, Task, TaskMeta, TaskRequestParams, TaskResult } from "../../types/task";
-import { createMediaReference, type MediaReference } from "../ui/mediaReference";
+import { normalizeMediaReference, type MediaReference } from "../ui/mediaReference";
 
 type TaskWithDetails = Task & {
   request_params?: TaskRequestParams;
@@ -8,28 +8,6 @@ type TaskWithDetails = Task & {
 
 function getTaskFiles(result: TaskResult | undefined, type: string) {
   return result?.files?.filter((file: FileRef) => file.type === type).map((file) => file.path) ?? [];
-}
-
-function normalizeTaskMediaRef(candidate: unknown): MediaReference | null {
-  if (!candidate || typeof candidate !== "object") {
-    return null;
-  }
-
-  const media = candidate as Partial<MediaReference>;
-  if (typeof media.path !== "string" || !media.path.trim()) {
-    return null;
-  }
-
-  return createMediaReference({
-    path: media.path,
-    name: media.name,
-    size: media.size,
-    type: media.type,
-    media_id: media.media_id,
-    media_kind: media.media_kind,
-    role: media.role,
-    origin: media.origin,
-  });
 }
 
 function appendPathCandidate(
@@ -48,17 +26,17 @@ export function getTaskStructuredMediaRefs(task: TaskWithDetails) {
 
   return {
     videoRef:
-      normalizeTaskMediaRef(meta.video_ref) ??
-      normalizeTaskMediaRef(params.video_ref),
+      normalizeMediaReference(meta.video_ref) ??
+      normalizeMediaReference(params.video_ref),
     subtitleRef:
-      normalizeTaskMediaRef(meta.subtitle_ref) ??
-      normalizeTaskMediaRef(params.subtitle_ref),
+      normalizeMediaReference(meta.subtitle_ref) ??
+      normalizeMediaReference(params.subtitle_ref),
     contextRef:
-      normalizeTaskMediaRef(meta.context_ref) ??
-      normalizeTaskMediaRef(params.context_ref),
+      normalizeMediaReference(meta.context_ref) ??
+      normalizeMediaReference(params.context_ref),
     outputRef:
-      normalizeTaskMediaRef(meta.output_ref) ??
-      normalizeTaskMediaRef(params.output_ref),
+      normalizeMediaReference(meta.output_ref) ??
+      normalizeMediaReference(params.output_ref),
   };
 }
 
@@ -100,9 +78,9 @@ export function resolvePrimaryTaskMedia(task: TaskWithDetails) {
   );
 
   return {
-    videoRef: structuredRefs.videoRef ?? (videoCandidate ? createMediaReference({ path: videoCandidate }) : null),
+    videoRef: structuredRefs.videoRef ?? normalizeMediaReference(videoCandidate),
     subtitleRef:
-      structuredRefs.subtitleRef ?? (subtitleCandidate ? createMediaReference({ path: subtitleCandidate }) : null),
+      structuredRefs.subtitleRef ?? normalizeMediaReference(subtitleCandidate),
     contextRef: structuredRefs.contextRef,
     outputRef: structuredRefs.outputRef,
     contextPath: contextCandidate ?? null,
@@ -116,17 +94,17 @@ export function resolveTranslationTaskMedia(task: Task) {
   const structuredRefs = getTaskStructuredMediaRefs(task);
 
   const sourceSubtitleRef =
-    normalizeTaskMediaRef(requestParams?.context_ref) ??
-    normalizeTaskMediaRef(requestParams?.subtitle_ref) ??
+    normalizeMediaReference(requestParams?.context_ref) ??
+    normalizeMediaReference(requestParams?.subtitle_ref) ??
     structuredRefs.contextRef ??
     structuredRefs.subtitleRef ??
     null;
 
   const targetSubtitleRef =
-    normalizeTaskMediaRef(resultMeta?.output_ref) ??
-    normalizeTaskMediaRef(resultMeta?.subtitle_ref) ??
+    normalizeMediaReference(resultMeta?.output_ref) ??
+    normalizeMediaReference(resultMeta?.subtitle_ref) ??
     structuredRefs.outputRef ??
-    (resultSubtitleFile?.path ? createMediaReference({ path: resultSubtitleFile.path }) : null);
+    normalizeMediaReference(resultSubtitleFile?.path);
 
   return {
     sourceSubtitleRef,
@@ -158,10 +136,10 @@ export function resolveTranscribeTaskMedia(task: Task) {
     const params = task.request_params as Record<string, unknown> | undefined;
     const audioRefCandidate = params?.audio_ref;
     if (audioRefCandidate && typeof audioRefCandidate === "object") {
-      directAudioRef = normalizeTaskMediaRef(audioRefCandidate);
+      directAudioRef = normalizeMediaReference(audioRefCandidate);
     }
     if (!directAudioRef && typeof params?.audio_path === "string") {
-      directAudioRef = createMediaReference({ path: params.audio_path });
+      directAudioRef = normalizeMediaReference(params.audio_path);
     }
   } else if (task.type === "pipeline") {
     const steps = task.request_params?.steps;
@@ -174,10 +152,10 @@ export function resolveTranscribeTaskMedia(task: Task) {
         : undefined;
     const audioRefCandidate = params?.audio_ref;
     if (audioRefCandidate && typeof audioRefCandidate === "object") {
-      directAudioRef = normalizeTaskMediaRef(audioRefCandidate);
+      directAudioRef = normalizeMediaReference(audioRefCandidate);
     }
     if (!directAudioRef && typeof params?.audio_path === "string") {
-      directAudioRef = createMediaReference({ path: params.audio_path });
+      directAudioRef = normalizeMediaReference(params.audio_path);
     }
   }
 

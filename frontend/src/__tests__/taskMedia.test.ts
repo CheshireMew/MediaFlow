@@ -33,8 +33,6 @@ describe("taskMedia", () => {
     const payload = await resolveTaskNavigationPayload(task);
 
     expect(payload).toEqual({
-      video_path: null,
-      subtitle_path: null,
       video_ref: expect.objectContaining({
         path: "E:/sample.mp4",
         name: "sample.mp4",
@@ -124,11 +122,9 @@ describe("taskMedia", () => {
       role: "output",
       origin: "task",
     });
-    expect(payload.video_path).toBeNull();
-    expect(payload.subtitle_path).toBeNull();
   });
 
-  it("includes explicit task media refs in candidate resolution before legacy paths", async () => {
+  it("includes explicit task media refs in candidate resolution before path fields", async () => {
     const task: Task = {
       id: "task-3",
       type: "translate",
@@ -210,7 +206,7 @@ describe("taskMedia", () => {
     });
   });
 
-  it("does not prioritize stale path mirrors when structured subtitle refs exist", () => {
+  it("does not prioritize stale path fields when structured subtitle refs exist", () => {
     const task: Task = {
       id: "task-6",
       type: "translate",
@@ -403,7 +399,6 @@ describe("taskMedia", () => {
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      task_contract_normalized_from_legacy: true,
       task_contract_version: 2,
       request_params: {},
       result: {

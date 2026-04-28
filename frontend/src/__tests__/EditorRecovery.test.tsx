@@ -66,8 +66,6 @@ describe("Editor recovery", () => {
   it("prefers explicit pending navigation payload over persisted editor store state", async () => {
     writePendingMediaNavigation({
       target: "editor",
-      video_path: "E:/new-video.mp4",
-      subtitle_path: "E:/new-video_CN.srt",
       video_ref: {
         path: "E:/canonical/new-video.mp4",
         name: "canonical-video.mp4",

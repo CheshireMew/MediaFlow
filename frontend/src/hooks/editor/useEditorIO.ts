@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useEditorStore } from "../../stores/editorStore";
 import {
-  createMediaReference,
+  normalizeMediaReference,
 } from "../../services/ui/mediaReference";
 import {
   consumePendingMediaNavigation,
@@ -58,7 +58,7 @@ export function useEditorIO() {
       try {
         setCurrentFilePath(videoPath);
         setCurrentFileRef(
-          videoRef ?? createMediaReference({ path: videoPath }),
+          videoRef ?? normalizeMediaReference(videoPath),
         );
         setCurrentSubtitlePath(null);
         setCurrentSubtitleRef(null);
@@ -72,7 +72,7 @@ export function useEditorIO() {
               setCurrentSubtitlePath(subtitlePath);
               setCurrentSubtitleRef(
                 subtitleRef ??
-                  createMediaReference({ path: subtitlePath }),
+                  normalizeMediaReference(subtitlePath),
               );
             }
           } catch (e) {

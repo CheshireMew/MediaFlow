@@ -8,7 +8,7 @@ import {
   isAiTranslationSetupRequiredError,
   type NullableExecutionMode,
 } from "../../services/domain";
-import { createMediaReference, type MediaReference } from "../../services/ui/mediaReference";
+import { normalizeMediaReference, type MediaReference } from "../../services/ui/mediaReference";
 import { normalizeTranslateResult } from "../../services/ui/translateResult";
 
 type UseTranslationCommandsParams = {
@@ -53,7 +53,7 @@ export function useTranslationCommands({
   previousTranslateModeRef,
 }: UseTranslationCommandsParams) {
   const { addTask } = useTaskContext();
-  const contextRef = sourceFileRef ?? (sourceFilePath ? createMediaReference({ path: sourceFilePath }) : null);
+  const contextRef = sourceFileRef ?? normalizeMediaReference(sourceFilePath);
   const contextPath = contextRef?.path ?? sourceFilePath ?? null;
 
   const startTranslation = async () => {

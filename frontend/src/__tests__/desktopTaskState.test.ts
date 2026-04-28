@@ -7,12 +7,14 @@ import {
   buildDesktopTask,
   getDesktopTaskSnapshot,
   isTrackedDesktopCommand,
+} from "../../electron/desktop/taskMapper";
+import {
   planCancelDesktopTask,
   planPauseDesktopTask,
   planResumeDesktopTask,
-} from "../../electron/desktopTaskState";
+} from "../../electron/desktop/taskPlans";
 
-describe("desktopTaskState", () => {
+describe("desktop task mapper and plans", () => {
   it("identifies tracked desktop commands", () => {
     expect(isTrackedDesktopCommand("transcribe")).toBe(true);
     expect(isTrackedDesktopCommand("translate")).toBe(true);

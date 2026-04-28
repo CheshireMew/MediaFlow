@@ -12,6 +12,16 @@ export interface MediaReference {
   origin?: MediaOriginKind;
 }
 
+type MediaReferenceDefaults = {
+  name?: string | null;
+  size?: number;
+  type?: string;
+  media_id?: string;
+  media_kind?: MediaKind;
+  role?: MediaRole;
+  origin?: MediaOriginKind;
+};
+
 export function getBasenameFromPath(filePath: string, fallbackName?: string) {
   const normalized = typeof filePath === "string" ? filePath.trim() : "";
   if (!normalized) {
@@ -23,7 +33,18 @@ export function getBasenameFromPath(filePath: string, fallbackName?: string) {
   return basename || fallbackName || normalized;
 }
 
-export function createMediaReference(params: {
+function isMediaReferenceCandidate(
+  value: unknown,
+): value is Partial<MediaReference> & { path: string } {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "path" in value &&
+      typeof (value as { path?: unknown }).path === "string",
+  );
+}
+
+function createMediaReference(params: {
   path: string;
   name?: string | null;
   size?: number;
@@ -44,6 +65,42 @@ export function createMediaReference(params: {
     role,
     origin,
   };
+}
+
+export function normalizeMediaReference(
+  value: unknown,
+  defaults: MediaReferenceDefaults = {},
+): MediaReference | null {
+  if (typeof value === "string") {
+    const path = value.trim();
+    if (!path) {
+      return null;
+    }
+    return createMediaReference({
+      path,
+      ...defaults,
+    });
+  }
+
+  if (!isMediaReferenceCandidate(value)) {
+    return null;
+  }
+
+  const path = value.path.trim();
+  if (!path) {
+    return null;
+  }
+
+  return createMediaReference({
+    path,
+    name: typeof value.name === "string" ? value.name : defaults.name,
+    size: typeof value.size === "number" ? value.size : defaults.size,
+    type: typeof value.type === "string" ? value.type : defaults.type,
+    media_id: typeof value.media_id === "string" ? value.media_id : defaults.media_id,
+    media_kind: typeof value.media_kind === "string" ? (value.media_kind as MediaKind) : defaults.media_kind,
+    role: typeof value.role === "string" ? (value.role as MediaRole) : defaults.role,
+    origin: typeof value.origin === "string" ? (value.origin as MediaOriginKind) : defaults.origin,
+  });
 }
 
 export function mediaReferenceFromElectronFile(
@@ -99,16 +156,7 @@ export function parseMediaReference(raw: string | null): MediaReference | null {
       return null;
     }
 
-    return createMediaReference({
-      path: parsed.path,
-      name: parsed.name,
-      size: typeof parsed.size === "number" ? parsed.size : undefined,
-      type: typeof parsed.type === "string" ? parsed.type : undefined,
-      media_id: typeof parsed.media_id === "string" ? parsed.media_id : undefined,
-      media_kind: typeof parsed.media_kind === "string" ? (parsed.media_kind as MediaKind) : undefined,
-      role: typeof parsed.role === "string" ? (parsed.role as MediaRole) : undefined,
-      origin: typeof parsed.origin === "string" ? (parsed.origin as MediaOriginKind) : undefined,
-    });
+    return normalizeMediaReference(parsed);
   } catch {
     return null;
   }

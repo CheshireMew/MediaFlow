@@ -85,7 +85,6 @@ class TranslateStep(PipelineStep):
             ref_key="subtitle_ref",
             path=saved_path,
             media_type="application/x-subrip",
-            mirror_path_keys=("subtitle_path",),
             extra_ref_keys=("context_ref", "output_ref"),
         )
         

@@ -2,7 +2,6 @@ from typing import Optional
 
 from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
 from backend.models.task_model import Task
-from backend.services.task_media_contract import normalize_task_media_contract
 
 
 class TaskQueueView:
@@ -53,10 +52,8 @@ class TaskQueueView:
 
         data["queue_state"] = queue_state
         data["queue_position"] = queue_position
-        normalized_from_legacy = normalize_task_media_contract(data)
         data["task_source"] = "backend"
         data["task_contract_version"] = TASK_CONTRACT_VERSION
-        data["task_contract_normalized_from_legacy"] = normalized_from_legacy
         data["persistence_scope"] = self.get_persistence_scope(task)
         data["lifecycle"] = self.get_lifecycle(task)
         return data

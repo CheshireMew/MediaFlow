@@ -71,7 +71,6 @@ describe("useTranslatorOutputActions", () => {
       expect.objectContaining({
         destination: "editor",
         payload: expect.objectContaining({
-          subtitle_path: null,
           subtitle_ref: expect.objectContaining({
             path: "E:/subs/demo_CN.srt",
             name: "demo_CN.srt",
@@ -94,8 +93,6 @@ describe("useTranslatorOutputActions", () => {
         },
       }),
     ).toEqual({
-      video_path: null,
-      subtitle_path: null,
       video_ref: {
         path: "E:/workspace/demo.mp4",
         name: "demo.mp4",

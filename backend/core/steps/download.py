@@ -83,7 +83,6 @@ class DownloadStep(PipelineStep):
                 ref_key="subtitle_ref",
                 path=subtitle_file.path,
                 media_type="application/x-subrip",
-                mirror_path_keys=("srt_path",),
                 extra_ref_keys=("context_ref",),
             )
             

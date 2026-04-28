@@ -17,8 +17,7 @@ import {
 } from "../../services/domain";
 import { fileService } from "../../services/fileService";
 import {
-  createMediaReference,
-  mediaReferenceFromElectronFile,
+  normalizeMediaReference,
   toElectronFile,
 } from "../../services/ui/mediaReference";
 import { normalizeTranscribeResult } from "../../services/ui/transcribeResult";
@@ -75,12 +74,7 @@ export function createTranscriberEditorNavigationPayload(params: {
   return createNavigationMediaPayload({
     videoPath: file.path,
     subtitlePath: null,
-    videoRef: createMediaReference({
-      path: file.path,
-      name: file.name,
-      size: file.size,
-      type: file.type,
-    }),
+    videoRef: normalizeMediaReference(file),
     subtitleRef: result?.subtitle_ref ?? null,
   });
 }
@@ -124,16 +118,13 @@ export function useTranscriberCommands({
         const resolvedPath = await fileService.resolveExistingPath(filePath, file.name, file.size);
         if (resolvedPath && resolvedPath !== filePath) {
           filePath = resolvedPath;
-          const source = mediaReferenceFromElectronFile(file);
+          const source = normalizeMediaReference(file);
           setFile(
             attachElectronFileSource(
               toElectronFile(
-                createMediaReference({
-                  path: resolvedPath,
-                  name: source?.name ?? file.name,
-                  size: source?.size ?? file.size,
-                  type: source?.type ?? file.type,
-                }),
+                normalizeMediaReference(
+                  source ? { ...source, path: resolvedPath } : { ...file, path: resolvedPath },
+                )!,
               ),
               getElectronFileSource(file),
             ),
@@ -147,12 +138,7 @@ export function useTranscriberCommands({
         return;
       }
 
-      const submissionAudioRef = createMediaReference({
-        path: filePath,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-      });
+      const submissionAudioRef = normalizeMediaReference({ ...file, path: filePath })!;
 
       console.info("[Transcriber] desktop:transcribe payload", {
         source: getElectronFileSource(file),
@@ -163,7 +149,6 @@ export function useTranscriberCommands({
       });
 
       const executionResult = await executionService.transcribe({
-        audio_path: null,
         audio_ref: submissionAudioRef,
         engine,
         model,
@@ -218,7 +203,6 @@ export function useTranscriberCommands({
               {
                 step_name: "transcribe",
                 params: {
-                  audio_path: null,
                   audio_ref: submissionAudioRef,
                   engine,
                   model,
@@ -286,12 +270,7 @@ export function useTranscriberCommands({
               video_ref:
                 result.video_ref ??
                 (file?.path
-                  ? createMediaReference({
-                      path: file.path,
-                      name: file.name,
-                      size: file.size,
-                      type: file.type,
-                    })
+                  ? normalizeMediaReference(file)
                   : null),
               subtitle_ref: result.subtitle_ref,
             }

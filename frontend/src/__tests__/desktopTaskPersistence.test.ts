@@ -64,65 +64,11 @@ describe("desktopTaskPersistence", () => {
     });
   });
 
-  it("reads legacy array history and filters runtime entries during migration", () => {
+  it("rejects history payloads without the current schema envelope", () => {
     const raw = JSON.stringify([
       createDesktopTask({ id: "done-1", status: "completed", created_at: 2 }),
-      createDesktopTask({ id: "paused-1", status: "paused", created_at: 3 }),
     ]);
 
-    expect(parsePersistedDesktopTaskHistory(raw).map((task) => task.id)).toEqual(["done-1"]);
-  });
-
-  it("normalizes legacy desktop translation history into structured refs", () => {
-    const raw = JSON.stringify([
-      createDesktopTask({
-        id: "translate-legacy-history",
-        type: "translate",
-        status: "completed",
-        created_at: 2,
-        request_params: {
-          __desktop_worker: true,
-          context_path: "E:/legacy/source.srt",
-        },
-        result: {
-          success: true,
-          files: [],
-          meta: {
-            srt_path: "E:/legacy/output.srt",
-          },
-        },
-      }),
-    ]);
-
-    expect(parsePersistedDesktopTaskHistory(raw)).toEqual([
-      expect.objectContaining({
-        id: "translate-legacy-history",
-        persistence_scope: "history",
-        lifecycle: "history-only",
-        task_contract_normalized_from_legacy: true,
-        request_params: expect.objectContaining({
-          context_ref: expect.objectContaining({
-            path: "E:/legacy/source.srt",
-            name: "source.srt",
-          }),
-          subtitle_ref: expect.objectContaining({
-            path: "E:/legacy/source.srt",
-            name: "source.srt",
-          }),
-        }),
-        result: expect.objectContaining({
-          meta: expect.objectContaining({
-            subtitle_ref: expect.objectContaining({
-              path: "E:/legacy/output.srt",
-              name: "output.srt",
-            }),
-            output_ref: expect.objectContaining({
-              path: "E:/legacy/output.srt",
-              name: "output.srt",
-            }),
-          }),
-        }),
-      }),
-    ]);
+    expect(parsePersistedDesktopTaskHistory(raw)).toEqual([]);
   });
 });

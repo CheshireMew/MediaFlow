@@ -11,7 +11,7 @@ import {
   settingsService,
 } from "../domain";
 import type { ExecutionOutcome } from "../domain";
-import { createMediaReference, type MediaReference } from "../ui/mediaReference";
+import { normalizeMediaReference } from "../ui/mediaReference";
 import { fileService } from "../fileService";
 import { parseSubtitleContent } from "../../utils/subtitleParser";
 
@@ -75,17 +75,6 @@ function resolveRetryTaskId(task: Task): string | undefined {
   return task.task_source === "desktop" ? task.id : undefined;
 }
 
-function isMediaReferenceCandidate(
-  value: unknown,
-): value is Partial<MediaReference> & { path: string } {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      "path" in value &&
-      typeof (value as { path?: unknown }).path === "string",
-  );
-}
-
 function isTranslateMode(value: unknown): value is TranslateMode {
   return value === "standard" || value === "intelligent" || value === "proofread";
 }
@@ -116,32 +105,9 @@ function readRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function toMediaReference(value: unknown, type?: string): MediaReference | null {
-  if (!value) {
-    return null;
-  }
-  if (typeof value === "string") {
-    return createMediaReference({ path: value, type });
-  }
-  if (isMediaReferenceCandidate(value)) {
-    const candidate = value;
-    return createMediaReference({
-      path: candidate.path,
-      name: candidate.name,
-      size: candidate.size,
-      type: candidate.type ?? type,
-      media_id: candidate.media_id,
-      media_kind: candidate.media_kind,
-      role: candidate.role,
-      origin: candidate.origin,
-    });
-  }
-  return null;
-}
-
 function getTaskMediaReference(params: Record<string, unknown>, keys: string[], type?: string) {
   for (const key of keys) {
-    const ref = toMediaReference(params[key], type);
+    const ref = normalizeMediaReference(params[key], { type });
     if (ref) {
       return ref;
     }
@@ -268,7 +234,6 @@ async function submitTranscribeRetry(task: Task): Promise<RetrySubmission | null
   const initialPrompt = readOptionalString(params.initial_prompt);
 
   const outcome = await executionService.transcribe({
-    audio_path: null,
     audio_ref: audioRef,
     engine,
     model,
@@ -285,7 +250,6 @@ async function submitTranscribeRetry(task: Task): Promise<RetrySubmission | null
             {
               step_name: "transcribe",
               params: {
-                audio_path: null,
                 audio_ref: audioRef,
                 engine,
                 model,
@@ -342,7 +306,6 @@ async function submitTranslateRetry(task: Task): Promise<RetrySubmission | null>
     segments,
     target_language: targetLanguage,
     mode,
-    context_path: contextPath,
     context_ref: contextRef,
   } satisfies Parameters<typeof executionService.translate>[0];
   const outcome = await executionService.translate(translateReq);
@@ -351,7 +314,6 @@ async function submitTranslateRetry(task: Task): Promise<RetrySubmission | null>
     descriptor: createRetryDescriptor(
       "translate",
       {
-        context_path: contextPath,
         context_ref: contextRef,
         target_language: targetLanguage,
         mode,
@@ -380,9 +342,7 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
   }
   const outcome = await executionService.synthesize({
     task_id: resolveRetryTaskId(task),
-    video_path: null,
     video_ref: videoRef,
-    srt_path: srtRef.path,
     srt_ref: srtRef,
     watermark_path: watermarkPath ?? null,
     output_path: outputPath ?? null,
@@ -395,8 +355,7 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
       task.type,
       {
         video_ref: videoRef,
-        srt_path: srtRef.path,
-        subtitle_ref: srtRef,
+        srt_ref: srtRef,
         ...(watermarkPath !== undefined
           ? { watermark_path: watermarkPath }
           : {}),
@@ -425,7 +384,6 @@ async function submitExtractRetry(task: Task): Promise<RetrySubmission | null> {
   const sampleRate = isFiniteNumber(params.sample_rate) ? params.sample_rate : undefined;
   const outcome = await preprocessingService.extractText({
     task_id: resolveRetryTaskId(task),
-    video_path: null,
     video_ref: videoRef,
     roi,
     engine,
@@ -461,7 +419,6 @@ async function submitEnhanceRetry(task: Task): Promise<RetrySubmission | null> {
   const method = readOptionalString(params.method);
   const outcome = await preprocessingService.enhanceVideo({
     task_id: resolveRetryTaskId(task),
-    video_path: null,
     video_ref: videoRef,
     model,
     scale,
@@ -496,7 +453,6 @@ async function submitCleanRetry(task: Task): Promise<RetrySubmission | null> {
   const method = readOptionalString(params.method);
   const outcome = await preprocessingService.cleanVideo({
     task_id: resolveRetryTaskId(task),
-    video_path: null,
     video_ref: videoRef,
     roi,
     method,

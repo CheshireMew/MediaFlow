@@ -85,8 +85,28 @@ contextBridge.exposeInMainWorld("electronAPI", {
   }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopTranslate.ipcChannel, payload),
   desktopSynthesize: (payload: {
     task_id?: string;
-    video_path: string;
-    srt_path: string;
+    video_path?: string | null;
+    video_ref?: {
+      path: string;
+      name: string;
+      size?: number;
+      type?: string;
+      media_id?: string;
+      media_kind?: string;
+      role?: string;
+      origin?: string;
+    } | null;
+    srt_path?: string | null;
+    srt_ref?: {
+      path: string;
+      name: string;
+      size?: number;
+      type?: string;
+      media_id?: string;
+      media_kind?: string;
+      role?: string;
+      origin?: string;
+    } | null;
     watermark_path?: string | null;
     output_path?: string | null;
     options: Record<string, unknown>;
@@ -121,7 +141,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopDownload.ipcChannel, payload),
   desktopExtract: (payload: {
     task_id?: string;
-    video_path: string;
+    video_path?: string | null;
+    video_ref?: {
+      path: string;
+      name: string;
+      size?: number;
+      type?: string;
+      media_id?: string;
+      media_kind?: string;
+      role?: string;
+      origin?: string;
+    } | null;
     roi?: number[];
     engine: "rapid" | "paddle";
     sample_rate?: number;
@@ -149,14 +179,34 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getDesktopLatestWatermark: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.getDesktopLatestWatermark.ipcChannel),
   desktopEnhance: (payload: {
     task_id?: string;
-    video_path: string;
+    video_path?: string | null;
+    video_ref?: {
+      path: string;
+      name: string;
+      size?: number;
+      type?: string;
+      media_id?: string;
+      media_kind?: string;
+      role?: string;
+      origin?: string;
+    } | null;
     model?: string;
     scale?: string;
     method?: string;
   }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopEnhance.ipcChannel, payload),
   desktopClean: (payload: {
     task_id?: string;
-    video_path: string;
+    video_path?: string | null;
+    video_ref?: {
+      path: string;
+      name: string;
+      size?: number;
+      type?: string;
+      media_id?: string;
+      media_kind?: string;
+      role?: string;
+      origin?: string;
+    } | null;
     roi: [number, number, number, number];
     method?: string;
   }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopClean.ipcChannel, payload),

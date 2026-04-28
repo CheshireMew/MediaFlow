@@ -38,8 +38,6 @@ export function normalizeTaskContract(task: Task): Task {
     task_source: taskSource,
     task_contract_version:
       task.task_contract_version ?? SUPPORTED_TASK_CONTRACT_VERSION,
-    task_contract_normalized_from_legacy:
-      task.task_contract_normalized_from_legacy ?? false,
     lifecycle:
       task.lifecycle ??
       getTaskLifecycle({

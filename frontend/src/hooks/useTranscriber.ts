@@ -21,7 +21,10 @@ import { useTranscriberFileActions } from "./transcriber/useTranscriberFileActio
 import { desktopEventsService } from "../services/desktop";
 import { isDesktopRuntime } from "../services/domain";
 import { fileService } from "../services/fileService";
-import { createMediaReference, toElectronFile } from "../services/ui/mediaReference";
+import {
+  normalizeMediaReference,
+  toElectronFile,
+} from "../services/ui/mediaReference";
 import { normalizeTranscribeResult } from "../services/ui/transcribeResult";
 import { attachElectronFileSource } from "../services/ui/electronFileSource";
 import { useExecutionModeState } from "./execution/useExecutionModeState";
@@ -80,15 +83,7 @@ export function useTranscriber() {
     tasks,
     tasksSettled,
     activeTaskId,
-    fileRef:
-      file?.path
-        ? createMediaReference({
-            path: file.path,
-            name: file.name,
-            size: file.size,
-            type: file.type,
-          })
-        : null,
+    fileRef: normalizeMediaReference(file),
     filePath: file?.path,
     currentResult: result,
     setActiveTaskId,
@@ -135,12 +130,10 @@ export function useTranscriber() {
 
       setResolvedFile(
         attachElectronFileSource(
-          toElectronFile(createMediaReference({
-            path: resolvedPath,
-            name: file.name,
-            size: file.size,
-            type: file.type,
-          })),
+          toElectronFile(
+            normalizeMediaReference({ ...file, path: resolvedPath }) ??
+              normalizeMediaReference(file)!,
+          ),
           file.__mediaflow_source ?? "unknown",
         ),
       );
