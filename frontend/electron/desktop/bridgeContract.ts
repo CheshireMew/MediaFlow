@@ -1,3 +1,5 @@
+import desktopWorkerContract from "../../../contracts/desktop-worker-contract.json";
+
 export const DESKTOP_TASK_EVENT_CHANNEL = "desktop:task-event";
 
 export const DESKTOP_PROGRESS_CHANNELS = {
@@ -14,104 +16,8 @@ export const DESKTOP_WORKER_EVENT_CHANNELS = {
   settings_progress: DESKTOP_PROGRESS_CHANNELS.onDesktopSettingsProgress,
 } as const;
 
-export const DESKTOP_WORKER_INVOCATIONS = {
-  desktopPing: {
-    ipcChannel: "desktop:ping",
-    workerCommand: "ping",
-  },
-  desktopTranscribe: {
-    ipcChannel: "desktop:transcribe",
-    workerCommand: "transcribe",
-  },
-  desktopTranslate: {
-    ipcChannel: "desktop:translate",
-    workerCommand: "translate",
-  },
-  desktopSynthesize: {
-    ipcChannel: "desktop:synthesize",
-    workerCommand: "synthesize",
-  },
-  getDesktopSettings: {
-    ipcChannel: "desktop:get-settings",
-    workerCommand: "get_settings",
-  },
-  updateDesktopSettings: {
-    ipcChannel: "desktop:update-settings",
-    workerCommand: "update_settings",
-  },
-  setDesktopActiveProvider: {
-    ipcChannel: "desktop:set-active-provider",
-    workerCommand: "set_active_provider",
-  },
-  testDesktopProvider: {
-    ipcChannel: "desktop:test-provider",
-    workerCommand: "test_provider",
-  },
-  listDesktopGlossary: {
-    ipcChannel: "desktop:glossary-list",
-    workerCommand: "glossary_list",
-  },
-  addDesktopGlossaryTerm: {
-    ipcChannel: "desktop:glossary-add",
-    workerCommand: "glossary_add",
-  },
-  deleteDesktopGlossaryTerm: {
-    ipcChannel: "desktop:glossary-delete",
-    workerCommand: "glossary_delete",
-  },
-  updateDesktopYtDlp: {
-    ipcChannel: "desktop:update-yt-dlp",
-    workerCommand: "update_yt_dlp",
-  },
-  installDesktopFasterWhisperCli: {
-    ipcChannel: "desktop:install-faster-whisper-cli",
-    workerCommand: "install_faster_whisper_cli",
-  },
-  analyzeDesktopUrl: {
-    ipcChannel: "desktop:analyze-url",
-    workerCommand: "analyze_url",
-  },
-  saveDesktopCookies: {
-    ipcChannel: "desktop:save-cookies",
-    workerCommand: "save_cookies",
-  },
-  desktopDownload: {
-    ipcChannel: "desktop:download",
-    workerCommand: "download",
-  },
-  desktopExtract: {
-    ipcChannel: "desktop:extract",
-    workerCommand: "extract",
-  },
-  getDesktopOcrResults: {
-    ipcChannel: "desktop:get-ocr-results",
-    workerCommand: "get_ocr_results",
-  },
-  desktopTranscribeSegment: {
-    ipcChannel: "desktop:transcribe-segment",
-    workerCommand: "transcribe_segment",
-  },
-  desktopTranslateSegment: {
-    ipcChannel: "desktop:translate-segment",
-    workerCommand: "translate_segment",
-  },
-  uploadDesktopWatermark: {
-    ipcChannel: "desktop:upload-watermark",
-    workerCommand: "upload_watermark",
-  },
-  getDesktopLatestWatermark: {
-    ipcChannel: "desktop:get-latest-watermark",
-    workerCommand: "get_latest_watermark",
-  },
-  desktopEnhance: {
-    ipcChannel: "desktop:enhance",
-    workerCommand: "enhance",
-  },
-  desktopClean: {
-    ipcChannel: "desktop:clean",
-    workerCommand: "clean",
-  },
-} as const;
+export const DESKTOP_WORKER_PROTOCOL_VERSION = desktopWorkerContract.protocol_version;
+export const DESKTOP_WORKER_INVOCATIONS = desktopWorkerContract.invocations;
 
 export const DESKTOP_BRIDGE_CAPABILITIES = [
   "openFile",
@@ -121,14 +27,10 @@ export const DESKTOP_BRIDGE_CAPABILITIES = [
   "selectDirectory",
   "showInExplorer",
   "fetchCookies",
-  "extractDouyinData",
   "getPathForFile",
   "writeFile",
-  "readBinaryFile",
-  "writeBinaryFile",
   "getFileSize",
   "resolveExistingPath",
-  "saveFile",
   "getDesktopRuntimeInfo",
   "listDesktopTasks",
   ...Object.keys(DESKTOP_WORKER_INVOCATIONS),

@@ -1,21 +1,21 @@
-/**
- * Dialog & Filesystem IPC Handlers
- *
- * Handles: dialog:openFile, dialog:openSubtitleFile, dialog:selectDirectory,
- *          dialog:saveFile, fs:readFile, fs:writeFile, fs:getFileSize
- */
-import { ipcMain, dialog, app } from "electron";
-import type { IpcMainInvokeEvent, OpenDialogOptions, SaveDialogOptions } from "electron";
-import path from "path";
+import { app, dialog, ipcMain } from "electron";
+import type {
+  IpcMainInvokeEvent,
+  OpenDialogOptions,
+} from "electron";
 import fs from "fs";
-import { resolvePathFromDirectoryEntries } from "../../src/services/filesystem/pathRepair";
-import { resolveDesktopWorkspaceDir } from "../desktopRuntime";
+import path from "path";
+
+import {
+  DESKTOP_FILE_SYSTEM_CHANNELS,
+  type SaveFileDialogRequest,
+} from "../../src/contracts/desktopFileSystemContract";
 import {
   buildOpenFileDialogFilters,
   type OpenFileDialogRequest,
 } from "../../src/contracts/openFileContract";
-
-// ─── Preferences Persistence ────────────────────────────────────
+import { resolveDesktopWorkspaceDir } from "../desktopRuntime";
+import { desktopFileAccess } from "./file-access";
 
 function getStorePath() {
   return path.join(app.getPath("userData"), "user-preferences.json");
@@ -23,28 +23,28 @@ function getStorePath() {
 
 function loadLastOpenDir(): string | undefined {
   try {
-    const p = getStorePath();
-    if (fs.existsSync(p)) {
-      const data = JSON.parse(fs.readFileSync(p, "utf-8")) as { lastOpenDir?: string };
+    const storePath = getStorePath();
+    if (fs.existsSync(storePath)) {
+      const data = JSON.parse(fs.readFileSync(storePath, "utf-8")) as {
+        lastOpenDir?: string;
+      };
       return data.lastOpenDir;
     }
   } catch {
-    /* ignore */
+    // Preference corruption should not block the file picker.
   }
   return undefined;
 }
 
 function saveLastOpenDir(dirPath: string) {
   try {
-    const p = getStorePath();
-    fs.writeFileSync(p, JSON.stringify({ lastOpenDir: dirPath }));
-  } catch (e) {
-    console.error("Save preferences failed", e);
+    fs.writeFileSync(getStorePath(), JSON.stringify({ lastOpenDir: dirPath }));
+  } catch (error) {
+    console.error("Save preferences failed", error);
   }
 }
 
-// ─── Shared State ───────────────────────────────────────────────
-let lastOpenDir: string | undefined = undefined;
+let lastOpenDir: string | undefined;
 let isLoaded = false;
 
 function ensureLoaded() {
@@ -57,68 +57,41 @@ function ensureLoaded() {
 function getDefaultStartPath(): string | undefined {
   const appPath = app.getAppPath();
   const workspaceDir = resolveDesktopWorkspaceDir();
+  const startPath = lastOpenDir;
 
-  let startPath = lastOpenDir;
-
-  // If no last open dir, default to workspace if exists
   if (!startPath) {
-    if (fs.existsSync(workspaceDir)) {
-      startPath = workspaceDir;
-    } else {
-      // Fallback to app path if workspace missing
-      startPath = appPath;
-    }
-  } else {
-    // Access check
-    if (!fs.existsSync(startPath)) {
-      startPath = fs.existsSync(workspaceDir) ? workspaceDir : appPath;
-    }
+    return fs.existsSync(workspaceDir) ? workspaceDir : appPath;
+  }
+  if (!fs.existsSync(startPath)) {
+    return fs.existsSync(workspaceDir) ? workspaceDir : appPath;
   }
   return startPath;
 }
 
-function resolveExistingPathOnDisk(filePath: string, fallbackName?: string, expectedSize?: number) {
-  if (!filePath) {
-    return null;
+function rememberFile(filePath: string) {
+  desktopFileAccess.grantRendererFile(filePath);
+  lastOpenDir = path.dirname(filePath);
+  if (lastOpenDir) {
+    saveLastOpenDir(lastOpenDir);
   }
-
-  const candidateDir = path.dirname(filePath);
-  if (!fs.existsSync(candidateDir)) {
-    return fs.existsSync(filePath) ? filePath : null;
-  }
-
-  const directoryEntries = fs.readdirSync(candidateDir);
-  const resolved = resolvePathFromDirectoryEntries(filePath, directoryEntries, fallbackName);
-  if (resolved && fs.existsSync(resolved)) {
-    return resolved;
-  }
-
-  if (typeof expectedSize === "number" && expectedSize >= 0) {
-    const extension = path.extname(filePath).toLowerCase();
-    const sizeMatches = directoryEntries.filter((entry) => {
-      const candidatePath = path.join(candidateDir, entry);
-      if (!fs.existsSync(candidatePath) || !fs.statSync(candidatePath).isFile()) {
-        return false;
-      }
-      if (extension && path.extname(entry).toLowerCase() !== extension) {
-        return false;
-      }
-      return fs.statSync(candidatePath).size === expectedSize;
-    });
-
-    if (sizeMatches.length === 1) {
-      return path.join(candidateDir, sizeMatches[0]);
-    }
-  }
-
-  return fs.existsSync(filePath) ? filePath : null;
 }
 
-// ─── Handler Registration ───────────────────────────────────────
 export function registerDialogHandlers() {
-  // Open media file
+  ipcMain.on(
+    DESKTOP_FILE_SYSTEM_CHANNELS.rememberRendererFile,
+    (event, filePath: string) => {
+      try {
+        desktopFileAccess.rememberRendererSelectedFile(filePath);
+        event.returnValue = true;
+      } catch (error) {
+        console.error("[IPC] rememberRendererFile error:", error);
+        event.returnValue = false;
+      }
+    },
+  );
+
   ipcMain.handle(
-    "dialog:openFile",
+    DESKTOP_FILE_SYSTEM_CHANNELS.openFile,
     async (_event: IpcMainInvokeEvent, request: OpenFileDialogRequest) => {
       ensureLoaded();
 
@@ -128,15 +101,15 @@ export function registerDialogHandlers() {
         filters: buildOpenFileDialogFilters(request.profile),
       };
       const { canceled, filePaths } = await dialog.showOpenDialog(options);
-
       if (canceled || filePaths.length === 0) {
         return null;
       }
 
       const selectedPath = filePaths[0];
-      const filePath = resolveExistingPathOnDisk(selectedPath) ?? selectedPath;
-      lastOpenDir = path.dirname(filePath);
-      if (lastOpenDir) saveLastOpenDir(lastOpenDir);
+      desktopFileAccess.grantRendererFile(selectedPath);
+      const filePath = desktopFileAccess.resolveExistingPath(selectedPath) ?? selectedPath;
+      rememberFile(filePath);
+
       try {
         const stats = fs.statSync(filePath);
         return {
@@ -144,8 +117,8 @@ export function registerDialogHandlers() {
           name: path.basename(filePath),
           size: stats.size,
         };
-      } catch (e) {
-        console.error("Failed to stat file:", e);
+      } catch (error) {
+        console.error("Failed to stat file:", error);
         return {
           path: filePath,
           name: path.basename(filePath),
@@ -155,8 +128,7 @@ export function registerDialogHandlers() {
     },
   );
 
-  // Open subtitle file
-  ipcMain.handle("dialog:openSubtitleFile", async () => {
+  ipcMain.handle(DESKTOP_FILE_SYSTEM_CHANNELS.openSubtitleFile, async () => {
     ensureLoaded();
 
     const options: OpenDialogOptions = {
@@ -167,116 +139,104 @@ export function registerDialogHandlers() {
           name: "Subtitle Files",
           extensions: ["srt", "vtt", "ass", "ssa", "txt", "sub", "sbv", "lrc"],
         },
-        {
-          name: "All Files",
-          extensions: ["*"],
-        },
+        { name: "All Files", extensions: ["*"] },
       ],
     };
     const { canceled, filePaths } = await dialog.showOpenDialog(options);
-
     if (canceled || filePaths.length === 0) {
       return null;
     }
 
     const selectedPath = filePaths[0];
-    const filePath = resolveExistingPathOnDisk(selectedPath) ?? selectedPath;
-    lastOpenDir = path.dirname(filePath);
-    if (lastOpenDir) saveLastOpenDir(lastOpenDir);
+    desktopFileAccess.grantRendererFile(selectedPath);
+    const filePath = desktopFileAccess.resolveExistingPath(selectedPath) ?? selectedPath;
+    rememberFile(filePath);
     return {
       path: filePath,
       name: path.basename(filePath),
     };
   });
 
-  // Select directory
-  ipcMain.handle("dialog:selectDirectory", async () => {
+  ipcMain.handle(DESKTOP_FILE_SYSTEM_CHANNELS.selectDirectory, async () => {
     ensureLoaded();
 
-    const options: OpenDialogOptions = {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ["openDirectory"],
       defaultPath: lastOpenDir || undefined,
-    };
-    const { canceled, filePaths } = await dialog.showOpenDialog(options);
-
+    });
     if (canceled || filePaths.length === 0) {
       return null;
     }
 
     const dirPath = filePaths[0];
+    desktopFileAccess.grantRendererDirectory(dirPath);
     lastOpenDir = dirPath;
     saveLastOpenDir(dirPath);
     return dirPath;
   });
 
-  // Save file dialog
   ipcMain.handle(
-    "dialog:saveFile",
+    DESKTOP_FILE_SYSTEM_CHANNELS.saveFileDialog,
     async (
       _event: IpcMainInvokeEvent,
-      { defaultPath, filters }: SaveDialogOptions,
+      { defaultPath, filters }: SaveFileDialogRequest,
     ) => {
-      console.log("[Main] dialog:saveFile called with:", {
-        defaultPath,
-        filters,
-      });
       const { canceled, filePath } = await dialog.showSaveDialog({
         defaultPath,
         filters,
       });
-      console.log("[Main] dialog:saveFile result:", { canceled, filePath });
 
-      if (canceled) {
+      if (canceled || !filePath) {
+        return { canceled: true, filePath: null };
+      }
+
+      rememberFile(filePath);
+      return { canceled: false, filePath };
+    },
+  );
+
+  ipcMain.handle(
+    DESKTOP_FILE_SYSTEM_CHANNELS.readTextFile,
+    async (_event: IpcMainInvokeEvent, filePath: string) => {
+      try {
+        desktopFileAccess.assertRendererFileSystemAccess(filePath, "Read file");
+        return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf-8") : null;
+      } catch (error) {
+        console.error("[IPC] readTextFile error:", error);
         return null;
-      } else {
-        return filePath;
       }
     },
   );
 
-  // Read file
-  ipcMain.handle("fs:readFile", async (_event: IpcMainInvokeEvent, filePath: string) => {
-    try {
-      if (fs.existsSync(filePath)) {
-        return fs.readFileSync(filePath, "utf-8");
-      }
-      return null;
-    } catch (e) {
-      console.error("[IPC] readFile error:", e);
-      return null;
-    }
-  });
-
-  // Write file
   ipcMain.handle(
-    "fs:writeFile",
+    DESKTOP_FILE_SYSTEM_CHANNELS.writeTextFile,
     async (_event: IpcMainInvokeEvent, filePath: string, content: string) => {
       try {
+        desktopFileAccess.assertRendererFileSystemAccess(filePath, "Write file");
         fs.writeFileSync(filePath, content, "utf-8");
         return true;
-      } catch (e) {
-        console.error("[IPC] writeFile error:", e);
+      } catch (error) {
+        console.error("[IPC] writeTextFile error:", error);
         return false;
       }
     },
   );
 
-  // Get file size
-  ipcMain.handle("fs:getFileSize", async (_event: IpcMainInvokeEvent, filePath: string) => {
-    try {
-      if (fs.existsSync(filePath)) {
-        const stats = fs.statSync(filePath);
-        return stats.size;
+  ipcMain.handle(
+    DESKTOP_FILE_SYSTEM_CHANNELS.getFileSize,
+    async (_event: IpcMainInvokeEvent, filePath: string) => {
+      try {
+        desktopFileAccess.assertRendererFileSystemAccess(filePath, "Get file size");
+        return fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
+      } catch (error) {
+        console.error("[IPC] getFileSize error:", error);
+        return 0;
       }
-      return 0;
-    } catch (e) {
-      console.error("[IPC] getFileSize error:", e);
-      return 0;
-    }
-  });
+    },
+  );
 
   ipcMain.handle(
-    "fs:resolveExistingPath",
+    DESKTOP_FILE_SYSTEM_CHANNELS.resolveExistingPath,
     async (
       _event: IpcMainInvokeEvent,
       filePath: string,
@@ -284,41 +244,12 @@ export function registerDialogHandlers() {
       expectedSize?: number,
     ) => {
       try {
-        if (!filePath) {
-          return null;
-        }
-
-        return resolveExistingPathOnDisk(filePath, fallbackName, expectedSize);
-      } catch (e) {
-        console.error("[IPC] resolveExistingPath error:", e);
+        return filePath
+          ? desktopFileAccess.resolveExistingPath(filePath, fallbackName, expectedSize)
+          : null;
+      } catch (error) {
+        console.error("[IPC] resolveExistingPath error:", error);
         return null;
-      }
-    },
-  );
-
-  // Read binary file (returns Buffer → auto-serialized to ArrayBuffer over IPC)
-  ipcMain.handle("fs:readBinaryFile", async (_event: IpcMainInvokeEvent, filePath: string) => {
-    try {
-      if (fs.existsSync(filePath)) {
-        return fs.readFileSync(filePath);
-      }
-      return null;
-    } catch (e) {
-      console.error("[IPC] readBinaryFile error:", e);
-      return null;
-    }
-  });
-
-  // Write binary file (receives ArrayBuffer from renderer)
-  ipcMain.handle(
-    "fs:writeBinaryFile",
-    async (_event: IpcMainInvokeEvent, filePath: string, data: ArrayBuffer) => {
-      try {
-        fs.writeFileSync(filePath, Buffer.from(data));
-        return true;
-      } catch (e) {
-        console.error("[IPC] writeBinaryFile error:", e);
-        return false;
       }
     },
   );

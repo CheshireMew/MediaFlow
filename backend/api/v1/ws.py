@@ -15,6 +15,7 @@ async def websocket_endpoint(websocket: WebSocket):
         
         # Snapshot generation might fail if DB/serialization has issues
         try:
+            await tm.wait_until_tasks_loaded()
             snapshot = tm.get_tasks_snapshot()
             await notifier.send_snapshot(websocket, snapshot)
         except Exception as e:
@@ -44,4 +45,5 @@ async def websocket_endpoint(websocket: WebSocket):
             notifier.disconnect(websocket)
         except Exception:
             pass
-
+    finally:
+        notifier.disconnect(websocket)

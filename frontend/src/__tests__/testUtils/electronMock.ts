@@ -12,7 +12,6 @@ export type MockedElectronAPI = {
 
 function createBaseElectronMock(): MockedElectronAPI {
   return {
-    sendMessage: vi.fn(),
     openFile: vi.fn(),
     openSubtitleFile: vi.fn(),
     readFile: vi.fn(),
@@ -20,14 +19,10 @@ function createBaseElectronMock(): MockedElectronAPI {
     selectDirectory: vi.fn(),
     showInExplorer: vi.fn(),
     fetchCookies: vi.fn(),
-    extractDouyinData: vi.fn(),
     getPathForFile: vi.fn((file: File & { path?: string }) => file.path ?? ""),
     writeFile: vi.fn(),
-    readBinaryFile: vi.fn(),
-    writeBinaryFile: vi.fn(),
     getFileSize: vi.fn(),
     resolveExistingPath: vi.fn(async (filePath: string) => filePath),
-    saveFile: vi.fn(),
     getDesktopRuntimeInfo: vi.fn().mockResolvedValue({
       status: "pong",
       contract_version: 1,

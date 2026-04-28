@@ -69,7 +69,7 @@ export function useTranslatorOutputActions() {
         });
       }
 
-      await fileService.saveFile(savePath.filePath, content);
+      await fileService.writeFile(savePath.filePath, content);
     } catch (error) {
       console.error(error);
       alert("Failed to save file: " + error);

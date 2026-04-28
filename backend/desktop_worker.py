@@ -6,6 +6,7 @@ from loguru import logger
 from pydantic import ValidationError
 
 from backend.config import settings
+from backend.contracts import DESKTOP_WORKER_PROTOCOL_VERSION
 from backend.desktop.command_registry import (
     command_requires_runtime,
     dispatch_worker_command,
@@ -15,7 +16,6 @@ from backend.core.container import container
 from backend.core.runtime_access import configure_runtime_services
 from backend.core.service_registry import register_desktop_worker_services
 
-DESKTOP_WORKER_PROTOCOL_VERSION = 1
 _worker_runtime_bootstrapped = False
 
 def configure_worker_stdio() -> None:

@@ -1,4 +1,11 @@
+import pytest
+
 from backend import desktop_worker
+from backend.contracts import DESKTOP_WORKER_CONTRACT
+from backend.desktop.command_registry import (
+    get_worker_command_definition,
+    register_worker_command,
+)
 
 
 def test_ping_skips_runtime_bootstrap(monkeypatch):
@@ -49,3 +56,20 @@ def test_runtime_command_bootstraps_before_dispatch(monkeypatch):
 
     assert boot_sequence == ["bootstrapped"]
     assert dispatched == [("dummy", "req-1", {"value": 1})]
+
+
+def test_all_contract_worker_commands_are_registered():
+    worker_commands = {
+        descriptor["workerCommand"]
+        for descriptor in DESKTOP_WORKER_CONTRACT["invocations"].values()
+    }
+    worker_commands.update(DESKTOP_WORKER_CONTRACT.get("workerCommands", {}).keys())
+
+    for command in worker_commands:
+        definition = get_worker_command_definition(command)
+        assert definition is not None
+
+
+def test_worker_command_registration_rejects_commands_outside_contract():
+    with pytest.raises(ValueError, match="Unknown worker command"):
+        register_worker_command("outside_contract")(lambda _request_id, _payload: None)

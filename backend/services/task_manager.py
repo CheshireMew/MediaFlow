@@ -56,6 +56,7 @@ class TaskManager:
         self._accept_threadsafe_updates = True
         self._max_concurrent = max(1, settings.TASK_MAX_CONCURRENT)
         self._startup_load_task: asyncio.Task | None = None
+        self._tasks_loaded = asyncio.Event()
 
     async def init_async(self):
         """Initialize DB, load tasks, and start queue workers."""
@@ -95,6 +96,7 @@ class TaskManager:
         self._execution_specs.clear()
         self._threadsafe_update_futures.clear()
         self._accept_threadsafe_updates = True
+        self._tasks_loaded.clear()
 
     def submit_threadsafe_update(self, loop: asyncio.AbstractEventLoop, task_id: str, **kwargs):
         if not self._accept_threadsafe_updates or loop.is_closed():
@@ -149,6 +151,12 @@ class TaskManager:
                 runner = self._execution_specs.get(task_id)
                 if not runner:
                     logger.warning(f"Skipping task {task_id}: no execution spec registered.")
+                    await self.update_task(
+                        task_id,
+                        status="failed",
+                        message="Task execution spec is missing",
+                        error="Task execution spec is missing",
+                    )
                     continue
 
                 self._runtime_state.mark_running(task_id)
@@ -160,6 +168,13 @@ class TaskManager:
                 raise
             except Exception as e:
                 logger.exception(f"[Queue:{worker_index}] Task {task_id} crashed: {e}")
+                if task_id in self.tasks:
+                    await self.update_task(
+                        task_id,
+                        status="failed",
+                        message=str(e),
+                        error=str(e),
+                    )
             finally:
                 self._runtime_state.unmark_running(task_id)
                 if task_id in self._delete_after_stop:
@@ -169,11 +184,13 @@ class TaskManager:
     async def load_tasks(self):
         """Load tasks from DB on startup."""
         try:
-            self.tasks = await self._repository.load_all()
+            persisted_tasks = await self._repository.load_all()
+            self.tasks = {**persisted_tasks, **self.tasks}
             logger.info(f"Loaded {len(self.tasks)} tasks from SQLite.")
         except Exception as e:
-            self.tasks.clear()
             logger.error(f"Failed to load tasks from DB: {e}")
+        finally:
+            self._tasks_loaded.set()
 
     async def _load_tasks_background(self):
         try:
@@ -202,6 +219,9 @@ class TaskManager:
     def get_tasks_snapshot(self) -> list:
         """Return serialized list of all tasks (for WebSocket snapshot)."""
         return [self.serialize_task(task) for task in self.tasks.values()]
+
+    async def wait_until_tasks_loaded(self) -> None:
+        await self._tasks_loaded.wait()
 
     async def create_task(
         self,

@@ -5,6 +5,7 @@ import queue
 import threading
 from pathlib import Path
 from fastapi.testclient import TestClient
+from backend.config import settings
 from backend.core.container import container, Services
 from backend.core.runtime_access import RuntimeServices
 from backend.models.schemas import FileRef, TaskResult
@@ -42,7 +43,7 @@ class SlowMockASR:
 
 
 def _create_audio_file(name: str) -> Path:
-    workspace = Path("E:/Work/Code/Mediaflow/workspace")
+    workspace = settings.WORKSPACE_DIR
     workspace.mkdir(parents=True, exist_ok=True)
     audio_path = workspace / name
     audio_path.write_bytes(b"test-audio")

@@ -39,7 +39,7 @@ def mock_llm():
 @pytest.fixture
 def tmp_path():
     """Workspace-local temp path to avoid host TMP permission issues."""
-    path = Path("E:/Work/Code/Mediaflow/.temp/pytest") / str(uuid.uuid4())
+    path = Path(__file__).resolve().parent.parent / ".temp" / "pytest" / str(uuid.uuid4())
     path.mkdir(parents=True, exist_ok=True)
     yield path
     shutil.rmtree(path, ignore_errors=True)

@@ -1,0 +1,155 @@
+{
+  "protocol_version": 1,
+  "invocations": {
+    "desktopPing": {
+      "ipcChannel": "desktop:ping",
+      "workerCommand": "ping",
+      "pythonModule": null,
+      "requiresRuntime": false
+    },
+    "desktopTranscribe": {
+      "ipcChannel": "desktop:transcribe",
+      "workerCommand": "transcribe",
+      "pythonModule": "backend.desktop.commands.media_commands",
+      "requiresRuntime": true
+    },
+    "desktopTranslate": {
+      "ipcChannel": "desktop:translate",
+      "workerCommand": "translate",
+      "pythonModule": "backend.desktop.commands.media_commands",
+      "requiresRuntime": true
+    },
+    "desktopSynthesize": {
+      "ipcChannel": "desktop:synthesize",
+      "workerCommand": "synthesize",
+      "pythonModule": "backend.desktop.commands.media_commands",
+      "requiresRuntime": true
+    },
+    "getDesktopSettings": {
+      "ipcChannel": "desktop:get-settings",
+      "workerCommand": "get_settings",
+      "pythonModule": "backend.desktop.commands.settings_commands",
+      "requiresRuntime": true
+    },
+    "updateDesktopSettings": {
+      "ipcChannel": "desktop:update-settings",
+      "workerCommand": "update_settings",
+      "pythonModule": "backend.desktop.commands.settings_commands",
+      "requiresRuntime": true
+    },
+    "setDesktopActiveProvider": {
+      "ipcChannel": "desktop:set-active-provider",
+      "workerCommand": "set_active_provider",
+      "pythonModule": "backend.desktop.commands.settings_commands",
+      "requiresRuntime": true
+    },
+    "testDesktopProvider": {
+      "ipcChannel": "desktop:test-provider",
+      "workerCommand": "test_provider",
+      "pythonModule": "backend.desktop.commands.settings_commands",
+      "requiresRuntime": true
+    },
+    "listDesktopGlossary": {
+      "ipcChannel": "desktop:glossary-list",
+      "workerCommand": "glossary_list",
+      "pythonModule": "backend.desktop.commands.glossary_commands",
+      "requiresRuntime": true
+    },
+    "addDesktopGlossaryTerm": {
+      "ipcChannel": "desktop:glossary-add",
+      "workerCommand": "glossary_add",
+      "pythonModule": "backend.desktop.commands.glossary_commands",
+      "requiresRuntime": true
+    },
+    "deleteDesktopGlossaryTerm": {
+      "ipcChannel": "desktop:glossary-delete",
+      "workerCommand": "glossary_delete",
+      "pythonModule": "backend.desktop.commands.glossary_commands",
+      "requiresRuntime": true
+    },
+    "updateDesktopYtDlp": {
+      "ipcChannel": "desktop:update-yt-dlp",
+      "workerCommand": "update_yt_dlp",
+      "pythonModule": "backend.desktop.commands.settings_commands",
+      "requiresRuntime": true
+    },
+    "installDesktopFasterWhisperCli": {
+      "ipcChannel": "desktop:install-faster-whisper-cli",
+      "workerCommand": "install_faster_whisper_cli",
+      "pythonModule": "backend.desktop.commands.settings_commands",
+      "requiresRuntime": true
+    },
+    "analyzeDesktopUrl": {
+      "ipcChannel": "desktop:analyze-url",
+      "workerCommand": "analyze_url",
+      "pythonModule": "backend.desktop.commands.download_commands",
+      "requiresRuntime": true
+    },
+    "saveDesktopCookies": {
+      "ipcChannel": "desktop:save-cookies",
+      "workerCommand": "save_cookies",
+      "pythonModule": "backend.desktop.commands.download_commands",
+      "requiresRuntime": true
+    },
+    "desktopDownload": {
+      "ipcChannel": "desktop:download",
+      "workerCommand": "download",
+      "pythonModule": "backend.desktop.commands.download_commands",
+      "requiresRuntime": true
+    },
+    "desktopExtract": {
+      "ipcChannel": "desktop:extract",
+      "workerCommand": "extract",
+      "pythonModule": "backend.desktop.commands.ocr_commands",
+      "requiresRuntime": true
+    },
+    "getDesktopOcrResults": {
+      "ipcChannel": "desktop:get-ocr-results",
+      "workerCommand": "get_ocr_results",
+      "pythonModule": "backend.desktop.commands.ocr_commands",
+      "requiresRuntime": true
+    },
+    "desktopTranscribeSegment": {
+      "ipcChannel": "desktop:transcribe-segment",
+      "workerCommand": "transcribe_segment",
+      "pythonModule": "backend.desktop.commands.editor_commands",
+      "requiresRuntime": true
+    },
+    "desktopTranslateSegment": {
+      "ipcChannel": "desktop:translate-segment",
+      "workerCommand": "translate_segment",
+      "pythonModule": "backend.desktop.commands.editor_commands",
+      "requiresRuntime": true
+    },
+    "uploadDesktopWatermark": {
+      "ipcChannel": "desktop:upload-watermark",
+      "workerCommand": "upload_watermark",
+      "pythonModule": "backend.desktop.commands.editor_commands",
+      "requiresRuntime": true
+    },
+    "getDesktopLatestWatermark": {
+      "ipcChannel": "desktop:get-latest-watermark",
+      "workerCommand": "get_latest_watermark",
+      "pythonModule": "backend.desktop.commands.editor_commands",
+      "requiresRuntime": false
+    },
+    "desktopEnhance": {
+      "ipcChannel": "desktop:enhance",
+      "workerCommand": "enhance",
+      "pythonModule": "backend.desktop.commands.preprocessing_commands",
+      "requiresRuntime": true
+    },
+    "desktopClean": {
+      "ipcChannel": "desktop:clean",
+      "workerCommand": "clean",
+      "pythonModule": "backend.desktop.commands.preprocessing_commands",
+      "requiresRuntime": true
+    }
+  },
+  "workerCommands": {
+    "detect_silence": {
+      "pythonModule": "backend.desktop.commands.editor_commands",
+      "requiresRuntime": false
+    }
+  }
+}

@@ -70,7 +70,9 @@ export class DesktopWorkerSupervisor {
   }
 
   request<T = unknown>(command: string, payload?: Record<string, unknown>) {
-    this.startDesktopWorker();
+    if (!this.startDesktopWorker()) {
+      return Promise.reject(new Error("Desktop worker process could not be started"));
+    }
     const normalizedPayload = payload ?? {};
     const requestedTaskId =
       typeof normalizedPayload.task_id === "string" && normalizedPayload.task_id.trim().length > 0
@@ -457,7 +459,7 @@ export class DesktopWorkerSupervisor {
 
   private startDesktopWorker() {
     if (this.desktopWorkerProcess && this.desktopWorkerProcess.exitCode === null) {
-      return;
+      return true;
     }
 
     this.desktopWorkerReady = false;
@@ -499,6 +501,7 @@ export class DesktopWorkerSupervisor {
         this.desktopWorkerReadyWaiters = [];
       },
     });
+    return this.desktopWorkerProcess !== null;
   }
 
   private stopDesktopWorker(mode: "restart" | "shutdown" = "shutdown") {
@@ -516,7 +519,7 @@ export class DesktopWorkerSupervisor {
       (this.desktopWorkerRequests.size > 0 || this.queuedDesktopWorkerTaskIds.length > 0)
     ) {
       this.desktopWorkerStopMode = null;
-      this.startDesktopWorker();
+      void this.startDesktopWorker();
     }
     this.desktopWorkerReady = false;
     this.activeDesktopWorkerTaskId = null;

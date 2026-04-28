@@ -1,5 +1,6 @@
 import { getDesktopApi, requireDesktopApiMethod } from "./desktop/bridge";
 import type { OpenFileDialogRequest } from "../contracts/openFileContract";
+import type { SaveFileDialogRequest } from "../contracts/desktopFileSystemContract";
 
 function replaceBasename(filePath: string, fallbackName?: string) {
   if (!fallbackName || !filePath) {
@@ -33,11 +34,7 @@ export const fileService = {
     )();
   },
 
-  async showSaveDialog(options: {
-    title?: string;
-    defaultPath?: string;
-    filters?: Array<{ name: string; extensions: string[] }>;
-  }) {
+  async showSaveDialog(options: SaveFileDialogRequest) {
     return await requireDesktopApiMethod(
       "showSaveDialog",
       "Save dialog is unavailable.",
@@ -60,14 +57,6 @@ export const fileService = {
       path,
       content,
     );
-  },
-
-  async saveFile(path: string, content: string) {
-    try {
-      return await requireDesktopApiMethod("saveFile", "File saving is unavailable.")(path, content);
-    } catch {
-      return await this.writeFile(path, content);
-    }
   },
 
   async getFileSize(path: string) {

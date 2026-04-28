@@ -5,6 +5,8 @@
  */
 import { BrowserWindow, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 
+import { desktopFileAccess } from "./file-access";
+
 const rendererReadyCallbacks = new Map<number, () => void>();
 
 export function bindRendererReadyCallback(
@@ -25,6 +27,7 @@ export function registerWindowHandlers() {
     "shell:showInExplorer",
     async (_event: IpcMainInvokeEvent, filePath: string) => {
       if (filePath) {
+        desktopFileAccess.assertRendererFileSystemAccess(filePath, "Show in explorer");
         shell.showItemInFolder(filePath);
       }
     },

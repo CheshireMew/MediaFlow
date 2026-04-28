@@ -2,6 +2,7 @@ import time
 import uuid
 from pathlib import Path
 
+from backend.config import settings
 from backend.core.container import Services, container
 from backend.models.task_model import Task
 from backend.models.schemas import FileRef, TaskResult
@@ -55,7 +56,7 @@ def create_task_manager() -> TaskManager:
 
 
 def _create_audio_file(name: str) -> Path:
-    workspace = Path("E:/Work/Code/Mediaflow/workspace")
+    workspace = settings.WORKSPACE_DIR
     workspace.mkdir(parents=True, exist_ok=True)
     audio_path = workspace / name
     audio_path.write_bytes(b"test-audio")

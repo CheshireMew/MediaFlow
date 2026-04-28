@@ -10,6 +10,7 @@ router = APIRouter(prefix="/tasks", tags=["Tasks"])
 async def list_tasks():
     """Get all tasks."""
     tm = RuntimeServices.task_manager()
+    await tm.wait_until_tasks_loaded()
     return [tm.serialize_task(task) for task in tm.tasks.values()]
 
 
@@ -23,6 +24,7 @@ async def get_queue_summary():
 async def get_task(task_id: str):
     """Get task status."""
     tm = RuntimeServices.task_manager()
+    await tm.wait_until_tasks_loaded()
     task = tm.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")

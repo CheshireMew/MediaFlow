@@ -1,21 +1,7 @@
-export type SaveDialogOptions = {
-  title?: string;
-  defaultPath?: string;
-  filters?: Array<{ name: string; extensions: string[] }>;
-};
-
-export type SaveDialogResult = {
-  canceled: boolean;
-  filePath?: string;
-};
-
-export type ExtractedDouyinData = {
-  title?: string;
-  video_url?: string;
-  audio_url?: string;
-  cover_url?: string;
-  [key: string]: unknown;
-};
+import type {
+  SaveFileDialogRequest,
+  SaveFileDialogResult,
+} from "../contracts/desktopFileSystemContract";
 
 export interface DesktopRuntimeInfo {
   status: "pong";
@@ -30,28 +16,25 @@ export interface DesktopRuntimeInfo {
 }
 
 export interface ElectronAPI {
-  sendMessage: (message: string) => void;
   openFile: (
     request: import("../contracts/openFileContract").OpenFileDialogRequest,
   ) => Promise<{ path: string; name: string; size: number } | null>;
   openSubtitleFile: () => Promise<{ path: string; name: string } | null>;
-  readFile: (filePath: string) => Promise<string>;
-  showSaveDialog: (options: SaveDialogOptions) => Promise<SaveDialogResult>;
+  readFile: (filePath: string) => Promise<string | null>;
+  showSaveDialog: (
+    options: SaveFileDialogRequest,
+  ) => Promise<SaveFileDialogResult>;
   selectDirectory: () => Promise<string | null>;
   showInExplorer: (filePath: string) => Promise<void>;
   fetchCookies: (targetUrl: string) => Promise<unknown>;
-  extractDouyinData: (url: string) => Promise<ExtractedDouyinData>;
   getPathForFile: (file: File) => string;
   writeFile: (filePath: string, content: string) => Promise<void>;
-  readBinaryFile: (filePath: string) => Promise<ArrayBuffer | null>;
-  writeBinaryFile: (filePath: string, data: ArrayBuffer) => Promise<void>;
   getFileSize: (filePath: string) => Promise<number>;
   resolveExistingPath?: (
     filePath: string,
     fallbackName?: string,
     expectedSize?: number,
   ) => Promise<string | null>;
-  saveFile: (filePath: string, content: string) => Promise<void>;
   getDesktopRuntimeInfo?: () => Promise<DesktopRuntimeInfo>;
   desktopPing?: () => Promise<{ status: string }>;
   listDesktopTasks?: () => Promise<import("./task").Task[]>;

@@ -4,21 +4,17 @@ import {
   DESKTOP_TASK_EVENT_CHANNEL,
   DESKTOP_WORKER_INVOCATIONS,
 } from "./desktop/bridgeContract";
+import { DESKTOP_FILE_SYSTEM_CHANNELS, type SaveFileDialogRequest } from "../src/contracts/desktopFileSystemContract";
 import type { OpenFileDialogRequest } from "../src/contracts/openFileContract";
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  sendMessage: (message: string) => ipcRenderer.send("message-from-ui", message),
   openFile: (request: OpenFileDialogRequest) =>
-    ipcRenderer.invoke("dialog:openFile", request),
-  openSubtitleFile: () => ipcRenderer.invoke("dialog:openSubtitleFile"),
-  readFile: (filePath: string) => ipcRenderer.invoke("fs:readFile", filePath),
-  showSaveDialog: (options: {
-    title?: string;
-    defaultPath?: string;
-    filters?: Array<{ name: string; extensions: string[] }>;
-  }) =>
-    ipcRenderer.invoke("dialog:saveFile", options),
-  selectDirectory: () => ipcRenderer.invoke("dialog:selectDirectory"),
+    ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.openFile, request),
+  openSubtitleFile: () => ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.openSubtitleFile),
+  readFile: (filePath: string) => ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.readTextFile, filePath),
+  showSaveDialog: (options: SaveFileDialogRequest) =>
+    ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.saveFileDialog, options),
+  selectDirectory: () => ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.selectDirectory),
   showInExplorer: (filePath: string) =>
     ipcRenderer.invoke("shell:showInExplorer", filePath),
   // Window Controls
@@ -29,23 +25,26 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Cookie management
   fetchCookies: (targetUrl: string) =>
     ipcRenderer.invoke("cookies:fetch", targetUrl),
-  // Data extraction
-  // Data extraction
-  extractDouyinData: (url: string) => ipcRenderer.invoke("douyin:extract", url),
   // File Utils
-  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+  getPathForFile: (file: File) => {
+    const filePath = webUtils.getPathForFile(file);
+    if (filePath) {
+      const registered = ipcRenderer.sendSync(
+        DESKTOP_FILE_SYSTEM_CHANNELS.rememberRendererFile,
+        filePath,
+      );
+      if (!registered) {
+        throw new Error("Selected file path could not be registered.");
+      }
+    }
+    return filePath;
+  },
   writeFile: (filePath: string, content: string) =>
-    ipcRenderer.invoke("fs:writeFile", filePath, content),
-  readBinaryFile: (filePath: string) =>
-    ipcRenderer.invoke("fs:readBinaryFile", filePath),
-  writeBinaryFile: (filePath: string, data: ArrayBuffer) =>
-    ipcRenderer.invoke("fs:writeBinaryFile", filePath, data),
+    ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.writeTextFile, filePath, content),
   getFileSize: (filePath: string) =>
-    ipcRenderer.invoke("fs:getFileSize", filePath),
+    ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.getFileSize, filePath),
   resolveExistingPath: (filePath: string, fallbackName?: string, expectedSize?: number) =>
-    ipcRenderer.invoke("fs:resolveExistingPath", filePath, fallbackName, expectedSize),
-  saveFile: (filePath: string, content: string) =>
-    ipcRenderer.invoke("fs:writeFile", filePath, content),
+    ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.resolveExistingPath, filePath, fallbackName, expectedSize),
   getDesktopRuntimeInfo: () => ipcRenderer.invoke("desktop:get-runtime-info"),
   desktopPing: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopPing.ipcChannel),
   listDesktopTasks: () => ipcRenderer.invoke("desktop:list-tasks"),

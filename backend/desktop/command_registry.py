@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from importlib import import_module
 from typing import Any
 
+from backend.contracts import DESKTOP_WORKER_CONTRACT
+
 
 WorkerCommandHandler = Callable[[str | None, dict[str, Any]], None]
 
@@ -16,42 +18,35 @@ class WorkerCommandDefinition:
     requires_runtime: bool = True
 
 
-_COMMAND_DEFINITIONS: dict[str, WorkerCommandDefinition] = {
-    "ping": WorkerCommandDefinition(module=None, requires_runtime=False),
-    "transcribe": WorkerCommandDefinition("backend.desktop.commands.media_commands"),
-    "translate": WorkerCommandDefinition("backend.desktop.commands.media_commands"),
-    "synthesize": WorkerCommandDefinition("backend.desktop.commands.media_commands"),
-    "glossary_list": WorkerCommandDefinition("backend.desktop.commands.glossary_commands"),
-    "glossary_add": WorkerCommandDefinition("backend.desktop.commands.glossary_commands"),
-    "glossary_delete": WorkerCommandDefinition("backend.desktop.commands.glossary_commands"),
-    "extract": WorkerCommandDefinition("backend.desktop.commands.ocr_commands"),
-    "get_ocr_results": WorkerCommandDefinition("backend.desktop.commands.ocr_commands"),
-    "detect_silence": WorkerCommandDefinition(
-        "backend.desktop.commands.editor_commands",
-        requires_runtime=False,
-    ),
-    "transcribe_segment": WorkerCommandDefinition("backend.desktop.commands.editor_commands"),
-    "translate_segment": WorkerCommandDefinition("backend.desktop.commands.editor_commands"),
-    "upload_watermark": WorkerCommandDefinition("backend.desktop.commands.editor_commands"),
-    "get_latest_watermark": WorkerCommandDefinition(
-        "backend.desktop.commands.editor_commands",
-        requires_runtime=False,
-    ),
-    "analyze_url": WorkerCommandDefinition("backend.desktop.commands.download_commands"),
-    "save_cookies": WorkerCommandDefinition("backend.desktop.commands.download_commands"),
-    "download": WorkerCommandDefinition("backend.desktop.commands.download_commands"),
-    "enhance": WorkerCommandDefinition("backend.desktop.commands.preprocessing_commands"),
-    "clean": WorkerCommandDefinition("backend.desktop.commands.preprocessing_commands"),
-    "get_settings": WorkerCommandDefinition("backend.desktop.commands.settings_commands"),
-    "update_settings": WorkerCommandDefinition("backend.desktop.commands.settings_commands"),
-    "set_active_provider": WorkerCommandDefinition("backend.desktop.commands.settings_commands"),
-    "test_provider": WorkerCommandDefinition("backend.desktop.commands.settings_commands"),
-    "update_yt_dlp": WorkerCommandDefinition("backend.desktop.commands.settings_commands"),
-}
+def _definition_from_contract(raw: dict[str, Any]) -> WorkerCommandDefinition:
+    module = raw.get("pythonModule")
+    if module is not None and not isinstance(module, str):
+        raise TypeError("Desktop worker command pythonModule must be a string or null")
+    return WorkerCommandDefinition(
+        module=module,
+        requires_runtime=bool(raw.get("requiresRuntime", True)),
+    )
+
+
+def _load_command_definitions() -> dict[str, WorkerCommandDefinition]:
+    definitions: dict[str, WorkerCommandDefinition] = {}
+
+    for raw in DESKTOP_WORKER_CONTRACT["invocations"].values():
+        command = raw["workerCommand"]
+        definitions[command] = _definition_from_contract(raw)
+
+    for command, raw in DESKTOP_WORKER_CONTRACT.get("workerCommands", {}).items():
+        definitions[command] = _definition_from_contract(raw)
+
+    return definitions
+
+
+_COMMAND_DEFINITIONS = _load_command_definitions()
 
 
 def register_worker_command(command: str):
     def _decorator(handler: WorkerCommandHandler) -> WorkerCommandHandler:
+        get_worker_command_definition(command)
         if command in _COMMAND_HANDLERS:
             raise RuntimeError(f"Worker command already registered: {command}")
         _COMMAND_HANDLERS[command] = handler
