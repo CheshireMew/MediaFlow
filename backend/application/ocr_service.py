@@ -1,29 +1,9 @@
-import asyncio
 import os
 from loguru import logger
 
 from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
 from backend.models.schemas import OCRExtractRequest
-
-_rapid_ocr_engine = None
-_paddle_ocr_engine = None
-
-
-def get_ocr_engine(engine_type: str = "rapid"):
-    global _rapid_ocr_engine, _paddle_ocr_engine
-
-    if engine_type == "paddle":
-        if _paddle_ocr_engine is None:
-            from backend.services.ocr.ocr_engine import PaddleOCREngine
-
-            _paddle_ocr_engine = PaddleOCREngine()
-        return _paddle_ocr_engine
-
-    if _rapid_ocr_engine is None:
-        from backend.services.ocr.ocr_engine import RapidOCREngine
-
-        _rapid_ocr_engine = RapidOCREngine()
-    return _rapid_ocr_engine
+from backend.services.ocr.engine_provider import get_ocr_engine
 
 
 def load_ocr_results(video_path: str) -> dict[str, list]:

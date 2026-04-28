@@ -140,6 +140,6 @@ class Services:
     ANALYZER = ServiceKey("analyzer")
     PLATFORM_FACTORY = ServiceKey("platform_factory")
     PIPELINE = ServiceKey("pipeline")
-    VIDEO_SYNTHESIZER = ServiceKey("video_synthesizer")
+    VIDEO_SYNTHESIS = ServiceKey("video_synthesis")
     ENHANCER = ServiceKey("enhancer")
     CLEANER = ServiceKey("cleaner")

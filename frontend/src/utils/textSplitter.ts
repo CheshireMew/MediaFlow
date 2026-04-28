@@ -4,6 +4,7 @@
  * punctuation priority, and exposes a token-weighted timing ratio for better
  * subtitle time allocation.
  */
+import { clamp } from "./number";
 
 type SplitReason = "dialog" | "sentence" | "pause" | "space" | "midpoint";
 type TextProfile = "latin" | "cjk" | "mixed";
@@ -112,10 +113,6 @@ const RELAXED_REPEATED_BOUNDARY_UNITS: Record<TextProfile, number> = {
   cjk: 6,
   mixed: 5,
 };
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
 
 function detectTextProfile(text: string): TextProfile {
   const cjkCount = (text.match(REGEX_CJK) || []).join("").length;

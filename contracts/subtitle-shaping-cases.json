@@ -1,0 +1,49 @@
+[
+  {
+    "name": "cjk_fullwidth_wrap",
+    "inputLines": ["\u4f60\u597d\uff0c\u4e16\u754c\u4f60\u597d"],
+    "maxWidthPx": 40,
+    "fontSize": 12,
+    "expectedLines": ["\u4f60\u597d\uff0c", "\u4e16\u754c\u4f60", "\u597d"]
+  },
+  {
+    "name": "latin_breaks_at_spaces",
+    "inputLines": ["alpha beta gamma"],
+    "maxWidthPx": 50,
+    "fontSize": 12,
+    "expectedLines": ["alpha", "beta", "gamma"]
+  },
+  {
+    "name": "mixed_forces_break_without_space",
+    "inputLines": ["Hello\u4e16\u754cAgain"],
+    "maxWidthPx": 42,
+    "fontSize": 12,
+    "expectedLines": ["Hello\u4e16", "\u754cAgain"]
+  },
+  {
+    "name": "existing_lines_are_shaped_independently",
+    "inputLines": ["alpha beta", "gamma delta"],
+    "maxWidthPx": 50,
+    "fontSize": 12,
+    "expectedLines": ["alpha", "beta", "gamma", "delta"]
+  },
+  {
+    "name": "invalid_width_returns_original_lines",
+    "inputLines": ["alpha beta"],
+    "maxWidthPx": 0,
+    "fontSize": 12,
+    "expectedLines": ["alpha beta"]
+  },
+  {
+    "name": "font_measurement_can_prevent_premature_wrap",
+    "inputLines": ["WWW"],
+    "maxWidthPx": 24,
+    "fontSize": 24,
+    "fontFamily": "ContractFont",
+    "fontMeasure": {
+      "W": 8,
+      "default": 6
+    },
+    "expectedLines": ["WWW"]
+  }
+]

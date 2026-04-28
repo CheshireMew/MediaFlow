@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 
 import { resolvePathFromDirectoryEntries } from "../../src/services/filesystem/pathRepair";
+import { visitDesktopWorkerPayloadPaths } from "../../src/contracts/desktopWorkerPathPolicy";
 import { resolveDesktopRuntimeDataRoot, resolveDesktopWorkspaceDir } from "../desktopRuntime";
 
 function normalizePath(candidate: string) {
@@ -16,17 +17,6 @@ function normalizeForCompare(candidate: string) {
 function isPathInside(candidate: string, directory: string) {
   const relative = path.relative(directory, candidate);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
-function looksLikeFilePathKey(key: string) {
-  const normalized = key.toLowerCase();
-  return (
-    normalized === "file_path" ||
-    normalized === "output_dir" ||
-    normalized === "default_download_path" ||
-    normalized === "faster_whisper_cli_path" ||
-    normalized.endsWith("_path")
-  );
 }
 
 class DesktopFileAccessRegistry {
@@ -82,8 +72,11 @@ class DesktopFileAccessRegistry {
   }
 
   assertWorkerPayloadAccess(payload: unknown) {
-    this.visitPayloadPaths(payload, (filePath) => {
+    visitDesktopWorkerPayloadPaths(payload, ({ path: filePath, intent }) => {
       if (!filePath) {
+        return;
+      }
+      if (intent === "write") {
         return;
       }
 
@@ -96,29 +89,6 @@ class DesktopFileAccessRegistry {
 
       this.assertRendererFileSystemAccess(filePath, "Desktop worker payload");
     });
-  }
-
-  private visitPayloadPaths(value: unknown, onPath: (filePath: string) => void) {
-    if (!value || typeof value !== "object") {
-      return;
-    }
-
-    if (Array.isArray(value)) {
-      value.forEach((item) => this.visitPayloadPaths(item, onPath));
-      return;
-    }
-
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      if (looksLikeFilePathKey(key) && typeof entry === "string") {
-        onPath(entry);
-        continue;
-      }
-      if (key === "path" && typeof entry === "string") {
-        onPath(entry);
-        continue;
-      }
-      this.visitPayloadPaths(entry, onPath);
-    }
   }
 
   resolveExistingPath(filePath: string, fallbackName?: string, expectedSize?: number) {

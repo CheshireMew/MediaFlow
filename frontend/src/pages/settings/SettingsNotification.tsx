@@ -1,10 +1,8 @@
 import { AlertCircle, CheckCircle } from "lucide-react";
+import type { Notification } from "./useSettingsData";
 
 type SettingsNotificationProps = {
-  notification: {
-    type: "success" | "error";
-    message: string;
-  };
+  notification: Notification;
 };
 
 export function SettingsNotification({ notification }: SettingsNotificationProps) {

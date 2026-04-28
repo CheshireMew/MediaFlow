@@ -18,7 +18,7 @@ def test_execute_desktop_download_injects_runtime_services(monkeypatch):
     downloader = object()
     asr_service = object()
     translator = object()
-    synthesizer = object()
+    synthesis = object()
     captured = {}
 
     monkeypatch.setattr(
@@ -34,8 +34,8 @@ def test_execute_desktop_download_injects_runtime_services(monkeypatch):
         lambda: translator,
     )
     monkeypatch.setattr(
-        "backend.application.download_service.RuntimeServices.video_synthesizer",
-        lambda: synthesizer,
+        "backend.application.download_service.RuntimeServices.synthesis",
+        lambda: synthesis,
     )
 
     def fake_factory(**kwargs):
@@ -56,6 +56,6 @@ def test_execute_desktop_download_injects_runtime_services(monkeypatch):
         "downloader": downloader,
         "asr_service": asr_service,
         "translator": translator,
-        "synthesizer": synthesizer,
+        "synthesis": synthesis,
     }
     assert result["deps"] == captured["deps"]

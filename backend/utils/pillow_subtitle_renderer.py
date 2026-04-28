@@ -31,7 +31,7 @@ Architecture:
 TODO:
   - [ ] Implement render_subtitle_image() using PIL.ImageDraw + PIL.ImageFont
   - [ ] Implement build_overlay_filter() to generate FFmpeg overlay chain
-  - [ ] Integrate with VideoSynthesizer as alternative to SubtitleWriter
+  - [ ] Integrate with the synthesis pipeline as alternative to SubtitleWriter
   - [ ] Add font discovery (system fonts, bundled fonts)
   - [ ] Support CJK text wrapping via Pillow's textbbox() for precise measurement
   - [ ] Support background box with configurable padding and opacity

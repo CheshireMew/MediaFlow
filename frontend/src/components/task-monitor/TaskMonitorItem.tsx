@@ -30,6 +30,7 @@ import {
   resolveTaskNavigationPayload,
 } from "../../services/ui/taskMedia";
 import { NavigationService } from "../../services/ui/navigation";
+import { clampProgress } from "../../utils/number";
 import { TaskTraceView } from "../TaskTraceView";
 import { formatTaskDisplayId } from "./taskIdDisplay";
 
@@ -43,11 +44,6 @@ type TaskMonitorItemProps = {
   onPause: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onResume: (task: TaskWithDetails) => void;
-};
-
-const clampProgress = (progress: number) => {
-  if (!Number.isFinite(progress)) return 0;
-  return Math.max(0, Math.min(100, progress));
 };
 
 function TaskStatusIcon({ status }: { status: string }) {

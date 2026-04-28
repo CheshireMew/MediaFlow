@@ -177,7 +177,6 @@ class SettingsApplicationService:
         }
 
     @staticmethod
-    @staticmethod
     def _ensure_install_space(path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
         usage = shutil.disk_usage(path)

@@ -49,8 +49,8 @@ class RuntimeServices:
         return _get_runtime_container().get(Services.LLM_TRANSLATOR)
 
     @staticmethod
-    def video_synthesizer():
-        return _get_runtime_container().get(Services.VIDEO_SYNTHESIZER)
+    def synthesis():
+        return _get_runtime_container().get(Services.VIDEO_SYNTHESIS)
 
     @staticmethod
     def enhancer():

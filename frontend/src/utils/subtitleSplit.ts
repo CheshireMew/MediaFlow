@@ -3,6 +3,7 @@ import {
   getSplitTimingRatio,
   type SplitHeuristicOptions,
 } from "./textSplitter";
+import { clamp } from "./number";
 
 type SegmentLike = {
   start: number;
@@ -23,10 +24,6 @@ type SplitSubtitleResult<T extends SegmentLike> = {
   splitTime: number;
   parts: [T, T];
 };
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
 
 export function splitSubtitleSegment<T extends SegmentLike>(
   segment: T,

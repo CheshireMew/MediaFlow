@@ -15,6 +15,11 @@ export type DesktopWorkerRequest = {
   payload: Record<string, unknown>;
 };
 
+export type DesktopWorkerRuntimeRequest = DesktopWorkerRequest & {
+  resolve: (value: unknown) => void;
+  reject: (reason?: unknown) => void;
+};
+
 export type PausedDesktopWorkerTask = {
   command: DesktopTaskType;
   payload: Record<string, unknown>;
@@ -24,7 +29,7 @@ export type DesktopTaskCollections = {
   activeTaskId: string | null;
   queuedTaskIds: string[];
   pausedTasks: Map<string, PausedDesktopWorkerTask>;
-  requests: Map<string, DesktopWorkerRequest>;
+  requests: ReadonlyMap<string, DesktopWorkerRequest>;
 };
 
 export type DesktopTaskActionPlan =

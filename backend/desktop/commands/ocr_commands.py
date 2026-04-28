@@ -3,7 +3,8 @@ import os
 from typing import Any
 
 from backend.desktop.command_registry import register_worker_command
-from backend.desktop.worker_context import emit, get_ocr_engine
+from backend.desktop.worker_context import emit
+from backend.services.ocr.engine_provider import get_ocr_engine
 from backend.models.schemas import OCRExtractRequest
 
 

@@ -33,7 +33,7 @@ class SynthesizeStep(PipelineStep):
         output_path = p.parent / f"{p.stem}_synthesized.mp4"
 
         # 3. Execution
-        synthesizer = RuntimeServices.video_synthesizer()
+        synthesis = RuntimeServices.synthesis()
         runtime = TaskRuntimeContext.for_task(task_id)
 
         options = params.get("options", {})
@@ -42,7 +42,7 @@ class SynthesizeStep(PipelineStep):
             await runtime.update(message="Starting FFmpeg synthesis...")
 
         output_file = await runtime.run_blocking(
-            lambda: synthesizer.burn_in_subtitles(
+            lambda: synthesis.synthesize(
                 video_path, 
                 srt_path, 
                 str(output_path), 

@@ -11,7 +11,7 @@ from backend.services.media_refs import create_media_ref
 from backend.services.asr import ASRService
 from backend.services.downloader.service import DownloaderService
 from backend.services.translator.llm_translator import LLMTranslator
-from backend.services.video_synthesizer import VideoSynthesizer
+from backend.services.video.synthesis import SynthesisOrchestrator
 
 
 ProgressCallback = Callable[[int | float, str], None]
@@ -49,12 +49,12 @@ class DesktopDownloadFlowService:
         downloader: DownloaderService,
         asr_service: ASRService,
         translator: LLMTranslator,
-        synthesizer: VideoSynthesizer,
+        synthesis: SynthesisOrchestrator,
     ):
         self._downloader = downloader
         self._asr_service = asr_service
         self._translator = translator
-        self._synthesizer = synthesizer
+        self._synthesis = synthesis
 
     async def execute(
         self,
@@ -193,7 +193,7 @@ class DesktopDownloadFlowService:
         def synthesize_progress(progress: int | float, message: str) -> None:
             progress_callback(90 + float(progress) * 0.10, message)
 
-        synthesized_path = self._synthesizer.burn_in_subtitles(
+        synthesized_path = self._synthesis.synthesize(
             video_path=media_path,
             srt_path=translated_srt_path,
             output_path=str(

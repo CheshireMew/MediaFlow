@@ -472,48 +472,43 @@ async function submitCleanRetry(task: Task): Promise<RetrySubmission | null> {
   };
 }
 
-function isDownloadLikeTask(task: Task) {
-  return task.type === "download" || Boolean(getPipelineStep(task, "download"));
-}
+type RetryHandler = {
+  accepts: (task: Task) => boolean;
+  submit: (task: Task) => Promise<RetrySubmission | null>;
+};
 
-function isTranscribeLikeTask(task: Task) {
-  return task.type === "transcribe" || Boolean(getPipelineStep(task, "transcribe"));
+const retryHandlers: RetryHandler[] = [
+  {
+    accepts: (task) => task.type === "download" || Boolean(getPipelineStep(task, "download")),
+    submit: submitDownloadRetry,
+  },
+  {
+    accepts: (task) => task.type === "transcribe" || Boolean(getPipelineStep(task, "transcribe")),
+    submit: submitTranscribeRetry,
+  },
+  { accepts: (task) => task.type === "translate", submit: submitTranslateRetry },
+  {
+    accepts: (task) => task.type === "synthesize" || task.type === "synthesis",
+    submit: submitSynthesizeRetry,
+  },
+  { accepts: (task) => task.type === "extract", submit: submitExtractRetry },
+  { accepts: (task) => task.type === "enhancement", submit: submitEnhanceRetry },
+  { accepts: (task) => task.type === "cleanup", submit: submitCleanRetry },
+];
+
+function getRetryHandler(task: Task) {
+  return retryHandlers.find((handler) => handler.accepts(task)) ?? null;
 }
 
 export function canRetryTask(task: Task) {
   if (task.status !== "failed") {
     return false;
   }
-  return (
-    isDownloadLikeTask(task) ||
-    isTranscribeLikeTask(task) ||
-    task.type === "translate" ||
-    task.type === "synthesize" ||
-    task.type === "synthesis" ||
-    task.type === "extract" ||
-    task.type === "enhancement" ||
-    task.type === "cleanup"
-  );
+  return Boolean(getRetryHandler(task));
 }
 
 export async function retryFailedTask(task: Task, addTask: (task: Task) => void) {
-  let submission: RetrySubmission | null = null;
-
-  if (isDownloadLikeTask(task)) {
-    submission = await submitDownloadRetry(task);
-  } else if (isTranscribeLikeTask(task)) {
-    submission = await submitTranscribeRetry(task);
-  } else if (task.type === "translate") {
-    submission = await submitTranslateRetry(task);
-  } else if (task.type === "synthesize" || task.type === "synthesis") {
-    submission = await submitSynthesizeRetry(task);
-  } else if (task.type === "extract") {
-    submission = await submitExtractRetry(task);
-  } else if (task.type === "enhancement") {
-    submission = await submitEnhanceRetry(task);
-  } else if (task.type === "cleanup") {
-    submission = await submitCleanRetry(task);
-  }
+  const submission = await getRetryHandler(task)?.submit(task);
 
   if (!submission) {
     throw new Error(`Retry is not available for task type "${task.type}"`);

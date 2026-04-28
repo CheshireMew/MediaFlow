@@ -101,7 +101,9 @@ def handle_upload_watermark(request_id: str | None, payload: dict[str, Any]) -> 
     shutil.copyfile(input_path, temp_input_path)
 
     try:
-        png_path = RuntimeServices.video_synthesizer().process_watermark(str(temp_input_path))
+        from backend.services.video.watermark_processor import WatermarkProcessor
+
+        png_path = WatermarkProcessor.process_watermark(str(temp_input_path))
         persistent_path = watermarks_dir / "latest.png"
         shutil.move(png_path, persistent_path)
 

@@ -37,7 +37,7 @@ def execute_desktop_download(
             downloader=RuntimeServices.downloader(),
             asr_service=RuntimeServices.asr(),
             translator=RuntimeServices.translator(),
-            synthesizer=RuntimeServices.video_synthesizer(),
+            synthesis=RuntimeServices.synthesis(),
         ).execute(
             request,
             progress_callback=progress_callback,

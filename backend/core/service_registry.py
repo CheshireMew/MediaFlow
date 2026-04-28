@@ -76,15 +76,24 @@ def _create_downloader_service(container):
     )
 
 
-def _create_video_synthesizer(container):
-    from backend.services.video_synthesizer import VideoSynthesizer
+def _create_video_synthesis(container):
+    from backend.services.video.encoder_config import EncoderConfigResolver
+    from backend.services.video.ffmpeg_runner import FfmpegRunner
+    from backend.services.video.filter_graph_builder import FilterGraphBuilder
+    from backend.services.video.super_resolution_stage import SuperResolutionStage
+    from backend.services.video.synthesis import SynthesisOrchestrator
 
     enhancer_service = (
         container.get(Services.ENHANCER)
         if container.has(Services.ENHANCER)
         else None
     )
-    return VideoSynthesizer(enhancer_service=enhancer_service)
+    return SynthesisOrchestrator(
+        super_resolution_stage=SuperResolutionStage(enhancer_service=enhancer_service),
+        filter_graph_builder=FilterGraphBuilder(),
+        encoder_config_resolver=EncoderConfigResolver(),
+        ffmpeg_runner=FfmpegRunner(),
+    )
 
 
 def _create_enhancer_service(_container):
@@ -181,7 +190,7 @@ def build_service_assembly() -> ServiceAssembly:
             ServiceProvider(Services.PIPELINE, _create_pipeline_runner),
             ServiceProvider(Services.ASR, _create_asr_service),
             ServiceProvider(Services.DOWNLOADER, _create_downloader_service),
-            ServiceProvider(Services.VIDEO_SYNTHESIZER, _create_video_synthesizer),
+            ServiceProvider(Services.VIDEO_SYNTHESIS, _create_video_synthesis),
             ServiceProvider(
                 Services.ENHANCER,
                 _create_enhancer_service,
@@ -218,7 +227,7 @@ def build_desktop_worker_service_assembly() -> ServiceAssembly:
         [
             ServiceProvider(Services.ASR, _create_asr_service),
             ServiceProvider(Services.DOWNLOADER, _create_downloader_service),
-            ServiceProvider(Services.VIDEO_SYNTHESIZER, _create_video_synthesizer),
+            ServiceProvider(Services.VIDEO_SYNTHESIS, _create_video_synthesis),
             ServiceProvider(
                 Services.ENHANCER,
                 _create_enhancer_service,

@@ -48,11 +48,11 @@ class FakeTranslator:
         return [segment]
 
 
-class FakeSynthesizer:
+class FakeSynthesis:
     def __init__(self):
         self.calls = []
 
-    def burn_in_subtitles(self, **kwargs):
+    def synthesize(self, **kwargs):
         self.calls.append(kwargs)
         return "C:/tmp/video_synthesized.mp4"
 
@@ -73,12 +73,12 @@ async def test_execute_auto_flow_merges_transcribe_translate_and_synthesis_outpu
     progress_events: list[tuple[float, str]] = []
     asr = FakeASR()
     translator = FakeTranslator()
-    synthesizer = FakeSynthesizer()
+    synthesis = FakeSynthesis()
     service = DesktopDownloadFlowService(
         downloader=FakeDownloader(),
         asr_service=asr,
         translator=translator,
-        synthesizer=synthesizer,
+        synthesis=synthesis,
     )
     request = DesktopDownloadFlowRequest(
         url="https://example.com/video",
@@ -119,8 +119,8 @@ async def test_execute_auto_flow_merges_transcribe_translate_and_synthesis_outpu
     assert asr.calls[0]["model_name"] == "large-v3"
     assert asr.calls[0]["device"] == "cuda"
     assert translator.calls[0]["mode"] == "intelligent"
-    assert synthesizer.calls[0]["watermark_path"] == "C:/tmp/latest.png"
-    assert synthesizer.calls[0]["options"] == {
+    assert synthesis.calls[0]["watermark_path"] == "C:/tmp/latest.png"
+    assert synthesis.calls[0]["options"] == {
         "target_resolution": "1080p",
         "subtitle_position_y": 0.85,
     }

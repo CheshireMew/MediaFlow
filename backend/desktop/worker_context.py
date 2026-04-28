@@ -10,8 +10,6 @@ from backend.config import settings
 from backend.core.runtime_access import RuntimeServices
 
 WORKER_PREFIX = "__MEDIAFLOW_WORKER__"
-_RAPID_OCR_ENGINE = None
-_PADDLE_OCR_ENGINE = None
 
 
 def json_default(value: Any) -> Any:
@@ -44,21 +42,6 @@ def settings_service():
 
 def glossary_service():
     return RuntimeServices.glossary()
-
-
-def get_ocr_engine(engine_type: str = "rapid"):
-    from backend.services.ocr.ocr_engine import PaddleOCREngine, RapidOCREngine
-
-    global _RAPID_OCR_ENGINE, _PADDLE_OCR_ENGINE
-
-    if engine_type == "paddle":
-        if _PADDLE_OCR_ENGINE is None:
-            _PADDLE_OCR_ENGINE = PaddleOCREngine()
-        return _PADDLE_OCR_ENGINE
-
-    if _RAPID_OCR_ENGINE is None:
-        _RAPID_OCR_ENGINE = RapidOCREngine()
-    return _RAPID_OCR_ENGINE
 
 
 def get_yt_dlp_version() -> str | None:

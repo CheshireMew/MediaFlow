@@ -39,7 +39,9 @@ async def upload_watermark_for_preview(file: UploadFile):
             shutil.copyfileobj(file.file, buffer)
             
         # Process (Trim & Convert) -> Returns path to trimmed PNG
-        png_path = RuntimeServices.video_synthesizer().process_watermark(str(temp_input_path))
+        from backend.services.video.watermark_processor import WatermarkProcessor
+
+        png_path = WatermarkProcessor.process_watermark(str(temp_input_path))
         
         # Move to Persistent 'latest.png'
         persistent_path = watermarks_dir / "latest.png"

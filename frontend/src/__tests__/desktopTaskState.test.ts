@@ -2,9 +2,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   TASK_CONTRACT_VERSION,
-  buildDesktopTaskProgressUpdate,
-  buildDesktopTaskResponseUpdate,
-  buildDesktopTask,
+  createDesktopTaskProgressUpdate,
+  createDesktopTaskResponseUpdate,
+  createDesktopTask,
   getDesktopTaskSnapshot,
   isTrackedDesktopCommand,
 } from "../../electron/desktop/taskMapper";
@@ -24,10 +24,10 @@ describe("desktop task mapper and plans", () => {
   it("builds a completed translate task with subtitle metadata", () => {
     vi.spyOn(Date, "now").mockReturnValue(123);
 
-    const task = buildDesktopTask(
-      "translate-1",
-      "translate",
-      {
+    const task = createDesktopTask({
+      id: "translate-1",
+      command: "translate",
+      payload: {
         context_path: "E:/subs/demo.srt",
         context_ref: {
           path: "E:/canonical/demo.srt",
@@ -39,10 +39,10 @@ describe("desktop task mapper and plans", () => {
           type: "application/x-subrip",
         },
       },
-      "completed",
-      100,
-      "Completed",
-      {
+      status: "completed",
+      progress: 100,
+      message: "Completed",
+      result: {
         segments: [{ id: "1", start: 0, end: 1, text: "你好" }],
         language: "zh",
         subtitle_ref: {
@@ -57,7 +57,7 @@ describe("desktop task mapper and plans", () => {
         },
         mode: "standard",
       },
-    );
+    });
 
     expect(task).toMatchObject({
       id: "translate-1",
@@ -108,20 +108,20 @@ describe("desktop task mapper and plans", () => {
   it("prefers producer-provided refs for completed transcribe tasks", () => {
     vi.spyOn(Date, "now").mockReturnValue(456);
 
-    const task = buildDesktopTask(
-      "transcribe-1",
-      "transcribe",
-      {
+    const task = createDesktopTask({
+      id: "transcribe-1",
+      command: "transcribe",
+      payload: {
         audio_path: "E:/media/demo.mp4",
         audio_ref: {
           path: "E:/canonical/demo.mp4",
           name: "demo.mp4",
         },
       },
-      "completed",
-      100,
-      "Completed",
-      {
+      status: "completed",
+      progress: 100,
+      message: "Completed",
+      result: {
         segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
         text: "hello",
         language: "en",
@@ -141,7 +141,7 @@ describe("desktop task mapper and plans", () => {
           type: "application/x-subrip",
         },
       },
-    );
+    });
 
     expect(task).toMatchObject({
       id: "transcribe-1",
@@ -348,7 +348,7 @@ describe("desktop task mapper and plans", () => {
   });
 
   it("maps worker progress payload into a running task update", () => {
-    const task = buildDesktopTaskProgressUpdate({
+    const task = createDesktopTaskProgressUpdate({
       taskId: "run-1",
       request: {
         command: "transcribe",
@@ -382,7 +382,7 @@ describe("desktop task mapper and plans", () => {
   });
 
   it("maps worker response payload into a completed task update", () => {
-    const task = buildDesktopTaskResponseUpdate({
+    const task = createDesktopTaskResponseUpdate({
       taskId: "done-1",
       request: {
         command: "download",

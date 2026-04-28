@@ -5,6 +5,7 @@ import { AudioFileUploader } from '../components/transcriber/AudioFileUploader';
 import { TranscriptionConfig } from '../components/transcriber/TranscriptionConfig';
 import { TranscriptionResults } from '../components/transcriber/TranscriptionResults';
 import { getExecutionModeDisplay } from '../services/ui/executionModeDisplay';
+import { clampProgress } from '../utils/number';
 
 type ProgressCardState = {
   status: string;
@@ -20,13 +21,6 @@ const BYTE_UNITS: Record<string, number> = {
   GB: 1024 ** 3,
   TB: 1024 ** 4,
 };
-
-function clampProgress(progress: number) {
-  if (!Number.isFinite(progress)) {
-    return 0;
-  }
-  return Math.max(0, Math.min(100, progress));
-}
 
 function parseByteValue(value: string, unit: string) {
   return Number.parseFloat(value) * (BYTE_UNITS[unit.toUpperCase()] ?? 1);

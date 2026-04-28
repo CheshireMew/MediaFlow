@@ -100,7 +100,7 @@ class SubtitleWriter:
             alignment = int(style_options.get('alignment', 2))
 
             # Dynamic Resolution (True Res)
-            # These are already updated in VideoSynthesizer based on target_resolution
+            # These are already updated by the synthesis filter graph based on target_resolution.
             play_res_x = style_options.get('video_width', 1920)
             play_res_y = style_options.get('video_height', 1080)
 

@@ -3,13 +3,11 @@ import {
   CUSTOM_LLM_PROVIDER_PRESET_KEY,
   LLM_PROVIDER_PRESETS,
 } from "../../config/llmProviderPresets";
-import type { useSettingsController } from "./useSettingsController";
-
-type SettingsController = ReturnType<typeof useSettingsController>;
+import type { SettingsController, SettingsT } from "./settingsTypes";
 
 type ProviderModalProps = {
   controller: SettingsController;
-  t: (key: string) => string;
+  t: SettingsT;
   cancelLabel: string;
 };
 

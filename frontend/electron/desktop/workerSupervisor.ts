@@ -1,10 +1,7 @@
-import { BrowserWindow } from "electron";
 import type { ChildProcess } from "child_process";
 import {
-  buildDesktopTask,
-  buildDesktopTaskProgressUpdate,
-  buildDesktopTaskResponseUpdate,
-  getDesktopTaskSnapshot,
+  createDesktopTaskProgressUpdate,
+  createDesktopTaskResponseUpdate,
   isTrackedDesktopCommand,
 } from "./taskMapper";
 import {
@@ -12,41 +9,25 @@ import {
   planPauseDesktopTask,
   planResumeDesktopTask,
 } from "./taskPlans";
-import type { DesktopTaskType } from "./taskTypes";
+import type { DesktopTaskType, DesktopWorkerRuntimeRequest } from "./taskTypes";
 import { DesktopTaskHistoryStore } from "./historyStore";
-import {
-  DESKTOP_TASK_EVENT_CHANNEL,
-  DESKTOP_WORKER_EVENT_CHANNELS,
-} from "./bridgeContract";
 import { startDesktopWorkerProcess } from "./workerProcess";
 import {
   handleDesktopWorkerProtocolLine,
   type DesktopWorkerProtocolResponse,
 } from "./workerProtocol";
-
-type DesktopWorkerRequest = {
-  command: string;
-  payload: Record<string, unknown>;
-  resolve: (value: unknown) => void;
-  reject: (reason?: unknown) => void;
-};
+import { DesktopWorkerChannels } from "./workerChannels";
+import { DesktopWorkerTaskQueue } from "./workerTaskQueue";
 
 export class DesktopWorkerSupervisor {
   private desktopWorkerProcess: ChildProcess | null = null;
   private desktopWorkerReady = false;
   private desktopWorkerId = 0;
   private desktopWorkerReadyWaiters: Array<() => void> = [];
-  private activeDesktopWorkerTaskId: string | null = null;
   private desktopWorkerStopMode: "restart" | "shutdown" | null = null;
-  private readonly queuedDesktopWorkerTaskIds: string[] = [];
-  private readonly pausedDesktopWorkerTasks = new Map<
-    string,
-    {
-      command: DesktopTaskType;
-      payload: Record<string, unknown>;
-    }
-  >();
-  private readonly desktopWorkerRequests = new Map<string, DesktopWorkerRequest>();
+  private readonly desktopWorkerRequests = new Map<string, DesktopWorkerRuntimeRequest>();
+  private readonly channels = new DesktopWorkerChannels();
+  private readonly taskQueue = new DesktopWorkerTaskQueue();
 
   constructor(private readonly historyStore: DesktopTaskHistoryStore) {}
 
@@ -60,13 +41,7 @@ export class DesktopWorkerSupervisor {
 
   listTasks() {
     this.historyStore.ensureLoaded();
-    return getDesktopTaskSnapshot({
-      activeTaskId: this.activeDesktopWorkerTaskId,
-      queuedTaskIds: this.queuedDesktopWorkerTaskIds,
-      pausedTasks: this.pausedDesktopWorkerTasks,
-      requests: this.desktopWorkerRequests,
-      historyTasks: this.historyStore.list(),
-    });
+    return this.taskQueue.listTasks(this.desktopWorkerRequests, this.historyStore.list());
   }
 
   request<T = unknown>(command: string, payload?: Record<string, unknown>) {
@@ -93,14 +68,7 @@ export class DesktopWorkerSupervisor {
             this.historyStore.remove(id);
             this.desktopWorkerRequests.set(id, { command, payload: trackedPayload, resolve, reject });
             if (isTrackedDesktopCommand(command)) {
-              this.queuedDesktopWorkerTaskIds.push(id);
-              this.emitDesktopTaskMessage({
-                type: "update",
-                task: {
-                  ...buildDesktopTask(id, command, trackedPayload, "pending", 0, "Queued"),
-                  queue_position: this.queuedDesktopWorkerTaskIds.length,
-                },
-              });
+              this.taskQueue.enqueue(id, command, trackedPayload, (message) => this.emitDesktopTaskMessage(message));
               this.dispatchNextDesktopWorkerTask();
               return;
             }
@@ -129,10 +97,7 @@ export class DesktopWorkerSupervisor {
 
   async pauseTask(taskId: string) {
     const plan = planPauseDesktopTask(taskId, {
-      activeTaskId: this.activeDesktopWorkerTaskId,
-      queuedTaskIds: this.queuedDesktopWorkerTaskIds,
-      pausedTasks: this.pausedDesktopWorkerTasks,
-      requests: this.desktopWorkerRequests,
+      ...this.taskQueue.collections(this.desktopWorkerRequests),
     });
     if (plan.status === "ignored") {
       return { status: "ignored" };
@@ -147,10 +112,12 @@ export class DesktopWorkerSupervisor {
       this.desktopWorkerRequests.delete(taskId);
     }
     if (plan.removeQueued) {
-      this.removeQueuedDesktopWorkerTask(taskId);
+      this.taskQueue.removeQueuedTask(taskId, this.desktopWorkerRequests, (message) =>
+        this.emitDesktopTaskMessage(message),
+      );
     }
     if (plan.addPausedTask) {
-      this.pausedDesktopWorkerTasks.set(taskId, plan.addPausedTask);
+      this.taskQueue.pausedTasks.set(taskId, plan.addPausedTask);
     }
     if (plan.emitTask) {
       this.emitDesktopTaskMessage({ type: "update", task: plan.emitTask });
@@ -166,13 +133,13 @@ export class DesktopWorkerSupervisor {
   }
 
   async resumeTask(taskId: string) {
-    const plan = planResumeDesktopTask(taskId, this.pausedDesktopWorkerTasks);
+    const plan = planResumeDesktopTask(taskId, this.taskQueue.pausedTasks);
     if (plan.status === "ignored" || !plan.resumeTask) {
       return { status: "ignored" };
     }
 
     if (plan.removePaused) {
-      this.pausedDesktopWorkerTasks.delete(taskId);
+      this.taskQueue.pausedTasks.delete(taskId);
     }
     void this.request(plan.resumeTask.command, plan.resumeTask.payload).catch((error) => {
       console.error(`[DesktopWorker] Failed to resume ${taskId}:`, error);
@@ -187,10 +154,7 @@ export class DesktopWorkerSupervisor {
     }
 
     const plan = planCancelDesktopTask(taskId, {
-      activeTaskId: this.activeDesktopWorkerTaskId,
-      queuedTaskIds: this.queuedDesktopWorkerTaskIds,
-      pausedTasks: this.pausedDesktopWorkerTasks,
-      requests: this.desktopWorkerRequests,
+      ...this.taskQueue.collections(this.desktopWorkerRequests),
     });
     if (plan.status === "ignored") {
       return { status: "ignored" };
@@ -199,13 +163,15 @@ export class DesktopWorkerSupervisor {
     const pending = this.desktopWorkerRequests.get(taskId);
 
     if (plan.removePaused) {
-      this.pausedDesktopWorkerTasks.delete(taskId);
+      this.taskQueue.pausedTasks.delete(taskId);
     }
     if (plan.removeRequest) {
       this.desktopWorkerRequests.delete(taskId);
     }
     if (plan.removeQueued) {
-      this.removeQueuedDesktopWorkerTask(taskId);
+      this.taskQueue.removeQueuedTask(taskId, this.desktopWorkerRequests, (message) =>
+        this.emitDesktopTaskMessage(message),
+      );
     }
     if (plan.emitDelete) {
       this.emitDesktopTaskMessage({ type: "delete", task_id: taskId });
@@ -223,15 +189,7 @@ export class DesktopWorkerSupervisor {
   }
 
   private emitDesktopTaskMessage(message: unknown) {
-    for (const window of BrowserWindow.getAllWindows()) {
-      window.webContents.send(DESKTOP_TASK_EVENT_CHANNEL, message);
-    }
-  }
-
-  private emitDesktopProgress(channel: string, payload: unknown) {
-    for (const window of BrowserWindow.getAllWindows()) {
-      window.webContents.send(channel, payload);
-    }
+    this.channels.emitTask(message);
   }
 
   private resolveTrackedPayload(
@@ -257,7 +215,7 @@ export class DesktopWorkerSupervisor {
     payload: Record<string, unknown>,
     error: string,
   ) {
-    const taskUpdate = buildDesktopTaskResponseUpdate({
+    const taskUpdate = createDesktopTaskResponseUpdate({
       taskId,
       request: {
         command,
@@ -278,76 +236,37 @@ export class DesktopWorkerSupervisor {
     });
   }
 
-  private syncQueuedDesktopWorkerTasks() {
-    this.queuedDesktopWorkerTaskIds.forEach((taskId, index) => {
-      const pending = this.desktopWorkerRequests.get(taskId);
-      if (!pending || !isTrackedDesktopCommand(pending.command)) {
-        return;
-      }
-
-      this.emitDesktopTaskMessage({
-        type: "update",
-        task: {
-          ...buildDesktopTask(taskId, pending.command, pending.payload, "pending", 0, "Queued"),
-          queue_position: index + 1,
-        },
-      });
-    });
-  }
-
-  private removeQueuedDesktopWorkerTask(taskId: string) {
-    const index = this.queuedDesktopWorkerTaskIds.indexOf(taskId);
-    if (index === -1) {
-      return false;
-    }
-
-    this.queuedDesktopWorkerTaskIds.splice(index, 1);
-    this.syncQueuedDesktopWorkerTasks();
-    return true;
-  }
-
   private dispatchNextDesktopWorkerTask() {
     if (
       !this.desktopWorkerReady ||
-      this.activeDesktopWorkerTaskId ||
+      this.taskQueue.activeTaskId ||
       !this.desktopWorkerProcess?.stdin?.writable
     ) {
       return;
     }
 
-    const nextTaskId = this.queuedDesktopWorkerTaskIds.shift();
-    if (!nextTaskId) {
+    const next = this.taskQueue.nextTask(this.desktopWorkerRequests);
+    if (!next) {
       return;
     }
-
-    const pending = this.desktopWorkerRequests.get(nextTaskId);
-    if (!pending) {
-      this.syncQueuedDesktopWorkerTasks();
+    if (!next.request) {
+      this.taskQueue.syncQueuedTasks(this.desktopWorkerRequests, (message) => this.emitDesktopTaskMessage(message));
       this.dispatchNextDesktopWorkerTask();
       return;
     }
 
-    this.activeDesktopWorkerTaskId = nextTaskId;
-    if (isTrackedDesktopCommand(pending.command)) {
-      this.emitDesktopTaskMessage({
-        type: "update",
-        task: {
-          ...buildDesktopTask(nextTaskId, pending.command, pending.payload, "running", 0, "Starting"),
-          queue_position: null,
-        },
-      });
-    }
-    this.syncQueuedDesktopWorkerTasks();
+    this.taskQueue.markActiveStarted(next.taskId, next.request, (message) => this.emitDesktopTaskMessage(message));
+    this.taskQueue.syncQueuedTasks(this.desktopWorkerRequests, (message) => this.emitDesktopTaskMessage(message));
     try {
       this.desktopWorkerProcess.stdin.write(
-        `${JSON.stringify({ id: nextTaskId, command: pending.command, payload: pending.payload })}\n`,
+        `${JSON.stringify({ id: next.taskId, command: next.request.command, payload: next.request.payload })}\n`,
       );
     } catch (error) {
-      this.desktopWorkerRequests.delete(nextTaskId);
-      this.activeDesktopWorkerTaskId = null;
-      const taskUpdate = buildDesktopTaskResponseUpdate({
-        taskId: nextTaskId,
-        request: pending,
+      this.desktopWorkerRequests.delete(next.taskId);
+      this.taskQueue.resetActive();
+      const taskUpdate = createDesktopTaskResponseUpdate({
+        taskId: next.taskId,
+        request: next.request,
         ok: false,
         error: error instanceof Error ? error.message : "Desktop worker request failed",
       });
@@ -358,7 +277,7 @@ export class DesktopWorkerSupervisor {
           task: taskUpdate,
         });
       }
-      pending.reject(error);
+      next.request.reject(error);
       this.dispatchNextDesktopWorkerTask();
     }
   }
@@ -381,13 +300,7 @@ export class DesktopWorkerSupervisor {
         this.dispatchNextDesktopWorkerTask();
       },
       onEvent: (event, payload) => {
-        const channel =
-          DESKTOP_WORKER_EVENT_CHANNELS[
-            event as keyof typeof DESKTOP_WORKER_EVENT_CHANNELS
-          ];
-        if (channel) {
-          this.emitDesktopProgress(channel, payload);
-        } else {
+        if (!this.channels.emitWorkerEvent(event, payload)) {
           console.log("[DesktopWorker event]", event, payload);
         }
       },
@@ -410,7 +323,7 @@ export class DesktopWorkerSupervisor {
       return;
     }
 
-    const taskUpdate = buildDesktopTaskProgressUpdate({
+    const taskUpdate = createDesktopTaskProgressUpdate({
       taskId,
       request: pending,
       payload,
@@ -430,12 +343,11 @@ export class DesktopWorkerSupervisor {
     }
 
     this.desktopWorkerRequests.delete(message.id);
-    if (this.activeDesktopWorkerTaskId === message.id) {
-      this.activeDesktopWorkerTaskId = null;
+    if (this.taskQueue.clearActiveIf(message.id)) {
       this.dispatchNextDesktopWorkerTask();
     }
 
-    const taskUpdate = buildDesktopTaskResponseUpdate({
+    const taskUpdate = createDesktopTaskResponseUpdate({
       taskId: message.id,
       request: pending,
       ok: Boolean(message.ok),
@@ -469,13 +381,13 @@ export class DesktopWorkerSupervisor {
         console.log(`[DesktopWorker] exited with code ${code}`);
         this.desktopWorkerReady = false;
         this.desktopWorkerProcess = null;
-        this.activeDesktopWorkerTaskId = null;
+        this.taskQueue.resetActive();
 
         const stopMode = this.desktopWorkerStopMode;
         this.desktopWorkerStopMode = null;
 
         if (stopMode === "restart") {
-          const queuedTaskIdSet = new Set(this.queuedDesktopWorkerTaskIds);
+          const queuedTaskIdSet = new Set(this.taskQueue.queuedTaskIds);
           for (const [requestId, pending] of [...this.desktopWorkerRequests.entries()]) {
             if (queuedTaskIdSet.has(requestId)) {
               continue;
@@ -484,13 +396,13 @@ export class DesktopWorkerSupervisor {
             this.desktopWorkerRequests.delete(requestId);
           }
           this.desktopWorkerReadyWaiters = [];
-          if (this.desktopWorkerRequests.size > 0 || this.queuedDesktopWorkerTaskIds.length > 0) {
+          if (this.desktopWorkerRequests.size > 0 || this.taskQueue.queuedTaskIds.length > 0) {
             this.startDesktopWorker();
           }
           return;
         }
 
-        this.queuedDesktopWorkerTaskIds.length = 0;
+        this.taskQueue.clearQueued();
         for (const [taskId, pending] of [...this.desktopWorkerRequests.entries()]) {
           if (isTrackedDesktopCommand(pending.command)) {
             this.emitTrackedTaskFailure(taskId, pending.command, pending.payload, "Desktop worker exited");
@@ -516,13 +428,13 @@ export class DesktopWorkerSupervisor {
       this.desktopWorkerProcess = null;
     } else if (
       mode === "restart" &&
-      (this.desktopWorkerRequests.size > 0 || this.queuedDesktopWorkerTaskIds.length > 0)
+      (this.desktopWorkerRequests.size > 0 || this.taskQueue.queuedTaskIds.length > 0)
     ) {
       this.desktopWorkerStopMode = null;
       void this.startDesktopWorker();
     }
     this.desktopWorkerReady = false;
-    this.activeDesktopWorkerTaskId = null;
+    this.taskQueue.resetActive();
   }
 
   private waitForDesktopWorkerReady(timeoutMs = 15000): Promise<void> {

@@ -1,5 +1,5 @@
 import {
-  buildDesktopTask,
+  createDesktopTask,
   isTrackedDesktopCommand,
 } from "./taskMapper";
 import type {
@@ -30,7 +30,14 @@ export function planPauseDesktopTask(
     },
     rejectMessage: "Desktop worker task paused",
     emitTask: {
-      ...buildDesktopTask(taskId, pending.command, pending.payload, "failed", 0, "Paused"),
+      ...createDesktopTask({
+        id: taskId,
+        command: pending.command,
+        payload: pending.payload,
+        status: "failed",
+        progress: 0,
+        message: "Paused",
+      }),
       status: "paused",
       queue_state: "paused",
       message: "Paused",
@@ -89,16 +96,15 @@ export function planCancelDesktopTask(
       rejectMessage: "Desktop worker task cancelled",
       shouldRestartWorker: true,
       emitTask: {
-        ...buildDesktopTask(
-          taskId,
-          pending.command,
-          pending.payload,
-          "failed",
-          0,
-          "Cancelled",
-          undefined,
-          "Cancelled by user",
-        ),
+        ...createDesktopTask({
+          id: taskId,
+          command: pending.command,
+          payload: pending.payload,
+          status: "failed",
+          progress: 0,
+          message: "Cancelled",
+          error: "Cancelled by user",
+        }),
         status: "cancelled",
         queue_state: "cancelled",
       },

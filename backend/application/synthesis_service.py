@@ -12,7 +12,7 @@ async def run_synthesis_task(task_id: str, req: SynthesisRequest):
 
     await BackgroundTaskRunner.run(
         task_id=task_id,
-        worker_fn=RuntimeServices.video_synthesizer().burn_in_subtitles,
+        worker_fn=RuntimeServices.synthesis().synthesize,
         worker_kwargs={
             "video_path": req.video_path,
             "srt_path": req.srt_path,
@@ -42,7 +42,7 @@ def execute_synthesis(
     *,
     progress_callback=None,
 ):
-    final_path = RuntimeServices.video_synthesizer().burn_in_subtitles(
+    final_path = RuntimeServices.synthesis().synthesize(
         video_path=req.video_path,
         srt_path=req.srt_path,
         output_path=req.output_path,

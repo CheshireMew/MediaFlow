@@ -2,10 +2,14 @@ import subprocess
 from pathlib import Path
 
 from backend.config import settings
-from backend.services.video_synthesizer import VideoSynthesizer
+from backend.services.video.encoder_config import EncoderConfigResolver
+from backend.services.video.ffmpeg_runner import FfmpegRunner
+from backend.services.video.filter_graph_builder import FilterGraphBuilder
+from backend.services.video.super_resolution_stage import SuperResolutionStage
+from backend.services.video.synthesis import SynthesisOrchestrator
 
 
-def test_burn_in_subtitles_succeeds_for_video_without_audio(tmp_path):
+def test_synthesis_orchestrator_succeeds_for_video_without_audio(tmp_path):
     video_path = tmp_path / "no_audio.mp4"
     srt_path = tmp_path / "no_audio.srt"
     output_path = tmp_path / "no_audio_synthesized.mp4"
@@ -35,7 +39,14 @@ def test_burn_in_subtitles_succeeds_for_video_without_audio(tmp_path):
         capture_output=True,
     )
 
-    result_path = VideoSynthesizer().burn_in_subtitles(
+    synthesis = SynthesisOrchestrator(
+        super_resolution_stage=SuperResolutionStage(),
+        filter_graph_builder=FilterGraphBuilder(),
+        encoder_config_resolver=EncoderConfigResolver(),
+        ffmpeg_runner=FfmpegRunner(),
+    )
+
+    result_path = synthesis.synthesize(
         str(video_path),
         str(srt_path),
         str(output_path),
