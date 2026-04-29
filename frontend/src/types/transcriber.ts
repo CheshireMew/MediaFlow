@@ -12,7 +12,6 @@ export interface TranscribeResult {
   segments: TranscribeSegment[];
   text: string;
   language: string;
-  srt_path?: string | null;
   video_ref?: MediaReference | null;
   subtitle_ref?: MediaReference | null;
   output_ref?: MediaReference | null;

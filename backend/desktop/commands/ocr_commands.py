@@ -1,22 +1,17 @@
 import json
-import os
 from typing import Any
 
 from backend.desktop.command_registry import register_worker_command
 from backend.desktop.worker_context import emit
 from backend.services.ocr.engine_provider import get_ocr_engine
-from backend.models.schemas import OCRExtractRequest
+from backend.models.schemas import MediaReference, OCRExtractRequest
 
 
 @register_worker_command("extract")
 def handle_extract(request_id: str | None, payload: dict[str, Any]) -> None:
-    from backend.application.ocr_service import execute_ocr
+    from backend.application.task_operations import execute_task_operation
 
-    request = OCRExtractRequest.model_validate(payload)
-    if not request.video_path:
-        raise ValueError("video_path or video_ref is required")
-    if not os.path.exists(request.video_path):
-        raise FileNotFoundError(f"Video file not found: {request.video_path}")
+    OCRExtractRequest.model_validate(payload)
 
     def progress_callback(progress: int | float, message: str) -> None:
         emit({
@@ -29,7 +24,7 @@ def handle_extract(request_id: str | None, payload: dict[str, Any]) -> None:
             },
         })
 
-    result = execute_ocr(request, progress_callback=progress_callback)
+    result = execute_task_operation("extract", payload, progress_callback=progress_callback)
 
     emit({
         "type": "event",
@@ -52,9 +47,10 @@ def handle_extract(request_id: str | None, payload: dict[str, Any]) -> None:
 def handle_get_ocr_results(request_id: str | None, payload: dict[str, Any]) -> None:
     from backend.application.ocr_service import load_ocr_results
 
+    video_ref = MediaReference.model_validate(payload["video_ref"])
     emit({
         "type": "response",
         "id": request_id,
         "ok": True,
-        "result": load_ocr_results(payload["video_path"]),
+        "result": load_ocr_results(video_ref.path),
     })

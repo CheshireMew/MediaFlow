@@ -22,7 +22,6 @@ function createBaseElectronMock(): MockedElectronAPI {
     getPathForFile: vi.fn((file: File & { path?: string }) => file.path ?? ""),
     writeFile: vi.fn(),
     getFileSize: vi.fn(),
-    resolveExistingPath: vi.fn(async (filePath: string) => filePath),
     getDesktopRuntimeInfo: vi.fn().mockResolvedValue({
       status: "pong",
       contract_version: 1,

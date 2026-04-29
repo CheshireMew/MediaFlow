@@ -2,8 +2,7 @@
 Standardized test for pipeline step registration.
 Converted from tests/verify_auto_flow.py (Issue #7).
 
-Verifies that all required pipeline steps (download, transcribe,
-translate, synthesize) are properly registered in the StepRegistry.
+Verifies that all catalogued pipeline steps are registered in the StepRegistry.
 """
 
 import pytest
@@ -12,12 +11,13 @@ import pytest
 def test_all_pipeline_steps_registered():
     """All required auto-execute flow steps must be registered."""
     from backend.core.steps.registry import StepRegistry
+    from backend.core.task_catalog import pipeline_step_names
     # Trigger step module imports so decorators register the steps
     from backend.core.steps import download, transcribe, translate, synthesize  # noqa: F401
 
     registered = StepRegistry.list_steps()
 
-    required = ["download", "transcribe", "translate", "synthesize"]
+    required = sorted(pipeline_step_names())
     missing = [s for s in required if s not in registered]
 
     assert not missing, f"Missing pipeline steps: {missing}. Registered: {registered}"

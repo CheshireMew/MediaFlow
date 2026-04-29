@@ -42,7 +42,6 @@ describe("taskSelectors transcribe media matching", () => {
           {
             step_name: "transcribe",
             params: {
-              audio_path: "E:/workspace/stale.mp4",
               audio_ref: {
                 path: "E:/canonical/sample.mp4",
                 name: "sample.mp4",
@@ -74,7 +73,6 @@ describe("taskSelectors transcribe media matching", () => {
           {
             step_name: "transcribe",
             params: {
-              audio_path: "E:/workspace/stale.mp4",
               audio_ref: {
                 path: "E:/canonical/sample.mp4",
                 name: "sample.mp4",
@@ -109,7 +107,7 @@ describe("taskSelectors transcribe media matching", () => {
       progress: 100,
       created_at: Date.now(),
       request_params: {
-        steps: [{ step_name: "transcribe" }],
+        steps: [{ step_name: "transcribe", params: {} }],
       },
       result: {
         files: [
@@ -147,7 +145,6 @@ describe("taskSelectors transcribe media matching", () => {
           {
             step_name: "transcribe",
             params: {
-              audio_path: "E:/workspace/stale.mp4",
               audio_ref: {
                 path: "E:/canonical/sample.mp4",
                 name: "sample.mp4",
@@ -217,7 +214,7 @@ describe("taskSelectors transcribe media matching", () => {
       progress: 100,
       created_at: Date.now(),
       request_params: {
-        steps: [{ step_name: "transcribe" }],
+        steps: [{ step_name: "transcribe", params: {} }],
         video_ref: {
           path: "E:/canonical/sample.mp4",
           name: "sample.mp4",

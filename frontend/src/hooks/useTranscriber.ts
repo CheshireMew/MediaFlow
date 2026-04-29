@@ -18,14 +18,10 @@ import { useTranscriberNavigation } from "./transcriber/useTranscriberNavigation
 import { useTranscriberCommands } from "./transcriber/useTranscriberCommands";
 import { useTranscriberTaskSync } from "./transcriber/useTranscriberTaskSync";
 import { useTranscriberFileActions } from "./transcriber/useTranscriberFileActions";
-import { isDesktopRuntime } from "../services/domain";
-import { fileService } from "../services/fileService";
 import {
   normalizeMediaReference,
-  toElectronFile,
 } from "../services/ui/mediaReference";
 import { normalizeTranscribeResult } from "../services/ui/transcribeResult";
-import { attachElectronFileSource } from "../services/ui/electronFileSource";
 import { useExecutionModeState } from "./execution/useExecutionModeState";
 
 export function useTranscriber() {
@@ -104,34 +100,6 @@ export function useTranscriber() {
     setIsUploading,
     setIsSmartSplitting,
   });
-
-  useEffect(() => {
-    if (!file?.path || !isDesktopRuntime()) {
-      return;
-    }
-
-    let cancelled = false;
-
-    void fileService.resolveExistingPath(file.path, file.name, file.size).then((resolvedPath) => {
-      if (!resolvedPath || resolvedPath === file.path || cancelled) {
-        return;
-      }
-
-      setResolvedFile(
-        attachElectronFileSource(
-          toElectronFile(
-            normalizeMediaReference({ ...file, path: resolvedPath }) ??
-              normalizeMediaReference(file)!,
-          ),
-          file.__mediaflow_source ?? "unknown",
-        ),
-      );
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [file, setResolvedFile]);
 
   return {
     state: {

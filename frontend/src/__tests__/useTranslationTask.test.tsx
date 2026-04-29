@@ -104,7 +104,10 @@ describe("useTranslationTask", () => {
         task_contract_version: 2,
         queue_state: "queued",
         request_params: expect.objectContaining({
-          context_path: "E:/subs/demo.srt",
+          context_ref: expect.objectContaining({
+            path: "E:/subs/demo.srt",
+            name: "demo.srt",
+          }),
           target_language: "Chinese",
           mode: "proofread",
         }),

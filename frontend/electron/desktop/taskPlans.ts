@@ -16,14 +16,14 @@ export function planPauseDesktopTask(
   if (!pending || !isDesktopTaskCommand(pending.command)) {
     return { status: "ignored" };
   }
-  if (!collections.queuedTaskIds.includes(taskId)) {
+  if (!collections.queuedTaskIds.includes(taskId) && !collections.runningTaskIds.has(taskId)) {
     return { status: "ignored" };
   }
 
   return {
     status: "paused",
     removeRequest: true,
-    removeQueued: true,
+    removeQueued: collections.queuedTaskIds.includes(taskId),
     addPausedTask: {
       command: pending.command,
       payload: {
@@ -45,6 +45,7 @@ export function planPauseDesktopTask(
       queue_state: "paused",
       message: "Paused",
     },
+    ...(collections.runningTaskIds.has(taskId) ? { shouldRestartAssignedSlot: true } : {}),
   };
 }
 

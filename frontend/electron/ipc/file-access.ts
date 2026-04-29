@@ -2,7 +2,6 @@ import { app } from "electron";
 import fs from "fs";
 import path from "path";
 
-import { resolvePathFromDirectoryEntries } from "../../src/services/filesystem/pathRepair";
 import { visitDesktopWorkerPayloadPaths } from "../../src/contracts/desktopWorkerPathPolicy";
 import {
   resolveDesktopManagedBinDir,
@@ -199,43 +198,6 @@ class DesktopFileAccessRegistry {
     });
   }
 
-  resolveExistingPath(filePath: string, fallbackName?: string, expectedSize?: number) {
-    this.assertRendererReadAccess(filePath, "Resolve path");
-
-    const candidateDir = path.dirname(filePath);
-    if (!fs.existsSync(candidateDir)) {
-      return fs.existsSync(filePath) ? filePath : null;
-    }
-
-    const directoryEntries = fs.readdirSync(candidateDir);
-    const resolved = resolvePathFromDirectoryEntries(filePath, directoryEntries, fallbackName);
-    if (resolved && fs.existsSync(resolved)) {
-      this.grantRendererReadFile(resolved);
-      return resolved;
-    }
-
-    if (typeof expectedSize === "number" && expectedSize >= 0) {
-      const extension = path.extname(filePath).toLowerCase();
-      const sizeMatches = directoryEntries.filter((entry) => {
-        const candidatePath = path.join(candidateDir, entry);
-        if (!fs.existsSync(candidatePath) || !fs.statSync(candidatePath).isFile()) {
-          return false;
-        }
-        if (extension && path.extname(entry).toLowerCase() !== extension) {
-          return false;
-        }
-        return fs.statSync(candidatePath).size === expectedSize;
-      });
-
-      if (sizeMatches.length === 1) {
-        const repairedPath = path.join(candidateDir, sizeMatches[0]);
-        this.grantRendererReadFile(repairedPath);
-        return repairedPath;
-      }
-    }
-
-    return fs.existsSync(filePath) ? filePath : null;
-  }
 }
 
 export const desktopFileAccess = new DesktopFileAccessRegistry();

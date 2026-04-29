@@ -1,4 +1,5 @@
 import type { Task, TaskRequestParams, TaskType } from "../../../types/task";
+import type { PipelineStepName } from "../../../contracts/generatedTaskCatalog";
 import { normalizeMediaReference } from "../../ui/mediaReference";
 
 export function getRequestParams(task: Task) {
@@ -12,18 +13,17 @@ export function getPipelineSteps(task: Task) {
   return Array.isArray(params?.steps) ? params.steps : [];
 }
 
-export function getPipelineStep(task: Task, stepName: string) {
+export function getPipelineStep(task: Task, stepName: PipelineStepName) {
   return getPipelineSteps(task).find(
     (step) =>
       step &&
       typeof step === "object" &&
-      ("step_name" in step || "action" in step) &&
-      ((step as { step_name?: string }).step_name === stepName ||
-        (step as { action?: string }).action === stepName),
+      "step_name" in step &&
+      (step as { step_name?: string }).step_name === stepName,
   ) as { params?: Record<string, unknown> } | undefined;
 }
 
-export function getStepParams(task: Task, stepName: string) {
+export function getStepParams(task: Task, stepName: PipelineStepName) {
   const step = getPipelineStep(task, stepName);
   return step?.params && typeof step.params === "object" ? step.params : null;
 }
@@ -81,4 +81,3 @@ export function getTaskMediaReference(
   }
   return null;
 }
-

@@ -5,12 +5,13 @@ import { isDesktopRuntime } from '../../services/desktop';
 import { getExecutionModeDisplay } from '../../services/ui/executionModeDisplay';
 import type { ExecutionMode } from '../../services/domain';
 import { useRuntimeExecutionStore } from '../../stores/runtimeExecutionStore';
+import type { Task } from '../../types/task';
 import {
     getTaskSourceDiagnosticState,
     subscribeTaskSourceDiagnostics,
 } from '../../context/taskSources/diagnostics';
 
-const matchesFilterType = (task: { type: string; name?: string; request_params?: { steps?: Array<{ step_name?: string; action?: string }> } }, filterTypes?: string[]) => {
+const matchesFilterType = (task: Task, filterTypes?: string[]) => {
     if (!filterTypes || filterTypes.length === 0) {
         return true;
     }
@@ -22,7 +23,7 @@ const matchesFilterType = (task: { type: string; name?: string; request_params?:
     if (task.type === 'pipeline' && filterTypes.includes('download')) {
         return Boolean(
             task.name?.toLowerCase().includes('download') ||
-            task.request_params?.steps?.some((step) => step.step_name === 'download' || step.action === 'download'),
+            task.request_params?.steps?.some((step) => step.step_name === 'download'),
         );
     }
 

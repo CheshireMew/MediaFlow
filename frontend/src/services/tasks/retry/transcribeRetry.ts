@@ -1,4 +1,4 @@
-import type { Task } from "../../../types/task";
+import type { Task, TaskRequestParams } from "../../../types/task";
 import { executionService } from "../../domain";
 import type { RetryHandler, RetrySubmission } from "./types";
 import {
@@ -37,7 +37,7 @@ async function submitTranscribeRetry(task: Task): Promise<RetrySubmission | null
     initial_prompt: initialPrompt ?? null,
   });
 
-  const request_params =
+  const request_params: TaskRequestParams =
     task.type === "pipeline"
       ? {
           pipeline_id: "transcriber_tool",
@@ -49,7 +49,7 @@ async function submitTranscribeRetry(task: Task): Promise<RetrySubmission | null
                 engine,
                 model,
                 device,
-                vad_filter: params.vad_filter ?? true,
+                vad_filter: typeof params.vad_filter === "boolean" ? params.vad_filter : true,
                 language,
                 initial_prompt: initialPrompt,
               },
@@ -76,4 +76,3 @@ export const transcribeRetryHandler: RetryHandler = {
   accepts: (task) => task.type === "transcribe" || Boolean(getPipelineStep(task, "transcribe")),
   submit: submitTranscribeRetry,
 };
-

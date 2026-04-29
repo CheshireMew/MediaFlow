@@ -4,6 +4,9 @@ import type {
   TaskResultShape,
   TaskTraceItem,
 } from "../contracts/taskContract";
+import type { PipelineRequest } from "./generatedApi";
+import type { TaskType } from "../contracts/generatedTaskCatalog";
+export type { TaskType } from "../contracts/generatedTaskCatalog";
 
 export interface SubtitleSegment {
   id: number | string;
@@ -12,11 +15,7 @@ export interface SubtitleSegment {
   text: string;
 }
 
-export interface TaskStep {
-  step_name?: string;
-  action?: string;
-  params?: Record<string, unknown>;
-}
+export type TaskStep = PipelineRequest["steps"][number];
 
 export type { FileRef, TaskMediaRef, TaskTraceItem };
 
@@ -35,7 +34,7 @@ export interface TaskMeta {
 
 export interface TaskRequestParams {
   __desktop_worker?: boolean;
-  steps?: TaskStep[];
+  steps?: PipelineRequest["steps"];
   video_ref?: TaskMediaRef | null;
   subtitle_ref?: TaskMediaRef | null;
   context_ref?: TaskMediaRef | null;
@@ -50,18 +49,6 @@ export interface TaskResult extends Omit<TaskResultShape, "segments" | "meta"> {
   segments?: SubtitleSegment[];
   meta?: TaskMeta;
 }
-
-export type TaskType =
-  | "download"
-  | "transcribe"
-  | "transcribe_segment"
-  | "translate"
-  | "pipeline"
-  | "synthesize"
-  | "synthesis"
-  | "enhancement"
-  | "cleanup"
-  | "extract";
 
 export type TaskStatus =
   | "pending"

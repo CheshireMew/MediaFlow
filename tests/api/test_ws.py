@@ -51,6 +51,10 @@ def _create_audio_file(name: str) -> Path:
     return audio_path
 
 
+def _media_ref(path: Path) -> dict:
+    return {"path": str(path), "name": path.name, "type": "audio/mpeg", "media_kind": "audio"}
+
+
 def _receive_until(websocket, predicate, limit: int = 30):
     last_message = None
     for _ in range(limit):
@@ -193,7 +197,7 @@ def test_websocket_pushes_queue_position_and_pause_resume_updates(isolated_api_c
             for _ in range(3):
                 response = client.post(
                     "/api/v1/transcribe/",
-                    json={"audio_path": str(audio_path), "model": "base", "device": "cpu"},
+                    json={"audio_ref": _media_ref(audio_path), "model": "base", "device": "cpu"},
                 )
                 assert response.status_code == 200
                 created_task_ids.append(response.json()["task_id"])
@@ -273,7 +277,7 @@ def test_websocket_pushes_cancel_updates_for_running_and_queued_tasks(isolated_a
             for _ in range(3):
                 response = client.post(
                     "/api/v1/transcribe/",
-                    json={"audio_path": str(audio_path), "model": "base", "device": "cpu"},
+                    json={"audio_ref": _media_ref(audio_path), "model": "base", "device": "cpu"},
                 )
                 assert response.status_code == 200
                 created_task_ids.append(response.json()["task_id"])
@@ -347,7 +351,7 @@ def test_websocket_pushes_pause_all_updates_for_running_and_queued_tasks(isolate
             for _ in range(3):
                 response = client.post(
                     "/api/v1/transcribe/",
-                    json={"audio_path": str(audio_path), "model": "base", "device": "cpu"},
+                    json={"audio_ref": _media_ref(audio_path), "model": "base", "device": "cpu"},
                 )
                 assert response.status_code == 200
                 created_task_ids.append(response.json()["task_id"])
@@ -425,7 +429,7 @@ def test_websocket_delete_sequence_for_running_and_queued_tasks(isolated_api_cli
             for _ in range(3):
                 response = client.post(
                     "/api/v1/transcribe/",
-                    json={"audio_path": str(audio_path), "model": "base", "device": "cpu"},
+                    json={"audio_ref": _media_ref(audio_path), "model": "base", "device": "cpu"},
                 )
                 assert response.status_code == 200
                 created_task_ids.append(response.json()["task_id"])

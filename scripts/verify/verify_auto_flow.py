@@ -37,12 +37,13 @@ async def main():
     
     print("Checking if steps are registered...")
     from backend.core.steps.registry import StepRegistry
+    from backend.core.task_catalog import pipeline_step_names
     from backend.core.steps import download, transcribe, translate, synthesize
     
     steps = StepRegistry.list_steps()
     print(f"Registered steps: {steps}")
     
-    required = ["download", "transcribe", "translate", "synthesize"]
+    required = sorted(pipeline_step_names())
     missing = [s for s in required if s not in steps]
     
     if missing:

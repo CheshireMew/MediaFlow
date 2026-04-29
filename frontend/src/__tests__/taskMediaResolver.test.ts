@@ -120,7 +120,6 @@ describe("taskMediaResolver", () => {
                 path: "E:/canonical/sample.mp4",
                 name: "sample.mp4",
               },
-              audio_path: "E:/stale/stale.mp4",
             },
           },
         ],

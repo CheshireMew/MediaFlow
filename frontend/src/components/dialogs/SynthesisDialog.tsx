@@ -19,6 +19,7 @@ import {
     buildSynthesisOptionsFromPreferences,
     resolvePreviewViewportMetrics,
 } from '../../services/domain';
+import { normalizeMediaReference, type MediaReference } from '../../services/ui/mediaReference';
 import {
     restoreStoredSynthesisExecutionPreferences,
     type SynthesisExecutionPreferences,
@@ -32,7 +33,7 @@ interface SynthesisDialogProps {
     videoPath: string | null;
     mediaUrl: string | null;
     onSynthesize?: (
-        options: SynthesizeOptions & { output_path?: string | null },
+        options: SynthesizeOptions & { output_ref?: MediaReference | null },
         videoPath: string,
         watermarkPath: string | null,
     ) => Promise<void>;
@@ -172,7 +173,12 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                 
                 const finalOptions = {
                     ...options,
-                    output_path: targetPath,
+                    output_ref: normalizeMediaReference(targetPath, {
+                        type: "video/mp4",
+                        media_kind: "video",
+                        role: "output",
+                        origin: "task",
+                    }),
                 };
 
                 await onSynthesize(finalOptions, videoPath, watermarkEnabled ? watermark.watermarkPath : null);

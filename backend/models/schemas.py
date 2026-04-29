@@ -1,8 +1,6 @@
 from pydantic import BaseModel, HttpUrl, Field
 from typing import Optional, List, Union, Dict, Any, Literal, Annotated
 
-from backend.utils.media_inputs import MediaInputModel
-
 class DownloadRequest(BaseModel):
     url: HttpUrl
     format: str = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4"
@@ -29,10 +27,8 @@ class MediaReference(BaseModel):
 
 TranscriptionEngine = Literal["builtin", "cli"]
 
-class TranscribeRequest(MediaInputModel):
-    MEDIA_INPUT_SPECS = (("audio_path", "audio_ref"),)
-    audio_path: Optional[str] = Field(None, description="Absolute path to the audio/video file")
-    audio_ref: Optional[MediaReference] = None
+class TranscribeRequest(BaseModel):
+    audio_ref: MediaReference
     engine: TranscriptionEngine = "builtin"
     model: str = "base"
     language: Optional[str] = None
@@ -56,7 +52,6 @@ class TranscribeResponse(BaseModel):
     segments: list[SubtitleSegment]
     text: str
     language: str | None
-    srt_path: str | None = None
 
 class TaskResponse(BaseModel):
     task_id: str
@@ -85,9 +80,7 @@ class DownloadParams(BaseModel):
     filename: Optional[str] = None
     codec: str = "best"
 
-class TranscribeParams(MediaInputModel):
-    MEDIA_INPUT_SPECS = (("audio_path", "audio_ref"),)
-    audio_path: Optional[str] = None # Optional because it can come from context
+class TranscribeParams(BaseModel):
     audio_ref: Optional[MediaReference] = None
     engine: TranscriptionEngine = "builtin"
     model: str = "base"
@@ -96,35 +89,25 @@ class TranscribeParams(MediaInputModel):
     vad_filter: bool = True
     initial_prompt: Optional[str] = None
 
-class TranslateParams(MediaInputModel):
-    MEDIA_INPUT_SPECS = (("srt_path", "context_ref"),)
+class TranslateParams(BaseModel):
     """Parameters for the translate pipeline step."""
-    srt_path: Optional[str] = None  # Optional: can come from pipeline context
     context_ref: Optional[MediaReference] = None
     target_language: str = "Chinese"
     mode: str = "standard"  # "standard" | "intelligent" | "proofread"
     batch_size: int = 50
 
-class SynthesizeParams(MediaInputModel):
-    MEDIA_INPUT_SPECS = (("video_path", "video_ref"), ("srt_path", "srt_ref"))
+class SynthesizeParams(BaseModel):
     """Parameters for the synthesize pipeline step."""
-    video_path: Optional[str] = None   # Optional: can come from pipeline context
     video_ref: Optional[MediaReference] = None
-    srt_path: Optional[str] = None     # Optional: can come from pipeline context
     srt_ref: Optional[MediaReference] = None
-    output_path: Optional[str] = None  # Auto-generated if not provided
     output_ref: Optional[MediaReference] = None
     watermark_path: Optional[str] = None
     options: Optional[Dict[str, Any]] = None  # FFmpeg synthesis options
 
-class SynthesisRequest(MediaInputModel):
-    MEDIA_INPUT_SPECS = (("video_path", "video_ref"), ("srt_path", "srt_ref"))
-    video_path: Optional[str] = None
-    video_ref: Optional[MediaReference] = None
-    srt_path: Optional[str] = None
-    srt_ref: Optional[MediaReference] = None
+class SynthesisRequest(BaseModel):
+    video_ref: MediaReference
+    srt_ref: MediaReference
     watermark_path: Optional[str] = None
-    output_path: Optional[str] = None
     output_ref: Optional[MediaReference] = None
     options: Optional[dict] = None
 
@@ -136,10 +119,8 @@ class TextEvent(BaseModel):
     box: List[List[int]] = Field(default_factory=list)
 
 
-class OCRExtractRequest(MediaInputModel):
-    MEDIA_INPUT_SPECS = (("video_path", "video_ref"),)
-    video_path: Optional[str] = None
-    video_ref: Optional[MediaReference] = None
+class OCRExtractRequest(BaseModel):
+    video_ref: MediaReference
     roi: Optional[List[int]] = None
     engine: str = "rapid"
     sample_rate: int = 2
@@ -152,19 +133,15 @@ class OCRExtractResponse(BaseModel):
     events: Optional[List[TextEvent]] = None
 
 
-class EnhanceRequest(MediaInputModel):
-    MEDIA_INPUT_SPECS = (("video_path", "video_ref"),)
-    video_path: Optional[str] = None
-    video_ref: Optional[MediaReference] = None
+class EnhanceRequest(BaseModel):
+    video_ref: MediaReference
     model: Optional[str] = None
     scale: str = "4x"
     method: str = "realesrgan"
 
 
-class CleanRequest(MediaInputModel):
-    MEDIA_INPUT_SPECS = (("video_path", "video_ref"),)
-    video_path: Optional[str] = None
-    video_ref: Optional[MediaReference] = None
+class CleanRequest(BaseModel):
+    video_ref: MediaReference
     roi: List[int]
     method: str = "telea"
 

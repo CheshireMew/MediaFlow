@@ -108,7 +108,7 @@ export function registerDialogHandlers() {
 
       const selectedPath = filePaths[0];
       desktopFileAccess.grantRendererReadFile(selectedPath);
-      const filePath = desktopFileAccess.resolveExistingPath(selectedPath) ?? selectedPath;
+      const filePath = selectedPath;
       rememberFile(filePath);
 
       try {
@@ -150,7 +150,7 @@ export function registerDialogHandlers() {
 
     const selectedPath = filePaths[0];
     desktopFileAccess.grantRendererReadFile(selectedPath);
-    const filePath = desktopFileAccess.resolveExistingPath(selectedPath) ?? selectedPath;
+    const filePath = selectedPath;
     rememberFile(filePath);
     return {
       path: filePath,
@@ -240,25 +240,6 @@ export function registerDialogHandlers() {
       } catch (error) {
         console.error("[IPC] getFileSize error:", error);
         return 0;
-      }
-    },
-  );
-
-  ipcMain.handle(
-    DESKTOP_FILE_SYSTEM_CHANNELS.resolveExistingPath,
-    async (
-      _event: IpcMainInvokeEvent,
-      filePath: string,
-      fallbackName?: string,
-      expectedSize?: number,
-    ) => {
-      try {
-        return filePath
-          ? desktopFileAccess.resolveExistingPath(filePath, fallbackName, expectedSize)
-          : null;
-      } catch (error) {
-        console.error("[IPC] resolveExistingPath error:", error);
-        return null;
       }
     },
   );

@@ -106,10 +106,9 @@ async def test_execute_auto_flow_merges_transcribe_translate_and_synthesis_outpu
     assert synthesized_path in file_paths
     assert result.meta["transcript"] == "hello world"
     assert result.meta["transcription_language"] == "en"
-    assert Path(result.meta["translated_subtitle_path"]) == translated_path
     assert result.meta["subtitle_ref"]["path"] == str(translated_path)
     assert result.meta["subtitle_ref"]["media_kind"] == "subtitle"
-    assert Path(result.meta["video_path"]) == synthesized_path
+    assert Path(result.meta["video_ref"]["path"]) == synthesized_path
     assert Path(result.meta["video_ref"]["path"]) == synthesized_path
     assert result.meta["video_ref"]["media_kind"] == "video"
     assert Path(result.meta["output_ref"]["path"]) == synthesized_path

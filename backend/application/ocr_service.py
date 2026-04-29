@@ -1,3 +1,4 @@
+import asyncio
 import os
 from loguru import logger
 
@@ -25,8 +26,9 @@ def load_ocr_results(video_path: str) -> dict[str, list]:
         return {"events": []}
 
 
-async def run_ocr_task(task_id: str, request: OCRExtractRequest):
+async def _ocr_background(task_id: str, request: OCRExtractRequest):
     runtime = TaskRuntimeContext.for_task(task_id)
+    video_path = request.video_ref.path
     try:
         runtime.checkpoint()
         engine = get_ocr_engine(request.engine)
@@ -69,7 +71,7 @@ async def run_ocr_task(task_id: str, request: OCRExtractRequest):
 
         events = await asyncio.to_thread(
             pipeline.process_video,
-            video_path=request.video_path,
+            video_path=video_path,
             roi=roi_tuple,
             sample_rate=request.sample_rate,
             progress_callback=progress_bridge,
@@ -77,7 +79,7 @@ async def run_ocr_task(task_id: str, request: OCRExtractRequest):
 
         import json
 
-        base_path, _ = os.path.splitext(request.video_path)
+        base_path, _ = os.path.splitext(video_path)
         json_path = f"{base_path}.ocr.json"
         srt_path = f"{base_path}.ocr.srt"
 
@@ -121,20 +123,12 @@ async def run_ocr_task(task_id: str, request: OCRExtractRequest):
         logger.error(f"OCR Task failed: {e}")
         await runtime.update(status="failed", error=str(e))
 
-
-async def submit_ocr_task(request: OCRExtractRequest) -> dict:
-    return await runtime_service(Services.TASK_ORCHESTRATOR).submit_task(
-        task_type="extract",
-        task_name="OCR Extraction",
-        request_params=request.model_dump(mode="json"),
-    )
-
-
-def execute_ocr(
+def _ocr_desktop(
     request: OCRExtractRequest,
     *,
     progress_callback,
 ):
+    video_path = request.video_ref.path
     from backend.services.ocr.pipeline import VideoOCRPipeline
 
     engine = get_ocr_engine(request.engine)
@@ -147,7 +141,7 @@ def execute_ocr(
     pipeline = VideoOCRPipeline(engine)
     roi_tuple = tuple(request.roi) if request.roi and len(request.roi) == 4 else None
     events = pipeline.process_video(
-        video_path=request.video_path,
+        video_path=video_path,
         roi=roi_tuple,
         sample_rate=request.sample_rate,
         progress_callback=progress_callback,
@@ -155,7 +149,7 @@ def execute_ocr(
 
     import json
 
-    base_path, _ = os.path.splitext(request.video_path)
+    base_path, _ = os.path.splitext(video_path)
     json_path = f"{base_path}.ocr.json"
     srt_path = f"{base_path}.ocr.srt"
 

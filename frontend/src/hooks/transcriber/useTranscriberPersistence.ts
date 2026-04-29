@@ -41,7 +41,10 @@ export function restoreStoredTranscriberFile(): ElectronFile | null {
 
 export function restoreStoredTranscriberResult(): TranscribeResult | null {
   const snapshot = restoreStoredTranscriberSnapshot();
-  return normalizeTranscribeResult(snapshot?.result ?? null, snapshot?.file ?? null);
+  return normalizeTranscribeResult(
+    snapshot?.result ?? null,
+    snapshot?.file ? toElectronFile(snapshot.file) : null,
+  );
 }
 
 export function useTranscriberPersistence(params: {

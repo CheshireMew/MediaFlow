@@ -25,6 +25,7 @@ import { useEditorPlaybackPersistence } from "../hooks/editor/useEditorPlaybackP
 import { useEditorFindReplace } from "../hooks/editor/useEditorFindReplace";
 import { useEditorRegionHandlers } from "../hooks/editor/useEditorRegionHandlers";
 import { useEditorStore } from "../stores/editorStore";
+import { normalizeMediaReference } from "../services/ui/mediaReference";
 
 const SynthesisDialog = lazy(async () => {
   const mod = await import("../components/dialogs/SynthesisDialog");
@@ -282,14 +283,26 @@ export function EditorPage() {
                             return;
                         }
 
-                        const { output_path, ...restOptions } = options;
+                        const { output_ref, ...restOptions } = options;
+                        const videoRefForSubmission = currentFileRef ?? normalizeMediaReference(currentFilePath, {
+                            type: "video/mp4",
+                            media_kind: "video",
+                            role: "source",
+                        });
+                        const subtitleRefForSubmission = currentSubtitleRef ?? normalizeMediaReference(srtPath, {
+                            type: "application/x-subrip",
+                            media_kind: "subtitle",
+                            role: "source",
+                        });
+                        if (!videoRefForSubmission || !subtitleRefForSubmission) {
+                            alert(t('synthesis.missingFilesError'));
+                            return;
+                        }
                         const executionResult = await executionService.synthesize({
-                            video_path: currentFileRef ? null : currentFilePath,
-                            video_ref: currentFileRef,
-                            srt_path: srtPath as string,
-                            srt_ref: currentSubtitleRef,
+                            video_ref: videoRefForSubmission,
+                            srt_ref: subtitleRefForSubmission,
                             watermark_path: watermarkPath,
-                            output_path: output_path,
+                            output_ref,
                             options: restOptions,
                         });
                         getExecutionSubmission(executionResult);
@@ -301,11 +314,10 @@ export function EditorPage() {
                                     ? `Synthesize ${currentFilePath.split(/[\\/]/).pop()}`
                                     : "Synthesize video",
                                 request_params: {
-                                    video_ref: currentFileRef,
-                                    srt_path: srtPath as string,
-                                    subtitle_ref: currentSubtitleRef,
+                                    video_ref: videoRefForSubmission,
+                                    subtitle_ref: subtitleRefForSubmission,
                                     watermark_path: watermarkPath,
-                                    output_path: output_path ?? undefined,
+                                    output_ref: output_ref ?? undefined,
                                     options: restOptions,
                                 },
                             }),

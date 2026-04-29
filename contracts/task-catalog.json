@@ -1,0 +1,65 @@
+{
+  "task_types": [
+    "download",
+    "transcribe",
+    "transcribe_segment",
+    "translate",
+    "pipeline",
+    "synthesis",
+    "enhancement",
+    "cleanup",
+    "extract"
+  ],
+  "required_task_types": [
+    "download",
+    "transcribe",
+    "transcribe_segment",
+    "translate",
+    "pipeline",
+    "synthesis",
+    "extract"
+  ],
+  "experimental_task_types": {
+    "preprocessing": [
+      "enhancement",
+      "cleanup"
+    ]
+  },
+  "pipeline_steps": {
+    "download": {
+      "task_type": "download"
+    },
+    "transcribe": {
+      "task_type": "transcribe"
+    },
+    "translate": {
+      "task_type": "translate"
+    },
+    "synthesize": {
+      "task_type": "synthesis"
+    }
+  },
+  "desktop_task_commands": {
+    "download": {
+      "task_type": "download"
+    },
+    "transcribe": {
+      "task_type": "transcribe"
+    },
+    "translate": {
+      "task_type": "translate"
+    },
+    "synthesize": {
+      "task_type": "synthesis"
+    },
+    "extract": {
+      "task_type": "extract"
+    },
+    "enhance": {
+      "task_type": "enhancement"
+    },
+    "clean": {
+      "task_type": "cleanup"
+    }
+  }
+}

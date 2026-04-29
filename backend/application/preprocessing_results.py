@@ -12,7 +12,7 @@ def resolve_enhancement_scale(request: EnhanceRequest) -> int:
 
 
 def resolve_enhancement_output_path(request: EnhanceRequest) -> Path:
-    source = Path(request.video_path or "")
+    source = Path(request.video_ref.path)
     scale_value = resolve_enhancement_scale(request)
     return source.parent / f"{source.stem}_{request.method}_{scale_value}x{source.suffix}"
 
@@ -24,8 +24,7 @@ def build_enhancement_result(request: EnhanceRequest, output_path: str) -> dict:
         success=True,
         files=[FileRef(type="video", path=output_path, label="upscaled_video")],
         meta={
-            "video_path": output_path,
-            "original_path": request.video_path,
+            "original_ref": request.video_ref.model_dump(mode="json") if hasattr(request.video_ref, "model_dump") else request.video_ref,
             "video_ref": output_ref,
             "output_ref": output_ref,
             "model": request.model,
@@ -40,7 +39,7 @@ def resolve_cleanup_method(request: CleanRequest) -> str:
 
 
 def resolve_cleanup_output_path(request: CleanRequest) -> Path:
-    source = Path(request.video_path or "")
+    source = Path(request.video_ref.path)
     method = resolve_cleanup_method(request)
     return source.with_name(f"{source.stem}_cleaned_{method}{source.suffix}")
 
@@ -52,10 +51,9 @@ def build_cleanup_result(request: CleanRequest, output_path: str) -> dict:
         success=True,
         files=[FileRef(type="video", path=output_path, label="cleaned")],
         meta={
-            "video_path": output_path,
             "video_ref": output_ref,
             "output_ref": output_ref,
-            "original_path": request.video_path,
+            "original_ref": request.video_ref.model_dump(mode="json") if hasattr(request.video_ref, "model_dump") else request.video_ref,
             "method": method,
         },
     ).model_dump(mode="json")

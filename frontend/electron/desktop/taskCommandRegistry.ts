@@ -8,6 +8,7 @@ import {
   resolveTaskMediaPath,
 } from "./taskMediaRef";
 import type { DesktopTaskType } from "./taskTypes";
+import { DESKTOP_TASK_COMMAND_TO_TYPE } from "../../src/contracts/generatedTaskCatalog";
 
 export type DesktopRequestMediaRefs = {
   videoRef: ReturnType<typeof normalizeDesktopTaskMediaReference>;
@@ -183,19 +184,19 @@ function translateResult(payload: Record<string, unknown>, result: unknown): Tas
 
 export const desktopCommandMappers: Record<DesktopTaskType, DesktopCommandMapper> = {
   download: {
-    taskType: "download",
+    taskType: DESKTOP_TASK_COMMAND_TO_TYPE.download,
     name: (payload) => `Download ${getDesktopTaskBasename(payload.filename || payload.url, "media")}`,
     requestMedia: defaultRequestMedia,
     result: ({ result }) => downloadResult(result),
   },
   transcribe: {
-    taskType: "transcribe",
+    taskType: DESKTOP_TASK_COMMAND_TO_TYPE.transcribe,
     name: (payload) => `Transcribe ${getTaskMediaLabel(payload.audio_ref, "audio")}`,
     requestMedia: defaultRequestMedia,
     result: ({ payload, result }) => transcribeResult(payload, result),
   },
   translate: {
-    taskType: "translate",
+    taskType: DESKTOP_TASK_COMMAND_TO_TYPE.translate,
     name: (payload) => `Translate ${getTaskMediaLabel(payload.context_ref, "subtitles")}`,
     requestMedia: (payload) => ({
       videoRef: sourceMediaRef(payload),
@@ -209,7 +210,7 @@ export const desktopCommandMappers: Record<DesktopTaskType, DesktopCommandMapper
     result: ({ payload, result }) => translateResult(payload, result),
   },
   synthesize: {
-    taskType: "synthesis",
+    taskType: DESKTOP_TASK_COMMAND_TO_TYPE.synthesize,
     name: (payload) => `Synthesize ${getTaskMediaLabel(payload.video_ref, "video")}`,
     requestMedia: defaultRequestMedia,
     result: ({ result }) => {
@@ -230,7 +231,7 @@ export const desktopCommandMappers: Record<DesktopTaskType, DesktopCommandMapper
     },
   },
   extract: {
-    taskType: "extract",
+    taskType: DESKTOP_TASK_COMMAND_TO_TYPE.extract,
     name: (payload) => `Extract ${getTaskMediaLabel(payload.video_ref, "video")}`,
     requestMedia: defaultRequestMedia,
     result: ({ result }) => {
@@ -246,13 +247,13 @@ export const desktopCommandMappers: Record<DesktopTaskType, DesktopCommandMapper
     },
   },
   enhance: {
-    taskType: "enhancement",
+    taskType: DESKTOP_TASK_COMMAND_TO_TYPE.enhance,
     name: (payload) => `Enhance ${getTaskMediaLabel(payload.video_ref, "video")}`,
     requestMedia: defaultRequestMedia,
     result: ({ result }) => normalizeTaskResult(result),
   },
   clean: {
-    taskType: "cleanup",
+    taskType: DESKTOP_TASK_COMMAND_TO_TYPE.clean,
     name: (payload) => `Clean ${getTaskMediaLabel(payload.video_ref, "video")}`,
     requestMedia: defaultRequestMedia,
     result: ({ result }) => normalizeTaskResult(result),

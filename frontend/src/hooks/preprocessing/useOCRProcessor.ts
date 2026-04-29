@@ -14,6 +14,7 @@ import {
   getActivePreprocessingTask,
 } from "./taskSelectors";
 import type { MediaReference } from "../../services/ui/mediaReference";
+import { normalizeMediaReference } from "../../services/ui/mediaReference";
 
 // ─── Types ──────────────────────────────────────────────────────
 interface UseOCRProcessorArgs {
@@ -61,7 +62,8 @@ export function useOCRProcessor({
   cleanMethod,
 }: UseOCRProcessorArgs): UseOCRProcessorReturn {
   const { addTask, tasks } = useTaskContext();
-  const resolvedVideoPath = videoRef?.path ?? videoPath;
+  const activeVideoRef = videoRef ?? normalizeMediaReference(videoPath);
+  const resolvedVideoPath = activeVideoRef?.path ?? null;
   const isProcessing = usePreprocessingStore(
     (state) => state.preprocessingIsProcessing,
   );
@@ -88,7 +90,7 @@ export function useOCRProcessor({
 
   // ── Auto-load saved results ──────────────────────────────────
   useEffect(() => {
-    if (!resolvedVideoPath) {
+    if (!activeVideoRef) {
       setTimeout(() => setOcrResults([]), 0);
       return;
     }
@@ -96,8 +98,7 @@ export function useOCRProcessor({
     let isMounted = true;
     preprocessingService
       .getOcrResults({
-        video_path: videoPath,
-        video_ref: videoRef,
+        video_ref: activeVideoRef,
       })
       .then((res) => {
         if (isMounted && res.events && res.events.length > 0) {
@@ -110,11 +111,11 @@ export function useOCRProcessor({
     return () => {
       isMounted = false;
     };
-  }, [resolvedVideoPath, setOcrResults, videoPath, videoRef]);
+  }, [setOcrResults, activeVideoRef]);
 
   // ── OCR Extraction ──────────────────────────────────────────
   const handleStartOCR = useCallback(async () => {
-    if (!resolvedVideoPath) return;
+    if (!activeVideoRef) return;
 
     // Convert display ROI to video-space coordinates
     let videoROI: [number, number, number, number] | undefined;
@@ -133,8 +134,7 @@ export function useOCRProcessor({
     setIsProcessing(true);
     try {
       const res = await preprocessingService.extractText({
-        video_path: videoRef ? null : resolvedVideoPath,
-        video_ref: videoRef,
+        video_ref: activeVideoRef,
         roi: videoROI,
         engine: ocrEngine as "rapid" | "paddle",
       });
@@ -145,25 +145,24 @@ export function useOCRProcessor({
           type: "extract",
           name: "Extract text",
           request_params: {
-            video_ref: videoRef,
+            video_ref: activeVideoRef,
             roi: videoROI,
             engine: ocrEngine,
           },
         }),
       );
-      setCurrentPreprocessingTask(submission.task_id, "extract", resolvedVideoPath, videoRef);
+      setCurrentPreprocessingTask(submission.task_id, "extract", activeVideoRef.path, activeVideoRef);
       setOcrResults([]); // Clear while processing
     } catch (error) {
       console.error("OCR Failed", error);
       setIsProcessing(false);
     }
   }, [
-    resolvedVideoPath,
     roi,
     canvasRef,
     videoResolution,
     ocrEngine,
-    videoRef,
+    activeVideoRef,
     addTask,
     setCurrentPreprocessingTask,
     setIsProcessing,
@@ -226,13 +225,12 @@ export function useOCRProcessor({
 
   // ── General Processing (enhance / clean / extract) ──────────
   const handleStartProcessing = useCallback(async () => {
-    if (!resolvedVideoPath) return;
+    if (!activeVideoRef) return;
     setIsProcessing(true);
     try {
       if (activeTool === "enhance") {
         const res = await preprocessingService.enhanceVideo({
-          video_path: videoRef ? null : resolvedVideoPath,
-          video_ref: videoRef,
+          video_ref: activeVideoRef,
           model: enhanceModel,
           scale: enhanceScale,
           method: enhanceMethod,
@@ -246,22 +244,21 @@ export function useOCRProcessor({
               type: "enhancement",
               name: "Enhance video",
               request_params: {
-                video_ref: videoRef,
+                video_ref: activeVideoRef,
                 model: enhanceModel,
                 scale: enhanceScale,
                 method: enhanceMethod,
               },
             }),
           );
-          setCurrentPreprocessingTask(submission.task_id, "enhance", resolvedVideoPath, videoRef);
+          setCurrentPreprocessingTask(submission.task_id, "enhance", activeVideoRef.path, activeVideoRef);
         }
       } else if (activeTool === "clean") {
         const cleanRoi: [number, number, number, number] = roi
           ? [roi.x, roi.y, roi.w, roi.h]
           : [0, 0, 0, 0];
         const res = await preprocessingService.cleanVideo({
-          video_path: videoRef ? null : resolvedVideoPath,
-          video_ref: videoRef,
+          video_ref: activeVideoRef,
           roi: cleanRoi,
           method: cleanMethod,
         });
@@ -274,13 +271,13 @@ export function useOCRProcessor({
               type: "cleanup",
               name: "Clean video",
               request_params: {
-                video_ref: videoRef,
+                video_ref: activeVideoRef,
                 roi: cleanRoi,
                 method: cleanMethod,
               },
             }),
           );
-          setCurrentPreprocessingTask(submission.task_id, "clean", resolvedVideoPath, videoRef);
+          setCurrentPreprocessingTask(submission.task_id, "clean", activeVideoRef.path, activeVideoRef);
         }
       } else if (activeTool === "extract") {
         await handleStartOCR();
@@ -290,8 +287,7 @@ export function useOCRProcessor({
       setIsProcessing(false);
     }
   }, [
-    resolvedVideoPath,
-    videoRef,
+    activeVideoRef,
     activeTool,
     addTask,
     roi,

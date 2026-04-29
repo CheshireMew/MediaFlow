@@ -37,15 +37,13 @@ def handle_detect_silence(request_id: str | None, payload: dict[str, Any]) -> No
 @register_worker_command("transcribe_segment")
 def handle_transcribe_segment(request_id: str | None, payload: dict[str, Any]) -> None:
     request = TranscribeSegmentRequest.model_validate(payload)
-    if not request.audio_path:
-        raise ValueError("audio_path or audio_ref is required")
     duration = request.end - request.start
     if duration <= 0:
         raise ValueError("Invalid duration")
 
     service = runtime_service(Services.ASR)
     result = service.transcribe_segment(
-        audio_path=request.audio_path,
+        audio_path=request.audio_ref.path,
         start=request.start,
         end=request.end,
         model_name=request.model,

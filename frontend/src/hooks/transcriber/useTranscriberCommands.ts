@@ -16,12 +16,8 @@ import {
   type NullableExecutionMode,
 } from "../../services/domain";
 import { fileService } from "../../services/fileService";
+import { normalizeMediaReference } from "../../services/ui/mediaReference";
 import {
-  normalizeMediaReference,
-  toElectronFile,
-} from "../../services/ui/mediaReference";
-import {
-  attachElectronFileSource,
   getElectronFileSource,
 } from "../../services/ui/electronFileSource";
 import type { ElectronFile } from "../../types/electron";
@@ -80,7 +76,6 @@ export function useTranscriberCommands({
   device,
   result,
   setResult,
-  setFile,
   setCurrentTranscriptionTaskId,
   setExecutionMode,
   setIsUploading,
@@ -102,24 +97,6 @@ export function useTranscriberCommands({
         filePath = fileService.getPathForFile(file);
       }
 
-      if (filePath && isDesktopRuntime()) {
-        const resolvedPath = await fileService.resolveExistingPath(filePath, file.name, file.size);
-        if (resolvedPath && resolvedPath !== filePath) {
-          filePath = resolvedPath;
-          const source = normalizeMediaReference(file);
-          setFile(
-            attachElectronFileSource(
-              toElectronFile(
-                normalizeMediaReference(
-                  source ? { ...source, path: resolvedPath } : { ...file, path: resolvedPath },
-                )!,
-              ),
-              getElectronFileSource(file),
-            ),
-          );
-        }
-      }
-
       if (!filePath) {
         alert("Cannot detect file path. Are you running in Electron?");
         setIsUploading(false);
@@ -133,7 +110,6 @@ export function useTranscriberCommands({
         engine,
         audio_ref: submissionAudioRef.path,
         file_path: file.path ?? null,
-        resolved_path: filePath,
       });
 
       const executionResult = await executionService.transcribe({
@@ -194,7 +170,6 @@ export function useTranscriberCommands({
     model,
     addTask,
     setCurrentTranscriptionTaskId,
-    setFile,
     setExecutionMode,
     setIsUploading,
     setResult,

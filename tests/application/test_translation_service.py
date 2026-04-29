@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from backend.application.translation_service import build_translation_task_result
-from backend.models.schemas import SubtitleSegment
+from backend.models.schemas import MediaReference, SubtitleSegment
 
 
 def test_build_translation_task_result_emits_structured_media_refs(monkeypatch):
@@ -18,7 +18,13 @@ def test_build_translation_task_result_emits_structured_media_refs(monkeypatch):
         ],
         target_language="Chinese",
         mode="standard",
-        context_path="C:/tmp/demo.srt",
+        context_ref=MediaReference(
+            path="C:/tmp/demo.srt",
+            name="demo.srt",
+            type="application/x-subrip",
+            media_kind="subtitle",
+            role="context",
+        ),
     )
 
     assert result.meta["context_ref"]["path"] == "C:/tmp/demo.srt"
@@ -42,15 +48,14 @@ def test_build_translation_task_result_prefers_normalized_context_ref(monkeypatc
         ],
         target_language="Chinese",
         mode="standard",
-        context_path="C:/tmp/demo.srt",
-        context_ref={
-            "path": "C:/canonical/demo.srt",
-            "name": "demo.srt",
-            "type": "application/x-subrip",
-            "media_kind": "subtitle",
-            "role": "context",
-            "origin": "request",
-        },
+        context_ref=MediaReference(
+            path="C:/canonical/demo.srt",
+            name="demo.srt",
+            type="application/x-subrip",
+            media_kind="subtitle",
+            role="context",
+            origin="request",
+        ),
     )
 
     assert result.meta["context_ref"]["path"] == "C:/canonical/demo.srt"

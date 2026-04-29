@@ -1,4 +1,4 @@
-import type { PipelineRequest } from "../../../types/api";
+import type { DownloadStepRequest, PipelineRequest } from "../../../types/api";
 import type { Task } from "../../../types/task";
 import { executionService, settingsService } from "../../domain";
 import type { RetryHandler, RetrySubmission } from "./types";
@@ -30,26 +30,24 @@ async function submitDownloadRetry(task: Task): Promise<RetrySubmission | null> 
           steps: [
             {
               step_name: "download",
-              params: Object.fromEntries(
-                Object.entries({
-                  url: params.url,
-                  proxy: params.proxy,
-                  output_dir: params.output_dir,
-                  playlist_title: params.playlist_title,
-                  playlist_items: params.playlist_items,
-                  download_subs: params.download_subs,
-                  resolution: params.resolution,
-                  cookie_file: params.cookie_file,
-                  filename: params.filename,
-                  local_source: params.local_source,
-                  codec: params.codec,
-                }).filter(([, value]) => value !== undefined),
-              ),
+              params: {
+                url: typeof params.url === "string" ? params.url : "",
+                ...(typeof params.proxy === "string" ? { proxy: params.proxy } : {}),
+                ...(typeof params.output_dir === "string" ? { output_dir: params.output_dir } : {}),
+                ...(typeof params.playlist_title === "string" ? { playlist_title: params.playlist_title } : {}),
+                ...(typeof params.playlist_items === "string" ? { playlist_items: params.playlist_items } : {}),
+                ...(typeof params.download_subs === "boolean" ? { download_subs: params.download_subs } : {}),
+                ...(typeof params.resolution === "string" ? { resolution: params.resolution } : {}),
+                ...(typeof params.cookie_file === "string" ? { cookie_file: params.cookie_file } : {}),
+                ...(typeof params.filename === "string" ? { filename: params.filename } : {}),
+                ...(typeof params.codec === "string" ? { codec: params.codec } : {}),
+              },
             },
           ],
         };
 
-  const downloadParams = pipeline.steps[0]?.params;
+  const downloadStep = pipeline.steps.find((step): step is DownloadStepRequest => step.step_name === "download");
+  const downloadParams = downloadStep?.params;
   if (!downloadParams || typeof downloadParams.url !== "string" || !downloadParams.url.trim()) {
     return null;
   }
@@ -79,4 +77,3 @@ export const downloadRetryHandler: RetryHandler = {
   accepts: (task) => task.type === "download" || Boolean(getPipelineStep(task, "download")),
   submit: submitDownloadRetry,
 };
-

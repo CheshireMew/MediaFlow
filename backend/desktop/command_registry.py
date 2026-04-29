@@ -4,6 +4,7 @@ from importlib import import_module
 from typing import Any
 
 from backend.contracts import DESKTOP_WORKER_CONTRACT
+from backend.core.task_catalog import desktop_task_commands
 
 
 WorkerCommandHandler = Callable[[str | None, dict[str, Any]], None]
@@ -32,13 +33,20 @@ def _definition_from_contract(raw: dict[str, Any]) -> WorkerCommandDefinition:
 
 def _load_command_definitions() -> dict[str, WorkerCommandDefinition]:
     definitions: dict[str, WorkerCommandDefinition] = {}
+    catalog_task_commands = desktop_task_commands()
 
     for raw in DESKTOP_WORKER_CONTRACT["invocations"].values():
         command = raw["workerCommand"]
-        definitions[command] = _definition_from_contract(raw)
+        definition = _definition_from_contract(raw)
+        if definition.execution_lane == "task" and command not in catalog_task_commands:
+            raise RuntimeError(f"Desktop task command is not in task catalog: {command}")
+        definitions[command] = definition
 
     for command, raw in DESKTOP_WORKER_CONTRACT.get("workerCommands", {}).items():
-        definitions[command] = _definition_from_contract(raw)
+        definition = _definition_from_contract(raw)
+        if definition.execution_lane == "task" and command not in catalog_task_commands:
+            raise RuntimeError(f"Desktop task command is not in task catalog: {command}")
+        definitions[command] = definition
 
     return definitions
 

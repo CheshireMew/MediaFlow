@@ -318,7 +318,7 @@ describe("desktop task mapper and plans", () => {
     expect(plan.shouldRestartAssignedSlot).toBeUndefined();
   });
 
-  it("does not plan pause for a running desktop task without a checkpoint boundary", () => {
+  it("plans pause for a running desktop task by restarting its assigned slot", () => {
     const plan = planPauseDesktopTask("run-1", {
       runningTaskIds: new Set(["run-1"]),
       queuedTaskIds: [],
@@ -334,7 +334,13 @@ describe("desktop task mapper and plans", () => {
       ]),
     });
 
-    expect(plan).toEqual({ status: "ignored" });
+    expect(plan).toMatchObject({
+      status: "paused",
+      removeRequest: true,
+      removeQueued: false,
+      rejectMessage: "Desktop worker task paused",
+      shouldRestartAssignedSlot: true,
+    });
   });
 
   it("plans cancelling the active desktop task as restart-worthy cancellation", () => {

@@ -1,36 +1,80 @@
 /**
- * Shared API type definitions.
+ * API type surface.
  *
- * Single source of truth for all request / response shapes used by the
- * API client and consumer components.  Import from here instead of
- * re‑declaring inline.
+ * Backend-owned request and response models are generated in
+ * `generatedApi.ts`; this file only adds local transport helpers and
+ * frontend-only option bags that do not exist as backend Pydantic models.
  */
 
 import type { SubtitleSegment } from "./task";
-import type { MediaReference } from "../services/ui/mediaReference";
 import type { TaskResultShape } from "../contracts/taskContract";
-import type { TaskResponse } from "./generatedApi";
+import type {
+  CleanRequest,
+  EnhanceRequest,
+  LLMProvider as GeneratedLLMProvider,
+  MediaReference,
+  OCRExtractRequest as GeneratedOCRExtractRequest,
+  PipelineRequest,
+  ProviderConnectionRequest as GeneratedProviderConnectionRequest,
+  SynthesisRequest as GeneratedSynthesisRequest,
+  TaskResponse,
+  TextEvent,
+  TranscribeSegmentRequest as GeneratedTranscribeSegmentRequest,
+  UserSettings as GeneratedUserSettings,
+} from "./generatedApi";
 
-export type { TaskResponse, TranslateResponse } from "./generatedApi";
+export type {
+  AnalyzeResult,
+  CleanRequest,
+  DownloadParams,
+  DownloadStepRequest,
+  EnhanceRequest,
+  FileRef,
+  GlossaryTerm,
+  MediaReference,
+  PipelineRequest,
+  PlaylistItem,
+  PreprocessingResponse,
+  SynthesisRequest as GeneratedSynthesisRequest,
+  TaskResponse,
+  TextEvent,
+  ToolUpdateResponse,
+  TranscribeRequest,
+  TranscribeSegmentRequest as GeneratedTranscribeSegmentRequest,
+  TranslateParams,
+  TranslateResponse,
+  FasterWhisperCliInstallResponse,
+} from "./generatedApi";
 
-// ─── Generic Response Shapes ────────────────────────────────────
+export type LLMProvider = Omit<GeneratedLLMProvider, "is_active"> & {
+  is_active: boolean;
+};
 
-/** Common message-only response from mutation endpoints. */
+export type UserSettings = Omit<GeneratedUserSettings, "llm_providers"> & {
+  llm_providers: LLMProvider[];
+  default_download_path: string | null;
+  faster_whisper_cli_path: string | null;
+  language: string;
+  auto_execute_flow: boolean;
+  smart_split_text_limit: number;
+};
+
+export type ProviderConnectionRequest = Omit<GeneratedProviderConnectionRequest, "name"> & {
+  name?: string;
+};
+
 export interface MessageResponse {
   message: string;
 }
 
-/** Endpoints that return a message + affected count (cancel-all, delete-all). */
 export interface CountResponse extends MessageResponse {
   count: number;
 }
 
-/** Endpoints that return a message + status (resume, etc.). */
 export interface StatusMessageResponse extends MessageResponse {
   status: string;
 }
 
-/** Explicit task submission receipt returned when a runtime task has been accepted. */
 export interface TaskSubmissionReceipt extends TaskResponse {
   task_source?: "desktop" | "backend";
   task_contract_version?: number;
@@ -47,51 +91,11 @@ export interface TaskSubmissionReceipt extends TaskResponse {
   queue_position?: number | null;
 }
 
-// ─── Health ─────────────────────────────────────────────────────
-
 export interface HealthResponse {
   status: string;
   service: string;
   version: string;
 }
-
-// ─── Pipeline ───────────────────────────────────────────────────
-
-export interface PipelineStep {
-  step_name: string;
-  params: Record<string, unknown>;
-}
-
-export interface PipelineRequest {
-  pipeline_id: string;
-  task_name?: string;
-  steps: PipelineStep[];
-}
-
-// ─── Analyze ────────────────────────────────────────────────────
-
-export interface PlaylistItem {
-  index: number;
-  title: string;
-  url: string;
-  duration?: number;
-}
-
-export interface AnalyzeResult {
-  type: "single" | "playlist";
-  id?: string;
-  title?: string;
-  url?: string;
-  direct_src?: string;
-  thumbnail?: string;
-  duration?: number;
-  count?: number;
-  uploader?: string;
-  items?: PlaylistItem[];
-  extra_info?: Record<string, unknown>;
-}
-
-// ─── Cookies ────────────────────────────────────────────────────
 
 export interface ElectronCookie {
   name: string;
@@ -109,66 +113,15 @@ export interface CookieStatusResponse {
   cookie_path: string | null;
 }
 
-export interface GlossaryTerm {
-  id: string;
-  source: string;
-  target: string;
-  note?: string;
-  category?: string;
-}
-
-// ─── Settings ───────────────────────────────────────────────────
-
-export interface LLMProvider {
-  id: string;
-  name: string;
-  base_url: string;
-  api_key: string;
-  model: string;
-  is_active: boolean;
-}
-
-export interface UserSettings {
-  llm_providers: LLMProvider[];
-  default_download_path: string | null;
-  faster_whisper_cli_path: string | null;
-  language: string;
-  auto_execute_flow: boolean;
-  smart_split_text_limit: number;
-}
-
 export interface ActiveProviderResponse {
   status: string;
   active_provider_id: string;
-}
-
-export interface ProviderConnectionRequest {
-  name?: string;
-  base_url: string;
-  api_key: string;
-  model: string;
 }
 
 export interface ProviderConnectionResponse {
   status: string;
   message: string;
 }
-
-export interface ToolUpdateResponse {
-  status: string;
-  message: string;
-  previous_version?: string | null;
-  current_version?: string | null;
-}
-
-export interface FasterWhisperCliInstallResponse {
-  status: string;
-  message: string;
-  cli_path: string;
-  version?: string | null;
-}
-
-// ─── Editor ─────────────────────────────────────────────────────
 
 export interface ImagePreviewResponse {
   png_path: string;
@@ -198,7 +151,7 @@ export interface SynthesizeOptions {
   crf?: number;
   preset?: string;
   use_gpu?: boolean;
-  target_resolution?: string; // "original" | "720p" | "1080p"
+  target_resolution?: string;
   trim_start?: number;
   trim_end?: number;
   crop_x?: number;
@@ -218,32 +171,11 @@ export interface SynthesizeOptions {
   [key: string]: unknown;
 }
 
-export interface SynthesizeRequest {
-  video_path?: string | null;
-  video_ref?: MediaReference | null;
-  srt_path?: string | null;
-  srt_ref?: MediaReference | null;
-  watermark_path: string | null;
-  output_path?: string | null;
-  output_ref?: MediaReference | null;
+export type SynthesizeRequest = Omit<GeneratedSynthesisRequest, "options"> & {
   options: SynthesizeOptions;
-}
+};
 
-export interface TranscribeSegmentRequest {
-  audio_path?: string | null;
-  audio_ref?: MediaReference | null;
-  start: number;
-  end: number;
-  engine?: "builtin" | "cli";
-  model?: string;
-  device?: string;
-  language?: string;
-  initial_prompt?: string;
-  video_path?: string | null;
-  srt_path?: string | null;
-  watermark_path?: string | null;
-  options?: SynthesizeOptions;
-}
+export type TranscribeSegmentRequest = GeneratedTranscribeSegmentRequest;
 
 export interface TranscribeSegmentResponse {
   status: "completed" | "pending";
@@ -255,15 +187,12 @@ export interface TranscribeSegmentResponse {
   message?: string;
 }
 
-export type TranscriptionEngine = "builtin" | "cli";
-
-// ─── Translate ──────────────────────────────────────────────────
+export type TranscriptionEngine = NonNullable<GeneratedTranscribeSegmentRequest["engine"]>;
 
 export interface TranslateRequest {
   segments: SubtitleSegment[];
   target_language: string;
   mode?: "standard" | "intelligent" | "proofread";
-  context_path?: string | null;
   context_ref?: MediaReference | null;
 }
 
@@ -281,41 +210,24 @@ export interface TaskQueueSummaryResponse {
   queued: number;
 }
 
-// ─── OCR ────────────────────────────────────────────────────────
+export type OCRTextEvent = TextEvent;
 
-export interface OCRTextEvent {
-  start: number;
-  end: number;
-  text: string;
-  box: number[][];
-}
-
-export interface OCRExtractRequest {
-  video_path?: string | null;
-  video_ref?: MediaReference | null;
-  roi?: number[];
+export type OCRExtractRequest = GeneratedOCRExtractRequest & {
   engine: "rapid" | "paddle";
-  sample_rate?: number;
   task_id?: string;
-}
+};
 
-export interface EnhanceVideoRequest {
-  video_path?: string | null;
-  video_ref?: MediaReference | null;
-  model?: string;
-  scale?: string;
-  method?: string;
+export type EnhanceVideoRequest = EnhanceRequest & {
   task_id?: string;
-}
+};
 
-export interface CleanVideoRequest {
-  video_path?: string | null;
-  video_ref?: MediaReference | null;
+export type CleanVideoRequest = Omit<CleanRequest, "roi"> & {
   roi: [number, number, number, number];
-  method?: string;
   task_id?: string;
-}
+};
 
 export interface OCRExtractResponse {
   events: OCRTextEvent[];
 }
+
+export type PipelineStep = PipelineRequest["steps"][number];

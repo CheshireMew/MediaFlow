@@ -7,16 +7,13 @@ import {
 
 describe("desktop worker path policy", () => {
   it("classifies worker output targets as write paths", () => {
-    expect(resolveDesktopWorkerPayloadPathIntent("output_path")).toBe("write");
     expect(resolveDesktopWorkerPayloadPathIntent("output_dir")).toBe("write");
     expect(resolveDesktopWorkerPayloadPathIntent("default_download_path")).toBe("write");
   });
 
-  it("keeps input and generic payload paths as read paths", () => {
-    expect(resolveDesktopWorkerPayloadPathIntent("video_path")).toBe("read");
-    expect(resolveDesktopWorkerPayloadPathIntent("srt_path")).toBe("read");
-    expect(resolveDesktopWorkerPayloadPathIntent("watermark_path")).toBe("read");
-    expect(resolveDesktopWorkerPayloadPathIntent("path")).toBe("read");
+  it("keeps utility file payload paths as read paths", () => {
+    expect(resolveDesktopWorkerPayloadPathIntent("file_path")).toBe("read");
+    expect(resolveDesktopWorkerPayloadPathIntent("faster_whisper_cli_path")).toBe("read");
   });
 
   it("visits nested payload paths with their access intent", () => {
@@ -25,15 +22,18 @@ describe("desktop worker path policy", () => {
     visitDesktopWorkerPayloadPaths(
       {
         video_ref: { path: "D:/workspace/source.mp4" },
-        output_path: "C:/Users/Lenovo/Downloads/out.mp4",
+        output_ref: {
+          path: "C:/Users/Lenovo/Downloads/out.mp4",
+          role: "output",
+        },
         options: { subtitle: { fontName: "Arial" } },
       },
       (entry) => paths.push(entry),
     );
 
     expect(paths).toEqual([
-      { key: "path", path: "D:/workspace/source.mp4", intent: "read" },
-      { key: "output_path", path: "C:/Users/Lenovo/Downloads/out.mp4", intent: "write" },
+      { key: "media_ref.path", path: "D:/workspace/source.mp4", intent: "read" },
+      { key: "media_ref.path", path: "C:/Users/Lenovo/Downloads/out.mp4", intent: "write" },
     ]);
   });
 });

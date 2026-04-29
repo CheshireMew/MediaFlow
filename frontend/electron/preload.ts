@@ -10,6 +10,17 @@ import {
 } from "../src/contracts/desktopFileSystemContract";
 import type { OpenFileDialogRequest } from "../src/contracts/openFileContract";
 
+type MediaReferencePayload = {
+  path: string;
+  name: string;
+  size?: number;
+  type?: string;
+  media_id?: string;
+  media_kind?: string;
+  role?: string;
+  origin?: string;
+};
+
 contextBridge.exposeInMainWorld("electronAPI", {
   openFile: (request: OpenFileDialogRequest) =>
     ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.openFile, request),
@@ -47,23 +58,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.writeTextFile, filePath, content),
   getFileSize: (filePath: string) =>
     ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.getFileSize, filePath),
-  resolveExistingPath: (filePath: string, fallbackName?: string, expectedSize?: number) =>
-    ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.resolveExistingPath, filePath, fallbackName, expectedSize),
   getDesktopRuntimeInfo: () => ipcRenderer.invoke("desktop:get-runtime-info"),
   desktopPing: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopPing.ipcChannel),
   listDesktopTasks: () => ipcRenderer.invoke("desktop:list-tasks"),
   desktopTranscribe: (payload: {
-    audio_path?: string | null;
-    audio_ref?: {
-      path: string;
-      name: string;
-      size?: number;
-      type?: string;
-      media_id?: string;
-      media_kind?: string;
-      role?: string;
-      origin?: string;
-    } | null;
+    audio_ref: MediaReferencePayload;
     engine?: "builtin" | "cli";
     model: string;
     device: string;
@@ -74,44 +73,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     segments: Array<{ id: string | number; start: number; end: number; text: string }>;
     target_language: string;
     mode: "standard" | "intelligent" | "proofread";
-    context_path?: string | null;
-    context_ref?: {
-      path: string;
-      name: string;
-      size?: number;
-      type?: string;
-      media_id?: string;
-      media_kind?: string;
-      role?: string;
-      origin?: string;
-    } | null;
+    context_ref?: MediaReferencePayload | null;
   }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopTranslate.ipcChannel, payload),
   desktopSynthesize: (payload: {
     task_id?: string;
-    video_path?: string | null;
-    video_ref?: {
-      path: string;
-      name: string;
-      size?: number;
-      type?: string;
-      media_id?: string;
-      media_kind?: string;
-      role?: string;
-      origin?: string;
-    } | null;
-    srt_path?: string | null;
-    srt_ref?: {
-      path: string;
-      name: string;
-      size?: number;
-      type?: string;
-      media_id?: string;
-      media_kind?: string;
-      role?: string;
-      origin?: string;
-    } | null;
+    video_ref: MediaReferencePayload;
+    srt_ref: MediaReferencePayload;
     watermark_path?: string | null;
-    output_path?: string | null;
+    output_ref?: MediaReferencePayload | null;
     options: Record<string, unknown>;
   }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopSynthesize.ipcChannel, payload),
   getDesktopSettings: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.getDesktopSettings.ipcChannel),
@@ -144,25 +113,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopDownload.ipcChannel, payload),
   desktopExtract: (payload: {
     task_id?: string;
-    video_path?: string | null;
-    video_ref?: {
-      path: string;
-      name: string;
-      size?: number;
-      type?: string;
-      media_id?: string;
-      media_kind?: string;
-      role?: string;
-      origin?: string;
-    } | null;
+    video_ref: MediaReferencePayload;
     roi?: number[];
     engine: "rapid" | "paddle";
     sample_rate?: number;
   }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopExtract.ipcChannel, payload),
-  getDesktopOcrResults: (videoPath: string) =>
-    ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.getDesktopOcrResults.ipcChannel, { video_path: videoPath }),
+  getDesktopOcrResults: (videoRef: MediaReferencePayload) =>
+    ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.getDesktopOcrResults.ipcChannel, { video_ref: videoRef }),
   desktopTranscribeSegment: (payload: {
-    audio_path: string;
+    audio_ref: MediaReferencePayload;
     start: number;
     end: number;
     engine?: "builtin" | "cli";
@@ -175,41 +134,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
     segments: Array<{ id: string | number; start: number; end: number; text: string }>;
     target_language: string;
     mode?: "standard" | "intelligent" | "proofread";
-    context_path?: string | null;
+    context_ref?: MediaReferencePayload | null;
   }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopTranslateSegment.ipcChannel, payload),
   uploadDesktopWatermark: (filePath: string) =>
     ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.uploadDesktopWatermark.ipcChannel, { file_path: filePath }),
   getDesktopLatestWatermark: () => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.getDesktopLatestWatermark.ipcChannel),
   desktopEnhance: (payload: {
     task_id?: string;
-    video_path?: string | null;
-    video_ref?: {
-      path: string;
-      name: string;
-      size?: number;
-      type?: string;
-      media_id?: string;
-      media_kind?: string;
-      role?: string;
-      origin?: string;
-    } | null;
+    video_ref: MediaReferencePayload;
     model?: string;
     scale?: string;
     method?: string;
   }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopEnhance.ipcChannel, payload),
   desktopClean: (payload: {
     task_id?: string;
-    video_path?: string | null;
-    video_ref?: {
-      path: string;
-      name: string;
-      size?: number;
-      type?: string;
-      media_id?: string;
-      media_kind?: string;
-      role?: string;
-      origin?: string;
-    } | null;
+    video_ref: MediaReferencePayload;
     roi: [number, number, number, number];
     method?: string;
   }) => ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS.desktopClean.ipcChannel, payload),

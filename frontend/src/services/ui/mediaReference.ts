@@ -1,36 +1,35 @@
 import type { ElectronFile } from "../../types/electron";
-import type { MediaKind, MediaOriginKind, MediaRole } from "../../contracts/mediaContracts";
 
 export interface MediaReference {
   path: string;
   name: string;
-  size?: number;
-  type?: string;
-  media_id?: string;
-  media_kind?: MediaKind;
-  role?: MediaRole;
-  origin?: MediaOriginKind;
+  size?: number | null;
+  type?: string | null;
+  media_id?: string | null;
+  media_kind?: string | null;
+  role?: string | null;
+  origin?: string | null;
 }
 
 type MediaReferenceDefaults = {
   name?: string | null;
-  size?: number;
-  type?: string;
+  size?: number | null;
+  type?: string | null;
   media_id?: string;
-  media_kind?: MediaKind;
-  role?: MediaRole;
-  origin?: MediaOriginKind;
+  media_kind?: string | null;
+  role?: string | null;
+  origin?: string | null;
 };
 
-export function getBasenameFromPath(filePath: string, fallbackName?: string) {
+export function getBasenameFromPath(filePath: string, defaultName?: string) {
   const normalized = typeof filePath === "string" ? filePath.trim() : "";
   if (!normalized) {
-    return fallbackName ?? "";
+    return defaultName ?? "";
   }
 
   const segments = normalized.split(/[\\/]/);
   const basename = segments[segments.length - 1];
-  return basename || fallbackName || normalized;
+  return basename || defaultName || normalized;
 }
 
 function isMediaReferenceCandidate(
@@ -47,12 +46,12 @@ function isMediaReferenceCandidate(
 function createMediaReference(params: {
   path: string;
   name?: string | null;
-  size?: number;
-  type?: string;
+  size?: number | null;
+  type?: string | null;
   media_id?: string;
-  media_kind?: MediaKind;
-  role?: MediaRole;
-  origin?: MediaOriginKind;
+  media_kind?: string | null;
+  role?: string | null;
+  origin?: string | null;
 }): MediaReference {
   const { path, name, size, type, media_id, media_kind, role, origin } = params;
   return {
@@ -97,9 +96,9 @@ export function normalizeMediaReference(
     size: typeof value.size === "number" ? value.size : defaults.size,
     type: typeof value.type === "string" ? value.type : defaults.type,
     media_id: typeof value.media_id === "string" ? value.media_id : defaults.media_id,
-    media_kind: typeof value.media_kind === "string" ? (value.media_kind as MediaKind) : defaults.media_kind,
-    role: typeof value.role === "string" ? (value.role as MediaRole) : defaults.role,
-    origin: typeof value.origin === "string" ? (value.origin as MediaOriginKind) : defaults.origin,
+    media_kind: typeof value.media_kind === "string" ? value.media_kind : defaults.media_kind,
+    role: typeof value.role === "string" ? value.role : defaults.role,
+    origin: typeof value.origin === "string" ? value.origin : defaults.origin,
   });
 }
 

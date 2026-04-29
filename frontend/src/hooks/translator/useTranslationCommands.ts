@@ -49,7 +49,6 @@ export function useTranslationCommands({
 }: UseTranslationCommandsParams) {
   const { addTask } = useTaskContext();
   const contextRef = sourceFileRef ?? normalizeMediaReference(sourceFilePath);
-  const contextPath = contextRef?.path ?? sourceFilePath ?? null;
 
   const startTranslation = async () => {
     if (sourceSegments.length === 0) return;
@@ -69,7 +68,6 @@ export function useTranslationCommands({
         segments: sourceSegments,
         target_language: targetLang,
         mode: effectiveMode,
-        context_path: contextPath,
         context_ref: contextRef,
       });
       applyExecutionOutcome({
@@ -85,9 +83,8 @@ export function useTranslationCommands({
         outcome: executionResult,
         descriptor: {
           type: "translate",
-          name: contextPath ? `Translate ${contextPath.split(/[\\/]/).pop()}` : "Translate subtitles",
+          name: contextRef ? `Translate ${contextRef.name}` : "Translate subtitles",
           request_params: {
-            context_path: contextPath ?? undefined,
             context_ref: contextRef,
             target_language: targetLang,
             mode: effectiveMode,
@@ -139,7 +136,6 @@ export function useTranslationCommands({
         segments: sourceSegments,
         target_language: targetLang,
         mode: "proofread",
-        context_path: contextPath,
         context_ref: contextRef,
       });
       applyExecutionOutcome({
@@ -152,9 +148,8 @@ export function useTranslationCommands({
         outcome: executionResult,
         descriptor: {
           type: "translate",
-          name: contextPath ? `Proofread ${contextPath.split(/[\\/]/).pop()}` : "Proofread subtitles",
+          name: contextRef ? `Proofread ${contextRef.name}` : "Proofread subtitles",
           request_params: {
-            context_path: contextPath ?? undefined,
             context_ref: contextRef,
             target_language: targetLang,
             mode: "proofread",

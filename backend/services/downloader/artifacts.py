@@ -15,7 +15,7 @@ def sanitize_filename(name: str) -> str:
     if not name:
         return "download"
     # This layer is intentionally narrow: only remove characters that the local
-    # filesystem rejects. We do not attempt mojibake repair here because the
+    # filesystem rejects. We do not guess-decode names here because the
     # earlier heuristic re-decoding path caused secondary corruption.
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)
 

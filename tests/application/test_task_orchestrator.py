@@ -49,6 +49,25 @@ def create_orchestrator(task_manager):
     )
 
 
+def test_deduplication_key_keeps_all_download_result_inputs():
+    first = {
+        "url": "https://example.com/video",
+        "format": "best",
+        "proxy": None,
+        "cookie_file": "D:/cookies-a.txt",
+        "output_filename": "first.mp4",
+    }
+    second = {
+        "url": "https://example.com/video",
+        "format": "best",
+        "proxy": "http://127.0.0.1:7890",
+        "cookie_file": "D:/cookies-b.txt",
+        "output_filename": "second.mp4",
+    }
+
+    assert TaskRequestDeduplicator.get_comparison_key(first) != TaskRequestDeduplicator.get_comparison_key(second)
+
+
 @pytest.mark.asyncio
 async def test_submit_pipeline_recycles_matching_completed_task():
     task = SimpleNamespace(
@@ -69,6 +88,7 @@ async def test_submit_pipeline_recycles_matching_completed_task():
             "steps": [{"step_name": "download", "params": {"url": "https://example.com/video"}}],
         }
     )
+    task.request_params = req.model_dump(mode="json")
 
     result = await orchestrator.submit_pipeline(req)
 
@@ -95,7 +115,7 @@ async def test_resume_task_enqueues_runner_from_registered_definition():
 
     task = SimpleNamespace(
         id="task-2",
-        type="resume_test",
+        type="transcribe",
         status="paused",
         request_params={"foo": "bar"},
     )
@@ -108,7 +128,7 @@ async def test_resume_task_enqueues_runner_from_registered_definition():
         assert incoming_task is task
         return runner
 
-    task_registry.register_task_runner("resume_test", build_runner)
+    task_registry.register_task_runner("transcribe", build_runner)
 
     try:
         result = await orchestrator.resume_task("task-2")

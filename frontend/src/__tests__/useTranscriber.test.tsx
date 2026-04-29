@@ -102,7 +102,10 @@ describe("useTranscriber", () => {
           {
             step_name: "transcribe",
             params: {
-              audio_path: "E:/sample.mp4",
+              audio_ref: {
+                path: "E:/sample.mp4",
+                name: "sample.mp4",
+              },
               model: "base",
               device: "cpu",
             },
@@ -254,108 +257,6 @@ describe("useTranscriber", () => {
     }));
   });
 
-  it("repairs a stale cached path before invoking desktop transcription", async () => {
-    const desktopTranscribe = vi.fn().mockResolvedValue({
-      task_id: "desktop-transcribe-repaired-task",
-      status: "pending",
-    });
-
-    installElectronMock({
-      resolveExistingPath: vi.fn(async (filePath: string, fallbackName?: string) => {
-        if (
-          filePath === "E:/workspace/Patient Investor - 鈥淎I Won鈥檛 Replace Software!.mp4" &&
-          fallbackName === "Patient Investor - “AI Won’t Replace Software!.mp4"
-        ) {
-          return "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4";
-        }
-        return filePath;
-      }),
-      desktopTranscribe,
-    });
-
-    const { result } = renderHook(() => useTranscriber());
-
-    act(() => {
-      result.current.actions.setFile({
-        name: "Patient Investor - “AI Won’t Replace Software!.mp4",
-        path: "E:/workspace/Patient Investor - 鈥淎I Won鈥檛 Replace Software!.mp4",
-        size: 1024,
-        type: "video/mp4",
-      } as unknown as File);
-    });
-
-    await act(async () => {
-      await result.current.actions.startTranscription();
-    });
-
-    expect(desktopTranscribe).toHaveBeenCalledWith(expect.objectContaining({
-      audio_ref: expect.objectContaining({
-        path: "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
-        name: "Patient Investor - “AI Won’t Replace Software!.mp4",
-        size: 1024,
-        type: "video/mp4",
-      }),
-      engine: "builtin",
-      model: "base",
-      device: "cpu",
-    }));
-    expect(desktopTranscribe.mock.calls[0]?.[0]).not.toHaveProperty("audio_path");
-    expect(addTaskMock).toHaveBeenCalledWith(expect.objectContaining({
-      id: "desktop-transcribe-repaired-task",
-      type: "transcribe",
-      status: "pending",
-      task_source: "desktop",
-    }));
-    expect(result.current.state.file?.path).toBe(
-      "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
-    );
-  });
-
-  it("repairs a stale restored transcriber snapshot before submission", async () => {
-    localStorage.setItem(
-      "transcriber_snapshot",
-      JSON.stringify({
-        schema_version: 2,
-        lifecycle: {
-          model: "history-only",
-          device: "history-only",
-          file: "history-only",
-          result: "history-only",
-        },
-        payload: {
-          model: "base",
-          device: "cpu",
-          result: null,
-          file: {
-            name: "Patient Investor - “AI Won’t Replace Software!.mp4",
-            path: "E:/workspace/Patient Investor - 鈥淎I Won鈥檛 Replace Software!.mp4",
-            size: 1024,
-          },
-        },
-      }),
-    );
-
-    installElectronMock({
-      resolveExistingPath: vi.fn(async (filePath: string, fallbackName?: string) => {
-        if (
-          filePath === "E:/workspace/Patient Investor - 鈥淎I Won鈥檛 Replace Software!.mp4" &&
-          fallbackName === "Patient Investor - “AI Won’t Replace Software!.mp4"
-        ) {
-          return "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4";
-        }
-        return filePath;
-      }),
-    });
-
-    const { result } = renderHook(() => useTranscriber());
-
-    await waitFor(() => {
-      expect(result.current.state.file?.path).toBe(
-        "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
-      );
-    });
-    expect(localStorage.getItem("transcriber_snapshot")).toBeTruthy();
-  });
 
   it("restores transcriber state from the versioned snapshot only", async () => {
     localStorage.setItem(
@@ -433,45 +334,6 @@ describe("useTranscriber", () => {
     expect(localStorage.getItem("asr_execution_preferences")).toContain("\"device\":\"cpu\"");
   });
 
-  it("falls back to replacing the basename when resolveExistingPath is unavailable", async () => {
-    const desktopTranscribe = vi.fn().mockResolvedValue({
-      task_id: "desktop-transcribe-basename-task",
-      status: "pending",
-    });
-
-    installElectronMock({
-      resolveExistingPath: undefined as never,
-      desktopTranscribe,
-    });
-
-    const { result } = renderHook(() => useTranscriber());
-
-    act(() => {
-      result.current.actions.setFile({
-        name: "Patient Investor - “AI Won’t Replace Software!.mp4",
-        path: "E:/workspace/Patient Investor - 鈥淎I Won鈥檛 Replace Software!.mp4",
-        size: 1024,
-        type: "video/mp4",
-      } as unknown as File);
-    });
-
-    await act(async () => {
-      await result.current.actions.startTranscription();
-    });
-
-    expect(desktopTranscribe).toHaveBeenCalledWith(expect.objectContaining({
-      audio_ref: expect.objectContaining({
-        path: "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
-        name: "Patient Investor - “AI Won’t Replace Software!.mp4",
-        size: 1024,
-        type: "video/mp4",
-      }),
-      engine: "builtin",
-      model: "base",
-      device: "cpu",
-    }));
-    expect(desktopTranscribe.mock.calls[0]?.[0]).not.toHaveProperty("audio_path");
-  });
 
   it("maps a completed task result back into transcriber state", async () => {
     const completedTask: Task = {

@@ -97,8 +97,10 @@ describe("useContextMenuBuilder", () => {
     });
 
     expect(transcribeSegmentMock).toHaveBeenCalledWith({
-      audio_path: "E:/sample.mp4",
-      audio_ref: null,
+      audio_ref: expect.objectContaining({
+        path: "E:/sample.mp4",
+        name: "sample.mp4",
+      }),
       start: 1,
       end: 2,
       engine: "cli",

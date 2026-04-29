@@ -49,62 +49,6 @@ def test_serialize_task_marks_terminal_backend_tasks_as_history():
     assert payload["lifecycle"] == "history-only"
 
 
-def test_serialize_task_does_not_synthesize_refs_from_path_fields():
-    view = TaskQueueView()
-    task = Task(
-        id="task-media",
-        type="translate",
-        status="completed",
-        progress=100.0,
-        message="",
-        request_params={"context_path": "E:/subs/demo.srt"},
-        result={
-            "files": [{"type": "subtitle", "path": "E:/subs/demo_zh.srt"}],
-            "meta": {"srt_path": "E:/subs/demo_zh.srt"},
-        },
-    )
-
-    payload = view.serialize_task(
-        task,
-        running_ids=set(),
-        queued_ids=set(),
-        queued_order=[],
-    )
-
-    assert "subtitle_ref" not in payload["request_params"]
-    assert "context_ref" not in payload["request_params"]
-    assert "subtitle_ref" not in payload["result"]["meta"]
-    assert "output_ref" not in payload["result"]["meta"]
-
-
-def test_serialize_pipeline_transcribe_task_does_not_derive_video_ref_from_step_paths():
-    view = TaskQueueView()
-    task = Task(
-        id="task-pipeline-transcribe",
-        type="pipeline",
-        status="running",
-        progress=10.0,
-        message="",
-        request_params={
-            "steps": [
-                {
-                    "step_name": "transcribe",
-                    "params": {"audio_path": "E:/media/demo.mp4"},
-                }
-            ]
-        },
-    )
-
-    payload = view.serialize_task(
-        task,
-        running_ids={"task-pipeline-transcribe"},
-        queued_ids=set(),
-        queued_order=[],
-    )
-
-    assert "video_ref" not in payload["request_params"]
-
-
 def test_serialize_translate_task_does_not_add_empty_video_ref_slot():
     view = TaskQueueView()
     task = Task(
@@ -113,7 +57,13 @@ def test_serialize_translate_task_does_not_add_empty_video_ref_slot():
         status="running",
         progress=10.0,
         message="",
-        request_params={"context_path": "E:/subs/demo.srt"},
+        request_params={
+            "context_ref": {
+                "path": "E:/subs/demo.srt",
+                "name": "demo.srt",
+                "media_kind": "subtitle",
+            }
+        },
     )
 
     payload = view.serialize_task(

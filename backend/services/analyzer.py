@@ -118,7 +118,7 @@ class AnalyzerService:
                 items = []
                 for i, entry in enumerate(entries):
                     if entry:  # Skip None entries
-                        # Keep upstream titles verbatim. A previous mojibake "repair"
+                        # Keep upstream titles verbatim. Upstream-provided text is the boundary here.
                         # layer guessed encodings here and could turn one bad string
                         # into a different bad string. The actual front/back fix was
                         # to keep IPC and file IO on UTF-8, not to re-decode titles.
@@ -148,7 +148,7 @@ class AnalyzerService:
                 logger.success(f"Detected single video: {info.get('title')}")
                 return AnalyzeResult(
                     type="single",
-                    # Do not guess-decode mojibake here. If the provider already gave
+                    # Do not guess-decode here. If the provider already gave
                     # us a broken title, preserving it is safer than mutating it into
                     # another irreversible form.
                     title=info.get('title') or 'Unknown Video',

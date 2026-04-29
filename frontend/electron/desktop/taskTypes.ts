@@ -1,14 +1,8 @@
 import type { Task } from "../../src/types/task";
+import type { DesktopTaskCommand } from "../../src/contracts/generatedTaskCatalog";
 
 export type DesktopTaskStatus = "pending" | "running" | "completed" | "failed";
-export type DesktopTaskType =
-  | "download"
-  | "transcribe"
-  | "translate"
-  | "synthesize"
-  | "extract"
-  | "enhance"
-  | "clean";
+export type DesktopTaskType = DesktopTaskCommand;
 
 export type DesktopWorkerRequest = {
   command: string;

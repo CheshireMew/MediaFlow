@@ -162,7 +162,6 @@ class ASRService:
                 "duration": duration,
                 "segments": [s.model_dump() for s in final_segments],
                 "text": full_text,
-                "srt_path": str(srt_path),
                 "subtitle_ref": subtitle_ref,
                 "output_ref": subtitle_ref,
             }

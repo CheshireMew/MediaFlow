@@ -1,4 +1,5 @@
 import desktopWorkerContract from "../../../contracts/desktop-worker-contract.json";
+import { DESKTOP_TASK_COMMANDS } from "../../src/contracts/generatedTaskCatalog";
 import type { DesktopTaskType } from "./taskTypes";
 
 export type DesktopWorkerExecutionLane = "control" | "utility" | "task";
@@ -44,5 +45,7 @@ export function getDesktopWorkerExecutionLane(command: string): DesktopWorkerExe
 }
 
 export function isDesktopTaskCommand(command: string): command is DesktopTaskType {
-  return getDesktopWorkerExecutionLane(command) === "task";
+  return getDesktopWorkerExecutionLane(command) === "task" && (
+    DESKTOP_TASK_COMMANDS as readonly string[]
+  ).includes(command);
 }

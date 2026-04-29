@@ -16,6 +16,8 @@ export interface DesktopRuntimeInfo {
   };
 }
 
+type MediaReference = import("../services/ui/mediaReference").MediaReference;
+
 export interface ElectronAPI {
   openFile: (
     request: import("../contracts/openFileContract").OpenFileDialogRequest,
@@ -31,17 +33,11 @@ export interface ElectronAPI {
   getPathForFile: (file: File) => string;
   writeFile: (filePath: string, content: string) => Promise<void>;
   getFileSize: (filePath: string) => Promise<number>;
-  resolveExistingPath?: (
-    filePath: string,
-    fallbackName?: string,
-    expectedSize?: number,
-  ) => Promise<string | null>;
   getDesktopRuntimeInfo?: () => Promise<DesktopRuntimeInfo>;
   desktopPing?: () => Promise<{ status: string }>;
   listDesktopTasks?: () => Promise<import("./task").Task[]>;
   desktopTranscribe?: (payload: {
-    audio_path?: string | null;
-    audio_ref?: import("../services/ui/mediaReference").MediaReference | null;
+    audio_ref: MediaReference;
     engine?: import("./api").TranscriptionEngine;
     model: string;
     device: string;
@@ -52,17 +48,14 @@ export interface ElectronAPI {
     segments: Array<{ id: string | number; start: number; end: number; text: string }>;
     target_language: string;
     mode: "standard" | "intelligent" | "proofread";
-    context_path?: string | null;
-    context_ref?: import("../services/ui/mediaReference").MediaReference | null;
+    context_ref?: MediaReference | null;
   }) => Promise<import("./api").TaskResponse>;
   desktopSynthesize?: (payload: {
     task_id?: string;
-    video_path?: string | null;
-    video_ref?: import("../services/ui/mediaReference").MediaReference | null;
-    srt_path?: string | null;
-    srt_ref?: import("../services/ui/mediaReference").MediaReference | null;
+    video_ref: MediaReference;
+    srt_ref: MediaReference;
     watermark_path?: string | null;
-    output_path?: string | null;
+    output_ref?: MediaReference | null;
     options: Record<string, unknown>;
   }) => Promise<import("./api").TaskResponse>;
   getDesktopSettings?: () => Promise<import("./api").UserSettings>;
@@ -104,17 +97,16 @@ export interface ElectronAPI {
   desktopDownload?: (payload: Record<string, unknown>) => Promise<import("./api").TaskResponse>;
   desktopExtract?: (payload: {
     task_id?: string;
-    video_path?: string | null;
-    video_ref?: import("../services/ui/mediaReference").MediaReference | null;
+    video_ref: MediaReference;
     roi?: number[];
     engine: "rapid" | "paddle";
     sample_rate?: number;
   }) => Promise<import("./api").TaskResponse>;
   getDesktopOcrResults?: (
-    videoPath: string,
+    videoRef: MediaReference,
   ) => Promise<{ events: import("./api").OCRTextEvent[] }>;
   desktopTranscribeSegment?: (
-    payload: Omit<import("./api").TranscribeSegmentRequest, "video_path" | "srt_path" | "watermark_path" | "options">,
+    payload: import("./api").TranscribeSegmentRequest,
   ) => Promise<{
     status: "completed";
     data: {
@@ -131,16 +123,14 @@ export interface ElectronAPI {
   getDesktopLatestWatermark?: () => Promise<import("./api").ImagePreviewResponse | null>;
   desktopEnhance?: (payload: {
     task_id?: string;
-    video_path?: string | null;
-    video_ref?: import("../services/ui/mediaReference").MediaReference | null;
+    video_ref: MediaReference;
     model?: string;
     scale?: string;
     method?: string;
   }) => Promise<import("./api").TaskResponse>;
   desktopClean?: (payload: {
     task_id?: string;
-    video_path?: string | null;
-    video_ref?: import("../services/ui/mediaReference").MediaReference | null;
+    video_ref: MediaReference;
     roi: [number, number, number, number];
     method?: string;
   }) => Promise<import("./api").TaskResponse>;

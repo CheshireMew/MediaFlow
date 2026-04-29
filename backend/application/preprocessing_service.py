@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
 from backend.core.task_runner import BackgroundTaskRunner
@@ -17,7 +15,7 @@ from backend.application.preprocessing_results import (
 )
 
 
-async def submit_enhancement_task(request: EnhanceRequest) -> dict:
+def _ensure_enhancement_available(request: EnhanceRequest) -> None:
     enhancer = runtime_service(Services.ENHANCER)
     if not enhancer.is_available(request.method):
         detail = (
@@ -27,18 +25,8 @@ async def submit_enhancement_task(request: EnhanceRequest) -> dict:
         )
         raise RuntimeError(detail)
 
-    source = Path(request.video_path or "")
 
-    return await runtime_service(Services.TASK_ORCHESTRATOR).submit_task(
-        task_type="enhancement",
-        initial_message=f"Initializing {request.method}...",
-        queued_message=f"Initializing {request.method}...",
-        task_name=f"Enhance {source.name} ({request.method} {request.scale})",
-        request_params=request.model_dump(mode="json"),
-    )
-
-
-async def run_enhancement_task(task_id: str, request: EnhanceRequest) -> None:
+async def _enhancement_background(task_id: str, request: EnhanceRequest) -> None:
     enhancer = runtime_service(Services.ENHANCER)
     scale_value = resolve_enhancement_scale(request)
     output_path = resolve_enhancement_output_path(request)
@@ -46,7 +34,7 @@ async def run_enhancement_task(task_id: str, request: EnhanceRequest) -> None:
         task_id=task_id,
         worker_fn=enhancer.upscale,
         worker_kwargs={
-            "input_path": request.video_path,
+            "input_path": request.video_ref.path,
             "output_path": str(output_path),
             "model": request.model,
             "scale": scale_value,
@@ -58,25 +46,17 @@ async def run_enhancement_task(task_id: str, request: EnhanceRequest) -> None:
     )
 
 
-def execute_enhancement(
+def _enhancement_desktop(
     request: EnhanceRequest,
     *,
     progress_callback,
 ):
+    _ensure_enhancement_available(request)
     enhancer = runtime_service(Services.ENHANCER)
-    if not enhancer.is_available(request.method):
-        detail = (
-            "Real-ESRGAN binary not found."
-            if request.method == "realesrgan"
-            else "BasicVSR++ dependencies (mmmagic, cuda) not found."
-        )
-        raise RuntimeError(detail)
-
-    source = Path(request.video_path or "")
     scale_value = resolve_enhancement_scale(request)
     output_path = str(resolve_enhancement_output_path(request))
     final_path = enhancer.upscale(
-        input_path=request.video_path,
+        input_path=request.video_ref.path,
         output_path=output_path,
         model=request.model,
         scale=scale_value,
@@ -86,26 +66,14 @@ def execute_enhancement(
     return build_enhancement_result(request, final_path)
 
 
-async def submit_cleanup_task(request: CleanRequest) -> dict:
-    source = Path(request.video_path or "")
-
-    return await runtime_service(Services.TASK_ORCHESTRATOR).submit_task(
-        task_type="cleanup",
-        initial_message="Queued for Cleanup",
-        queued_message="Queued for Cleanup",
-        task_name=f"Clean {source.name}",
-        request_params=request.model_dump(mode="json"),
-    )
-
-
-async def run_cleanup_task(task_id: str, request: CleanRequest) -> None:
+async def _cleanup_background(task_id: str, request: CleanRequest) -> None:
     method = resolve_cleanup_method(request)
     output_path = resolve_cleanup_output_path(request)
     await BackgroundTaskRunner.run(
         task_id=task_id,
         worker_fn=runtime_service(Services.CLEANER).clean_video,
         worker_kwargs={
-            "input_path": request.video_path,
+            "input_path": request.video_ref.path,
             "output_path": str(output_path),
             "roi": request.roi,
             "method": method,
@@ -116,16 +84,15 @@ async def run_cleanup_task(task_id: str, request: CleanRequest) -> None:
     )
 
 
-def execute_cleanup(
+def _cleanup_desktop(
     request: CleanRequest,
     *,
     progress_callback,
 ):
-    source = Path(request.video_path or "")
     method = resolve_cleanup_method(request)
     output_path = str(resolve_cleanup_output_path(request))
     final_path = runtime_service(Services.CLEANER).clean_video(
-        input_path=request.video_path,
+        input_path=request.video_ref.path,
         output_path=output_path,
         roi=request.roi,
         method=method,

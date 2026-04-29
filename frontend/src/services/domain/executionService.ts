@@ -4,7 +4,7 @@ import type { MediaReference } from "../ui/mediaReference";
 import type { ExecutionOutcome } from "./taskSubmission";
 import {
   getExecutionMediaDisplayName,
-  prepareExecutionPayload,
+  requireExecutionMediaReference,
 } from "./executionPayload";
 import {
   ensureAiTranslationConfigured,
@@ -142,8 +142,7 @@ export async function createDesktopDownloadSubmissionPayload(
 
 export const executionService = {
   async transcribe(payload: {
-    audio_path?: string | null;
-    audio_ref?: MediaReference | null;
+    audio_ref: MediaReference;
     engine?: "builtin" | "cli";
     model: string;
     device: string;
@@ -154,17 +153,9 @@ export const executionService = {
 
     return await executeDesktopTaskSubmission({
       payload,
-      normalizePayload: (nextPayload) =>
-        prepareExecutionPayload({
-          payload: nextPayload,
-          specs: [
-            {
-              pathKey: "audio_path",
-              refKey: "audio_ref",
-              label: "Transcription audio",
-              required: true,
-            },
-          ],
+      normalizePayload: (nextPayload) => ({
+        ...nextPayload,
+        audio_ref: requireExecutionMediaReference(nextPayload.audio_ref, "Transcription audio"),
       }),
       desktopMethod: "desktopTranscribe",
       desktopUnavailableMessage: "Desktop transcription worker is unavailable.",
@@ -178,14 +169,12 @@ export const executionService = {
           pipeline_id: "transcriber_tool",
           task_name: `Transcribe ${getExecutionMediaDisplayName({
             reference: normalizedPayload.audio_ref ?? null,
-            path: normalizedPayload.audio_path ?? null,
-            fallbackName: "media",
+            defaultName: "media",
           })}`,
           steps: [
             {
               step_name: "transcribe",
               params: omitUndefinedFields({
-                audio_path: normalizedPayload.audio_path,
                 audio_ref: normalizedPayload.audio_ref ?? null,
                 engine: normalizedPayload.engine ?? "builtin",
                 model: normalizedPayload.model,
@@ -213,24 +202,16 @@ export const executionService = {
     segments: SubtitleSegment[];
     target_language: string;
     mode: "standard" | "intelligent" | "proofread";
-    context_path?: string | null;
     context_ref?: MediaReference | null;
   }): Promise<ExecutionOutcome> {
     await ensureAiTranslationConfigured();
 
     return await executeDesktopTaskSubmission({
       payload,
-      normalizePayload: (nextPayload) =>
-        prepareExecutionPayload({
-          payload: nextPayload,
-          specs: [
-            {
-              pathKey: "context_path",
-              refKey: "context_ref",
-              label: "Translation context",
-            },
-          ],
-        }),
+      normalizePayload: (nextPayload) => ({
+        ...nextPayload,
+        context_ref: nextPayload.context_ref ?? null,
+      }),
       desktopMethod: "desktopTranslate",
       desktopUnavailableMessage: "Desktop translation worker is unavailable.",
       desktopTaskIdPrefix: "desktop-translate",
@@ -248,46 +229,30 @@ export const executionService = {
 
   async synthesize(payload: {
     task_id?: string;
-    video_path?: string | null;
-    video_ref?: MediaReference | null;
-    srt_path?: string | null;
-    srt_ref?: MediaReference | null;
+    video_ref: MediaReference;
+    srt_ref: MediaReference;
     watermark_path?: string | null;
-    output_path?: string | null;
+    output_ref?: MediaReference | null;
     options: Record<string, unknown>;
   }): Promise<ExecutionOutcome> {
     return await executeDesktopTaskSubmission({
       payload,
-      normalizePayload: (nextPayload) =>
-        prepareExecutionPayload({
-          payload: nextPayload,
-          specs: [
-            {
-              pathKey: "video_path",
-              refKey: "video_ref",
-              label: "Synthesis video",
-              required: true,
-            },
-            {
-              pathKey: "srt_path",
-              refKey: "srt_ref",
-              label: "Synthesis subtitle",
-              required: true,
-            },
-          ],
-        }),
+      normalizePayload: (nextPayload) => ({
+        ...nextPayload,
+        video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Synthesis video"),
+        srt_ref: requireExecutionMediaReference(nextPayload.srt_ref, "Synthesis subtitle"),
+        output_ref: nextPayload.output_ref ?? null,
+      }),
       desktopMethod: "desktopSynthesize",
       desktopUnavailableMessage: "Desktop synthesis worker is unavailable.",
       desktopTaskIdPrefix: "desktop-synthesize",
       backendSubmit: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.synthesizeVideo(omitUndefinedFields({
-            video_path: normalizedPayload.video_path,
             video_ref: normalizedPayload.video_ref,
-            srt_path: normalizedPayload.srt_path,
             srt_ref: normalizedPayload.srt_ref,
             watermark_path: normalizedPayload.watermark_path || null,
-            output_path: normalizedPayload.output_path,
+            output_ref: normalizedPayload.output_ref,
             options: normalizedPayload.options,
           })),
         ),

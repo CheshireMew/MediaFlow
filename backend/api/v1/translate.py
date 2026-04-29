@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from backend.application.translation_service import (
-    TranslationRequest as TranslateRequest,
-    execute_translation,
-    submit_translation_task,
+from backend.application.task_operations import (
+    execute_task_operation,
+    queue_task_operation,
 )
+from backend.application.translation_service import TranslationRequest as TranslateRequest
 from backend.models.schemas import TranslateResponse
 from backend.utils.path_validator import validate_input_file
 
@@ -20,14 +20,16 @@ async def translate_segment_sync(req: TranslateRequest):
     Uses run_in_executor to avoid blocking the event loop.
     """
     import asyncio
-    from functools import partial
 
     try:
-        if req.context_path:
-            req.context_path = str(validate_input_file(req.context_path, label="context_path"))
-        loop = asyncio.get_running_loop()
-        func = partial(execute_translation, req, progress_callback=None)
-        translated = await loop.run_in_executor(None, func)
+        if req.context_ref:
+            validate_input_file(req.context_ref.path, label="context_ref.path")
+        translated = await asyncio.to_thread(
+            execute_task_operation,
+            "translate",
+            req,
+            progress_callback=None,
+        )
 
         return TranslateResponse(
             task_id="sync_translation",
@@ -44,10 +46,10 @@ async def translate_subtitles(req: TranslateRequest):
     Submit a translation task.
     """
     try:
-        if req.context_path:
-            req.context_path = str(validate_input_file(req.context_path, label="context_path"))
+        if req.context_ref:
+            validate_input_file(req.context_ref.path, label="context_ref.path")
 
-        response = await submit_translation_task(req)
+        response = await queue_task_operation("translate", req)
         
         return TranslateResponse(task_id=response["task_id"], status=response["status"])
     except ValueError as e:

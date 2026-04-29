@@ -86,7 +86,6 @@ describe("useOCRProcessor", () => {
     });
 
     expect(getOcrResultsMock).toHaveBeenCalledWith({
-      video_path: "E:/video.mp4",
       video_ref: {
         path: "E:/canonical/video.mp4",
         name: "video.mp4",

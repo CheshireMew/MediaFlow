@@ -37,13 +37,10 @@ export function useTranscriberNavigation(params: {
     ) => {
       if (!videoPath) return;
 
-      let resolvedVideoPath = videoPath;
+      const resolvedVideoPath = videoPath;
       let fileSize = 0;
       if (isDesktopRuntime()) {
         try {
-          resolvedVideoPath =
-            (await fileService.resolveExistingPath(videoPath, videoRef?.name, videoRef?.size)) ||
-            videoPath;
           fileSize = await fileService.getFileSize(resolvedVideoPath);
         } catch (error) {
           console.warn("[Transcriber] Could not get file size:", error);

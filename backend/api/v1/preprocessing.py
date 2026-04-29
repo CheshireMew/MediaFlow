@@ -2,10 +2,7 @@ from fastapi import APIRouter, HTTPException
 import logging
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
-from backend.application.preprocessing_service import (
-    submit_cleanup_task,
-    submit_enhancement_task,
-)
+from backend.application.task_operations import queue_task_operation
 from backend.models.schemas import (
     CleanRequest,
     EnhanceRequest,
@@ -22,10 +19,8 @@ async def enhance_video(request: EnhanceRequest):
     """
     Video Enhancement (Super Resolution) using Real-ESRGAN or BasicVSR++.
     """
-    if not request.video_path:
-        raise HTTPException(status_code=422, detail="video_path or video_ref is required")
     try:
-        request.video_path = str(validate_input_file(request.video_path, label="video_path"))
+        validate_input_file(request.video_ref.path, label="video_ref.path")
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
@@ -37,7 +32,7 @@ async def enhance_video(request: EnhanceRequest):
         detail = "Real-ESRGAN binary not found." if request.method == "realesrgan" else "BasicVSR++ dependencies (mmmagic, cuda) not found."
         raise HTTPException(status_code=503, detail=detail)
 
-    response = await submit_enhancement_task(request)
+    response = await queue_task_operation("enhancement", request)
 
     return PreprocessingResponse(
         task_id=response["task_id"],
@@ -52,16 +47,14 @@ async def clean_video(
     """
     Video Cleanup (Watermark Removal) using OpenCV or ProPainter.
     """
-    if not request.video_path:
-        raise HTTPException(status_code=422, detail="video_path or video_ref is required")
     try:
-        request.video_path = str(validate_input_file(request.video_path, label="video_path"))
+        validate_input_file(request.video_ref.path, label="video_ref.path")
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    response = await submit_cleanup_task(request)
+    response = await queue_task_operation("cleanup", request)
 
     return PreprocessingResponse(
         task_id=response["task_id"],

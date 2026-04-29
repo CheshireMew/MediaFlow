@@ -68,7 +68,7 @@ def test_transcribe_flow_integration(isolated_api_client, tmp_path):
     response = client.post(
         "/api/v1/transcribe/",
         json={
-            "audio_path": str(audio_file),
+            "audio_ref": {"path": str(audio_file), "name": audio_file.name, "type": "audio/mpeg", "media_kind": "audio"},
             "model": "base",
             "language": "en",
             "device": "cpu",
@@ -93,15 +93,13 @@ def test_transcribe_flow_integration(isolated_api_client, tmp_path):
     assert delete_response.status_code == 200
 
 
-def test_transcribe_rejects_missing_audio_path_with_400(isolated_api_client):
+def test_transcribe_rejects_missing_audio_ref_with_422(isolated_api_client):
     response = isolated_api_client.post(
         "/api/v1/transcribe/",
         json={
-            "audio_path": None,
             "model": "base",
             "device": "cpu",
         },
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "audio path is required"
+    assert response.status_code == 422

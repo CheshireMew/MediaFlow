@@ -61,6 +61,7 @@ import type {
   TranslationTaskStatus,
   OCRExtractRequest,
   OCRTextEvent,
+  MediaReference,
   EnhanceVideoRequest,
   CleanVideoRequest,
 } from "../types/api";
@@ -168,10 +169,11 @@ export const apiClient = {
     });
   },
 
-  getOcrResults: (videoPath: string) => {
-    return request<{ events: OCRTextEvent[] }>(
-      `/ocr/results?video_path=${encodeURIComponent(videoPath)}`,
-    );
+  getOcrResults: (videoRef: MediaReference) => {
+    return request<{ events: OCRTextEvent[] }>("/ocr/results", {
+      method: "POST",
+      body: JSON.stringify(videoRef),
+    });
   },
 
   checkHealth: () => {

@@ -65,7 +65,10 @@ def test_prepare_pipeline_request_keeps_transcriber_pipeline_unchanged():
                 {
                     "step_name": "transcribe",
                     "params": {
-                        "audio_path": "E:/demo.mp4",
+                        "audio_ref": {
+                            "path": "E:/demo.mp4",
+                            "name": "demo.mp4",
+                        },
                         "model": "small",
                         "device": "cpu",
                         "vad_filter": True,

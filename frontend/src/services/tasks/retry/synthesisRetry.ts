@@ -5,7 +5,6 @@ import {
   createRetryDescriptor,
   getRequestParams,
   getTaskMediaReference,
-  readOptionalString,
   readRecord,
   resolveRetryTaskId,
 } from "./taskParams";
@@ -26,13 +25,11 @@ function normalizeSynthesisTaskParams(task: Task) {
             "__desktop_worker",
             "task_id",
             "video_ref",
-            "video_path",
             "subtitle_ref",
             "srt_ref",
             "context_ref",
-            "srt_path",
             "watermark_path",
-            "output_path",
+            "output_ref",
             "options",
           ].includes(key),
       ),
@@ -41,8 +38,8 @@ function normalizeSynthesisTaskParams(task: Task) {
   return {
     params,
     options,
-    watermarkPath: readOptionalString(params.watermark_path),
-    outputPath: readOptionalString(params.output_path),
+    watermarkPath: typeof params.watermark_path === "string" ? params.watermark_path : null,
+    outputRef: getTaskMediaReference(params, ["output_ref"], "video/mp4"),
   };
 }
 
@@ -51,7 +48,7 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
   if (!normalized) {
     return null;
   }
-  const { params, options, watermarkPath, outputPath } = normalized;
+  const { params, options, watermarkPath, outputRef } = normalized;
 
   const videoRef = getTaskMediaReference(params, ["video_ref"], "video/mp4");
   const srtRef = getTaskMediaReference(
@@ -68,7 +65,7 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
     video_ref: videoRef,
     srt_ref: srtRef,
     watermark_path: watermarkPath ?? null,
-    output_path: outputPath ?? null,
+    output_ref: outputRef ?? null,
     options,
   });
 
@@ -82,8 +79,8 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
         ...(watermarkPath !== undefined
           ? { watermark_path: watermarkPath }
           : {}),
-        ...(outputPath !== undefined
-          ? { output_path: outputPath }
+        ...(outputRef
+          ? { output_ref: outputRef }
           : {}),
         options,
       },
@@ -94,7 +91,6 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
 }
 
 export const synthesisRetryHandler: RetryHandler = {
-  accepts: (task) => task.type === "synthesize" || task.type === "synthesis",
+  accepts: (task) => task.type === "synthesis",
   submit: submitSynthesizeRetry,
 };
-

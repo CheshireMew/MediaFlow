@@ -9,7 +9,6 @@ from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 from backend.core.task_runner import BackgroundTaskRunner
 from backend.models.schemas import FileRef, MediaReference, SubtitleSegment, TaskResult
 from backend.services.media_refs import create_media_ref
-from backend.utils.media_inputs import MediaInputModel
 
 
 LANGUAGE_SUFFIX_MAP = {
@@ -33,12 +32,10 @@ def get_translation_output_suffix(target_language: str, mode: str) -> str:
     return get_language_suffix(target_language)
 
 
-class TranslationRequest(MediaInputModel):
-    MEDIA_INPUT_SPECS = (("context_path", "context_ref"),)
+class TranslationRequest(BaseModel):
     segments: List[SubtitleSegment]
     target_language: str = "Chinese"
     mode: str = "standard"
-    context_path: Optional[str] = None
     context_ref: Optional[MediaReference] = None
 
 
@@ -47,7 +44,6 @@ def build_translation_task_result(
     *,
     target_language: str,
     mode: str,
-    context_path: Optional[str] = None,
     context_ref: Optional[MediaReference] = None,
 ) -> TaskResult:
     files: list[FileRef] = []
@@ -56,25 +52,19 @@ def build_translation_task_result(
         "language": target_language,
     }
     resolved_context_ref = context_ref
-    if not resolved_context_ref and context_path:
-        resolved_context_ref = create_media_ref(
-            context_path,
-            "application/x-subrip",
-            role="context",
-        )
     if resolved_context_ref:
-        meta["context_ref"] = resolved_context_ref
+        meta["context_ref"] = resolved_context_ref.model_dump(mode="json")
 
-    if context_path and segments:
+    if resolved_context_ref and segments:
         try:
             from backend.utils.subtitle_writer import SubtitleWriter
 
             suffix = get_translation_output_suffix(target_language, mode)
-            source_path = Path(context_path)
+            source_path = Path(resolved_context_ref.path)
             save_path = source_path.parent / f"{source_path.stem}{suffix}"
 
             logger.debug(
-                f"[Translate] Saving translated subtitles: source={context_path}, "
+                f"[Translate] Saving translated subtitles: source={resolved_context_ref.path}, "
                 f"target={save_path}.srt"
             )
 
@@ -82,7 +72,6 @@ def build_translation_task_result(
             files.append(
                 FileRef(type="subtitle", path=str(saved_path), label="translation")
             )
-            meta["srt_path"] = str(saved_path)
             output_ref = create_media_ref(
                 str(saved_path),
                 "application/x-subrip",
@@ -97,7 +86,7 @@ def build_translation_task_result(
     return TaskResult(success=True, files=files, meta=meta)
 
 
-async def run_translation_task(task_id: str, req: TranslationRequest) -> None:
+async def _translation_background(task_id: str, req: TranslationRequest) -> None:
     llm_translator = runtime_service(Services.LLM_TRANSLATOR)
     runtime = TaskRuntimeContext.for_task(task_id)
 
@@ -117,13 +106,12 @@ async def run_translation_task(task_id: str, req: TranslationRequest) -> None:
             segments,
             target_language=req.target_language,
             mode=req.mode,
-            context_path=req.context_path,
             context_ref=req.context_ref,
         ).model_dump(mode="json"),
     )
 
 
-def execute_translation(
+def _translation_desktop(
     req: TranslationRequest,
     *,
     progress_callback=None,
@@ -139,7 +127,6 @@ def execute_translation(
         translated_segments,
         target_language=req.target_language,
         mode=req.mode,
-        context_path=req.context_path,
         context_ref=req.context_ref,
     )
     return {
@@ -150,12 +137,3 @@ def execute_translation(
         "output_ref": result.meta.get("output_ref"),
         "mode": req.mode,
     }
-
-
-async def submit_translation_task(req: TranslationRequest) -> dict:
-    source_name = Path(req.context_path or "").name if req.context_path else "Subtitles"
-    return await runtime_service(Services.TASK_ORCHESTRATOR).submit_task(
-        task_type="translate",
-        task_name=f"{source_name} ({req.target_language})",
-        request_params=req.model_dump(mode="json"),
-    )

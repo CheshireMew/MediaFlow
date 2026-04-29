@@ -1,25 +1,9 @@
-import { getDesktopApi, requireDesktopApiMethod } from "./desktop";
+import { requireDesktopApiMethod } from "./desktop";
 import type { OpenFileDialogRequest } from "../contracts/openFileContract";
 import type {
   SaveFileDialogRequest,
   SelectDirectoryRequest,
 } from "../contracts/desktopFileSystemContract";
-
-function replaceBasename(filePath: string, fallbackName?: string) {
-  if (!fallbackName || !filePath) {
-    return filePath;
-  }
-
-  const lastSeparatorIndex = Math.max(
-    filePath.lastIndexOf("/"),
-    filePath.lastIndexOf("\\"),
-  );
-  if (lastSeparatorIndex === -1) {
-    return fallbackName;
-  }
-
-  return `${filePath.slice(0, lastSeparatorIndex + 1)}${fallbackName}`;
-}
 
 export const fileService = {
   getPathForFile(file: File): string {
@@ -67,21 +51,6 @@ export const fileService = {
       "getFileSize",
       "File size inspection is unavailable.",
     )(path);
-  },
-
-  async resolveExistingPath(path: string, fallbackName?: string, expectedSize?: number) {
-    const api = getDesktopApi();
-
-    try {
-      if (api?.resolveExistingPath) {
-        const resolved = await api.resolveExistingPath(path, fallbackName, expectedSize);
-        return resolved || replaceBasename(path, fallbackName);
-      }
-    } catch (error) {
-      console.warn("[fileService] resolveExistingPath failed, using fallback", error);
-    }
-
-    return replaceBasename(path, fallbackName);
   },
 
   async showInExplorer(path: string) {

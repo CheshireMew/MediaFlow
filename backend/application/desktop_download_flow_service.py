@@ -6,7 +6,7 @@ from typing import Callable, Optional
 from pydantic import BaseModel
 
 from backend.application.translation_service import build_translation_task_result
-from backend.models.schemas import FileRef, SubtitleSegment, TaskResult
+from backend.models.schemas import FileRef, MediaReference, SubtitleSegment, TaskResult
 from backend.services.media_refs import create_media_ref
 from backend.services.asr import ASRService
 from backend.services.downloader.service import DownloaderService
@@ -170,12 +170,22 @@ class DesktopDownloadFlowService:
             translated_segments,
             target_language=request.target_language,
             mode=request.translation_mode,
-            context_path=subtitle_path,
+            context_ref=MediaReference.model_validate(
+                create_media_ref(
+                    subtitle_path,
+                    "application/x-subrip",
+                    role="source",
+                )
+            ),
         )
-        translated_srt_path = translation_result.meta.get("srt_path")
+        translated_subtitle_ref = translation_result.meta.get("output_ref") or translation_result.meta.get("subtitle_ref")
+        translated_srt_path = (
+            translated_subtitle_ref.get("path")
+            if isinstance(translated_subtitle_ref, dict)
+            else None
+        )
         if translated_srt_path:
             self._merge_result_files(result, translation_result.files)
-            result.meta["translated_subtitle_path"] = translated_srt_path
             result.meta["subtitle_ref"] = create_media_ref(
                 translated_srt_path,
                 "application/x-subrip",
@@ -208,7 +218,6 @@ class DesktopDownloadFlowService:
         result.files.append(
             FileRef(type="video", path=synthesized_path, label="synthesis_output")
         )
-        result.meta["video_path"] = synthesized_path
         result.meta["video_ref"] = create_media_ref(
             synthesized_path,
             "video/mp4",

@@ -152,6 +152,32 @@ describe("DesktopWorkerSupervisor slot scheduler", () => {
     await expect(first).resolves.toBeInstanceOf(Error);
   });
 
+  it("pauses a running desktop task by stopping only its assigned slot", async () => {
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    const { supervisor, workers } = createHarness();
+
+    const first = supervisor.request("transcribe", { task_id: "task-a", audio_path: "D:/a.mp4" }).catch(
+      (error) => error,
+    );
+    const second = supervisor.request("translate", { task_id: "task-b", context_path: "D:/b.srt" });
+
+    workers[0].ready();
+    workers[1].ready();
+
+    await expect(supervisor.pauseTask("task-a")).resolves.toEqual({ status: "paused" });
+
+    expect(killSpy).toHaveBeenCalledWith(workers[0].pid, "SIGTERM");
+    expect(killSpy).not.toHaveBeenCalledWith(workers[1].pid, "SIGTERM");
+    expect(supervisor.listTasks().find((task) => task.id === "task-a")).toMatchObject({
+      status: "paused",
+      queue_state: "paused",
+    });
+
+    workers[1].respond("task-b", { segments: [], subtitle_ref: "D:/b.out.srt" });
+    await expect(second).resolves.toBeTruthy();
+    await expect(first).resolves.toBeInstanceOf(Error);
+  });
+
   it("keeps control commands responsive while tracked tasks are running", async () => {
     const { supervisor, workers } = createHarness();
 

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel
 import os
-from backend.application.synthesis_service import submit_synthesis_task
+from backend.application.task_operations import queue_task_operation
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
-from backend.models.schemas import SynthesisRequest
+from backend.models.schemas import MediaReference, SynthesisRequest
 from backend.utils.path_validator import validate_input_file, validate_output_file
 import uuid
 
@@ -120,28 +120,30 @@ async def start_synthesis_task(req: SynthesisRequest):
     Start a video synthesis task (burn-in subtitles/watermark).
     This is a long-running process, so we offload it.
     """
-    if not req.video_path:
-        raise HTTPException(status_code=400, detail="synthesis video path is required")
-    if not req.srt_path:
-        raise HTTPException(status_code=400, detail="synthesis subtitle path is required")
-
     try:
-        req.video_path = str(validate_input_file(req.video_path, label="video_path"))
-        req.srt_path = str(validate_input_file(req.srt_path, label="srt_path"))
+        validate_input_file(req.video_ref.path, label="video_ref.path")
+        validate_input_file(req.srt_ref.path, label="srt_ref.path")
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     # Determine output path if not provided
-    if not req.output_path:
-        base, ext = os.path.splitext(req.video_path)
-        req.output_path = f"{base}_burned.mp4"
+    if not req.output_ref:
+        base, _ = os.path.splitext(req.video_ref.path)
+        req.output_ref = MediaReference(
+            path=f"{base}_burned.mp4",
+            name=os.path.basename(f"{base}_burned.mp4"),
+            type="video/mp4",
+            media_kind="video",
+            role="output",
+            origin="task",
+        )
     try:
-        req.output_path = str(validate_output_file(req.output_path, label="output_path"))
+        validate_output_file(req.output_ref.path, label="output_ref.path")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    response = await submit_synthesis_task(req)
+    response = await queue_task_operation("synthesis", req)
 
     return {"task_id": response["task_id"], "status": response["status"]}

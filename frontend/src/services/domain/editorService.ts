@@ -1,5 +1,5 @@
 import { fileService } from "../fileService";
-import { prepareExecutionPayload } from "./executionPayload";
+import { requireExecutionMediaReference } from "./executionPayload";
 import type { MediaReference } from "../ui/mediaReference";
 import type {
   ImagePreviewResponse,
@@ -16,8 +16,7 @@ import {
 
 export const editorService = {
   async transcribeSegment(payload: {
-    audio_path?: string | null;
-    audio_ref?: MediaReference | null;
+    audio_ref: MediaReference;
     start: number;
     end: number;
     engine?: "builtin" | "cli";
@@ -30,29 +29,15 @@ export const editorService = {
 
     return await executeBackendDirectCall({
       payload,
-      normalizePayload: (nextPayload) =>
-        prepareExecutionPayload({
-          payload: nextPayload,
-          specs: [
-            {
-              pathKey: "audio_path",
-              refKey: "audio_ref",
-              label: "Audio",
-              required: true,
-            },
-          ],
-        }),
+      normalizePayload: (nextPayload) => ({
+        ...nextPayload,
+        audio_ref: requireExecutionMediaReference(nextPayload.audio_ref, "Audio"),
+      }),
       desktopMethod: "desktopTranscribeSegment",
       desktopUnavailableMessage: "Desktop segment transcription is unavailable.",
       backendCall: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
-          apiClient.transcribeSegment({
-            ...normalizedPayload,
-            video_path: "",
-            srt_path: "",
-            watermark_path: null,
-            options: {},
-          }),
+          apiClient.transcribeSegment(normalizedPayload),
         ),
     });
   },

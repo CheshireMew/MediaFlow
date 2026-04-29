@@ -6,7 +6,6 @@ export const DESKTOP_FILE_SYSTEM_CHANNELS = {
   readTextFile: "fs:readTextFile",
   writeTextFile: "fs:writeTextFile",
   getFileSize: "fs:getFileSize",
-  resolveExistingPath: "fs:resolveExistingPath",
   rememberRendererFile: "fs:rememberRendererFile",
 } as const;
 

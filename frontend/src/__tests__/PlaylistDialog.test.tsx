@@ -15,6 +15,7 @@ describe("PlaylistDialog", () => {
   const playlistInfo = {
     type: "playlist" as const,
     title: "Sample Playlist",
+    url: "https://example.com/playlist",
     count: 2,
     items: [
       { index: 1, title: "First", url: "https://example.com/1" },

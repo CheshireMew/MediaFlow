@@ -80,7 +80,11 @@ describe("service media contract", () => {
         origin: "task",
       },
       watermark_path: null,
-      output_path: "E:/out/burned.mp4",
+      output_ref: {
+        path: "E:/out/burned.mp4",
+        name: "burned.mp4",
+        role: "output",
+      },
       options: {},
     });
 
@@ -100,7 +104,11 @@ describe("service media contract", () => {
         origin: "task",
       }),
       watermark_path: null,
-      output_path: "E:/out/burned.mp4",
+      output_ref: expect.objectContaining({
+        path: "E:/out/burned.mp4",
+        name: "burned.mp4",
+        role: "output",
+      }),
       options: {},
     }));
     expect(apiClientMock.synthesizeVideo.mock.calls[0]?.[0]).not.toHaveProperty("video_path");
@@ -199,7 +207,6 @@ describe("service media contract", () => {
 
   it("resolves canonical refs for query-style media lookups", async () => {
     await preprocessingService.getOcrResults({
-      video_path: "E:/workspace/source.mp4",
       video_ref: {
         path: "E:/canonical/source.mp4",
         name: "source.mp4",
@@ -210,7 +217,7 @@ describe("service media contract", () => {
     });
 
     expect(apiClientMock.getOcrResults).toHaveBeenCalledWith(
-      "E:/canonical/source.mp4",
+      expect.objectContaining({ path: "E:/canonical/source.mp4" }),
     );
   });
 
@@ -221,7 +228,6 @@ describe("service media contract", () => {
           segments: [],
           text: "",
           language: "en",
-          srt_path: "E:/canonical/source.srt",
           subtitle_ref: {
             path: "E:/canonical/source.srt",
             name: "source.srt",
@@ -262,7 +268,6 @@ describe("service media contract", () => {
           segments: [],
           text: "",
           language: "en",
-          srt_path: "E:/canonical/source.srt",
           subtitle_ref: {
             path: "E:/canonical/source.srt",
             name: "source.srt",
@@ -296,14 +301,13 @@ describe("service media contract", () => {
 
   });
 
-  it("does not synthesize subtitle refs from srt_path once producers emit structured refs", () => {
+  it("does not synthesize subtitle refs without structured refs", () => {
     expect(
       normalizeTranscribeResultMediaReferences(
         {
           segments: [],
           text: "",
           language: "en",
-          srt_path: "E:/stale/source.srt",
         },
         {
           path: "E:/canonical/source.mp4",

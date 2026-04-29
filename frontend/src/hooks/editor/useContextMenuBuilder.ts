@@ -5,7 +5,7 @@ import {
 } from "../../services/domain";
 import { restoreStoredAsrExecutionPreferences } from "../../services/persistence/asrExecutionPreferences";
 import { restoreStoredTranslationPreferences } from "../../services/persistence/translationPreferences";
-import type { MediaReference } from "../../services/ui/mediaReference";
+import { normalizeMediaReference, type MediaReference } from "../../services/ui/mediaReference";
 import { formatSRTTime } from "../../utils/subtitleParser";
 import type { ContextMenuItem } from "../../components/ui/ContextMenu";
 import type { SubtitleSegment } from "../../types/task";
@@ -137,8 +137,9 @@ export function useContextMenuBuilder({
     async (region: { start: number; end: number }, translateAfterTranscribe: boolean) => {
       const currentPath = currentFilePathRef.current;
       const currentFile = currentFileRefRef.current;
+      const currentMediaRef = currentFile ?? normalizeMediaReference(currentPath);
 
-      if (!currentPath && !currentFile?.path) {
+      if (!currentMediaRef) {
         alert("请先保存或打开一个文件");
         return;
       }
@@ -152,8 +153,7 @@ export function useContextMenuBuilder({
       try {
         const asrPreferences = restoreStoredAsrExecutionPreferences();
         const res = (await editorService.transcribeSegment({
-          audio_path: currentFile ? null : currentPath,
-          audio_ref: currentFile,
+          audio_ref: currentMediaRef,
           start: region.start,
           end: region.end,
           engine: asrPreferences.engine,

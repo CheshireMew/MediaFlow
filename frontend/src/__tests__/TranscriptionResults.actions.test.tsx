@@ -73,7 +73,6 @@ describe("TranscriptionResults actions", () => {
         result={{
           text: "hello world",
           language: "en",
-          srt_path: "E:/sample.srt",
           video_ref: {
             path: "E:/canonical.mp4",
             name: "canonical.mp4",
@@ -235,7 +234,6 @@ describe("TranscriptionResults actions", () => {
         result: {
           text: "hello",
           language: "en",
-          srt_path: "E:/workspace/sample.srt",
           subtitle_ref: {
             path: "E:/canonical/sample.srt",
             name: "sample.srt",

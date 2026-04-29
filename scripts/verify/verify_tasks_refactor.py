@@ -5,10 +5,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 
 from backend.core.tasks.registry import (
     build_task_runner,
+    REQUIRED_TASK_TYPES,
     register_all_task_runners,
     registered_task_types,
     validate_required_task_runners,
 )
+from backend.contracts import DESKTOP_WORKER_CONTRACT
+from backend.core.task_catalog import desktop_task_commands, pipeline_step_names, task_types
+from backend.models.schemas import PipelineRequest
 from backend.models.task_model import Task
 
 
@@ -18,17 +22,7 @@ def verify_registry():
     register_all_task_runners()
     validate_required_task_runners()
 
-    expected = {
-        "transcribe",
-        "synthesis",
-        "enhancement",
-        "cleanup",
-        "pipeline",
-        "download",
-        "translate",
-        "extract",
-        "transcribe_segment",
-    }
+    expected = REQUIRED_TASK_TYPES
     registered = registered_task_types()
     missing = expected - registered
     if missing:
@@ -45,7 +39,7 @@ def verify_runner_build():
         type="transcribe",
         status="failed",
         request_params={
-            "audio_path": "test.wav",
+            "audio_ref": {"path": "test.wav", "name": "test.wav"},
             "model": "base",
             "language": "en",
         },
@@ -58,6 +52,45 @@ def verify_runner_build():
     print("build_task_runner('transcribe') returned a callable runner.")
 
 
+def verify_catalog_boundaries():
+    print("\nVerifying task catalog boundaries...")
+
+    pipeline_schema = PipelineRequest.model_json_schema()
+    schema_step_names = set(
+        pipeline_schema["properties"]["steps"]["items"]["discriminator"]["mapping"]
+    )
+    catalog_step_names = pipeline_step_names()
+    if schema_step_names != catalog_step_names:
+        raise RuntimeError(
+            "Pipeline schema/catalog mismatch: "
+            f"schema={sorted(schema_step_names)}, catalog={sorted(catalog_step_names)}"
+        )
+
+    contract_task_commands = {
+        raw["workerCommand"]
+        for raw in DESKTOP_WORKER_CONTRACT["invocations"].values()
+        if raw.get("executionLane") == "task"
+    }
+    contract_task_commands.update(
+        command
+        for command, raw in DESKTOP_WORKER_CONTRACT.get("workerCommands", {}).items()
+        if raw.get("executionLane") == "task"
+    )
+    catalog_task_commands = desktop_task_commands()
+    if contract_task_commands != catalog_task_commands:
+        raise RuntimeError(
+            "Desktop worker task command/catalog mismatch: "
+            f"contract={sorted(contract_task_commands)}, catalog={sorted(catalog_task_commands)}"
+        )
+
+    unknown_registered = registered_task_types() - task_types()
+    if unknown_registered:
+        raise RuntimeError(f"Registered task types outside catalog: {sorted(unknown_registered)}")
+
+    print("Task types, pipeline steps, and desktop task commands match the catalog.")
+
+
 if __name__ == "__main__":
     verify_registry()
     verify_runner_build()
+    verify_catalog_boundaries()

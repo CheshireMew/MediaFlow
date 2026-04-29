@@ -1,5 +1,6 @@
 import { useEditorStore } from "../stores/editorStore";
 import { usePreprocessingStore } from "../stores/preprocessingStore";
+import type { TaskRequestParams } from "../types/task";
 import type { TranscribeResult } from "../types/transcriber";
 
 export function createSampleTranscriptionResult(
@@ -8,7 +9,6 @@ export function createSampleTranscriptionResult(
   return {
     text: "hello world",
     language: "en",
-    srt_path: "E:/sample.srt",
     video_ref: {
       path: "E:/sample.mp4",
       name: "sample.mp4",
@@ -91,7 +91,7 @@ export function resetPreprocessingStoreForTests(
   });
 }
 
-export function createTranscribeStepRequestParams() {
+export function createTranscribeStepRequestParams(): TaskRequestParams {
   return {
     steps: [
       {

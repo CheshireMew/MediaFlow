@@ -55,7 +55,7 @@ export function PlaylistDialog({
         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           <div className="p-5 flex-none">
             <p className="text-slate-400 text-sm mb-4">
-              <strong className="text-white">{playlistInfo.title}</strong> {t('playlist.containsVideos', { count: playlistInfo.count })}
+              <strong className="text-white">{playlistInfo.title}</strong> {t('playlist.containsVideos', { count: playlistInfo.count ?? 0 })}
             </p>
 
             <div className="flex gap-2">

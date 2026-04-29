@@ -26,12 +26,12 @@ def test_get_translation_output_suffix_uses_proofread_suffix():
 def test_translate_endpoint_returns_400_for_client_value_errors(monkeypatch):
     client = TestClient(app)
 
-    async def fake_submit_translation_task(_req):
+    async def fake_queue_task_operation(_task_type, _req):
         raise ValueError("bad translation request")
 
     monkeypatch.setattr(
-        "backend.api.v1.translate.submit_translation_task",
-        fake_submit_translation_task,
+        "backend.api.v1.translate.queue_task_operation",
+        fake_queue_task_operation,
     )
 
     response = client.post(

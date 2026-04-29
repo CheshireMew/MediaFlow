@@ -16,7 +16,6 @@ export const DESKTOP_BRIDGE_CAPABILITIES = [
   "getPathForFile",
   "writeFile",
   "getFileSize",
-  "resolveExistingPath",
   "getDesktopRuntimeInfo",
   "listDesktopTasks",
   ...Object.keys(DESKTOP_WORKER_INVOCATIONS),

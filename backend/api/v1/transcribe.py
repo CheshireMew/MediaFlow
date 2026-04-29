@@ -1,10 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from backend.application.transcription_service import (
-    execute_transcription_segment,
-    submit_transcription_segment_task,
-    submit_transcription_task,
+from backend.application.task_operations import (
+    execute_task_operation_immediate,
+    queue_task_operation,
 )
 from backend.models.schemas import TranscribeRequest, TranscribeSegmentRequest, TaskResponse
 from backend.utils.path_validator import validate_input_file
@@ -20,10 +19,8 @@ async def transcribe_audio(req: TranscribeRequest):
     """
     logger.info(f"Received transcription request: {req.model_dump()}")
     try:
-        if not req.audio_path:
-            raise ValueError("audio path is required")
-        req.audio_path = str(validate_input_file(req.audio_path, label="audio_path"))
-        response = await submit_transcription_task(req)
+        validate_input_file(req.audio_ref.path, label="audio_ref.path")
+        response = await queue_task_operation("transcribe", req)
         return TaskResponse(task_id=response["task_id"], status=response["status"])
     except ValueError as e:
         logger.warning(f"Rejected transcription request: {e}")
@@ -45,10 +42,8 @@ async def transcribe_segment(req: TranscribeSegmentRequest):
     duration = req.end - req.start
     if duration <= 0:
         raise HTTPException(status_code=400, detail="Invalid duration")
-    if not req.audio_path:
-        raise HTTPException(status_code=400, detail="audio_path is required")
     try:
-        req.audio_path = str(validate_input_file(req.audio_path, label="audio_path"))
+        validate_input_file(req.audio_ref.path, label="audio_ref.path")
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
@@ -58,13 +53,13 @@ async def transcribe_segment(req: TranscribeSegmentRequest):
 
     # HYBRID STRATEGY
     if duration > 30:
-        response = await submit_transcription_segment_task(req)
+        response = await queue_task_operation("transcribe_segment", req)
         
         return TaskResponse(task_id=response["task_id"], status="pending", message="Segment too long, processing in background")
 
     else:
         try:
-            return await execute_transcription_segment(req)
+            return await execute_task_operation_immediate("transcribe_segment", req)
         except HTTPException:
             raise
         except Exception as e:
