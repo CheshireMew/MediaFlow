@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useContextMenuBuilder } from "../hooks/editor/useContextMenuBuilder";
+import { seedJapaneseCudaExecutionPreferences } from "./testFixtures";
 
 const {
   transcribeSegmentMock,
@@ -114,27 +115,7 @@ describe("useContextMenuBuilder", () => {
   });
 
   it("recognizes and translates a waveform region using the shared target language", async () => {
-    localStorage.setItem(
-      "asr_execution_preferences",
-      JSON.stringify({
-        schema_version: 1,
-        payload: {
-          engine: "builtin",
-          model: "base",
-          device: "cuda",
-        },
-      }),
-    );
-    localStorage.setItem(
-      "translation_preferences",
-      JSON.stringify({
-        schema_version: 2,
-        payload: {
-          targetLanguage: "Japanese",
-          mode: "intelligent",
-        },
-      }),
-    );
+    seedJapaneseCudaExecutionPreferences();
 
     transcribeSegmentMock.mockResolvedValue({
       status: "completed",

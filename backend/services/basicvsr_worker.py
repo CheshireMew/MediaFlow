@@ -7,6 +7,7 @@ import numpy as np
 import cv2
 import time
 from mmcv.runner import load_checkpoint
+from backend.utils.stdio import configure_utf8_stdio
 # Try importing, handle if not installed yet (will error at runtime if missing)
 try:
     from mmedit.models import build_model
@@ -160,13 +161,7 @@ def chunked_inference(model, video_reader, writer, window_size=30, overlap=10):
         sys.stdout.flush()
 
 def main():
-    # Force utf-8 encoding for standard outputs to prevent IPC crashes on Windows
-    reconfigure = getattr(sys.stdout, "reconfigure", None)
-    if callable(reconfigure):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    reconfigure_err = getattr(sys.stderr, "reconfigure", None)
-    if callable(reconfigure_err):
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    configure_utf8_stdio()
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', type=str, required=True)

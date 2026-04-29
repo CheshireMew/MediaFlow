@@ -52,7 +52,7 @@ export function useTranscriberTaskSync({
       return;
     }
 
-    const mappedResult = mapTaskToTranscribeResult(completedTask, fileRef, filePath);
+    const mappedResult = mapTaskToTranscribeResult(completedTask, fileRef);
     if (mappedResult) {
       setResult(mappedResult);
     }
@@ -64,7 +64,7 @@ export function useTranscriberTaskSync({
     const task = selectTaskById(tasks, currentTranscriptionTaskId);
     if (task) {
       if (task.status === "completed") {
-        const mappedResult = mapTaskToTranscribeResult(task, fileRef, filePath);
+        const mappedResult = mapTaskToTranscribeResult(task, fileRef);
         if (mappedResult) {
           setResult(mappedResult);
         }

@@ -1,5 +1,6 @@
 import { hexToAss } from "./types";
 import { clampNormalizedPosition } from "./subtitlePlacement";
+import type { SubtitleMultilineAlign, SubtitleStyleValues } from "./styleTypes";
 
 const ASS_FONT_COMPENSATION = 1.25;
 const MIN_SIDE_MARGIN_PX = 10;
@@ -9,23 +10,7 @@ const DEFAULT_SUBTITLE_FALLBACK_FONT_SIZE = 24;
 const DEFAULT_SUBTITLE_MIN_RECOMMENDED_FONT_SIZE = 12;
 const DEFAULT_SUBTITLE_MAX_FONT_SIZE = 120;
 
-export type SubtitleMultilineAlign = "bottom" | "center" | "top";
-
-export type SubtitleRenderStyleInput = {
-  fontSize: number;
-  fontColor: string;
-  fontName: string;
-  isBold: boolean;
-  isItalic: boolean;
-  outlineSize: number;
-  shadowSize: number;
-  outlineColor: string;
-  bgEnabled: boolean;
-  bgColor: string;
-  bgOpacity: number;
-  bgPadding: number;
-  alignment: number;
-  multilineAlign: SubtitleMultilineAlign;
+export type SubtitleRenderStyleInput = SubtitleStyleValues & {
   subPos: { x: number; y: number };
 };
 
@@ -100,6 +85,29 @@ export type SubtitleSynthesisStyleOptions = {
   margin_r: number;
   line_step: number;
 };
+
+export function buildEmptySubtitlePreviewRenderSpec(
+  width: number,
+  height: number,
+): SubtitleRenderPreviewSpec {
+  return {
+    isReady: false,
+    width,
+    height,
+    fontSize: 0,
+    outlineSize: 0,
+    shadowSize: 0,
+    backgroundPadding: 0,
+    lineInsetSize: 0,
+    lineStep: 0,
+    marginV: 0,
+    marginL: 0,
+    marginR: 0,
+    availableWidth: 0,
+    backgroundColor: "transparent",
+    padding: "0px",
+  };
+}
 
 function clampChannel(value: number): number {
   return Math.max(0, Math.min(255, Math.round(value)));
@@ -285,23 +293,10 @@ export function resolveSubtitlePreviewRenderSpec(input: {
     source.outputWidth <= 0 ||
     source.outputHeight <= 0
   ) {
-    return {
-      isReady: false,
-      width: safePreviewWidth,
-      height: safePreviewHeight,
-      fontSize: 0,
-      outlineSize: 0,
-      shadowSize: 0,
-      backgroundPadding: 0,
-      lineInsetSize: 0,
-      lineStep: 0,
-      marginV: 0,
-      marginL: 0,
-      marginR: 0,
-      availableWidth: 0,
-      backgroundColor: "transparent",
-      padding: "0px",
-    };
+    return buildEmptySubtitlePreviewRenderSpec(
+      safePreviewWidth,
+      safePreviewHeight,
+    );
   }
 
   const fontSize = scaleRenderValue(

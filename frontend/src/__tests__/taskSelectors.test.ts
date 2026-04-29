@@ -8,6 +8,7 @@ import {
   mapTaskToTranscribeResult,
 } from "../hooks/tasks/taskSelectors";
 import type { Task } from "../types/task";
+import { createTranscribeStepRequestParams } from "./testFixtures";
 
 describe("taskSelectors transcribe media matching", () => {
   it("matches an active transcribe task using structured media refs", () => {
@@ -17,19 +18,7 @@ describe("taskSelectors transcribe media matching", () => {
       status: "running",
       progress: 10,
       created_at: Date.now(),
-      request_params: {
-        steps: [
-          {
-            step_name: "transcribe",
-            params: {
-              audio_ref: {
-                path: "E:/sample.mp4",
-                name: "sample.mp4",
-              },
-            },
-          },
-        ],
-      },
+      request_params: createTranscribeStepRequestParams(),
     };
 
     expect(
@@ -105,7 +94,6 @@ describe("taskSelectors transcribe media matching", () => {
       mapTaskToTranscribeResult(
         task,
         { path: "E:/another/input.mp4", name: "input.mp4" },
-        "E:/workspace/stale.mp4",
       )?.video_ref,
     ).toEqual({
       path: "E:/canonical/sample.mp4",
@@ -135,7 +123,7 @@ describe("taskSelectors transcribe media matching", () => {
       },
     };
 
-    expect(mapTaskToTranscribeResult(task, null, null)).toEqual({
+    expect(mapTaskToTranscribeResult(task, null)).toEqual({
       segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
       text: "hello",
       language: "auto",
@@ -252,7 +240,7 @@ describe("taskSelectors transcribe media matching", () => {
     ).toBe(
       "task-translate-ref",
     );
-    expect(mapTaskToTranscribeResult(transcribeTask, null, null)).toEqual(
+    expect(mapTaskToTranscribeResult(transcribeTask, null)).toEqual(
       expect.objectContaining({
         video_ref: {
           path: "E:/canonical/sample.mp4",

@@ -22,7 +22,7 @@ import {
   createTaskDiagnostic,
   type RuntimeExecutionSummary,
 } from "../../services/debug/runtimeDiagnostics";
-import { canRetryTask } from "../../services/tasks/taskRetry";
+import { canRetryTask } from "../../services/tasks/retry";
 import {
   hasTaskSubtitleMedia,
   hasTaskVideoMedia,

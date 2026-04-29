@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { isDesktopRuntime } from "../../services/domain";
-import { useEditorStore } from "../../stores/editorStore";
 import { fileService } from "../../services/fileService";
 import { normalizeMediaReference } from "../../services/ui/mediaReference";
 import {
@@ -14,6 +13,7 @@ import {
   loadEditorSubtitle,
   pathToFileURL,
 } from "./editorFileHelpers";
+import { useEditorDocumentWriters } from "./useEditorDocumentWriters";
 
 type ElectronMediaFile = {
   path: string;
@@ -23,18 +23,14 @@ type ElectronMediaFile = {
 
 export function useEditorFileLoader() {
   const fileProfile = "editor-media" as const;
-  const replaceEditorDocument = useEditorStore(
-    (state) => state.replaceEditorDocument,
-  );
-  const setMediaUrl = useEditorStore((state) => state.setMediaUrl);
-  const setCurrentFilePath = useEditorStore(
-    (state) => state.setCurrentFilePath,
-  );
-  const setCurrentSubtitlePath = useEditorStore(
-    (state) => state.setCurrentSubtitlePath,
-  );
-  const setCurrentFileRef = useEditorStore((state) => state.setCurrentFileRef);
-  const setCurrentSubtitleRef = useEditorStore((state) => state.setCurrentSubtitleRef);
+  const {
+    replaceEditorDocument,
+    setMediaUrl,
+    setCurrentFilePath,
+    setCurrentSubtitlePath,
+    setCurrentFileRef,
+    setCurrentSubtitleRef,
+  } = useEditorDocumentWriters();
 
   const tryLoadRelatedSubtitle = useCallback(
     async (videoPath: string) => {

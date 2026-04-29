@@ -1,26 +1,10 @@
-import { DEFAULT_SUBTITLE_POSITION, type SubtitlePreset } from "../../components/dialogs/synthesis/types";
+import { DEFAULT_SUBTITLE_POSITION } from "../domain/synthesis/types";
+import type { PersistedSubtitleStyleValues } from "../domain/synthesis/styleTypes";
 import { parseVersionedSnapshot, serializeVersionedSnapshot } from "./versionedSnapshot";
 
 export type SynthesisQuality = "high" | "balanced" | "small";
 
-export type SynthesisSubtitleStylePreferences = {
-  fontSize: number;
-  fontColor: string;
-  fontName: string;
-  isBold: boolean;
-  isItalic: boolean;
-  outlineSize: number;
-  shadowSize: number;
-  outlineColor: string;
-  bgEnabled: boolean;
-  bgColor: string;
-  bgOpacity: number;
-  bgPadding: number;
-  alignment: number;
-  multilineAlign: "bottom" | "center" | "top";
-  subPos: { x: number; y: number };
-  customPresets: SubtitlePreset[];
-};
+export type SynthesisSubtitleStylePreferences = PersistedSubtitleStyleValues;
 
 export type SynthesisWatermarkPreferences = {
   wmScale: number;
@@ -48,7 +32,7 @@ export type SynthesisExecutionPreferencesUpdate = Partial<
 const SYNTHESIS_EXECUTION_PREFERENCES_KEY = "synthesis_execution_preferences";
 const SYNTHESIS_EXECUTION_PREFERENCES_VERSION = 1;
 
-const DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES: SynthesisExecutionPreferences = {
+export const DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES: SynthesisExecutionPreferences = {
   subtitleEnabled: true,
   watermarkEnabled: true,
   quality: "balanced",

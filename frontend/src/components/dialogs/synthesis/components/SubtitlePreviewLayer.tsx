@@ -3,13 +3,9 @@ import type React from "react";
 import type { SubtitleStyleState } from "../hooks/useSubtitleStyle";
 import type { PreviewDragTarget } from "../hooks/usePreviewDrag";
 import {
-  computeSubtitleLineBottomMargins,
-  shapeSubtitleText,
-} from "../textShaper";
-import {
   resolveSubtitlePreviewRenderSpec,
   resolveSubtitleRenderSourceSpec,
-} from "../subtitleRender";
+} from "../../../../services/domain";
 
 type SubtitlePreviewLayerProps = {
   style: SubtitleStyleState;
@@ -28,41 +24,8 @@ export function SubtitlePreviewLayer({
   dragging,
   onSubtitleDragStart,
 }: SubtitlePreviewLayerProps) {
-  const {
-    fontSize,
-    fontColor,
-    fontName,
-    isBold,
-    isItalic,
-    outlineSize,
-    shadowSize,
-    outlineColor,
-    bgEnabled,
-    bgColor,
-    bgOpacity,
-    bgPadding,
-    alignment,
-    multilineAlign,
-    subPos,
-    currentSubtitle,
-  } = style;
-
   const sourceRenderSpec = resolveSubtitleRenderSourceSpec({
-    fontSize,
-    fontColor,
-    fontName,
-    isBold,
-    isItalic,
-    outlineSize,
-    shadowSize,
-    outlineColor,
-    bgEnabled,
-    bgColor,
-    bgOpacity,
-    bgPadding,
-    alignment,
-    multilineAlign,
-    subPos,
+    ...style,
     outputWidth: sourceSize.width,
     outputHeight: sourceSize.height,
   });
@@ -75,66 +38,62 @@ export function SubtitlePreviewLayer({
     return null;
   }
 
-  const shapedSubtitle = shapeSubtitleText(
-    currentSubtitle || fallbackText,
-    previewMetrics.availableWidth,
-    previewMetrics.fontSize,
-    { fontFamily: fontName, isBold, isItalic },
-  );
-  const subtitleLines = shapedSubtitle.split("\n");
-  const lineBottomMargins = computeSubtitleLineBottomMargins(
-    subtitleLines.length,
-    previewMetrics.marginV,
-    previewMetrics.lineStep,
-    multilineAlign,
-  );
+  const subtitleText = style.currentSubtitle || fallbackText;
+  const alignment =
+    style.alignment === 1 ? "left" : style.alignment === 3 ? "right" : "center";
+  const blockAnchorTransform =
+    style.multilineAlign === "center"
+      ? "translateY(50%)"
+      : style.multilineAlign === "top"
+        ? "translateY(100%)"
+        : undefined;
 
   return (
     <div
       className="absolute inset-0 select-none group transition-colors pointer-events-none"
       style={{
         zIndex: 30,
-        textAlign: alignment === 1 ? "left" : alignment === 3 ? "right" : "center",
+        textAlign: alignment,
       }}
     >
-      {(currentSubtitle || dragging === "sub") &&
-        subtitleLines.map((lineText, index) => (
-          <div
-            key={`${index}-${lineText}`}
-            className="absolute"
+      {(style.currentSubtitle || dragging === "sub") && (
+        <div
+          className="absolute"
+          style={{
+            left: `${previewMetrics.marginL}px`,
+            right: `${previewMetrics.marginR}px`,
+            bottom: `${previewMetrics.marginV}px`,
+            textAlign: alignment,
+            transform: blockAnchorTransform,
+          }}
+        >
+          <span
+            className={`
+              inline-block text-lg md:text-xl leading-relaxed max-w-full cursor-move pointer-events-auto
+              transition-all duration-75
+              ${dragging === "sub" ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-black/50" : "group-hover:ring-1 group-hover:ring-white/30"}
+            `}
+            onMouseDown={onSubtitleDragStart}
             style={{
-              left: `${previewMetrics.marginL}px`,
-              right: `${previewMetrics.marginR}px`,
-              bottom: `${lineBottomMargins[index] ?? previewMetrics.marginV}px`,
-              textAlign: alignment === 1 ? "left" : alignment === 3 ? "right" : "center",
+              fontSize: `${previewMetrics.fontSize}px`,
+              color: style.fontColor,
+              fontFamily: `"${style.fontName}", sans-serif`,
+              fontWeight: style.isBold ? "bold" : "normal",
+              fontStyle: style.isItalic ? "italic" : "normal",
+              fontSynthesis: "style",
+              lineHeight: `${previewMetrics.lineStep}px`,
+              textShadow: previewMetrics.textShadow,
+              backgroundColor: previewMetrics.backgroundColor,
+              padding: previewMetrics.padding,
+              borderRadius: style.bgEnabled ? 0 : undefined,
+              whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
             }}
           >
-            <span
-              className={`
-                inline-block text-lg md:text-xl leading-relaxed max-w-full cursor-move pointer-events-auto
-                transition-all duration-75
-                ${dragging === "sub" ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-black/50" : "group-hover:ring-1 group-hover:ring-white/30"}
-              `}
-              onMouseDown={onSubtitleDragStart}
-              style={{
-                fontSize: `${previewMetrics.fontSize}px`,
-                color: fontColor,
-                fontFamily: `"${fontName}", sans-serif`,
-                fontWeight: isBold ? "bold" : "normal",
-                fontStyle: isItalic ? "italic" : "normal",
-                fontSynthesis: "style",
-                lineHeight: `${previewMetrics.lineStep}px`,
-                textShadow: previewMetrics.textShadow,
-                backgroundColor: previewMetrics.backgroundColor,
-                padding: previewMetrics.padding,
-                borderRadius: bgEnabled ? 0 : undefined,
-                whiteSpace: "pre",
-              }}
-            >
-              {lineText}
-            </span>
-          </div>
-        ))}
+            {subtitleText}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

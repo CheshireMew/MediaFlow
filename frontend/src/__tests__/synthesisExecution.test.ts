@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSynthesisOptionsFromPreferences } from "../services/domain/synthesisExecution";
+import { buildSynthesisOptionsFromPreferences } from "../services/domain";
 import type { SynthesisExecutionPreferences } from "../services/persistence/synthesisExecutionPreferences";
 
 const preferences: SynthesisExecutionPreferences = {

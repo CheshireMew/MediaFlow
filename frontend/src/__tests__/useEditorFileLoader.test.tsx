@@ -3,22 +3,12 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useEditorFileLoader } from "../hooks/editor/useEditorFileLoader";
 import { useEditorStore } from "../stores/editorStore";
 import type { ElectronAPI } from "../types/electron-api";
+import { resetEditorStoreForTests } from "./testFixtures";
 import { installElectronMock } from "./testUtils/electronMock";
 
 describe("useEditorFileLoader", () => {
   beforeEach(() => {
-    useEditorStore.setState({
-      regions: [],
-      mediaUrl: null,
-      currentFilePath: null,
-      currentSubtitlePath: null,
-      currentFileRef: null,
-      currentSubtitleRef: null,
-      activeSegmentId: null,
-      selectedIds: [],
-      past: [],
-      future: [],
-    });
+    resetEditorStoreForTests();
 
     installElectronMock({
       readFile: vi.fn(),

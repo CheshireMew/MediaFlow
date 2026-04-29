@@ -2,6 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useOCRProcessor } from "../hooks/preprocessing/useOCRProcessor";
 import { usePreprocessingStore } from "../stores/preprocessingStore";
+import { resetPreprocessingStoreForTests } from "./testFixtures";
 
 const useTaskContextMock = vi.fn();
 const getOcrResultsMock = vi.fn();
@@ -22,20 +23,7 @@ vi.mock("../services/domain", () => ({
 describe("useOCRProcessor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    usePreprocessingStore.setState({
-      preprocessingActiveTool: "extract",
-      enhanceModel: "RealESRGAN-x4plus",
-      enhanceScale: "4x",
-      enhanceMethod: "realesrgan",
-      cleanMethod: "telea",
-      ocrEngine: "rapid",
-      ocrResults: [],
-      preprocessingIsProcessing: false,
-      currentPreprocessingTaskId: null,
-      currentPreprocessingTaskTool: null,
-      currentPreprocessingTaskVideoPath: null,
-      currentPreprocessingTaskVideoRef: null,
-      preprocessingFiles: [],
+    resetPreprocessingStoreForTests({
       preprocessingVideoPath: "E:/video.mp4",
       preprocessingVideoRef: {
         path: "E:/canonical/video.mp4",

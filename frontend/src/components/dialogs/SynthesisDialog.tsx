@@ -15,9 +15,11 @@ import { SubtitleStylePanel } from './synthesis/components/SubtitleStylePanel';
 import { WatermarkPanel } from './synthesis/components/WatermarkPanel';
 import { OutputSettingsPanel } from './synthesis/components/OutputSettingsPanel';
 import { VideoPreview } from './synthesis/components/VideoPreview';
-import { resolvePreviewViewportMetrics } from './synthesis/previewViewport';
 import { desktopEventsService } from '../../services/desktop';
-import { buildSynthesisOptionsFromPreferences } from '../../services/domain';
+import {
+    buildSynthesisOptionsFromPreferences,
+    resolvePreviewViewportMetrics,
+} from '../../services/domain';
 import {
     restoreStoredSynthesisExecutionPreferences,
     type SynthesisExecutionPreferences,

@@ -1,26 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { usePreprocessingStore } from "../stores/preprocessingStore";
+import { resetPreprocessingStoreForTests } from "./testFixtures";
 
 describe("preprocessingStore persistence", () => {
   beforeEach(() => {
     localStorage.clear();
-    usePreprocessingStore.setState({
-      preprocessingActiveTool: "extract",
-      enhanceModel: "RealESRGAN-x4plus",
-      enhanceScale: "4x",
-      enhanceMethod: "realesrgan",
-      cleanMethod: "telea",
-      ocrEngine: "rapid",
-      ocrResults: [],
-      preprocessingIsProcessing: false,
-      currentPreprocessingTaskId: null,
-      currentPreprocessingTaskTool: null,
-      currentPreprocessingTaskVideoPath: null,
-      currentPreprocessingTaskVideoRef: null,
-      preprocessingFiles: [],
-      preprocessingVideoPath: null,
-      preprocessingVideoRef: null,
-    });
+    resetPreprocessingStoreForTests();
   });
 
   it("does not persist runtime-only preprocessing task state", () => {

@@ -9,6 +9,7 @@ import threading
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from basicsr.archs.srvgg_arch import SRVGGNetCompact
 from realesrgan import RealESRGANer
+from backend.utils.stdio import configure_utf8_stdio
 
 def get_model_instance(model_path, device):
     state_dict = torch.load(model_path, map_location='cpu')
@@ -34,13 +35,7 @@ def get_model_instance(model_path, device):
     raise ValueError(f"Unsupported model architecture: {model_path}")
 
 def main():
-    # Force utf-8 encoding for standard outputs to prevent IPC crashes on Windows
-    reconfigure = getattr(sys.stdout, "reconfigure", None)
-    if callable(reconfigure):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    reconfigure_err = getattr(sys.stderr, "reconfigure", None)
-    if callable(reconfigure_err):
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    configure_utf8_stdio()
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', type=str, required=True)

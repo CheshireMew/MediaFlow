@@ -3,7 +3,9 @@ import {
   createDesktopDownloadSubmissionPayload,
   resolveDownloadStepParams,
 } from "../services/domain/executionService";
+import { DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES } from "../services/persistence/synthesisExecutionPreferences";
 import type { PipelineRequest } from "../types/api";
+import { seedJapaneseCudaExecutionPreferences } from "./testFixtures";
 
 describe("download submission", () => {
   const pipeline: PipelineRequest = {
@@ -30,60 +32,18 @@ describe("download submission", () => {
   });
 
   it("builds the desktop submission payload from the shared execution preferences", async () => {
-    localStorage.setItem(
-      "asr_execution_preferences",
-      JSON.stringify({
-        schema_version: 1,
-        payload: {
-          engine: "builtin",
-          model: "large-v3",
-          device: "cuda",
-        },
-      }),
-    );
-    localStorage.setItem(
-      "translation_preferences",
-      JSON.stringify({
-        schema_version: 2,
-        payload: {
-          targetLanguage: "Japanese",
-          mode: "intelligent",
-        },
-      }),
-    );
+    seedJapaneseCudaExecutionPreferences({ model: "large-v3" });
     localStorage.setItem(
       "synthesis_execution_preferences",
       JSON.stringify({
         schema_version: 1,
         payload: {
+          ...DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES,
           subtitleEnabled: true,
           watermarkEnabled: false,
           quality: "high",
           useGpu: false,
           lastOutputDir: "E:/renders",
-          subtitleStyle: {
-            fontSize: 24,
-            fontColor: "#FFFFFF",
-            fontName: "Arial",
-            isBold: false,
-            isItalic: false,
-            outlineSize: 2,
-            shadowSize: 0,
-            outlineColor: "#000000",
-            bgEnabled: false,
-            bgColor: "#000000",
-            bgOpacity: 0.5,
-            bgPadding: 5,
-            alignment: 2,
-            multilineAlign: "center",
-            subPos: { x: 0.5, y: 0.9 },
-            customPresets: [],
-          },
-          watermark: {
-            wmScale: 0.2,
-            wmOpacity: 0.8,
-            wmPos: { x: 0.5, y: 0.5 },
-          },
         },
       }),
     );

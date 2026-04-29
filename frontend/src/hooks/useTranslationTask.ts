@@ -12,127 +12,73 @@ import { useExecutionModeState } from "./execution/useExecutionModeState";
 export const useTranslationTask = () => {
   const { tasks, tasksSettled } = useTaskContext();
   const { executionMode, setExecutionMode } = useExecutionModeState("translator");
-  const {
-    sourceSegments,
-    sourceFilePath,
-    sourceFileRef,
-    targetLang,
-    mode,
-    activeMode,
-    taskId,
-    targetSegments,
-    taskStatus,
-    progress,
-    taskError,
-    setTaskId,
-    setTaskStatus,
-    setProgress,
-    setTaskError,
-    setTargetSegments,
-    setSourceFileRef,
-    setTargetLang,
-    setMode,
-    setActiveMode,
-    setResultMode,
-    setTargetSubtitleRef,
-  } = useTranslatorStore();
+  const translatorStore = useTranslatorStore();
 
   const previousTranslateModeRef = useRef<"standard" | "intelligent">("standard");
-  const modeRef = useRef(mode);
   const activeTaskModeRef = useRef<TranslatorMode>("standard");
-
-  useEffect(() => {
-    modeRef.current = mode;
-  }, [mode]);
+  const taskBinding = {
+    ...translatorStore,
+    setExecutionMode,
+    activeTaskModeRef,
+    previousTranslateModeRef,
+  };
 
   useEffect(() => {
     const shouldClearProofreadExecution =
-      !taskId &&
-      activeMode === "proofread" &&
-      (taskStatus === "processing_result" || taskStatus === "completed");
+      !translatorStore.taskId &&
+      translatorStore.activeMode === "proofread" &&
+      (translatorStore.taskStatus === "processing_result" || translatorStore.taskStatus === "completed");
 
     if (shouldClearProofreadExecution) {
-      setActiveMode(null);
+      translatorStore.setActiveMode(null);
     }
-  }, [activeMode, setActiveMode, taskId, taskStatus]);
+  }, [translatorStore]);
 
   useEffect(() => {
     const unsubscribe = desktopEventsService.onTranslateProgress(({ progress }) => {
-      setTaskStatus("running");
-      setProgress(progress);
-      setTaskError(null);
+      translatorStore.setTaskStatus("running");
+      translatorStore.setProgress(progress);
+      translatorStore.setTaskError(null);
       setExecutionMode("direct_result");
     });
 
     return () => {
       unsubscribe();
     };
-  }, [setExecutionMode, setProgress, setTaskError, setTaskStatus]);
+  }, [setExecutionMode, translatorStore]);
 
   const isTranslating =
-    taskStatus === "translating" ||
-    taskStatus === "starting" ||
-    taskStatus === "processing_result" ||
-    taskStatus === "running" ||
-    taskStatus === "pending";
+    translatorStore.taskStatus === "translating" ||
+    translatorStore.taskStatus === "starting" ||
+    translatorStore.taskStatus === "processing_result" ||
+    translatorStore.taskStatus === "running" ||
+    translatorStore.taskStatus === "pending";
 
   useTranslationTaskSync({
     tasks,
     tasksSettled,
-    sourceFilePath,
-    sourceFileRef,
-    mode,
-    taskId,
-    currentTargetSegments: targetSegments,
-    setTaskId,
-    setTaskStatus,
-    setProgress,
-    setTaskError,
-    setExecutionMode,
-    setTargetSegments,
-    setSourceFileRef,
-    setTargetSubtitleRef,
-    setActiveMode,
-    setResultMode,
-    activeTaskModeRef,
-    previousTranslateModeRef,
+    ...taskBinding,
+    currentTargetSegments: translatorStore.targetSegments,
   });
   const { startTranslation, proofreadSubtitle } = useTranslationCommands({
-    sourceSegments,
-    sourceFilePath,
-    sourceFileRef,
-    targetLang,
-    mode,
-    setTaskStatus,
-    setProgress,
-    setTaskError,
-    setExecutionMode,
-    setTaskId,
-    setTargetSegments,
-    setSourceFileRef,
-    setTargetSubtitleRef,
-    setMode,
-    setActiveMode,
-    setResultMode,
-    activeTaskModeRef,
-    previousTranslateModeRef,
+    ...taskBinding,
   });
 
   return {
-    taskId,
-    taskStatus,
-    progress,
-    taskError,
+    taskId: translatorStore.taskId,
+    taskStatus: translatorStore.taskStatus,
+    progress: translatorStore.progress,
+    taskError: translatorStore.taskError,
     executionMode,
-    sourceFileRef,
-    targetLang,
-    mode,
-    activeMode,
+    sourceFileRef: translatorStore.sourceFileRef,
+    targetLang: translatorStore.targetLang,
+    mode: translatorStore.mode,
+    activeMode: translatorStore.activeMode,
     isTranslating,
     startTranslation,
     proofreadSubtitle,
-    setTargetLang,
-    setMode,
+    setTargetLang: translatorStore.setTargetLang,
+    setMode: translatorStore.setMode,
     setExecutionMode,
   };
 };

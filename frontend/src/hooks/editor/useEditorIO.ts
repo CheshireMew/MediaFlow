@@ -19,24 +19,21 @@ import {
 } from "./editorFileHelpers";
 import { useEditorFileLoader } from "./useEditorFileLoader";
 import { useEditorSubtitleActions } from "./useEditorSubtitleActions";
+import { useEditorDocumentWriters } from "./useEditorDocumentWriters";
 
 export { isSupportedEditorSubtitlePath } from "./editorFileHelpers";
 
 export function useEditorIO() {
   const mediaUrl = useEditorStore((state) => state.mediaUrl);
   const currentFilePath = useEditorStore((state) => state.currentFilePath);
-  const replaceEditorDocument = useEditorStore(
-    (state) => state.replaceEditorDocument,
-  );
-  const setMediaUrl = useEditorStore((state) => state.setMediaUrl);
-  const setCurrentFilePath = useEditorStore(
-    (state) => state.setCurrentFilePath,
-  );
-  const setCurrentSubtitlePath = useEditorStore(
-    (state) => state.setCurrentSubtitlePath,
-  );
-  const setCurrentFileRef = useEditorStore((state) => state.setCurrentFileRef);
-  const setCurrentSubtitleRef = useEditorStore((state) => state.setCurrentSubtitleRef);
+  const {
+    replaceEditorDocument,
+    setMediaUrl,
+    setCurrentFilePath,
+    setCurrentSubtitlePath,
+    setCurrentFileRef,
+    setCurrentSubtitleRef,
+  } = useEditorDocumentWriters();
   const {
     handleOpenFile,
     handleOpenSubtitle,

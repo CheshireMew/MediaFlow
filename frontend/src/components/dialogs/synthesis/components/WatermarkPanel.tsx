@@ -3,6 +3,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Image as ImageIcon } from 'lucide-react';
 import type { WatermarkState } from '../hooks/useWatermark';
+import { PanelToggle } from './PanelToggle';
 
 type WatermarkPositionPreset = "TL" | "TC" | "TR" | "BL" | "BC" | "BR" | "C" | "LC" | "RC";
 
@@ -28,17 +29,12 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark, enabled, onToggle }
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                     <ImageIcon size={12}/> {t('watermark.sectionTitle')}
                 </h3>
-                <button
-                    onClick={() => onToggle(!enabled)}
-                    className={`relative w-9 h-5 rounded-full transition-colors ${
-                        enabled ? 'bg-indigo-500' : 'bg-white/10'
-                    }`}
-                    title={enabled ? t('common:disable') : t('common:enable')}
-                >
-                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                        enabled ? 'translate-x-4' : 'translate-x-0.5'
-                    }`} />
-                </button>
+                <PanelToggle
+                    enabled={enabled}
+                    onToggle={onToggle}
+                    enableTitle={t('common:enable')}
+                    disableTitle={t('common:disable')}
+                />
             </div>
             {!enabled && (
                 <p className="text-[10px] text-slate-600 bg-white/[0.02] border border-white/5 rounded-lg p-3 text-center">

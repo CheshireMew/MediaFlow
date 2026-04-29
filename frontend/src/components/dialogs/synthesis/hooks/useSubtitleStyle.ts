@@ -2,33 +2,19 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { SubtitleSegment } from "../../../../types/task";
 import {
+  computeDefaultSubtitleFontSize,
   DEFAULT_PRESETS,
   DEFAULT_SUBTITLE_POSITION,
-} from "../types";
-import type { SubtitlePreset } from "../types";
+  type SubtitlePreset,
+  type SubtitleStyleValues,
+} from "../../../../services/domain";
 import { detectFontAvailability } from "../fontUtils";
-import { computeDefaultSubtitleFontSize } from "../subtitleRender";
 import {
   updateStoredSynthesisExecutionPreferences,
   type SynthesisExecutionPreferences,
 } from "../../../../services/persistence/synthesisExecutionPreferences";
 
-export interface SubtitleStyleState {
-  // Style values
-  fontSize: number;
-  fontColor: string;
-  fontName: string;
-  isBold: boolean;
-  isItalic: boolean;
-  outlineSize: number;
-  shadowSize: number;
-  outlineColor: string;
-  bgEnabled: boolean;
-  bgColor: string;
-  bgOpacity: number;
-  bgPadding: number;
-  alignment: number;
-  multilineAlign: "bottom" | "center" | "top";
+export interface SubtitleStyleState extends SubtitleStyleValues {
   isFontAvailable: boolean;
   // Setters
   setFontSize: (v: number) => void;
@@ -130,6 +116,41 @@ export function useSubtitleStyle(
   const fontAvailabilityMessage = fontAvailable
     ? null
     : `字体 "${fontName}" 当前不可用，预览可能回退到替代字体。`;
+
+  const subtitleStyleValues = useMemo<SubtitleStyleValues>(
+    () => ({
+      fontSize,
+      fontColor,
+      fontName,
+      isBold,
+      isItalic,
+      outlineSize,
+      shadowSize,
+      outlineColor,
+      bgEnabled,
+      bgColor,
+      bgOpacity,
+      bgPadding,
+      alignment,
+      multilineAlign,
+    }),
+    [
+      fontSize,
+      fontColor,
+      fontName,
+      isBold,
+      isItalic,
+      outlineSize,
+      shadowSize,
+      outlineColor,
+      bgEnabled,
+      bgColor,
+      bgOpacity,
+      bgPadding,
+      alignment,
+      multilineAlign,
+    ],
+  );
 
   useEffect(() => {
     videoHeightRef.current = videoHeight;
@@ -235,39 +256,9 @@ export function useSubtitleStyle(
   useEffect(() => {
     if (!isInitialized.current) return;
     updateStoredSynthesisExecutionPreferences({
-      subtitleStyle: {
-        fontName,
-        isBold,
-        isItalic,
-        outlineSize,
-        shadowSize,
-        outlineColor,
-        bgEnabled,
-        bgColor,
-        bgOpacity,
-        bgPadding,
-        alignment,
-        multilineAlign,
-        fontSize,
-        fontColor,
-      },
+      subtitleStyle: subtitleStyleValues,
     });
-  }, [
-    fontName,
-    isBold,
-    isItalic,
-    outlineSize,
-    shadowSize,
-    outlineColor,
-    bgEnabled,
-    bgColor,
-    bgOpacity,
-    bgPadding,
-    alignment,
-    multilineAlign,
-    fontSize,
-    fontColor,
-  ]);
+  }, [subtitleStyleValues]);
 
   // --- Preset actions ---
   const applyPreset = (preset: SubtitlePreset) => {
@@ -295,18 +286,18 @@ export function useSubtitleStyle(
     if (allLabels.includes(trimmed)) return;
     const newPreset: SubtitlePreset = {
       label: trimmed,
-      fontName,
-      fontSize,
-      fontColor,
-      bold: isBold,
-      italic: isItalic,
-      outline: outlineSize,
-      shadow: shadowSize,
-      outlineColor,
-      bgEnabled,
-      bgColor,
-      bgOpacity,
-      bgPadding,
+      fontName: subtitleStyleValues.fontName,
+      fontSize: subtitleStyleValues.fontSize,
+      fontColor: subtitleStyleValues.fontColor,
+      bold: subtitleStyleValues.isBold,
+      italic: subtitleStyleValues.isItalic,
+      outline: subtitleStyleValues.outlineSize,
+      shadow: subtitleStyleValues.shadowSize,
+      outlineColor: subtitleStyleValues.outlineColor,
+      bgEnabled: subtitleStyleValues.bgEnabled,
+      bgColor: subtitleStyleValues.bgColor,
+      bgOpacity: subtitleStyleValues.bgOpacity,
+      bgPadding: subtitleStyleValues.bgPadding,
     };
     const updated = [...customPresets, newPreset];
     setCustomPresets(updated);
@@ -325,20 +316,7 @@ export function useSubtitleStyle(
   };
 
   return {
-    fontSize,
-    fontColor,
-    fontName,
-    isBold,
-    isItalic,
-    outlineSize,
-    shadowSize,
-    outlineColor,
-    bgEnabled,
-    bgColor,
-    bgOpacity,
-    bgPadding,
-    alignment,
-    multilineAlign,
+    ...subtitleStyleValues,
     isFontAvailable: fontAvailable,
     setFontSize,
     setFontColor,

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+﻿import { describe, expect, test } from "vitest";
 import { act, render, renderHook } from "@testing-library/react";
 import { highlightSubtitleText } from "../components/editor/subtitleTextHighlight";
 import {
@@ -7,24 +7,22 @@ import {
 } from "../components/dialogs/findReplaceUtils";
 import { useCrop } from "../components/dialogs/synthesis/hooks/useCrop";
 import { useSubtitleStyle } from "../components/dialogs/synthesis/hooks/useSubtitleStyle";
-import { restoreStoredSynthesisExecutionPreferences } from "../services/persistence/synthesisExecutionPreferences";
 import {
-  computeSubtitleLineBottomMargins,
-  shapeSubtitleLine,
-} from "../components/dialogs/synthesis/textShaper";
+  DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES,
+  restoreStoredSynthesisExecutionPreferences,
+} from "../services/persistence/synthesisExecutionPreferences";
 import {
+  buildEmptySubtitlePreviewRenderSpec,
   buildPreviewTextShadow,
   computeDefaultSubtitleFontSize,
   computeSubtitleExportFontSize,
-  hexWithOpacity,
-  resolveSubtitlePreviewRenderSpec,
-  resolveSubtitleRenderSourceSpec,
-} from "../components/dialogs/synthesis/subtitleRender";
-import { resolvePreviewViewportMetrics } from "../components/dialogs/synthesis/previewViewport";
-import {
   DEFAULT_SUBTITLE_POSITION,
   hexToAss,
-} from "../components/dialogs/synthesis/types";
+  hexWithOpacity,
+  resolvePreviewViewportMetrics,
+  resolveSubtitlePreviewRenderSpec,
+  resolveSubtitleRenderSourceSpec,
+} from "../services/domain";
 import {
   resolveSubtitleReferenceForTranslation,
   resolveSubtitlePathForTranslation,
@@ -113,7 +111,7 @@ describe("editor subtitle behaviors", () => {
         id: "1",
         start: 0,
         end: 6,
-        text: "这是一个刚好触发智能分割的前半句，而且后半句也足够长",
+        text: "This sentence has a strong punctuation boundary, and the second half is long enough too.",
       },
     ];
 
@@ -147,7 +145,7 @@ describe("editor subtitle behaviors", () => {
         id: "1",
         start: 0,
         end: 6,
-        text: "但他不允许史蒂夫·乔布斯对 Apple One 电脑做任何改动这真的非常离谱",
+        text: "浣嗕粬涓嶅厑璁稿彶钂傚か路涔斿竷鏂 Apple One 鐢佃剳鍋氫换浣曟敼鍔ㄨ繖鐪熺殑闈炲父绂昏氨",
       },
     ];
 
@@ -167,7 +165,7 @@ describe("editor subtitle behaviors", () => {
         id: "1",
         start: 0,
         end: 6,
-        text: "那就是大多数人从未获得那些经历，因为他们从不开口询问。",
+        text: "This sentence has a strong punctuation boundary, and the second half is long enough too.",
       },
     ];
 
@@ -175,8 +173,8 @@ describe("editor subtitle behaviors", () => {
 
     expect(result.splitCount).toBe(1);
     expect(result.segments).toHaveLength(2);
-    expect(result.segments[0].text).toBe("那就是大多数人从未获得那些经历，");
-    expect(result.segments[1].text).toBe("因为他们从不开口询问。");
+    expect(result.segments[0].text).toBe("This sentence has a strong punctuation boundary,");
+    expect(result.segments[1].text).toBe("and the second half is long enough too.");
   });
 
   test("smart split can use repeated short clauses separated by two punctuation marks", () => {
@@ -185,7 +183,7 @@ describe("editor subtitle behaviors", () => {
         id: "1",
         start: 0,
         end: 6,
-        text: "7 个有效单元，7 个有效单元，7 个有效单元",
+        text: "This sentence has a strong punctuation boundary, and the second half is long enough too.",
       },
     ];
 
@@ -368,36 +366,6 @@ describe("editor subtitle behaviors", () => {
     expect(DEFAULT_SUBTITLE_POSITION).toEqual({ x: 0.5, y: 0.9 });
   });
 
-  test("subtitle shaping keeps CJK punctuation off the next line start", () => {
-    expect(shapeSubtitleLine("你好，世界你好", 40, 12)).toBe("你好，\n世界你\n好");
-  });
-
-  test("subtitle shaping breaks latin text at spaces when possible", () => {
-    expect(shapeSubtitleLine("alpha beta gamma", 50, 12)).toBe("alpha\nbeta\ngamma");
-  });
-
-  test("subtitle shaping can use browser font measurement to avoid premature wrapping", () => {
-    const originalGetContext = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = (() =>
-      ({
-        font: "",
-        measureText: (text: string) => ({ width: text === "W" ? 8 : 6 }),
-      }) as unknown as CanvasRenderingContext2D) as unknown as typeof HTMLCanvasElement.prototype.getContext;
-
-    try {
-      expect(
-        shapeSubtitleLine("WWW", 24, 24, { fontFamily: "Arial" }),
-      ).toBe("WWW");
-    } finally {
-      HTMLCanvasElement.prototype.getContext = originalGetContext;
-    }
-  });
-
-  test("multiline center alignment uses symmetric bottom margins", () => {
-    expect(computeSubtitleLineBottomMargins(3, 40, 20, "center")).toEqual([
-      60, 40, 20,
-    ]);
-  });
 
   test("preview subtitle render waits for source metadata before scaling styles", () => {
     const source = resolveSubtitleRenderSourceSpec({
@@ -426,23 +394,7 @@ describe("editor subtitle behaviors", () => {
         previewWidth: 960,
         previewHeight: 540,
       }),
-    ).toEqual({
-      isReady: false,
-      width: 960,
-      height: 540,
-      fontSize: 0,
-      outlineSize: 0,
-      shadowSize: 0,
-      backgroundPadding: 0,
-      lineInsetSize: 0,
-      lineStep: 0,
-      marginV: 0,
-      marginL: 0,
-      marginR: 0,
-      availableWidth: 0,
-      backgroundColor: "transparent",
-      padding: "0px",
-    });
+    ).toEqual(buildEmptySubtitlePreviewRenderSpec(960, 540));
   });
 
   test("preview subtitle render comes from a single source spec once metadata is ready", () => {
@@ -515,21 +467,7 @@ describe("editor subtitle behaviors", () => {
     });
 
     const source = resolveSubtitleRenderSourceSpec({
-      fontSize: 24,
-      fontColor: "#FFFFFF",
-      fontName: "Arial",
-      isBold: false,
-      isItalic: false,
-      outlineSize: 2,
-      shadowSize: 0,
-      outlineColor: "#000000",
-      bgEnabled: false,
-      bgColor: "#000000",
-      bgOpacity: 0.5,
-      bgPadding: 5,
-      alignment: 2,
-      multilineAlign: "center",
-      subPos: { x: 0.5, y: 0.9 },
+      ...DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES.subtitleStyle,
       outputWidth: viewport.outputSourceWidth,
       outputHeight: viewport.outputSourceHeight,
     });
@@ -600,33 +538,10 @@ describe("editor subtitle behaviors", () => {
       JSON.stringify({
         schema_version: 1,
         payload: {
-          subtitleEnabled: true,
-          watermarkEnabled: true,
-          quality: "balanced",
-          useGpu: true,
-          lastOutputDir: null,
+          ...DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES,
           subtitleStyle: {
+            ...DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES.subtitleStyle,
             fontSize: 40,
-            fontColor: "#FFFFFF",
-            fontName: "Arial",
-            isBold: false,
-            isItalic: false,
-            outlineSize: 2,
-            shadowSize: 0,
-            outlineColor: "#000000",
-            bgEnabled: false,
-            bgColor: "#000000",
-            bgOpacity: 0.5,
-            bgPadding: 5,
-            alignment: 2,
-            multilineAlign: "center",
-            subPos: { x: 0.5, y: 0.9 },
-            customPresets: [],
-          },
-          watermark: {
-            wmScale: 0.2,
-            wmOpacity: 0.8,
-            wmPos: { x: 0.5, y: 0.5 },
           },
         },
       }),

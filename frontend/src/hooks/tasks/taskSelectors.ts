@@ -180,7 +180,6 @@ export const findCompletedTranscribeTask = (
 export const mapTaskToTranscribeResult = (
   task: Task,
   fileRef: MediaReference | null,
-  _filePath: string | null | undefined,
 ): TranscribeResult | null => {
   if (!task.result) return null;
 

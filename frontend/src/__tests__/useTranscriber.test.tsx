@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTranscriber } from "../hooks/useTranscriber";
 import type { Task } from "../types/task";
 import { apiClient } from "../api/client";
+import { createTranscribeStepRequestParams } from "./testFixtures";
 import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
 import type { MockedElectronAPI } from "./testUtils/electronMock";
 
@@ -528,17 +529,7 @@ describe("useTranscriber", () => {
       message: "Pipeline completed",
       request_params: {
         pipeline_id: "transcriber_tool",
-        steps: [
-          {
-            step_name: "transcribe",
-            params: {
-              audio_ref: {
-                path: "E:/sample.mp4",
-                name: "sample.mp4",
-              },
-            },
-          },
-        ],
+        ...createTranscribeStepRequestParams(),
       },
       result: {
         success: true,
@@ -629,17 +620,7 @@ describe("useTranscriber", () => {
       message: "Pipeline completed",
       request_params: {
         pipeline_id: "transcriber_tool",
-        steps: [
-          {
-            step_name: "transcribe",
-            params: {
-              audio_ref: {
-                path: "E:/sample.mp4",
-                name: "sample.mp4",
-              },
-            },
-          },
-        ],
+        ...createTranscribeStepRequestParams(),
       },
       result: {
         success: true,

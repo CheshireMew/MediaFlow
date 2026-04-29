@@ -4,6 +4,7 @@ import { renderHook, waitFor, cleanup } from "@testing-library/react";
 import { useEditorIO } from "../hooks/editor/useEditorIO";
 import { useEditorStore } from "../stores/editorStore";
 import { writePendingMediaNavigation } from "../services/ui/pendingMediaNavigation";
+import { resetEditorStoreForTests } from "./testFixtures";
 import { installElectronMock } from "./testUtils/electronMock";
 
 describe("Editor recovery", () => {
@@ -26,18 +27,7 @@ describe("Editor recovery", () => {
     vi.restoreAllMocks();
     sessionStorage.clear();
     localStorage.clear();
-    useEditorStore.setState({
-      regions: [],
-      mediaUrl: null,
-      currentFilePath: null,
-      currentSubtitlePath: null,
-      currentFileRef: null,
-      currentSubtitleRef: null,
-      activeSegmentId: null,
-      selectedIds: [],
-      past: [],
-      future: [],
-    });
+    resetEditorStoreForTests();
   });
 
   beforeEach(() => {

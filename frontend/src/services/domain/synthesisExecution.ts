@@ -1,8 +1,8 @@
-import { resolvePreviewViewportMetrics } from "../../components/dialogs/synthesis/previewViewport";
+import { resolvePreviewViewportMetrics } from "./synthesis/previewViewport";
 import {
   buildSubtitleSynthesisOptions,
   resolveSubtitleRenderSourceSpec,
-} from "../../components/dialogs/synthesis/subtitleRender";
+} from "./synthesis/subtitleRender";
 import type { SynthesizeOptions } from "../../types/api";
 import { editorService } from "./editorService";
 import type { SynthesisExecutionPreferences } from "../persistence/synthesisExecutionPreferences";

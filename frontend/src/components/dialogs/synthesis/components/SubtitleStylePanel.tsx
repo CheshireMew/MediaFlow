@@ -2,9 +2,10 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Type, Bold, Italic, AlignLeft, AlignCenter, AlignRight, Save, Trash2, X, MonitorPlay, AlignStartVertical, AlignCenterVertical, AlignEndVertical, RotateCcw } from 'lucide-react';
-import { FONT_PRESETS, DEFAULT_PRESETS } from '../types';
+import { FONT_PRESETS, DEFAULT_PRESETS } from '../../../../services/domain';
 import type { SubtitleStyleState } from '../hooks/useSubtitleStyle';
 import { isKeyboardEventComposing } from '../../../../utils/keyboardShortcuts';
+import { PanelToggle } from './PanelToggle';
 
 interface Props {
     style: SubtitleStyleState;
@@ -32,17 +33,12 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                     <Type size={12}/> {t('style.sectionTitle')}
                 </h3>
-                <button
-                    onClick={() => onToggle(!enabled)}
-                    className={`relative w-9 h-5 rounded-full transition-colors ${
-                        enabled ? 'bg-indigo-500' : 'bg-white/10'
-                    }`}
-                    title={enabled ? t('common:disable') : t('common:enable')}
-                >
-                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                        enabled ? 'translate-x-4' : 'translate-x-0.5'
-                    }`} />
-                </button>
+                <PanelToggle
+                    enabled={enabled}
+                    onToggle={onToggle}
+                    enableTitle={t('common:enable')}
+                    disableTitle={t('common:disable')}
+                />
             </div>
             {!enabled && (
                 <p className="text-[10px] text-slate-600 bg-white/[0.02] border border-white/5 rounded-lg p-3 text-center">

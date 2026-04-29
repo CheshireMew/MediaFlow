@@ -15,23 +15,12 @@ from backend.desktop.worker_context import emit, emit_error
 from backend.core.container import container
 from backend.core.runtime_access import configure_runtime_services
 from backend.core.service_registry import register_desktop_worker_services
+from backend.utils.stdio import configure_utf8_stdio
 
 _worker_runtime_bootstrapped = False
 
 def configure_worker_stdio() -> None:
-    reconfigure_in = getattr(sys.stdin, "reconfigure", None)
-    if callable(reconfigure_in):
-        # Desktop IPC payloads are always exchanged as UTF-8 JSON. On Windows the
-        # process locale may default to GBK, which used to corrupt non-ASCII text
-        # between the frontend and the Python worker before any app logic ran.
-        sys.stdin.reconfigure(encoding="utf-8")
-        
-    reconfigure = getattr(sys.stdout, "reconfigure", None)
-    if callable(reconfigure):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    reconfigure_err = getattr(sys.stderr, "reconfigure", None)
-    if callable(reconfigure_err):
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    configure_utf8_stdio(include_stdin=True)
 
 
 def configure_worker_logging() -> None:

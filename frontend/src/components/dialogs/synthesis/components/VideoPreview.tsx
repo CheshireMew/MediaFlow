@@ -8,7 +8,7 @@ import type { CropState } from "../hooks/useCrop";
 import { usePreviewDrag } from "../hooks/usePreviewDrag";
 import { usePreviewFrameMetrics } from "../hooks/usePreviewFrameMetrics";
 import { usePreviewMediaState } from "../hooks/usePreviewMediaState";
-import { resolvePreviewViewportMetrics } from "../previewViewport";
+import { resolvePreviewViewportMetrics } from "../../../../services/domain";
 import { CropOverlay } from "./CropOverlay";
 import { PreviewMediaElement } from "./PreviewMediaElement";
 import {

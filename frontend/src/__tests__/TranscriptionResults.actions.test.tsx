@@ -7,6 +7,7 @@ import {
 } from "../hooks/transcriber/useTranscriberCommands";
 import { resolveNavigationMediaPayload } from "../services/ui/navigation";
 import type { ElectronFile } from "../types/electron";
+import { createSampleTranscriptionResult } from "./testFixtures";
 import { installElectronMock } from "./testUtils/electronMock";
 
 vi.mock("react-i18next", () => ({
@@ -48,20 +49,7 @@ describe("TranscriptionResults actions", () => {
 
     render(
       <TranscriptionResults
-        result={{
-          text: "hello world",
-          language: "en",
-          srt_path: "E:/sample.srt",
-          video_ref: {
-            path: "E:/sample.mp4",
-            name: "sample.mp4",
-          },
-          subtitle_ref: {
-            path: "E:/sample.srt",
-            name: "sample.srt",
-          },
-          segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
-        }}
+        result={createSampleTranscriptionResult()}
         isSmartSplitting={false}
         onSmartSplit={vi.fn()}
         onSendToEditor={vi.fn()}
@@ -169,20 +157,7 @@ describe("TranscriptionResults actions", () => {
 
     render(
       <TranscriptionResults
-        result={{
-          text: "hello world",
-          language: "en",
-          srt_path: "E:/sample.srt",
-          video_ref: {
-            path: "E:/sample.mp4",
-            name: "sample.mp4",
-          },
-          subtitle_ref: {
-            path: "E:/sample.srt",
-            name: "sample.srt",
-          },
-          segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
-        }}
+        result={createSampleTranscriptionResult()}
         isSmartSplitting={false}
         onSmartSplit={vi.fn()}
         onSendToEditor={onSendToEditor}

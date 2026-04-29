@@ -31,7 +31,7 @@ vi.mock("../services/desktop", () => ({
   isDesktopRuntime: () => isDesktopRuntimeMock(),
 }));
 
-vi.mock("../services/tasks/taskRetry", () => ({
+vi.mock("../services/tasks/retry", () => ({
   canRetryTask: (...args: unknown[]) => canRetryTaskMock(...args),
   retryFailedTask: (...args: unknown[]) => retryFailedTaskMock(...args),
 }));
@@ -433,4 +433,3 @@ describe("TaskMonitor integration", () => {
   });
 
 });
-

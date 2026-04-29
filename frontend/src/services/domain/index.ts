@@ -8,6 +8,51 @@ export {
   resolveSynthesisWatermarkPath,
 } from "./synthesisExecution";
 export {
+  DEFAULT_PRESETS,
+  DEFAULT_SUBTITLE_POSITION,
+  FONT_PRESETS,
+  hexToAss,
+} from "./synthesis/types";
+export type { SubtitlePreset } from "./synthesis/types";
+export {
+  resolvePreviewViewportMetrics,
+} from "./synthesis/previewViewport";
+export type { PreviewViewportMetrics } from "./synthesis/previewViewport";
+export {
+  buildEmptySubtitlePreviewRenderSpec,
+  buildSubtitleSynthesisOptions,
+  buildPreviewTextShadow,
+  computeDefaultSubtitleFontSize,
+  computeSubtitleExportFontSize,
+  hexWithOpacity,
+  resolveSubtitlePreviewRenderSpec,
+  resolveSubtitleRenderSourceSpec,
+} from "./synthesis/subtitleRender";
+export type {
+  SubtitleRenderPreviewSpec,
+  SubtitleRenderSourceInput,
+  SubtitleRenderSourceSpec,
+  SubtitleRenderStyleInput,
+  SubtitleSynthesisStyleOptions,
+} from "./synthesis/subtitleRender";
+export {
+  clampNormalizedPosition,
+} from "./synthesis/subtitlePlacement";
+export type { SubtitleCropRegion } from "./synthesis/subtitlePlacement";
+export type {
+  PersistedSubtitleStyleValues,
+  SubtitleMultilineAlign,
+  SubtitleStyleValues,
+} from "./synthesis/styleTypes";
+export {
+  getFontCatalogEntry,
+  isBundledFont,
+} from "./synthesis/fontCatalog";
+export type {
+  FontCatalogEntry,
+  FontCatalogSource,
+} from "./synthesis/fontCatalog";
+export {
   isAiTranslationSetupRequiredError,
   isCliTranscriptionSetupRequiredError,
 } from "./executionAccess";

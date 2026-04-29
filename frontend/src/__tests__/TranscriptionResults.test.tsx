@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TranscriptionResults } from "../components/transcriber/TranscriptionResults";
 import zhTranscriber from "../i18n/locales/zh/transcriber.json";
 import enTranscriber from "../i18n/locales/en/transcriber.json";
+import { createSampleTranscriptionResult } from "./testFixtures";
 
 async function createI18n(language: "zh" | "en") {
   const instance = i18next.createInstance();
@@ -58,22 +59,7 @@ describe("TranscriptionResults", () => {
     render(
       <I18nextProvider i18n={i18n}>
         <TranscriptionResults
-          result={{
-            text: "hello world",
-            language: "en",
-            srt_path: "E:/sample.srt",
-            video_ref: {
-              path: "E:/sample.mp4",
-              name: "sample.mp4",
-            },
-            subtitle_ref: {
-              path: "E:/sample.srt",
-              name: "sample.srt",
-            },
-            segments: [
-              { id: "1", start: 0, end: 1, text: "hello" },
-            ],
-          }}
+          result={createSampleTranscriptionResult()}
           isSmartSplitting={false}
           onSmartSplit={vi.fn()}
           onSendToEditor={vi.fn()}

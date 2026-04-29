@@ -4,7 +4,7 @@ import { FolderOpen } from "lucide-react";
 import { useTaskContext } from "../context/taskContext";
 import type { Task, TaskResult } from "../types/task";
 import { useTaskMonitorOverview } from "./task-monitor/useTaskMonitorOverview";
-import { canRetryTask, retryFailedTask } from "../services/tasks/taskRetry";
+import { canRetryTask, retryFailedTask } from "../services/tasks/retry";
 import { TaskMonitorHeader } from "./task-monitor/TaskMonitorHeader";
 import { TaskMonitorItem } from "./task-monitor/TaskMonitorItem";
 
