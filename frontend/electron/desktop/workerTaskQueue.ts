@@ -1,22 +1,25 @@
 import type { Task } from "../../src/types/task";
-import { createDesktopTask, getDesktopTaskSnapshot, isTrackedDesktopCommand } from "./taskMapper";
+import { createDesktopTask, getDesktopTaskSnapshot } from "./taskMapper";
 import type {
+  ActiveDesktopWorkerTask,
   DesktopTaskCollections,
   DesktopTaskType,
   DesktopWorkerRuntimeRequest,
   PausedDesktopWorkerTask,
 } from "./taskTypes";
+import { isDesktopTaskCommand } from "./workerCommandLanes";
 
 type EmitTask = (message: unknown) => void;
 
 export class DesktopWorkerTaskQueue {
-  activeTaskId: string | null = null;
+  readonly activeTasks = new Map<string, ActiveDesktopWorkerTask>();
   readonly queuedTaskIds: string[] = [];
   readonly pausedTasks = new Map<string, PausedDesktopWorkerTask>();
 
   listTasks(requests: Map<string, DesktopWorkerRuntimeRequest>, historyTasks: Task[] = []) {
     return getDesktopTaskSnapshot({
-      activeTaskId: this.activeTaskId,
+      runningTaskIds: this.runningTaskIds(),
+      activeTasks: this.activeTasks,
       queuedTaskIds: this.queuedTaskIds,
       pausedTasks: this.pausedTasks,
       requests,
@@ -26,7 +29,7 @@ export class DesktopWorkerTaskQueue {
 
   collections(requests: Map<string, DesktopWorkerRuntimeRequest>): DesktopTaskCollections {
     return {
-      activeTaskId: this.activeTaskId,
+      runningTaskIds: this.runningTaskIds(),
       queuedTaskIds: this.queuedTaskIds,
       pausedTasks: this.pausedTasks,
       requests,
@@ -64,7 +67,7 @@ export class DesktopWorkerTaskQueue {
   syncQueuedTasks(requests: Map<string, DesktopWorkerRuntimeRequest>, emitTask: EmitTask) {
     this.queuedTaskIds.forEach((taskId, index) => {
       const pending = requests.get(taskId);
-      if (!pending || !isTrackedDesktopCommand(pending.command)) {
+      if (!pending || !isDesktopTaskCommand(pending.command)) {
         return;
       }
       emitTask({
@@ -93,14 +96,27 @@ export class DesktopWorkerTaskQueue {
     if (!pending) {
       return { taskId: nextTaskId, request: null };
     }
-    this.activeTaskId = nextTaskId;
     return { taskId: nextTaskId, request: pending };
   }
 
-  markActiveStarted(taskId: string, request: DesktopWorkerRuntimeRequest, emitTask: EmitTask) {
-    if (!isTrackedDesktopCommand(request.command)) {
+  markActiveStarted(
+    taskId: string,
+    request: DesktopWorkerRuntimeRequest,
+    slotId: string,
+    emitTask: EmitTask,
+  ) {
+    if (!isDesktopTaskCommand(request.command)) {
       return;
     }
+    this.activeTasks.set(taskId, {
+      taskId,
+      slotId,
+      command: request.command,
+      payload: request.payload,
+      startedAt: Date.now(),
+      progress: 0,
+      message: "Starting",
+    });
     emitTask({
       type: "update",
       task: {
@@ -118,15 +134,22 @@ export class DesktopWorkerTaskQueue {
   }
 
   clearActiveIf(taskId: string) {
-    if (this.activeTaskId === taskId) {
-      this.activeTaskId = null;
-      return true;
-    }
-    return false;
+    return this.activeTasks.delete(taskId);
   }
 
-  resetActive() {
-    this.activeTaskId = null;
+  updateActiveProgress(taskId: string, progress: number, message?: string) {
+    const activeTask = this.activeTasks.get(taskId);
+    if (!activeTask) {
+      return false;
+    }
+
+    activeTask.progress = Number.isFinite(progress) ? progress : activeTask.progress;
+    activeTask.message = message ?? activeTask.message;
+    return true;
+  }
+
+  runningTaskIds() {
+    return new Set(this.activeTasks.keys());
   }
 
   clearQueued() {

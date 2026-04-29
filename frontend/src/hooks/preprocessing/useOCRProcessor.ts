@@ -70,20 +70,20 @@ export function useOCRProcessor({
   );
   const ocrResults = usePreprocessingStore((state) => state.ocrResults);
   const setOcrResults = usePreprocessingStore((state) => state.setOcrResults);
-  const activeTaskId = usePreprocessingStore(
-    (state) => state.preprocessingActiveTaskId,
+  const currentPreprocessingTaskId = usePreprocessingStore(
+    (state) => state.currentPreprocessingTaskId,
   );
-  const setActiveTask = usePreprocessingStore(
-    (state) => state.setPreprocessingActiveTask,
+  const setCurrentPreprocessingTask = usePreprocessingStore(
+    (state) => state.setCurrentPreprocessingTask,
   );
-  const clearActiveTask = usePreprocessingStore(
-    (state) => state.clearPreprocessingActiveTask,
+  const clearCurrentPreprocessingTask = usePreprocessingStore(
+    (state) => state.clearCurrentPreprocessingTask,
   );
-  const activeTaskVideoPath = usePreprocessingStore(
-    (state) => state.preprocessingActiveTaskVideoPath,
+  const currentPreprocessingTaskVideoPath = usePreprocessingStore(
+    (state) => state.currentPreprocessingTaskVideoPath,
   );
-  const activeTaskVideoRef = usePreprocessingStore(
-    (state) => state.preprocessingActiveTaskVideoRef,
+  const currentPreprocessingTaskVideoRef = usePreprocessingStore(
+    (state) => state.currentPreprocessingTaskVideoRef,
   );
 
   // ── Auto-load saved results ──────────────────────────────────
@@ -152,7 +152,7 @@ export function useOCRProcessor({
             },
           }),
         );
-        setActiveTask(outcome.submission.task_id, "extract", resolvedVideoPath, videoRef);
+        setCurrentPreprocessingTask(outcome.submission.task_id, "extract", resolvedVideoPath, videoRef);
       }
       setOcrResults([]); // Clear while processing
     } catch (error) {
@@ -167,7 +167,7 @@ export function useOCRProcessor({
     ocrEngine,
     videoRef,
     addTask,
-    setActiveTask,
+    setCurrentPreprocessingTask,
     setIsProcessing,
     setOcrResults,
   ]);
@@ -175,12 +175,12 @@ export function useOCRProcessor({
   // ── Watch for task completion ────────────────────────────────
   useEffect(() => {
     const task =
-      (activeTaskId
+      (currentPreprocessingTaskId
         ? getActivePreprocessingTask(
             tasks,
-            activeTaskId,
-            activeTaskVideoPath,
-            activeTaskVideoRef,
+            currentPreprocessingTaskId,
+            currentPreprocessingTaskVideoPath,
+            currentPreprocessingTaskVideoRef,
             resolvedVideoPath,
             videoRef,
           )
@@ -191,7 +191,7 @@ export function useOCRProcessor({
     if (task.status === "completed") {
       const result = task.result as OCRTaskResult | undefined;
       setTimeout(() => {
-        clearActiveTask();
+        clearCurrentPreprocessingTask();
         setOcrResults(result?.events ?? []);
       }, 0);
     } else if (
@@ -200,28 +200,28 @@ export function useOCRProcessor({
       task.status === "paused"
     ) {
       setTimeout(() => {
-        clearActiveTask();
+        clearCurrentPreprocessingTask();
       }, 0);
       if (task.status === "failed") {
         console.error("OCR Task Failed:", task.error);
       }
     } else {
       setTimeout(() => {
-        if (!activeTaskId && resolvedVideoPath) {
-          setActiveTask(task.id, task.type === "enhancement" ? "enhance" : task.type === "cleanup" ? "clean" : "extract", resolvedVideoPath, videoRef);
+        if (!currentPreprocessingTaskId && resolvedVideoPath) {
+          setCurrentPreprocessingTask(task.id, task.type === "enhancement" ? "enhance" : task.type === "cleanup" ? "clean" : "extract", resolvedVideoPath, videoRef);
         }
         setIsProcessing(true);
       }, 0);
     }
   }, [
     tasks,
-    activeTaskId,
-    activeTaskVideoPath,
-    activeTaskVideoRef,
+    currentPreprocessingTaskId,
+    currentPreprocessingTaskVideoPath,
+    currentPreprocessingTaskVideoRef,
     resolvedVideoPath,
     videoRef,
-    clearActiveTask,
-    setActiveTask,
+    clearCurrentPreprocessingTask,
+    setCurrentPreprocessingTask,
     setIsProcessing,
     setOcrResults,
   ]);
@@ -258,7 +258,7 @@ export function useOCRProcessor({
               },
             }),
           );
-          setActiveTask(outcome.submission.task_id, "enhance", resolvedVideoPath, videoRef);
+          setCurrentPreprocessingTask(outcome.submission.task_id, "enhance", resolvedVideoPath, videoRef);
         }
       } else if (activeTool === "clean") {
         const cleanRoi: [number, number, number, number] = roi
@@ -288,7 +288,7 @@ export function useOCRProcessor({
               },
             }),
           );
-          setActiveTask(outcome.submission.task_id, "clean", resolvedVideoPath, videoRef);
+          setCurrentPreprocessingTask(outcome.submission.task_id, "clean", resolvedVideoPath, videoRef);
         }
       } else if (activeTool === "extract") {
         await handleStartOCR();
@@ -308,7 +308,7 @@ export function useOCRProcessor({
     enhanceScale,
     enhanceMethod,
     cleanMethod,
-    setActiveTask,
+    setCurrentPreprocessingTask,
     setIsProcessing,
   ]);
 

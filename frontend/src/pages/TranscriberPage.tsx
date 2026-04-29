@@ -71,12 +71,12 @@ export const TranscriberPage = () => {
   const executionModeDisplay = state.executionMode
     ? getExecutionModeDisplay(state.executionMode)
     : null;
-  const progressState = normalizeProgressCardState(state.activeTask
+  const progressState = normalizeProgressCardState(state.currentTranscriptionTask
     ? {
-        status: state.activeTask.status,
-        progress: state.activeTask.progress,
+        status: state.currentTranscriptionTask.status,
+        progress: state.currentTranscriptionTask.progress,
         message:
-          state.activeTask.message || t('progressCard.processingMessage'),
+          state.currentTranscriptionTask.message || t('progressCard.processingMessage'),
         active: true,
       }
     : state.desktopProgress.active
@@ -138,7 +138,7 @@ export const TranscriberPage = () => {
                   setDevice={actions.setDevice}
                   onTranscribe={actions.startTranscription}
                   isFileSelected={!!state.file}
-                  activeTaskId={state.activeTaskId}
+                  currentTranscriptionTaskId={state.currentTranscriptionTaskId}
                   isSubmitting={state.isUploading}
                 />
 

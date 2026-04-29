@@ -1,8 +1,6 @@
-import type { ChildProcess } from "child_process";
 import {
   createDesktopTaskProgressUpdate,
   createDesktopTaskResponseUpdate,
-  isTrackedDesktopCommand,
 } from "./taskMapper";
 import {
   planCancelDesktopTask,
@@ -11,32 +9,70 @@ import {
 } from "./taskPlans";
 import type { DesktopTaskType, DesktopWorkerRuntimeRequest } from "./taskTypes";
 import { DesktopTaskHistoryStore } from "./historyStore";
-import { startDesktopWorkerProcess } from "./workerProcess";
-import {
-  handleDesktopWorkerProtocolLine,
-  type DesktopWorkerProtocolResponse,
-} from "./workerProtocol";
+import { startDesktopWorkerProcess, type DesktopWorkerProcessFactory } from "./workerProcess";
+import type { DesktopWorkerProtocolResponse } from "./workerProtocol";
 import { DesktopWorkerChannels } from "./workerChannels";
 import { DesktopWorkerTaskQueue } from "./workerTaskQueue";
+import {
+  getDesktopWorkerExecutionLane,
+  isDesktopTaskCommand,
+  type DesktopWorkerExecutionLane,
+} from "./workerCommandLanes";
+import {
+  DesktopWorkerSlot,
+  type DesktopWorkerSlotStopMode,
+} from "./workerSlot";
+
+type SerialWorkerLane = Exclude<DesktopWorkerExecutionLane, "task">;
+
+type SerialWorkerLaneState = {
+  slot: DesktopWorkerSlot;
+  queuedRequestIds: string[];
+  activeRequestId: string | null;
+};
+
+function resolveDesktopMaxConcurrency() {
+  const raw = Number(process.env.MEDIAFLOW_DESKTOP_TASK_MAX_CONCURRENT ?? 2);
+  if (!Number.isFinite(raw)) {
+    return 2;
+  }
+  return Math.max(1, Math.min(4, Math.floor(raw)));
+}
 
 export class DesktopWorkerSupervisor {
-  private desktopWorkerProcess: ChildProcess | null = null;
-  private desktopWorkerReady = false;
-  private desktopWorkerId = 0;
-  private desktopWorkerReadyWaiters: Array<() => void> = [];
-  private desktopWorkerStopMode: "restart" | "shutdown" | null = null;
+  private requestSequence = 0;
   private readonly desktopWorkerRequests = new Map<string, DesktopWorkerRuntimeRequest>();
   private readonly channels = new DesktopWorkerChannels();
   private readonly taskQueue = new DesktopWorkerTaskQueue();
+  private readonly taskAssignments = new Map<string, string>();
+  private readonly trackedSlots = new Map<string, DesktopWorkerSlot>();
+  private readonly serialLanes = new Map<SerialWorkerLane, SerialWorkerLaneState>();
+  private readonly maxConcurrentTrackedTasks = resolveDesktopMaxConcurrency();
+  private readonly historyStore: DesktopTaskHistoryStore;
+  private readonly processFactory: DesktopWorkerProcessFactory;
 
-  constructor(private readonly historyStore: DesktopTaskHistoryStore) {}
+  constructor(
+    historyStore: DesktopTaskHistoryStore,
+    processFactory: DesktopWorkerProcessFactory = startDesktopWorkerProcess,
+  ) {
+    this.historyStore = historyStore;
+    this.processFactory = processFactory;
+  }
 
   stop() {
-    this.stopDesktopWorker();
+    for (const laneState of this.serialLanes.values()) {
+      laneState.slot.stop("shutdown");
+      this.failSerialLane(laneState, "Desktop worker exited");
+    }
+    for (const slot of this.trackedSlots.values()) {
+      slot.stop("shutdown");
+    }
+    this.failAllTrackedRequests("Desktop worker exited");
   }
 
   prewarm() {
-    this.startDesktopWorker();
+    this.ensureSerialLane("control").slot.start();
+    this.ensureTrackedSlots();
   }
 
   listTasks() {
@@ -45,60 +81,109 @@ export class DesktopWorkerSupervisor {
   }
 
   request<T = unknown>(command: string, payload?: Record<string, unknown>) {
-    if (!this.startDesktopWorker()) {
-      return Promise.reject(new Error("Desktop worker process could not be started"));
+    let lane: DesktopWorkerExecutionLane;
+    try {
+      lane = getDesktopWorkerExecutionLane(command);
+    } catch (error) {
+      return Promise.reject(error);
     }
+
     const normalizedPayload = payload ?? {};
     const requestedTaskId =
       typeof normalizedPayload.task_id === "string" && normalizedPayload.task_id.trim().length > 0
         ? normalizedPayload.task_id
-        : `worker-${Date.now()}-${++this.desktopWorkerId}`;
+        : `worker-${Date.now()}-${++this.requestSequence}`;
     const id = requestedTaskId;
     const trackedPayload = this.resolveTrackedPayload(id, normalizedPayload);
 
-    return this.waitForDesktopWorkerReady()
-      .then(
-        () =>
-          new Promise<T>((resolve, reject) => {
-            if (!this.desktopWorkerProcess?.stdin?.writable) {
-              reject(new Error("Desktop worker stdin is not writable"));
-              return;
-            }
+    return new Promise<T>((resolve, reject) => {
+      this.historyStore.remove(id);
+      this.desktopWorkerRequests.set(id, {
+        command,
+        payload: trackedPayload,
+        resolve: (value) => resolve(value as T),
+        reject,
+      });
 
-            this.historyStore.remove(id);
-            this.desktopWorkerRequests.set(id, { command, payload: trackedPayload, resolve, reject });
-            if (isTrackedDesktopCommand(command)) {
-              this.taskQueue.enqueue(id, command, trackedPayload, (message) => this.emitDesktopTaskMessage(message));
-              this.dispatchNextDesktopWorkerTask();
-              return;
-            }
-            try {
-              this.desktopWorkerProcess.stdin.write(
-                `${JSON.stringify({ id, command, payload: trackedPayload })}\n`,
-              );
-            } catch (error) {
-              this.desktopWorkerRequests.delete(id);
-              reject(error);
-            }
-          }),
-      )
-      .catch((error) => {
-        if (isTrackedDesktopCommand(command)) {
+      if (lane === "task") {
+        if (!this.ensureTrackedSlots()) {
+          this.desktopWorkerRequests.delete(id);
           this.emitTrackedTaskFailure(
             id,
-            command,
+            command as DesktopTaskType,
             trackedPayload,
-            error instanceof Error ? error.message : "Desktop worker request failed",
+            "Desktop worker process could not be started",
           );
+          reject(new Error("Desktop worker process could not be started"));
+          return;
         }
-        throw error;
-      });
+
+        this.taskQueue.enqueue(id, command as DesktopTaskType, trackedPayload, (message) =>
+          this.emitDesktopTaskMessage(message),
+        );
+        this.dispatchQueuedTrackedTasks();
+        return;
+      }
+
+      const laneState = this.ensureSerialLane(lane);
+      if (!laneState.slot.start()) {
+        this.desktopWorkerRequests.delete(id);
+        reject(new Error("Desktop worker process could not be started"));
+        return;
+      }
+
+      laneState.queuedRequestIds.push(id);
+      this.dispatchSerialLane(lane);
+    });
+  }
+
+  submitTask(command: string, payload?: Record<string, unknown>) {
+    const lane = getDesktopWorkerExecutionLane(command);
+    if (lane !== "task" || !isDesktopTaskCommand(command)) {
+      throw new Error(`Desktop command "${command}" is not a task submission command`);
+    }
+
+    const normalizedPayload = payload ?? {};
+    const requestedTaskId =
+      typeof normalizedPayload.task_id === "string" && normalizedPayload.task_id.trim().length > 0
+        ? normalizedPayload.task_id
+        : `worker-${Date.now()}-${++this.requestSequence}`;
+    const id = requestedTaskId;
+    const trackedPayload = this.resolveTrackedPayload(id, normalizedPayload);
+
+    this.historyStore.remove(id);
+    this.desktopWorkerRequests.set(id, {
+      command,
+      payload: trackedPayload,
+      resolve: () => undefined,
+      reject: () => undefined,
+    });
+
+    if (!this.ensureTrackedSlots()) {
+      this.desktopWorkerRequests.delete(id);
+      this.emitTrackedTaskFailure(
+        id,
+        command,
+        trackedPayload,
+        "Desktop worker process could not be started",
+      );
+      throw new Error("Desktop worker process could not be started");
+    }
+
+    this.taskQueue.enqueue(id, command, trackedPayload, (message) =>
+      this.emitDesktopTaskMessage(message),
+    );
+    this.dispatchQueuedTrackedTasks();
+
+    return {
+      task_id: id,
+      status: "pending" as const,
+      message: "Queued",
+    };
   }
 
   async pauseTask(taskId: string) {
-    const plan = planPauseDesktopTask(taskId, {
-      ...this.taskQueue.collections(this.desktopWorkerRequests),
-    });
+    const plan = planPauseDesktopTask(taskId, this.taskQueue.collections(this.desktopWorkerRequests));
     if (plan.status === "ignored") {
       return { status: "ignored" };
     }
@@ -125,10 +210,11 @@ export class DesktopWorkerSupervisor {
     if (plan.rejectMessage) {
       pending.reject(new Error(plan.rejectMessage));
     }
-    if (plan.shouldRestartWorker) {
-      this.stopDesktopWorker("restart");
+    if (plan.shouldRestartAssignedSlot) {
+      this.restartAssignedTaskSlot(taskId);
     }
 
+    this.dispatchQueuedTrackedTasks();
     return { status: plan.status };
   }
 
@@ -141,9 +227,7 @@ export class DesktopWorkerSupervisor {
     if (plan.removePaused) {
       this.taskQueue.pausedTasks.delete(taskId);
     }
-    void this.request(plan.resumeTask.command, plan.resumeTask.payload).catch((error) => {
-      console.error(`[DesktopWorker] Failed to resume ${taskId}:`, error);
-    });
+    this.submitTask(plan.resumeTask.command, plan.resumeTask.payload);
     return { status: plan.status };
   }
 
@@ -153,9 +237,7 @@ export class DesktopWorkerSupervisor {
       return { status: "removed" };
     }
 
-    const plan = planCancelDesktopTask(taskId, {
-      ...this.taskQueue.collections(this.desktopWorkerRequests),
-    });
+    const plan = planCancelDesktopTask(taskId, this.taskQueue.collections(this.desktopWorkerRequests));
     if (plan.status === "ignored") {
       return { status: "ignored" };
     }
@@ -182,9 +264,11 @@ export class DesktopWorkerSupervisor {
     if (pending && plan.rejectMessage) {
       pending.reject(new Error(plan.rejectMessage));
     }
-    if (plan.shouldRestartWorker) {
-      this.stopDesktopWorker("restart");
+    if (plan.shouldRestartAssignedSlot) {
+      this.restartAssignedTaskSlot(taskId);
     }
+
+    this.dispatchQueuedTrackedTasks();
     return { status: plan.status };
   }
 
@@ -236,87 +320,161 @@ export class DesktopWorkerSupervisor {
     });
   }
 
-  private dispatchNextDesktopWorkerTask() {
-    if (
-      !this.desktopWorkerReady ||
-      this.taskQueue.activeTaskId ||
-      !this.desktopWorkerProcess?.stdin?.writable
-    ) {
-      return;
-    }
-
-    const next = this.taskQueue.nextTask(this.desktopWorkerRequests);
-    if (!next) {
-      return;
-    }
-    if (!next.request) {
-      this.taskQueue.syncQueuedTasks(this.desktopWorkerRequests, (message) => this.emitDesktopTaskMessage(message));
-      this.dispatchNextDesktopWorkerTask();
-      return;
-    }
-
-    this.taskQueue.markActiveStarted(next.taskId, next.request, (message) => this.emitDesktopTaskMessage(message));
-    this.taskQueue.syncQueuedTasks(this.desktopWorkerRequests, (message) => this.emitDesktopTaskMessage(message));
-    try {
-      this.desktopWorkerProcess.stdin.write(
-        `${JSON.stringify({ id: next.taskId, command: next.request.command, payload: next.request.payload })}\n`,
-      );
-    } catch (error) {
-      this.desktopWorkerRequests.delete(next.taskId);
-      this.taskQueue.resetActive();
-      const taskUpdate = createDesktopTaskResponseUpdate({
-        taskId: next.taskId,
-        request: next.request,
-        ok: false,
-        error: error instanceof Error ? error.message : "Desktop worker request failed",
-      });
-      if (taskUpdate) {
-        this.historyStore.upsert(taskUpdate);
-        this.emitDesktopTaskMessage({
-          type: "update",
-          task: taskUpdate,
-        });
+  private ensureTrackedSlots() {
+    let allStarted = true;
+    for (let index = 1; index <= this.maxConcurrentTrackedTasks; index += 1) {
+      const slotId = `task-${index}`;
+      let slot = this.trackedSlots.get(slotId);
+      if (!slot) {
+        slot = this.createSlot(slotId);
+        this.trackedSlots.set(slotId, slot);
       }
-      next.request.reject(error);
-      this.dispatchNextDesktopWorkerTask();
+      allStarted = slot.start() && allStarted;
+    }
+    return allStarted;
+  }
+
+  private ensureSerialLane(lane: SerialWorkerLane) {
+    const existing = this.serialLanes.get(lane);
+    if (existing) {
+      return existing;
+    }
+
+    const laneState: SerialWorkerLaneState = {
+      slot: this.createSlot(lane),
+      queuedRequestIds: [],
+      activeRequestId: null,
+    };
+    this.serialLanes.set(lane, laneState);
+    return laneState;
+  }
+
+  private createSlot(slotId: string) {
+    return new DesktopWorkerSlot(
+      slotId,
+      {
+        onReady: (readySlotId) => this.handleSlotReady(readySlotId),
+        onEvent: (_readySlotId, event, payload, requestId) => {
+          if (!this.channels.emitWorkerEvent(event, payload, requestId)) {
+            console.log("[DesktopWorker event]", event, payload);
+          }
+        },
+        onTaskEvent: (readySlotId, taskId, payload) =>
+          this.handleDesktopWorkerTaskEvent(readySlotId, taskId, payload),
+        onResponse: (readySlotId, response) => this.handleDesktopWorkerResponse(readySlotId, response),
+        onExit: (readySlotId, code, activeRequestId, stopMode) =>
+          this.handleSlotExit(readySlotId, code, activeRequestId, stopMode),
+        onLog: (readySlotId, line) => {
+          console.log(`[DesktopWorker:${readySlotId}] ${line}`);
+        },
+        onParseError: (readySlotId, rawLine, error) => {
+          console.error(`[DesktopWorker:${readySlotId}] Failed to parse line`, rawLine, error);
+        },
+      },
+      this.processFactory,
+    );
+  }
+
+  private handleSlotReady(slotId: string) {
+    console.log(`[DesktopWorker:${slotId}] ready`);
+    const lane = this.serialLaneForSlot(slotId);
+    if (lane) {
+      this.dispatchSerialLane(lane);
+      return;
+    }
+    this.dispatchQueuedTrackedTasks();
+  }
+
+  private dispatchQueuedTrackedTasks() {
+    for (const slot of this.trackedSlots.values()) {
+      if (!slot.isReadyIdle) {
+        continue;
+      }
+
+      const next = this.taskQueue.nextTask(this.desktopWorkerRequests);
+      if (!next) {
+        return;
+      }
+      if (!next.request) {
+        this.taskQueue.syncQueuedTasks(this.desktopWorkerRequests, (message) =>
+          this.emitDesktopTaskMessage(message),
+        );
+        continue;
+      }
+      if (!isDesktopTaskCommand(next.request.command)) {
+        this.desktopWorkerRequests.delete(next.taskId);
+        next.request.reject(new Error("Desktop task queue received a non-task command"));
+        continue;
+      }
+
+      this.taskAssignments.set(next.taskId, slot.id);
+      this.taskQueue.markActiveStarted(next.taskId, next.request, slot.id, (message) =>
+        this.emitDesktopTaskMessage(message),
+      );
+      this.taskQueue.syncQueuedTasks(this.desktopWorkerRequests, (message) =>
+        this.emitDesktopTaskMessage(message),
+      );
+
+      try {
+        slot.send({
+          id: next.taskId,
+          command: next.request.command,
+          payload: next.request.payload,
+        });
+      } catch (error) {
+        this.desktopWorkerRequests.delete(next.taskId);
+        this.taskAssignments.delete(next.taskId);
+        this.taskQueue.clearActiveIf(next.taskId);
+        const errorMessage = error instanceof Error ? error.message : "Desktop worker request failed";
+        this.emitTrackedTaskFailure(next.taskId, next.request.command, next.request.payload, errorMessage);
+        next.request.reject(error);
+        slot.stop("restart");
+      }
     }
   }
 
-  private resolveDesktopWorkerReady() {
-    this.desktopWorkerReady = true;
-    const waiters = [...this.desktopWorkerReadyWaiters];
-    this.desktopWorkerReadyWaiters = [];
-    waiters.forEach((waiter) => waiter());
+  private dispatchSerialLane(lane: SerialWorkerLane) {
+    const laneState = this.ensureSerialLane(lane);
+    if (laneState.activeRequestId || !laneState.slot.isReadyIdle) {
+      return;
+    }
+
+    while (laneState.queuedRequestIds.length > 0) {
+      const nextRequestId = laneState.queuedRequestIds.shift();
+      if (!nextRequestId) {
+        return;
+      }
+      const pending = this.desktopWorkerRequests.get(nextRequestId);
+      if (!pending) {
+        continue;
+      }
+
+      laneState.activeRequestId = nextRequestId;
+      try {
+        laneState.slot.send({
+          id: nextRequestId,
+          command: pending.command,
+          payload: pending.payload,
+        });
+      } catch (error) {
+        laneState.activeRequestId = null;
+        this.desktopWorkerRequests.delete(nextRequestId);
+        pending.reject(error);
+        laneState.slot.stop("restart");
+      }
+      return;
+    }
   }
 
-  private handleDesktopWorkerLine(line: string) {
-    handleDesktopWorkerProtocolLine(line, {
-      onLog: (rawLine) => {
-        console.log(`[DesktopWorker] ${rawLine}`);
-      },
-      onReady: () => {
-        console.log("[DesktopWorker] ready");
-        this.resolveDesktopWorkerReady();
-        this.dispatchNextDesktopWorkerTask();
-      },
-      onEvent: (event, payload) => {
-        if (!this.channels.emitWorkerEvent(event, payload)) {
-          console.log("[DesktopWorker event]", event, payload);
-        }
-      },
-      onTaskEvent: (taskId, payload) => this.handleDesktopWorkerTaskEvent(taskId, payload),
-      onResponse: (response) => this.handleDesktopWorkerResponse(response),
-      onParseError: (rawLine, error) => {
-        console.error("[DesktopWorker] Failed to parse line", rawLine, error);
-      },
-    });
-  }
+  private handleDesktopWorkerTaskEvent(slotId: string, taskId: string, payload: unknown) {
+    if (this.taskAssignments.get(taskId) !== slotId) {
+      return;
+    }
 
-  private handleDesktopWorkerTaskEvent(taskId: string, payload: unknown) {
     const pending = this.desktopWorkerRequests.get(taskId);
     if (
       !pending ||
-      !isTrackedDesktopCommand(pending.command) ||
+      !isDesktopTaskCommand(pending.command) ||
       !payload ||
       typeof payload !== "object"
     ) {
@@ -329,6 +487,7 @@ export class DesktopWorkerSupervisor {
       payload,
     });
     if (taskUpdate) {
+      this.taskQueue.updateActiveProgress(taskId, taskUpdate.progress, taskUpdate.message);
       this.emitDesktopTaskMessage({
         type: "update",
         task: taskUpdate,
@@ -336,16 +495,34 @@ export class DesktopWorkerSupervisor {
     }
   }
 
-  private handleDesktopWorkerResponse(message: DesktopWorkerProtocolResponse) {
+  private handleDesktopWorkerResponse(slotId: string, message: DesktopWorkerProtocolResponse) {
     const pending = this.desktopWorkerRequests.get(message.id);
     if (!pending) {
       return;
     }
 
-    this.desktopWorkerRequests.delete(message.id);
-    if (this.taskQueue.clearActiveIf(message.id)) {
-      this.dispatchNextDesktopWorkerTask();
+    const lane = getDesktopWorkerExecutionLane(pending.command);
+    if (lane === "task") {
+      this.handleTrackedResponse(slotId, message, pending);
+      return;
     }
+
+    this.handleSerialResponse(slotId, lane, message, pending);
+  }
+
+  private handleTrackedResponse(
+    slotId: string,
+    message: DesktopWorkerProtocolResponse,
+    pending: DesktopWorkerRuntimeRequest,
+  ) {
+    if (this.taskAssignments.get(message.id) !== slotId) {
+      return;
+    }
+
+    this.desktopWorkerRequests.delete(message.id);
+    this.taskAssignments.delete(message.id);
+    this.taskQueue.clearActiveIf(message.id);
+    this.trackedSlots.get(slotId)?.completeActiveRequest(message.id);
 
     const taskUpdate = createDesktopTaskResponseUpdate({
       taskId: message.id,
@@ -367,101 +544,150 @@ export class DesktopWorkerSupervisor {
     } else {
       pending.reject(new Error(message.error || "Desktop worker request failed"));
     }
+
+    this.dispatchQueuedTrackedTasks();
   }
 
-  private startDesktopWorker() {
-    if (this.desktopWorkerProcess && this.desktopWorkerProcess.exitCode === null) {
-      return true;
+  private handleSerialResponse(
+    slotId: string,
+    lane: SerialWorkerLane,
+    message: DesktopWorkerProtocolResponse,
+    pending: DesktopWorkerRuntimeRequest,
+  ) {
+    const laneState = this.serialLanes.get(lane);
+    if (!laneState || laneState.slot.id !== slotId || laneState.activeRequestId !== message.id) {
+      return;
     }
 
-    this.desktopWorkerReady = false;
-    this.desktopWorkerProcess = startDesktopWorkerProcess({
-      onLine: (line) => this.handleDesktopWorkerLine(line),
-      onClose: (code) => {
-        console.log(`[DesktopWorker] exited with code ${code}`);
-        this.desktopWorkerReady = false;
-        this.desktopWorkerProcess = null;
-        this.taskQueue.resetActive();
+    this.desktopWorkerRequests.delete(message.id);
+    laneState.activeRequestId = null;
+    laneState.slot.completeActiveRequest(message.id);
 
-        const stopMode = this.desktopWorkerStopMode;
-        this.desktopWorkerStopMode = null;
+    if (message.ok) {
+      pending.resolve(message.result);
+    } else {
+      pending.reject(new Error(message.error || "Desktop worker request failed"));
+    }
 
-        if (stopMode === "restart") {
-          const queuedTaskIdSet = new Set(this.taskQueue.queuedTaskIds);
-          for (const [requestId, pending] of [...this.desktopWorkerRequests.entries()]) {
-            if (queuedTaskIdSet.has(requestId)) {
-              continue;
-            }
-            pending.reject(new Error("Desktop worker restarted"));
-            this.desktopWorkerRequests.delete(requestId);
-          }
-          this.desktopWorkerReadyWaiters = [];
-          if (this.desktopWorkerRequests.size > 0 || this.taskQueue.queuedTaskIds.length > 0) {
-            this.startDesktopWorker();
-          }
-          return;
-        }
-
-        this.taskQueue.clearQueued();
-        for (const [taskId, pending] of [...this.desktopWorkerRequests.entries()]) {
-          if (isTrackedDesktopCommand(pending.command)) {
-            this.emitTrackedTaskFailure(taskId, pending.command, pending.payload, "Desktop worker exited");
-          }
-          pending.reject(new Error("Desktop worker exited"));
-        }
-        this.desktopWorkerRequests.clear();
-        this.desktopWorkerReadyWaiters = [];
-      },
-    });
-    return this.desktopWorkerProcess !== null;
+    this.dispatchSerialLane(lane);
   }
 
-  private stopDesktopWorker(mode: "restart" | "shutdown" = "shutdown") {
-    this.desktopWorkerStopMode = mode;
-    if (this.desktopWorkerProcess?.pid) {
-      try {
-        console.log(`Killing desktop worker process ${this.desktopWorkerProcess.pid}`);
-        process.kill(this.desktopWorkerProcess.pid, "SIGTERM");
-      } catch (error) {
-        console.error("Failed to kill desktop worker:", error);
+  private handleSlotExit(
+    slotId: string,
+    code: number | null,
+    activeRequestId: string | null,
+    stopMode: DesktopWorkerSlotStopMode | null,
+  ) {
+    console.log(`[DesktopWorker:${slotId}] exited with code ${code}`);
+    const lane = this.serialLaneForSlot(slotId);
+    if (lane) {
+      this.handleSerialSlotExit(lane, activeRequestId, stopMode);
+      return;
+    }
+
+    this.handleTrackedSlotExit(slotId, activeRequestId, stopMode);
+  }
+
+  private handleTrackedSlotExit(
+    slotId: string,
+    activeRequestId: string | null,
+    stopMode: DesktopWorkerSlotStopMode | null,
+  ) {
+    if (activeRequestId && this.taskAssignments.get(activeRequestId) === slotId) {
+      const pending = this.desktopWorkerRequests.get(activeRequestId);
+      this.desktopWorkerRequests.delete(activeRequestId);
+      this.taskAssignments.delete(activeRequestId);
+      this.taskQueue.clearActiveIf(activeRequestId);
+
+      if (pending && isDesktopTaskCommand(pending.command)) {
+        this.emitTrackedTaskFailure(
+          activeRequestId,
+          pending.command,
+          pending.payload,
+          stopMode === "restart" ? "Desktop worker restarted" : "Desktop worker exited",
+        );
+        pending.reject(new Error("Desktop worker exited"));
       }
-      this.desktopWorkerProcess = null;
-    } else if (
-      mode === "restart" &&
-      (this.desktopWorkerRequests.size > 0 || this.taskQueue.queuedTaskIds.length > 0)
-    ) {
-      this.desktopWorkerStopMode = null;
-      void this.startDesktopWorker();
     }
-    this.desktopWorkerReady = false;
-    this.taskQueue.resetActive();
+
+    if (stopMode !== "shutdown") {
+      this.trackedSlots.get(slotId)?.start();
+    }
   }
 
-  private waitForDesktopWorkerReady(timeoutMs = 15000): Promise<void> {
-    if (this.desktopWorkerReady) {
-      return Promise.resolve();
+  private handleSerialSlotExit(
+    lane: SerialWorkerLane,
+    activeRequestId: string | null,
+    stopMode: DesktopWorkerSlotStopMode | null,
+  ) {
+    const laneState = this.serialLanes.get(lane);
+    if (!laneState) {
+      return;
     }
 
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.desktopWorkerReadyWaiters = this.desktopWorkerReadyWaiters.filter((waiter) => waiter !== onReady);
-        reject(new Error("Desktop worker startup timed out"));
-      }, timeoutMs);
+    if (activeRequestId && laneState.activeRequestId === activeRequestId) {
+      const pending = this.desktopWorkerRequests.get(activeRequestId);
+      this.desktopWorkerRequests.delete(activeRequestId);
+      laneState.activeRequestId = null;
+      pending?.reject(new Error("Desktop worker exited"));
+    }
 
-      const onReady = () => {
-        clearTimeout(timer);
-        this.desktopWorkerProcess?.removeListener("close", onExit);
-        resolve();
-      };
-      const onExit = () => {
-        clearTimeout(timer);
-        this.desktopWorkerReadyWaiters = this.desktopWorkerReadyWaiters.filter((waiter) => waiter !== onReady);
-        reject(new Error("Desktop worker exited before becoming ready"));
-      };
+    if (stopMode === "shutdown") {
+      this.failSerialLane(laneState, "Desktop worker exited");
+      return;
+    }
 
-      this.desktopWorkerProcess?.once("close", onExit);
+    laneState.slot.start();
+  }
 
-      this.desktopWorkerReadyWaiters.push(onReady);
-    });
+  private restartAssignedTaskSlot(taskId: string) {
+    const slotId = this.taskAssignments.get(taskId);
+    if (!slotId) {
+      return;
+    }
+
+    const slot = this.trackedSlots.get(slotId);
+    this.taskAssignments.delete(taskId);
+    this.taskQueue.clearActiveIf(taskId);
+    slot?.clearActiveRequest(taskId);
+    slot?.stop("restart");
+  }
+
+  private failAllTrackedRequests(message: string) {
+    this.taskQueue.clearQueued();
+    for (const [taskId, pending] of [...this.desktopWorkerRequests.entries()]) {
+      if (!isDesktopTaskCommand(pending.command)) {
+        continue;
+      }
+      this.emitTrackedTaskFailure(taskId, pending.command, pending.payload, message);
+      pending.reject(new Error(message));
+      this.desktopWorkerRequests.delete(taskId);
+      this.taskAssignments.delete(taskId);
+      this.taskQueue.clearActiveIf(taskId);
+    }
+  }
+
+  private failSerialLane(laneState: SerialWorkerLaneState, message: string) {
+    if (laneState.activeRequestId) {
+      const pending = this.desktopWorkerRequests.get(laneState.activeRequestId);
+      this.desktopWorkerRequests.delete(laneState.activeRequestId);
+      pending?.reject(new Error(message));
+      laneState.activeRequestId = null;
+    }
+
+    for (const requestId of laneState.queuedRequestIds.splice(0)) {
+      const pending = this.desktopWorkerRequests.get(requestId);
+      this.desktopWorkerRequests.delete(requestId);
+      pending?.reject(new Error(message));
+    }
+  }
+
+  private serialLaneForSlot(slotId: string): SerialWorkerLane | null {
+    for (const [lane, laneState] of this.serialLanes.entries()) {
+      if (laneState.slot.id === slotId) {
+        return lane;
+      }
+    }
+    return null;
   }
 }

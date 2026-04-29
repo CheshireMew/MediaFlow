@@ -57,19 +57,14 @@ function normalizeOcrEvents(events: unknown): OCRTextEvent[] {
 
 function sourceMediaRef(payload: Record<string, unknown>) {
   return normalizeDesktopTaskMediaReference(
-    payload.video_ref ||
-      payload.audio_ref ||
-      payload.file_ref ||
-      payload.video_path ||
-      payload.audio_path ||
-      payload.file_path,
+    payload.video_ref || payload.audio_ref || payload.file_ref,
     { media_kind: "video", role: "source" },
   );
 }
 
 function subtitleMediaRef(payload: Record<string, unknown>) {
   return normalizeDesktopTaskMediaReference(
-    payload.subtitle_ref || payload.context_ref || payload.srt_path || payload.context_path,
+    payload.subtitle_ref || payload.context_ref || payload.srt_ref,
     { type: "application/x-subrip" },
   );
 }
@@ -93,14 +88,11 @@ function downloadResult(result: unknown): Task["result"] {
     error?: string;
   } | undefined;
   const downloadVideoPath = resolveTaskMediaPath(
-    downloadResult?.meta?.video_ref ||
-      (downloadResult?.files || []).find((file) => file.type === "video")?.path,
+    downloadResult?.meta?.video_ref,
   );
   const downloadSubtitlePath = resolveTaskMediaPath(
     downloadResult?.meta?.subtitle_ref ||
-      downloadResult?.meta?.output_ref ||
-      downloadResult?.meta?.srt_path ||
-      (downloadResult?.files || []).find((file) => file.type === "subtitle")?.path,
+      downloadResult?.meta?.output_ref,
   );
   return {
     success: true,
@@ -145,7 +137,7 @@ function transcribeResult(payload: Record<string, unknown>, result: unknown): Ta
       text: transcribeResult?.text || "",
       language: transcribeResult?.language || "auto",
       video_ref: normalizeDesktopTaskMediaReference(
-        transcribeResult?.video_ref || payload.audio_ref || payload.audio_path,
+        transcribeResult?.video_ref || payload.audio_ref,
         { type: "video/mp4" },
       ),
       subtitle_ref: subtitleRef,
@@ -178,7 +170,7 @@ function translateResult(payload: Record<string, unknown>, result: unknown): Tas
       language: translateResult?.language || "",
       mode: translateResult?.mode,
       context_ref: normalizeDesktopTaskMediaReference(
-        translateResult?.context_ref || payload.context_ref || payload.context_path,
+        translateResult?.context_ref || payload.context_ref,
         { type: "application/x-subrip" },
       ),
       subtitle_ref: subtitleRef,
@@ -198,13 +190,13 @@ export const desktopCommandMappers: Record<DesktopTaskType, DesktopCommandMapper
   },
   transcribe: {
     taskType: "transcribe",
-    name: (payload) => `Transcribe ${getTaskMediaLabel(payload.audio_ref || payload.audio_path, "audio")}`,
+    name: (payload) => `Transcribe ${getTaskMediaLabel(payload.audio_ref, "audio")}`,
     requestMedia: defaultRequestMedia,
     result: ({ payload, result }) => transcribeResult(payload, result),
   },
   translate: {
     taskType: "translate",
-    name: (payload) => `Translate ${getTaskMediaLabel(payload.context_ref || payload.context_path, "subtitles")}`,
+    name: (payload) => `Translate ${getTaskMediaLabel(payload.context_ref, "subtitles")}`,
     requestMedia: (payload) => ({
       videoRef: sourceMediaRef(payload),
       subtitleRef: null,
@@ -218,24 +210,28 @@ export const desktopCommandMappers: Record<DesktopTaskType, DesktopCommandMapper
   },
   synthesize: {
     taskType: "synthesis",
-    name: (payload) => `Synthesize ${getTaskMediaLabel(payload.video_ref || payload.video_path, "video")}`,
+    name: (payload) => `Synthesize ${getTaskMediaLabel(payload.video_ref, "video")}`,
     requestMedia: defaultRequestMedia,
     result: ({ result }) => {
-      const synthesizeResult = result as { video_path?: string; output_path?: string } | undefined;
-      const videoPath = synthesizeResult?.output_path || synthesizeResult?.video_path;
+      const synthesizeResult = result as { output_ref?: unknown; video_ref?: unknown } | undefined;
+      const videoRef = normalizeDesktopTaskMediaReference(
+        synthesizeResult?.output_ref || synthesizeResult?.video_ref,
+        { type: "video/mp4" },
+      );
+      const videoPath = resolveTaskMediaPath(videoRef);
       return {
         success: true,
         files: videoPath ? [{ type: "video", path: videoPath }] : [],
         meta: {
-          video_ref: normalizeDesktopTaskMediaReference(videoPath, { type: "video/mp4" }),
-          output_ref: normalizeDesktopTaskMediaReference(videoPath, { type: "video/mp4" }),
+          video_ref: videoRef,
+          output_ref: videoRef,
         },
       };
     },
   },
   extract: {
     taskType: "extract",
-    name: (payload) => `Extract ${getTaskMediaLabel(payload.video_ref || payload.video_path, "video")}`,
+    name: (payload) => `Extract ${getTaskMediaLabel(payload.video_ref, "video")}`,
     requestMedia: defaultRequestMedia,
     result: ({ result }) => {
       const extractResult = result as {
@@ -251,13 +247,13 @@ export const desktopCommandMappers: Record<DesktopTaskType, DesktopCommandMapper
   },
   enhance: {
     taskType: "enhancement",
-    name: (payload) => `Enhance ${getTaskMediaLabel(payload.video_ref || payload.video_path, "video")}`,
+    name: (payload) => `Enhance ${getTaskMediaLabel(payload.video_ref, "video")}`,
     requestMedia: defaultRequestMedia,
     result: ({ result }) => normalizeTaskResult(result),
   },
   clean: {
     taskType: "cleanup",
-    name: (payload) => `Clean ${getTaskMediaLabel(payload.video_ref || payload.video_path, "video")}`,
+    name: (payload) => `Clean ${getTaskMediaLabel(payload.video_ref, "video")}`,
     requestMedia: defaultRequestMedia,
     result: ({ result }) => normalizeTaskResult(result),
   },

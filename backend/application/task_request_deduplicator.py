@@ -22,7 +22,7 @@ class TaskRequestDeduplicator:
                                 "download_subs": step_params.get("download_subs", False),
                                 "resolution": step_params.get("resolution", "best"),
                                 "codec": step_params.get("codec", "best"),
-                                "filename": step_params.get("filename") or step_params.get("output_filename"),
+                                "filename": step_params.get("filename"),
                             }
                         )
                     else:

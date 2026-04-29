@@ -1,7 +1,7 @@
 """
 Segment Refiner — Whisper output optimization and fragment merging.
 
-Extracted from SubtitleManager to follow Single Responsibility Principle.
+Whisper segment normalization and timing helpers.
 """
 from typing import List
 from loguru import logger

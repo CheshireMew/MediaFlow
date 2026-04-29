@@ -164,7 +164,6 @@ export function parseMediaReference(raw: string | null): MediaReference | null {
 
 export function resolveMediaReferencePath(
   reference?: Pick<MediaReference, "path"> | null,
-  fallbackPath?: string | null,
 ) {
-  return reference?.path ?? fallbackPath ?? null;
+  return reference?.path ?? null;
 }

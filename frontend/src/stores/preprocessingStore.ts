@@ -36,20 +36,20 @@ export interface PreprocessingState {
   ocrResults: OCRTextEvent[];
   setOcrResults: (results: OCRTextEvent[]) => void;
 
-  // Active Task State
+  // Current Task State
   preprocessingIsProcessing: boolean;
   setPreprocessingIsProcessing: (processing: boolean) => void;
-  preprocessingActiveTaskId: string | null;
-  preprocessingActiveTaskTool: PreprocessingTool | null;
-  preprocessingActiveTaskVideoPath: string | null;
-  preprocessingActiveTaskVideoRef: MediaReference | null;
-  setPreprocessingActiveTask: (
+  currentPreprocessingTaskId: string | null;
+  currentPreprocessingTaskTool: PreprocessingTool | null;
+  currentPreprocessingTaskVideoPath: string | null;
+  currentPreprocessingTaskVideoRef: MediaReference | null;
+  setCurrentPreprocessingTask: (
     taskId: string,
     tool: PreprocessingTool,
     videoPath: string,
     videoRef?: MediaReference | null,
   ) => void;
-  clearPreprocessingActiveTask: () => void;
+  clearCurrentPreprocessingTask: () => void;
 
   // File State
   preprocessingFiles: ProjectFile[];
@@ -94,24 +94,24 @@ export const usePreprocessingStore = create<PreprocessingState>()(
       preprocessingIsProcessing: false,
       setPreprocessingIsProcessing: (processing) =>
         set({ preprocessingIsProcessing: processing }),
-      preprocessingActiveTaskId: null,
-      preprocessingActiveTaskTool: null,
-      preprocessingActiveTaskVideoPath: null,
-      preprocessingActiveTaskVideoRef: null,
-      setPreprocessingActiveTask: (taskId, tool, videoPath, videoRef = null) =>
+      currentPreprocessingTaskId: null,
+      currentPreprocessingTaskTool: null,
+      currentPreprocessingTaskVideoPath: null,
+      currentPreprocessingTaskVideoRef: null,
+      setCurrentPreprocessingTask: (taskId, tool, videoPath, videoRef = null) =>
         set({
-          preprocessingActiveTaskId: taskId,
-          preprocessingActiveTaskTool: tool,
-          preprocessingActiveTaskVideoPath: videoPath,
-          preprocessingActiveTaskVideoRef: videoRef,
+          currentPreprocessingTaskId: taskId,
+          currentPreprocessingTaskTool: tool,
+          currentPreprocessingTaskVideoPath: videoPath,
+          currentPreprocessingTaskVideoRef: videoRef,
           preprocessingIsProcessing: true,
         }),
-      clearPreprocessingActiveTask: () =>
+      clearCurrentPreprocessingTask: () =>
         set({
-          preprocessingActiveTaskId: null,
-          preprocessingActiveTaskTool: null,
-          preprocessingActiveTaskVideoPath: null,
-          preprocessingActiveTaskVideoRef: null,
+          currentPreprocessingTaskId: null,
+          currentPreprocessingTaskTool: null,
+          currentPreprocessingTaskVideoPath: null,
+          currentPreprocessingTaskVideoRef: null,
           preprocessingIsProcessing: false,
         }),
 
@@ -128,7 +128,7 @@ export const usePreprocessingStore = create<PreprocessingState>()(
           preprocessingFiles: state.preprocessingFiles.filter(
             (f) => f.path !== path,
           ),
-          // Clear active path if removed file was selected
+          // Clear selected path if removed file was selected
           preprocessingVideoPath:
             state.preprocessingVideoPath === path
               ? null
@@ -187,7 +187,7 @@ export const usePreprocessingStore = create<PreprocessingState>()(
         };
       },
       partialize: (state) => ({
-        // Snapshot durable workspace context only. Active task execution stays runtime-only.
+        // Snapshot durable workspace context only. Current task execution stays runtime-only.
         preprocessingActiveTool: state.preprocessingActiveTool,
         enhanceModel: state.enhanceModel,
         enhanceScale: state.enhanceScale,

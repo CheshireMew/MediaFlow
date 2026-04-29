@@ -66,7 +66,7 @@ async def test_execute_auto_flow_merges_transcribe_translate_and_synthesis_outpu
         return f"{output_path}.srt"
 
     monkeypatch.setattr(
-        "backend.utils.subtitle_manager.SubtitleManager.save_srt",
+        "backend.utils.subtitle_writer.SubtitleWriter.save_srt",
         fake_save_srt,
     )
 

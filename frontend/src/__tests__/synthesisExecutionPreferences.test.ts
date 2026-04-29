@@ -9,80 +9,27 @@ describe("synthesisExecutionPreferences", () => {
     localStorage.clear();
   });
 
-  it("migrates the legacy synthesis snapshots into the unified execution preferences", () => {
-    localStorage.setItem(
-      "synthesis_settings_snapshot",
-      JSON.stringify({
-        schema_version: 1,
-        payload: {
-          subtitleEnabled: false,
-          watermarkEnabled: true,
-          quality: "high",
-          useGpu: false,
-          lastOutputDir: "C:/renders",
-        },
-      }),
-    );
-    localStorage.setItem(
-      "synthesis_subtitle_style_snapshot",
-      JSON.stringify({
-        schema_version: 1,
-        payload: {
-          fontSize: 26,
-          fontColor: "#FF0000",
-          fontName: "Microsoft YaHei",
-          isBold: true,
-          isItalic: false,
-          outlineSize: 3,
-          shadowSize: 1,
-          outlineColor: "#000000",
-          bgEnabled: true,
-          bgColor: "#111111",
-          bgOpacity: 0.6,
-          bgPadding: 8,
-          alignment: 2,
-          multilineAlign: "top",
-          subPos: { x: 0.4, y: 0.8 },
-          customPresets: [{ label: "Preset", fontName: "Arial", fontSize: 24 }],
-        },
-      }),
-    );
-    localStorage.setItem(
-      "synthesis_watermark_snapshot",
-      JSON.stringify({
-        schema_version: 1,
-        payload: {
-          wmScale: 0.35,
-          wmOpacity: 0.6,
-          wmPos: { x: 0.8, y: 0.2 },
-        },
-      }),
-    );
-
+  it("uses defaults when no current execution preferences snapshot exists", () => {
     const preferences = restoreStoredSynthesisExecutionPreferences();
 
     expect(preferences).toMatchObject({
-      subtitleEnabled: false,
+      subtitleEnabled: true,
       watermarkEnabled: true,
-      quality: "high",
-      useGpu: false,
-      lastOutputDir: "C:/renders",
+      quality: "balanced",
+      useGpu: true,
+      lastOutputDir: null,
       subtitleStyle: {
-        fontSize: 26,
-        fontColor: "#FF0000",
-        fontName: "Microsoft YaHei",
-        subPos: { x: 0.4, y: 0.8 },
+        fontSize: 24,
+        fontColor: "#FFFFFF",
+        fontName: "Arial",
       },
       watermark: {
-        wmScale: 0.35,
-        wmOpacity: 0.6,
-        wmPos: { x: 0.8, y: 0.2 },
+        wmScale: 0.2,
+        wmOpacity: 0.8,
+        wmPos: { x: 0.5, y: 0.5 },
       },
     });
-    expect(localStorage.getItem("synthesis_execution_preferences")).toBeTruthy();
-    expect(localStorage.getItem("synthesis_settings_snapshot")).toBeNull();
-    expect(localStorage.getItem("synthesis_subtitle_style_snapshot")).toBeNull();
-    expect(localStorage.getItem("synthesis_watermark_snapshot")).toBeNull();
+    expect(localStorage.getItem("synthesis_execution_preferences")).toBeNull();
   });
 
   it("merges partial updates into the unified snapshot", () => {

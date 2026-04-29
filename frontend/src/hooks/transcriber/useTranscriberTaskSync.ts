@@ -13,11 +13,11 @@ import {
 type UseTranscriberTaskSyncParams = {
   tasks: Task[];
   tasksSettled: boolean;
-  activeTaskId: string | null;
+  currentTranscriptionTaskId: string | null;
   fileRef: NonNullable<TranscribeResult["video_ref"]> | null;
   filePath: string | null | undefined;
   currentResult: TranscribeResult | null;
-  setActiveTaskId: (taskId: string | null) => void;
+  setCurrentTranscriptionTaskId: (taskId: string | null) => void;
   setResult: (result: TranscribeResult | null) => void;
   setExecutionMode: (mode: NullableExecutionMode) => void;
 };
@@ -25,25 +25,25 @@ type UseTranscriberTaskSyncParams = {
 export function useTranscriberTaskSync({
   tasks,
   tasksSettled,
-  activeTaskId,
+  currentTranscriptionTaskId,
   fileRef,
   filePath,
   currentResult,
-  setActiveTaskId,
+  setCurrentTranscriptionTaskId,
   setResult,
   setExecutionMode,
 }: UseTranscriberTaskSyncParams) {
   useEffect(() => {
-    if (activeTaskId) return;
+    if (currentTranscriptionTaskId) return;
     const runningTask = findActiveTranscribeTask(tasks, fileRef, filePath);
     if (runningTask) {
       setExecutionMode("task_submission");
-      setActiveTaskId(runningTask.id);
+      setCurrentTranscriptionTaskId(runningTask.id);
     }
-  }, [tasks, activeTaskId, filePath, fileRef, setActiveTaskId, setExecutionMode]);
+  }, [tasks, currentTranscriptionTaskId, filePath, fileRef, setCurrentTranscriptionTaskId, setExecutionMode]);
 
   useEffect(() => {
-    if (activeTaskId || currentResult || !tasksSettled) {
+    if (currentTranscriptionTaskId || currentResult || !tasksSettled) {
       return;
     }
 
@@ -56,12 +56,12 @@ export function useTranscriberTaskSync({
     if (mappedResult) {
       setResult(mappedResult);
     }
-  }, [tasks, tasksSettled, activeTaskId, currentResult, filePath, fileRef, setResult]);
+  }, [tasks, tasksSettled, currentTranscriptionTaskId, currentResult, filePath, fileRef, setResult]);
 
   useEffect(() => {
-    if (!activeTaskId) return;
+    if (!currentTranscriptionTaskId) return;
 
-    const task = selectTaskById(tasks, activeTaskId);
+    const task = selectTaskById(tasks, currentTranscriptionTaskId);
     if (task) {
       if (task.status === "completed") {
         const mappedResult = mapTaskToTranscribeResult(task, fileRef, filePath);
@@ -69,14 +69,14 @@ export function useTranscriberTaskSync({
           setResult(mappedResult);
         }
         setExecutionMode("task_submission");
-        setActiveTaskId(null);
+        setCurrentTranscriptionTaskId(null);
       } else if (task.status === "failed" || task.status === "cancelled") {
         setExecutionMode("task_submission");
-        setActiveTaskId(null);
+        setCurrentTranscriptionTaskId(null);
       }
     } else if (tasksSettled) {
       setExecutionMode(null);
-      setActiveTaskId(null);
+      setCurrentTranscriptionTaskId(null);
     }
-  }, [tasks, activeTaskId, tasksSettled, filePath, fileRef, setActiveTaskId, setExecutionMode, setResult]);
+  }, [tasks, currentTranscriptionTaskId, tasksSettled, filePath, fileRef, setCurrentTranscriptionTaskId, setExecutionMode, setResult]);
 }

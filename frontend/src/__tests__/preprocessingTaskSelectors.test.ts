@@ -33,7 +33,7 @@ describe("preprocessing task selectors", () => {
     ).toBe(task);
   });
 
-  it("hides the task when canonical refs differ even if legacy paths still match", () => {
+  it("hides the task when canonical refs differ even if path mirrors still match", () => {
     const task: Task = {
       id: "task-own",
       type: "extract",

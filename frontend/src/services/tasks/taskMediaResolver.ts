@@ -67,20 +67,14 @@ export function getTaskMediaCandidates(task: TaskWithDetails) {
 export function resolvePrimaryTaskMedia(task: TaskWithDetails) {
   const structuredRefs = getTaskStructuredMediaRefs(task);
   const candidates = getTaskMediaCandidates(task);
-  const videoCandidate = candidates.video.find(
-    (value): value is string => typeof value === "string" && value.length > 0,
-  );
-  const subtitleCandidate = candidates.subtitle.find(
-    (value): value is string => typeof value === "string" && value.length > 0,
-  );
   const contextCandidate = candidates.context.find(
     (value): value is string => typeof value === "string" && value.length > 0,
   );
 
   return {
-    videoRef: structuredRefs.videoRef ?? normalizeMediaReference(videoCandidate),
+    videoRef: structuredRefs.videoRef,
     subtitleRef:
-      structuredRefs.subtitleRef ?? normalizeMediaReference(subtitleCandidate),
+      structuredRefs.subtitleRef,
     contextRef: structuredRefs.contextRef,
     outputRef: structuredRefs.outputRef,
     contextPath: contextCandidate ?? null,
@@ -90,7 +84,6 @@ export function resolvePrimaryTaskMedia(task: TaskWithDetails) {
 export function resolveTranslationTaskMedia(task: Task) {
   const requestParams = task.request_params;
   const resultMeta = task.result?.meta;
-  const resultSubtitleFile = task.result?.files?.find((file) => file.type === "subtitle");
   const structuredRefs = getTaskStructuredMediaRefs(task);
 
   const sourceSubtitleRef =
@@ -103,8 +96,7 @@ export function resolveTranslationTaskMedia(task: Task) {
   const targetSubtitleRef =
     normalizeMediaReference(resultMeta?.output_ref) ??
     normalizeMediaReference(resultMeta?.subtitle_ref) ??
-    structuredRefs.outputRef ??
-    normalizeMediaReference(resultSubtitleFile?.path);
+    structuredRefs.outputRef;
 
   return {
     sourceSubtitleRef,
@@ -138,9 +130,6 @@ export function resolveTranscribeTaskMedia(task: Task) {
     if (audioRefCandidate && typeof audioRefCandidate === "object") {
       directAudioRef = normalizeMediaReference(audioRefCandidate);
     }
-    if (!directAudioRef && typeof params?.audio_path === "string") {
-      directAudioRef = normalizeMediaReference(params.audio_path);
-    }
   } else if (task.type === "pipeline") {
     const steps = task.request_params?.steps;
     const transcribeStep = Array.isArray(steps)
@@ -154,16 +143,11 @@ export function resolveTranscribeTaskMedia(task: Task) {
     if (audioRefCandidate && typeof audioRefCandidate === "object") {
       directAudioRef = normalizeMediaReference(audioRefCandidate);
     }
-    if (!directAudioRef && typeof params?.audio_path === "string") {
-      directAudioRef = normalizeMediaReference(params.audio_path);
-    }
   }
 
   const candidatePaths = directAudioRef?.path
     ? [directAudioRef.path]
-    : getTaskMediaCandidates(task).video.filter(
-        (value): value is string => typeof value === "string" && value.length > 0,
-      );
+    : [];
 
   return {
     sourceMediaRef: directAudioRef,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveMediaInputPath } from "../services/domain/mediaInput";
 
 describe("resolveMediaInputPath", () => {
-  it("prefers canonical media refs over fallback paths", () => {
+  it("uses canonical media refs before execution paths", () => {
     expect(
       resolveMediaInputPath(
         {
@@ -17,7 +17,7 @@ describe("resolveMediaInputPath", () => {
     ).toBe("E:/canonical/demo.srt");
   });
 
-  it("falls back to the legacy path when no ref is available", () => {
+  it("uses the execution path when no ref is available", () => {
     expect(
       resolveMediaInputPath(
         {
@@ -28,7 +28,7 @@ describe("resolveMediaInputPath", () => {
     ).toBe("E:/workspace/demo.mp4");
   });
 
-  it("accepts ref-only inputs without requiring a legacy path", () => {
+  it("accepts ref-only inputs without requiring an execution path", () => {
     expect(
       resolveMediaInputPath(
         {

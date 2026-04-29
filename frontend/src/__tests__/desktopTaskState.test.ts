@@ -6,8 +6,8 @@ import {
   createDesktopTaskResponseUpdate,
   createDesktopTask,
   getDesktopTaskSnapshot,
-  isTrackedDesktopCommand,
 } from "../../electron/desktop/taskMapper";
+import { isDesktopTaskCommand } from "../../electron/desktop/workerCommandLanes";
 import {
   planCancelDesktopTask,
   planPauseDesktopTask,
@@ -16,9 +16,9 @@ import {
 
 describe("desktop task mapper and plans", () => {
   it("identifies tracked desktop commands", () => {
-    expect(isTrackedDesktopCommand("transcribe")).toBe(true);
-    expect(isTrackedDesktopCommand("translate")).toBe(true);
-    expect(isTrackedDesktopCommand("get_settings")).toBe(false);
+    expect(isDesktopTaskCommand("transcribe")).toBe(true);
+    expect(isDesktopTaskCommand("translate")).toBe(true);
+    expect(isDesktopTaskCommand("get_settings")).toBe(false);
   });
 
   it("builds a completed translate task with subtitle metadata", () => {
@@ -178,7 +178,21 @@ describe("desktop task mapper and plans", () => {
       .mockReturnValueOnce(100);
 
     const snapshot = getDesktopTaskSnapshot({
-      activeTaskId: "run-1",
+      runningTaskIds: new Set(["run-1"]),
+      activeTasks: new Map([
+        [
+          "run-1",
+          {
+            taskId: "run-1",
+            slotId: "task-1",
+            command: "transcribe",
+            payload: { audio_path: "E:/audio.wav" },
+            startedAt: 100,
+            progress: 0,
+            message: "Starting",
+          },
+        ],
+      ]),
       queuedTaskIds: ["queue-1"],
       pausedTasks: new Map([
         [
@@ -235,7 +249,7 @@ describe("desktop task mapper and plans", () => {
 
   it("includes persisted desktop history tasks in snapshot restoration", () => {
     const snapshot = getDesktopTaskSnapshot({
-      activeTaskId: null,
+      runningTaskIds: new Set(),
       queuedTaskIds: [],
       pausedTasks: new Map(),
       requests: new Map(),
@@ -277,7 +291,7 @@ describe("desktop task mapper and plans", () => {
 
   it("plans pausing a queued desktop task as paused state without restart", () => {
     const plan = planPauseDesktopTask("queue-1", {
-      activeTaskId: "run-1",
+      runningTaskIds: new Set(["run-1"]),
       queuedTaskIds: ["queue-1"],
       pausedTasks: new Map(),
       requests: new Map([
@@ -295,14 +309,33 @@ describe("desktop task mapper and plans", () => {
       status: "paused",
       removeRequest: true,
       removeQueued: true,
-      shouldRestartWorker: false,
       rejectMessage: "Desktop worker task paused",
     });
+    expect(plan.shouldRestartAssignedSlot).toBeUndefined();
+  });
+
+  it("does not plan pause for a running desktop task without a checkpoint boundary", () => {
+    const plan = planPauseDesktopTask("run-1", {
+      runningTaskIds: new Set(["run-1"]),
+      queuedTaskIds: [],
+      pausedTasks: new Map(),
+      requests: new Map([
+        [
+          "run-1",
+          {
+            command: "download",
+            payload: { url: "https://example.com/video" },
+          },
+        ],
+      ]),
+    });
+
+    expect(plan).toEqual({ status: "ignored" });
   });
 
   it("plans cancelling the active desktop task as restart-worthy cancellation", () => {
     const plan = planCancelDesktopTask("run-1", {
-      activeTaskId: "run-1",
+      runningTaskIds: new Set(["run-1"]),
       queuedTaskIds: ["queue-1"],
       pausedTasks: new Map(),
       requests: new Map([
@@ -319,7 +352,7 @@ describe("desktop task mapper and plans", () => {
     expect(plan).toMatchObject({
       status: "cancelled",
       removeRequest: true,
-      shouldRestartWorker: true,
+      shouldRestartAssignedSlot: true,
       rejectMessage: "Desktop worker task cancelled",
     });
   });
@@ -404,11 +437,7 @@ describe("desktop task mapper and plans", () => {
         files: [{ type: "video", path: "E:/video.mp4" }],
         meta: {
           source: "yt-dlp",
-          video_ref: {
-            path: "E:/video.mp4",
-            name: "video.mp4",
-            type: "video/mp4",
-          },
+          video_ref: null,
         },
       },
     });

@@ -5,151 +5,181 @@
       "ipcChannel": "desktop:ping",
       "workerCommand": "ping",
       "pythonModule": null,
-      "requiresRuntime": false
+      "requiresRuntime": false,
+      "executionLane": "control"
     },
     "desktopTranscribe": {
       "ipcChannel": "desktop:transcribe",
       "workerCommand": "transcribe",
       "pythonModule": "backend.desktop.commands.media_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "task"
     },
     "desktopTranslate": {
       "ipcChannel": "desktop:translate",
       "workerCommand": "translate",
       "pythonModule": "backend.desktop.commands.media_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "task"
     },
     "desktopSynthesize": {
       "ipcChannel": "desktop:synthesize",
       "workerCommand": "synthesize",
       "pythonModule": "backend.desktop.commands.media_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "task",
+      "responseMode": "task_submission"
     },
     "getDesktopSettings": {
       "ipcChannel": "desktop:get-settings",
       "workerCommand": "get_settings",
       "pythonModule": "backend.desktop.commands.settings_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "control"
     },
     "updateDesktopSettings": {
       "ipcChannel": "desktop:update-settings",
       "workerCommand": "update_settings",
       "pythonModule": "backend.desktop.commands.settings_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "control"
     },
     "setDesktopActiveProvider": {
       "ipcChannel": "desktop:set-active-provider",
       "workerCommand": "set_active_provider",
       "pythonModule": "backend.desktop.commands.settings_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "control"
     },
     "testDesktopProvider": {
       "ipcChannel": "desktop:test-provider",
       "workerCommand": "test_provider",
       "pythonModule": "backend.desktop.commands.settings_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "control"
     },
     "listDesktopGlossary": {
       "ipcChannel": "desktop:glossary-list",
       "workerCommand": "glossary_list",
       "pythonModule": "backend.desktop.commands.glossary_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "control"
     },
     "addDesktopGlossaryTerm": {
       "ipcChannel": "desktop:glossary-add",
       "workerCommand": "glossary_add",
       "pythonModule": "backend.desktop.commands.glossary_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "control"
     },
     "deleteDesktopGlossaryTerm": {
       "ipcChannel": "desktop:glossary-delete",
       "workerCommand": "glossary_delete",
       "pythonModule": "backend.desktop.commands.glossary_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "control"
     },
     "updateDesktopYtDlp": {
       "ipcChannel": "desktop:update-yt-dlp",
       "workerCommand": "update_yt_dlp",
       "pythonModule": "backend.desktop.commands.settings_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "utility"
     },
     "installDesktopFasterWhisperCli": {
       "ipcChannel": "desktop:install-faster-whisper-cli",
       "workerCommand": "install_faster_whisper_cli",
       "pythonModule": "backend.desktop.commands.settings_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "utility"
     },
     "analyzeDesktopUrl": {
       "ipcChannel": "desktop:analyze-url",
       "workerCommand": "analyze_url",
       "pythonModule": "backend.desktop.commands.download_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "utility"
     },
     "saveDesktopCookies": {
       "ipcChannel": "desktop:save-cookies",
       "workerCommand": "save_cookies",
       "pythonModule": "backend.desktop.commands.download_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "control"
     },
     "desktopDownload": {
       "ipcChannel": "desktop:download",
       "workerCommand": "download",
       "pythonModule": "backend.desktop.commands.download_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "task",
+      "responseMode": "task_submission"
     },
     "desktopExtract": {
       "ipcChannel": "desktop:extract",
       "workerCommand": "extract",
       "pythonModule": "backend.desktop.commands.ocr_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "task",
+      "responseMode": "task_submission"
     },
     "getDesktopOcrResults": {
       "ipcChannel": "desktop:get-ocr-results",
       "workerCommand": "get_ocr_results",
       "pythonModule": "backend.desktop.commands.ocr_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "control"
     },
     "desktopTranscribeSegment": {
       "ipcChannel": "desktop:transcribe-segment",
       "workerCommand": "transcribe_segment",
       "pythonModule": "backend.desktop.commands.editor_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "utility"
     },
     "desktopTranslateSegment": {
       "ipcChannel": "desktop:translate-segment",
       "workerCommand": "translate_segment",
       "pythonModule": "backend.desktop.commands.editor_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "utility"
     },
     "uploadDesktopWatermark": {
       "ipcChannel": "desktop:upload-watermark",
       "workerCommand": "upload_watermark",
       "pythonModule": "backend.desktop.commands.editor_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "control"
     },
     "getDesktopLatestWatermark": {
       "ipcChannel": "desktop:get-latest-watermark",
       "workerCommand": "get_latest_watermark",
       "pythonModule": "backend.desktop.commands.editor_commands",
-      "requiresRuntime": false
+      "requiresRuntime": false,
+      "executionLane": "control"
     },
     "desktopEnhance": {
       "ipcChannel": "desktop:enhance",
       "workerCommand": "enhance",
       "pythonModule": "backend.desktop.commands.preprocessing_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "task",
+      "responseMode": "task_submission"
     },
     "desktopClean": {
       "ipcChannel": "desktop:clean",
       "workerCommand": "clean",
       "pythonModule": "backend.desktop.commands.preprocessing_commands",
-      "requiresRuntime": true
+      "requiresRuntime": true,
+      "executionLane": "task",
+      "responseMode": "task_submission"
     }
   },
   "workerCommands": {
     "detect_silence": {
       "pythonModule": "backend.desktop.commands.editor_commands",
-      "requiresRuntime": false
+      "requiresRuntime": false,
+      "executionLane": "utility"
     }
   }
 }

@@ -8,7 +8,7 @@ import {
 import type { Task } from "../types/task";
 
 describe("taskMediaResolver", () => {
-  it("resolves structured refs before fallback candidates", () => {
+  it("resolves structured refs as the only task media identity", () => {
     const task: Task = {
       id: "resolver-structured",
       type: "translate",
@@ -59,18 +59,18 @@ describe("taskMediaResolver", () => {
 
   it("requires structured refs for translation task source resolution", () => {
     const task: Task = {
-      id: "resolver-legacy-translate",
+      id: "resolver-path-mirror-translate",
       type: "translate",
       status: "completed",
       progress: 100,
       created_at: 1,
       task_contract_version: 2,
       request_params: {
-        context_path: "E:/legacy/source.srt",
+        context_path: "E:/stale/source.srt",
       },
       result: {
         meta: {
-          srt_path: "E:/legacy/output.srt",
+          srt_path: "E:/stale/output.srt",
         },
       },
     };
@@ -89,7 +89,7 @@ describe("taskMediaResolver", () => {
       progress: 100,
       created_at: 1,
       request_params: {
-        output_path: "E:/legacy/output.mp4",
+        output_path: "E:/stale/output.mp4",
       },
       result: {
         files: [],
@@ -120,7 +120,7 @@ describe("taskMediaResolver", () => {
                 path: "E:/canonical/sample.mp4",
                 name: "sample.mp4",
               },
-              audio_path: "E:/legacy/stale.mp4",
+              audio_path: "E:/stale/stale.mp4",
             },
           },
         ],

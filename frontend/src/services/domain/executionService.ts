@@ -279,8 +279,6 @@ export const executionService = {
       desktopMethod: "desktopSynthesize",
       desktopUnavailableMessage: "Desktop synthesis worker is unavailable.",
       desktopTaskIdPrefix: "desktop-synthesize",
-      desktopSubmissionMessage: "Synthesis started",
-      desktopFailureLogLabel: "Desktop synthesis failed",
       backendSubmit: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.synthesizeVideo(omitUndefinedFields({
@@ -322,8 +320,6 @@ export const executionService = {
       desktopMethod: "desktopDownload",
       desktopUnavailableMessage: "Desktop download worker is unavailable.",
       desktopTaskIdPrefix: "desktop-download",
-      desktopSubmissionMessage: "Download task started",
-      desktopFailureLogLabel: "Desktop download failed",
       mapDesktopArgs: (normalizedPayload, taskId) =>
         [{ task_id: taskId, ...normalizedPayload.desktopPayload }],
       backendSubmit: ({ pipeline: nextPipeline }) =>

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 from loguru import logger
 from backend.core.adapters.base import BaseAdapter
 from backend.config import settings
-from backend.utils.subtitle_manager import SubtitleManager
+from backend.utils.subtitle_parser import SubtitleParser
 from backend.models.schemas import SubtitleSegment
 
 class FasterWhisperConfig(BaseModel):
@@ -197,7 +197,7 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         srt_path = srt_files[0]
         content = srt_path.read_text(encoding='utf-8')
         
-        return SubtitleManager.parse_srt(content)
+        return SubtitleParser.parse_srt(content)
 
     @staticmethod
     def _summarize_cli_failure(notable_output: List[str]) -> str:

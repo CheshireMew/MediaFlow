@@ -126,7 +126,7 @@ def test_serialize_translate_task_does_not_add_empty_video_ref_slot():
     assert "video_ref" not in payload["request_params"]
 
 
-def test_serialize_task_preserves_native_structured_refs_without_legacy_normalization():
+def test_serialize_task_preserves_native_structured_refs_without_path_normalization():
     view = TaskQueueView()
     task = Task(
         id="task-native-refs",

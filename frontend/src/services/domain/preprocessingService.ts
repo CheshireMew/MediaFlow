@@ -32,8 +32,6 @@ export const preprocessingService = {
       desktopMethod: "desktopExtract",
       desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
       desktopTaskIdPrefix: "desktop-extract",
-      desktopSubmissionMessage: "OCR task started",
-      desktopFailureLogLabel: "Desktop OCR failed",
       backendSubmit: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.extractText(normalizedPayload),
@@ -87,8 +85,6 @@ export const preprocessingService = {
       desktopMethod: "desktopEnhance",
       desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
       desktopTaskIdPrefix: "desktop-enhance",
-      desktopSubmissionMessage: "Enhancement started",
-      desktopFailureLogLabel: "Desktop enhancement failed",
       backendSubmit: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.enhanceVideo(normalizedPayload),
@@ -120,8 +116,6 @@ export const preprocessingService = {
       desktopMethod: "desktopClean",
       desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
       desktopTaskIdPrefix: "desktop-clean",
-      desktopSubmissionMessage: "Cleanup started",
-      desktopFailureLogLabel: "Desktop cleanup failed",
       backendSubmit: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.cleanVideo(normalizedPayload),

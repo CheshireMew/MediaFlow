@@ -127,7 +127,7 @@ describe("runtimeDiagnostics", () => {
     });
   });
 
-  it("keeps legacy result mirrors only in raw result_meta, not in compat path fields", () => {
+  it("keeps stale result mirrors only in raw result_meta", () => {
     expect(
       createTaskDiagnostic(
         {
@@ -139,7 +139,7 @@ describe("runtimeDiagnostics", () => {
           request_params: {},
           result: {
             meta: {
-              srt_path: "E:/legacy/output.srt",
+              srt_path: "E:/stale/output.srt",
             },
           },
           created_at: 1,
@@ -151,7 +151,7 @@ describe("runtimeDiagnostics", () => {
       ),
     ).toMatchObject({
       result_meta: {
-        srt_path: "E:/legacy/output.srt",
+        srt_path: "E:/stale/output.srt",
       },
     });
   });

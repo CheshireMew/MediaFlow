@@ -31,10 +31,10 @@ describe("useOCRProcessor", () => {
       ocrEngine: "rapid",
       ocrResults: [],
       preprocessingIsProcessing: false,
-      preprocessingActiveTaskId: null,
-      preprocessingActiveTaskTool: null,
-      preprocessingActiveTaskVideoPath: null,
-      preprocessingActiveTaskVideoRef: null,
+      currentPreprocessingTaskId: null,
+      currentPreprocessingTaskTool: null,
+      currentPreprocessingTaskVideoPath: null,
+      currentPreprocessingTaskVideoRef: null,
       preprocessingFiles: [],
       preprocessingVideoPath: "E:/video.mp4",
       preprocessingVideoRef: {
@@ -105,7 +105,7 @@ describe("useOCRProcessor", () => {
       },
     });
 
-    expect(usePreprocessingStore.getState().preprocessingActiveTaskId).toBeNull();
+    expect(usePreprocessingStore.getState().currentPreprocessingTaskId).toBeNull();
     expect(usePreprocessingStore.getState().preprocessingIsProcessing).toBe(false);
   });
 });

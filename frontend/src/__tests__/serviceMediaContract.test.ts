@@ -379,7 +379,7 @@ describe("service media contract", () => {
           segments: [],
           text: "",
           language: "en",
-          srt_path: "E:/legacy/source.srt",
+          srt_path: "E:/stale/source.srt",
         },
         {
           path: "E:/canonical/source.mp4",
@@ -399,7 +399,7 @@ describe("service media contract", () => {
         {
           segments: [],
           language: "Chinese",
-          srt_path: "E:/legacy/output.srt",
+          srt_path: "E:/stale/output.srt",
           mode: "standard",
         },
         {

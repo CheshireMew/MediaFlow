@@ -49,9 +49,9 @@ export const PreprocessingPage = () => {
         ocrResults,
         setOcrResults,
         preprocessingIsProcessing,
-        preprocessingActiveTaskId,
-        preprocessingActiveTaskVideoPath,
-        preprocessingActiveTaskVideoRef,
+        currentPreprocessingTaskId,
+        currentPreprocessingTaskVideoPath,
+        currentPreprocessingTaskVideoRef,
         preprocessingFiles, addPreprocessingFile, removePreprocessingFile, updatePreprocessingFile,
         preprocessingVideoPath, preprocessingVideoRef, setPreprocessingVideoPath, setPreprocessingVideoRef,
     } = usePreprocessingStore();
@@ -95,14 +95,14 @@ export const PreprocessingPage = () => {
     const currentTask = useMemo(() => (
         getActivePreprocessingTask(
             tasks,
-            preprocessingActiveTaskId,
-            preprocessingActiveTaskVideoPath,
-            preprocessingActiveTaskVideoRef,
+            currentPreprocessingTaskId,
+            currentPreprocessingTaskVideoPath,
+            currentPreprocessingTaskVideoRef,
             videoPath,
             preprocessingVideoRef,
         )
-    ), [preprocessingActiveTaskId, preprocessingActiveTaskVideoPath, preprocessingActiveTaskVideoRef, preprocessingVideoRef, tasks, videoPath]);
-    const isCurrentFileProcessing = preprocessingIsProcessing && preprocessingActiveTaskVideoPath === videoPath;
+    ), [currentPreprocessingTaskId, currentPreprocessingTaskVideoPath, currentPreprocessingTaskVideoRef, preprocessingVideoRef, tasks, videoPath]);
+    const isCurrentFileProcessing = preprocessingIsProcessing && currentPreprocessingTaskVideoPath === videoPath;
 
     // ── Video Helpers ────────────────────────────────────────────
     const handleTimeUpdate = useCallback(() => {

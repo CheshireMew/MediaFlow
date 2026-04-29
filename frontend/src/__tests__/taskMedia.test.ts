@@ -44,7 +44,7 @@ describe("taskMedia", () => {
     });
   });
 
-  it("prefers structured task media refs over fallback path candidates", async () => {
+  it("uses structured task media refs as the task media identity", async () => {
     const task: Task = {
       id: "task-2",
       type: "pipeline",
@@ -271,7 +271,7 @@ describe("taskMedia", () => {
     expect(hasTaskVideoMedia(task)).toBe(false);
   });
 
-  it("does not keep legacy result file_path as a dedicated context candidate", () => {
+  it("does not keep stale result file_path as a dedicated context candidate", () => {
     const task: Task = {
       id: "task-7",
       type: "download",
@@ -283,7 +283,7 @@ describe("taskMedia", () => {
         success: true,
         files: [{ type: "video", path: "E:/canonical/video.mp4" }],
         meta: {
-          file_path: "E:/legacy/stale-video.mp4",
+          file_path: "E:/stale/stale-video.mp4",
         },
       },
     };
@@ -303,7 +303,7 @@ describe("taskMedia", () => {
       progress: 100,
       created_at: Date.now(),
       request_params: {
-        srt_path: "E:/legacy/request-only.srt",
+        srt_path: "E:/stale/request-only.srt",
       },
       result: {
         success: true,
@@ -328,7 +328,7 @@ describe("taskMedia", () => {
       created_at: Date.now(),
       request_params: {
         context_path: "E:/canonical/source.srt",
-        translated_subtitle_path: "E:/legacy/derived-output.srt",
+        translated_subtitle_path: "E:/stale/derived-output.srt",
       },
       result: {
         success: true,
@@ -352,7 +352,7 @@ describe("taskMedia", () => {
       progress: 100,
       created_at: Date.now(),
       request_params: {
-        context_path: "E:/legacy/source-only.srt",
+        context_path: "E:/stale/source-only.srt",
       },
       result: {
         success: true,
@@ -380,7 +380,7 @@ describe("taskMedia", () => {
         success: true,
         files: [{ type: "subtitle", path: "E:/canonical/output-from-files.srt" }],
         meta: {
-          srt_path: "E:/legacy/output-from-meta.srt",
+          srt_path: "E:/stale/output-from-meta.srt",
         },
       },
     };
@@ -392,7 +392,7 @@ describe("taskMedia", () => {
     });
   });
 
-  it("does not use meta srt_path for task snapshot subtitle recovery even on legacy-shaped tasks", () => {
+  it("does not use meta srt_path for task snapshot subtitle recovery on path-mirror-shaped tasks", () => {
     const task: Task = {
       id: "task-13",
       type: "translate",
@@ -425,7 +425,7 @@ describe("taskMedia", () => {
       progress: 100,
       created_at: Date.now(),
       request_params: {
-        output_path: "E:/legacy/request-output.mp4",
+        output_path: "E:/stale/request-output.mp4",
       },
       result: {
         success: true,

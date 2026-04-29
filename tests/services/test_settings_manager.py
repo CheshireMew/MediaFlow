@@ -1,5 +1,3 @@
-import shutil
-
 from backend.services.settings_manager import (
     LLMProvider,
     SMART_SPLIT_TEXT_LIMIT_DEFAULT,
@@ -48,31 +46,23 @@ def test_settings_manager_normalizes_active_provider_selection():
     assert normalized.llm_providers[1].is_active is False
 
 
-def test_settings_manager_migrates_legacy_settings_file(tmp_path):
-    legacy_dir = tmp_path / "data"
-    user_data_dir = tmp_path / "user_data"
-    legacy_dir.mkdir()
+def test_settings_manager_reads_current_file_on_each_get(tmp_path, monkeypatch):
+    settings_path = tmp_path / "user_settings.json"
+    monkeypatch.setattr(SettingsManager, "_file_path", settings_path)
+    manager = SettingsManager()
 
-    legacy_path = legacy_dir / "user_settings.json"
-    new_path = user_data_dir / "user_settings.json"
-    legacy_path.write_text('{"language":"ja","llm_providers":[]}', encoding="utf-8")
+    first = manager.get_settings()
+    assert first.language == "zh"
 
-    manager = object.__new__(SettingsManager)
-    manager._legacy_file_path = legacy_path
-    manager._file_path = new_path
+    settings_path.write_text('{"language":"ja","llm_providers":[]}', encoding="utf-8")
 
-    manager._migrate_legacy_settings_file()
-
-    assert not legacy_path.exists()
-    assert new_path.exists()
-    assert "ja" in new_path.read_text(encoding="utf-8")
-
-    shutil.rmtree(user_data_dir, ignore_errors=True)
+    second = manager.get_settings()
+    assert second.language == "ja"
 
 
 def test_settings_manager_marks_encrypted_api_keys(monkeypatch):
     manager = object.__new__(SettingsManager)
-    manager._settings = UserSettings(
+    user_settings = UserSettings(
         llm_providers=[
             LLMProvider(
                 id="a",
@@ -90,7 +80,7 @@ def test_settings_manager_marks_encrypted_api_keys(monkeypatch):
         lambda text: f"enc:{text}",
     )
 
-    data = manager._serialize_settings_data()
+    data = manager._serialize_settings_data(user_settings)
 
     assert data["llm_providers"][0]["api_key"] == "enc:secret"
     assert data["llm_providers"][0]["api_key_encrypted"] is True
@@ -98,7 +88,7 @@ def test_settings_manager_marks_encrypted_api_keys(monkeypatch):
 
 def test_settings_manager_marks_plaintext_fallback_api_keys(monkeypatch):
     manager = object.__new__(SettingsManager)
-    manager._settings = UserSettings(
+    user_settings = UserSettings(
         llm_providers=[
             LLMProvider(
                 id="a",
@@ -116,7 +106,7 @@ def test_settings_manager_marks_plaintext_fallback_api_keys(monkeypatch):
         lambda text: text,
     )
 
-    data = manager._serialize_settings_data()
+    data = manager._serialize_settings_data(user_settings)
 
     assert data["llm_providers"][0]["api_key"] == "secret"
     assert data["llm_providers"][0]["api_key_encrypted"] is False

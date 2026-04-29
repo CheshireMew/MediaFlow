@@ -66,7 +66,7 @@ def build_translation_task_result(
 
     if context_path and segments:
         try:
-            from backend.utils.subtitle_manager import SubtitleManager
+            from backend.utils.subtitle_writer import SubtitleWriter
 
             suffix = get_translation_output_suffix(target_language, mode)
             source_path = Path(context_path)
@@ -77,7 +77,7 @@ def build_translation_task_result(
                 f"target={save_path}.srt"
             )
 
-            saved_path = SubtitleManager.save_srt(segments, str(save_path))
+            saved_path = SubtitleWriter.save_srt(segments, str(save_path))
             files.append(
                 FileRef(type="subtitle", path=str(saved_path), label="translation")
             )

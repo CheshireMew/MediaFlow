@@ -24,9 +24,9 @@ def test_all_pipeline_steps_registered():
 
 
 def test_step_registry_returns_step_class():
-    """StepRegistry.get() must return a valid step class for known steps."""
+    """StepRegistry.get_step() must return a valid step class for known steps."""
     from backend.core.steps.registry import StepRegistry
     from backend.core.steps import download  # noqa: F401
 
-    step_cls = StepRegistry.get("download")
-    assert step_cls is not None, "StepRegistry.get('download') returned None"
+    step_cls = StepRegistry.get_step("download")
+    assert step_cls is not None, "StepRegistry.get_step('download') returned None"

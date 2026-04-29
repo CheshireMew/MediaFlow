@@ -5,7 +5,7 @@ from loguru import logger
 from backend.config import settings
 from backend.models.schemas import SubtitleSegment
 from backend.utils.audio_processor import AudioProcessor
-from backend.utils.subtitle_manager import SubtitleManager
+from backend.utils.segment_refiner import SegmentRefiner
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class CoreStrategies:
@@ -28,7 +28,7 @@ class CoreStrategies:
         )
         
         segments_list = list(segments_gen)
-        return SubtitleManager.refine_segments(segments_list, max_chars=50)
+        return SegmentRefiner.refine_segments(segments_list, max_chars=50)
 
     def transcribe_smart_split(self, audio_path: str, duration: float, model: Any, language: str, initial_prompt: str, progress_callback) -> List[SubtitleSegment]:
         """Handle long audio files by splitting them based on silence."""
@@ -95,7 +95,7 @@ class CoreStrategies:
         segs_list = list(segs)
         
         # Refine relative to chunk
-        refined_local = SubtitleManager.refine_segments(segs_list, max_chars=50)
+        refined_local = SegmentRefiner.refine_segments(segs_list, max_chars=50)
         
         # Apply Offset
         chunk_segments = []

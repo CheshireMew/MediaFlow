@@ -2,9 +2,11 @@ import type { Task } from "../../src/types/task";
 import { TASK_CONTRACT_VERSION, TASK_LIFECYCLE } from "../../src/contracts/runtimeContracts";
 export { TASK_CONTRACT_VERSION } from "../../src/contracts/runtimeContracts";
 import { desktopCommandMappers } from "./taskCommandRegistry";
+import { isDesktopTaskCommand } from "./workerCommandLanes";
 import type {
   DesktopTaskStatus,
   DesktopTaskType,
+  ActiveDesktopWorkerTask,
   DesktopWorkerEventPayload,
   DesktopWorkerRequest,
   PausedDesktopWorkerTask,
@@ -14,10 +16,6 @@ function resolveDesktopTaskCreatedAt(payload: Record<string, unknown>) {
   return typeof payload.created_at === "number" && Number.isFinite(payload.created_at)
     ? payload.created_at
     : Date.now();
-}
-
-export function isTrackedDesktopCommand(command: string): command is DesktopTaskType {
-  return command in desktopCommandMappers;
 }
 
 export function createDesktopTask(params: {
@@ -68,7 +66,8 @@ export function createDesktopTask(params: {
 }
 
 export function getDesktopTaskSnapshot(params: {
-  activeTaskId: string | null;
+  runningTaskIds: Iterable<string>;
+  activeTasks: ReadonlyMap<string, ActiveDesktopWorkerTask>;
   queuedTaskIds: string[];
   pausedTasks: Map<string, PausedDesktopWorkerTask>;
   requests: ReadonlyMap<string, DesktopWorkerRequest>;
@@ -76,17 +75,18 @@ export function getDesktopTaskSnapshot(params: {
 }): Task[] {
   const tasks: Array<Task & { queue_position?: number | null }> = [];
 
-  if (params.activeTaskId) {
-    const activeRequest = params.requests.get(params.activeTaskId);
-    if (activeRequest && isTrackedDesktopCommand(activeRequest.command)) {
+  for (const taskId of params.runningTaskIds) {
+    const activeRequest = params.requests.get(taskId);
+    const activeTask = params.activeTasks.get(taskId);
+    if (activeRequest && isDesktopTaskCommand(activeRequest.command)) {
       tasks.push({
         ...createDesktopTask({
-          id: params.activeTaskId,
+          id: taskId,
           command: activeRequest.command,
           payload: activeRequest.payload,
           status: "running",
-          progress: 0,
-          message: "Starting",
+          progress: activeTask?.progress ?? 0,
+          message: activeTask?.message ?? "Starting",
         }),
         queue_position: null,
       });
@@ -95,7 +95,7 @@ export function getDesktopTaskSnapshot(params: {
 
   params.queuedTaskIds.forEach((taskId, index) => {
     const pending = params.requests.get(taskId);
-    if (!pending || !isTrackedDesktopCommand(pending.command)) return;
+    if (!pending || !isDesktopTaskCommand(pending.command)) return;
     tasks.push({
       ...createDesktopTask({
         id: taskId,
@@ -145,7 +145,7 @@ export function createDesktopTaskProgressUpdate(params: {
   payload: unknown;
 }): Task | null {
   const { taskId, request, payload } = params;
-  if (!request || !isTrackedDesktopCommand(request.command) || !payload || typeof payload !== "object") {
+  if (!request || !isDesktopTaskCommand(request.command) || !payload || typeof payload !== "object") {
     return null;
   }
   const eventPayload = payload as DesktopWorkerEventPayload;
@@ -167,7 +167,7 @@ export function createDesktopTaskResponseUpdate(params: {
   error?: string;
 }): Task | null {
   const { taskId, request, ok, result, error } = params;
-  if (!request || !isTrackedDesktopCommand(request.command)) {
+  if (!request || !isDesktopTaskCommand(request.command)) {
     return null;
   }
   if (ok) {

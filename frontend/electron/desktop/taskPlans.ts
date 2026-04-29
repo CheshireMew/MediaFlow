@@ -1,19 +1,22 @@
 import {
   createDesktopTask,
-  isTrackedDesktopCommand,
 } from "./taskMapper";
 import type {
   DesktopTaskActionPlan,
   DesktopTaskCollections,
   PausedDesktopWorkerTask,
 } from "./taskTypes";
+import { isDesktopTaskCommand } from "./workerCommandLanes";
 
 export function planPauseDesktopTask(
   taskId: string,
   collections: DesktopTaskCollections,
 ): DesktopTaskActionPlan {
   const pending = collections.requests.get(taskId);
-  if (!pending || !isTrackedDesktopCommand(pending.command)) {
+  if (!pending || !isDesktopTaskCommand(pending.command)) {
+    return { status: "ignored" };
+  }
+  if (!collections.queuedTaskIds.includes(taskId)) {
     return { status: "ignored" };
   }
 
@@ -42,7 +45,6 @@ export function planPauseDesktopTask(
       queue_state: "paused",
       message: "Paused",
     },
-    shouldRestartWorker: collections.activeTaskId === taskId,
   };
 }
 
@@ -75,7 +77,7 @@ export function planCancelDesktopTask(
   }
 
   const pending = collections.requests.get(taskId);
-  if (!pending || !isTrackedDesktopCommand(pending.command)) {
+  if (!pending || !isDesktopTaskCommand(pending.command)) {
     return { status: "ignored" };
   }
 
@@ -89,12 +91,12 @@ export function planCancelDesktopTask(
     };
   }
 
-  if (collections.activeTaskId === taskId) {
+  if (collections.runningTaskIds.has(taskId)) {
     return {
       status: "cancelled",
       removeRequest: true,
       rejectMessage: "Desktop worker task cancelled",
-      shouldRestartWorker: true,
+      shouldRestartAssignedSlot: true,
       emitTask: {
         ...createDesktopTask({
           id: taskId,

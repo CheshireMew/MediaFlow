@@ -50,28 +50,6 @@ function mapSubmissionStatusToTaskStatus(
   return "pending";
 }
 
-export function createDesktopTaskSubmissionReceipt(
-  taskId: string,
-  message: string,
-): TaskExecutionSubmission {
-  return {
-    execution_mode: "task_submission",
-    task_id: taskId,
-    status: "queued",
-    message,
-    task_source: "desktop",
-    task_contract_version: TASK_SUBMISSION_CONTRACT_VERSION,
-    persistence_scope: "runtime",
-    lifecycle: getTaskLifecycle({
-      taskSource: "desktop",
-      persistenceScope: "runtime",
-      status: "pending",
-    }),
-    queue_state: "queued",
-    queue_position: null,
-  };
-}
-
 export function createExecutionOutcomeFromSubmission<TResult = never>(
   submission: TaskExecutionSubmission,
 ): ExecutionOutcome<TResult> {
@@ -127,15 +105,6 @@ export function createTaskExecutionOutcome<TResult = never>(
 ): ExecutionOutcome<TResult> {
   return createExecutionOutcomeFromSubmission<TResult>(
     createTaskExecutionSubmissionReceipt(response, taskSource),
-  );
-}
-
-export function createDesktopTaskExecutionOutcome<TResult = never>(
-  taskId: string,
-  message: string,
-): ExecutionOutcome<TResult> {
-  return createExecutionOutcomeFromSubmission<TResult>(
-    createDesktopTaskSubmissionReceipt(taskId, message),
   );
 }
 

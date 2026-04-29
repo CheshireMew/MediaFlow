@@ -13,7 +13,6 @@ import { attachElectronFileSource } from "../../services/ui/electronFileSource";
 
 const TRANSCRIBER_SNAPSHOT_KEY = "transcriber_snapshot";
 const TRANSCRIBER_SNAPSHOT_VERSION = 2;
-const LEGACY_TRANSCRIBER_SNAPSHOT_VERSION = 1;
 
 type TranscriberSnapshotPayload = {
   result: TranscribeResult | null;
@@ -25,53 +24,11 @@ const TRANSCRIBER_SNAPSHOT_LIFECYCLE = {
   result: TASK_LIFECYCLE.history_only,
 } as const;
 
-type LegacyTranscriberSnapshotPayload = {
-  result?: TranscribeResult | null;
-  file?: ReturnType<typeof mediaReferenceFromElectronFile>;
-};
-
-function normalizeTranscriberSnapshotPayload(
-  snapshot: LegacyTranscriberSnapshotPayload | null,
-): TranscriberSnapshotPayload | null {
-  if (!snapshot) {
-    return null;
-  }
-
-  return {
-    result: snapshot.result ?? null,
-    file: snapshot.file ?? null,
-  };
-}
-
 export function restoreStoredTranscriberSnapshot(): TranscriberSnapshotPayload | null {
-  const snapshot = normalizeTranscriberSnapshotPayload(
-    parseVersionedSnapshot<TranscriberSnapshotPayload>(
-      localStorage.getItem(TRANSCRIBER_SNAPSHOT_KEY),
-      TRANSCRIBER_SNAPSHOT_VERSION,
-    ),
+  return parseVersionedSnapshot<TranscriberSnapshotPayload>(
+    localStorage.getItem(TRANSCRIBER_SNAPSHOT_KEY),
+    TRANSCRIBER_SNAPSHOT_VERSION,
   );
-  if (snapshot) {
-    return snapshot;
-  }
-
-  const legacySnapshot = normalizeTranscriberSnapshotPayload(
-    parseVersionedSnapshot<LegacyTranscriberSnapshotPayload>(
-      localStorage.getItem(TRANSCRIBER_SNAPSHOT_KEY),
-      LEGACY_TRANSCRIBER_SNAPSHOT_VERSION,
-    ),
-  );
-  if (legacySnapshot) {
-    localStorage.setItem(
-      TRANSCRIBER_SNAPSHOT_KEY,
-      serializeVersionedSnapshot(
-        TRANSCRIBER_SNAPSHOT_VERSION,
-        legacySnapshot,
-        TRANSCRIBER_SNAPSHOT_LIFECYCLE,
-      ),
-    );
-  }
-
-  return legacySnapshot;
 }
 
 export function restoreStoredTranscriberFile(): ElectronFile | null {

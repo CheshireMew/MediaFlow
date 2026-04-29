@@ -105,7 +105,7 @@ class RealESRGANService:
             logger.info("Extracting frames...")
             if progress_callback: progress_callback(0.0, "Extracting frames...")
             
-            # Use jpg for speed/compatibility (q:v 2 is high quality)
+            # Use jpg for broad encoder support (q:v 2 is high quality)
             extract_cmd = [
                 ffmpeg_exe, "-y", 
                 "-i", input_path, 

@@ -161,12 +161,6 @@ class AnalyzerService:
     
     def _adapt_result(self, result) -> AnalyzeResult:
         """Adapt platform result model to internal AnalyzeResult model if needed."""
-        # Currently the platform returns AnalyzeResult compatible dict/obj, 
-        # but we ensure strict typing here.
         if isinstance(result, AnalyzeResult):
             return result
-        
-        # If the platform returns the raw Pydantic model (which it should), just return it.
-        # This is a placeholder if we ever need to map fields.
         return result
-

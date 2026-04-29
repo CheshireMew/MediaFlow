@@ -14,19 +14,17 @@ type MediaSeed = {
   origin?: MediaReference["origin"];
 };
 
-function createFallbackRef(
+function chooseResultMediaRef(
   preferredRef?: MediaReference | null,
   secondaryRef?: MediaReference | null,
-  fallbackPath?: string | null,
-  fallbackSeed?: MediaSeed | ElectronFile | MediaReference | null,
+  seed?: MediaSeed | ElectronFile | MediaReference | null,
 ): MediaReference | null {
-  const seedRef = normalizeMediaReference(fallbackSeed);
+  const seedRef = normalizeMediaReference(seed);
 
   return (
     preferredRef ??
     secondaryRef ??
-    seedRef ??
-    normalizeMediaReference(fallbackPath)
+    seedRef
   );
 }
 
@@ -40,8 +38,8 @@ export function normalizeDirectTranscribeResult(
 
   return {
     ...result,
-    video_ref: createFallbackRef(result.video_ref, null, null, sourceFile),
-    subtitle_ref: createFallbackRef(result.subtitle_ref, result.output_ref ?? null, null),
+    video_ref: chooseResultMediaRef(result.video_ref, null, sourceFile),
+    subtitle_ref: chooseResultMediaRef(result.subtitle_ref, result.output_ref ?? null),
   };
 }
 
@@ -55,11 +53,10 @@ export function normalizeDirectTranslateResult(
 
   return {
     ...result,
-    context_ref: createFallbackRef(result.context_ref ?? null, contextRef ?? null, null),
-    subtitle_ref: createFallbackRef(
+    context_ref: chooseResultMediaRef(result.context_ref ?? null, contextRef ?? null),
+    subtitle_ref: chooseResultMediaRef(
       result.subtitle_ref ?? null,
       result.output_ref ?? null,
-      null,
     ),
   };
 }

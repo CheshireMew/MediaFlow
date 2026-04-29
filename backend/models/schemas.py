@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl, Field, model_validator
+from pydantic import BaseModel, HttpUrl, Field
 from typing import Optional, List, Union, Dict, Any, Literal, Annotated
 
 from backend.utils.media_inputs import MediaInputModel
@@ -7,7 +7,6 @@ class DownloadRequest(BaseModel):
     url: HttpUrl
     format: str = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4"
     proxy: Optional[str] = None
-    output_filename: Optional[str] = None
 
 class MediaAsset(BaseModel):
     id: str
@@ -79,13 +78,6 @@ class DownloadParams(BaseModel):
     output_filename: Optional[str] = None
     filename: Optional[str] = None
     codec: str = "best"
-
-    @model_validator(mode="after")
-    def apply_legacy_output_filename(self) -> "DownloadParams":
-        # Preserve older callers that still send output_filename.
-        if not self.filename and self.output_filename:
-            self.filename = self.output_filename
-        return self
 
 class TranscribeParams(MediaInputModel):
     MEDIA_INPUT_SPECS = (("audio_path", "audio_ref"),)

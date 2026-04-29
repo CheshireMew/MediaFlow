@@ -16,6 +16,7 @@ _LOADED_COMMAND_MODULES: set[str] = set()
 class WorkerCommandDefinition:
     module: str | None
     requires_runtime: bool = True
+    execution_lane: str = "control"
 
 
 def _definition_from_contract(raw: dict[str, Any]) -> WorkerCommandDefinition:
@@ -25,6 +26,7 @@ def _definition_from_contract(raw: dict[str, Any]) -> WorkerCommandDefinition:
     return WorkerCommandDefinition(
         module=module,
         requires_runtime=bool(raw.get("requiresRuntime", True)),
+        execution_lane=str(raw.get("executionLane", "control")),
     )
 
 

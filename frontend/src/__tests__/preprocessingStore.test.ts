@@ -13,10 +13,10 @@ describe("preprocessingStore persistence", () => {
       ocrEngine: "rapid",
       ocrResults: [],
       preprocessingIsProcessing: false,
-      preprocessingActiveTaskId: null,
-      preprocessingActiveTaskTool: null,
-      preprocessingActiveTaskVideoPath: null,
-      preprocessingActiveTaskVideoRef: null,
+      currentPreprocessingTaskId: null,
+      currentPreprocessingTaskTool: null,
+      currentPreprocessingTaskVideoPath: null,
+      currentPreprocessingTaskVideoRef: null,
       preprocessingFiles: [],
       preprocessingVideoPath: null,
       preprocessingVideoRef: null,
@@ -29,10 +29,10 @@ describe("preprocessingStore persistence", () => {
       preprocessingVideoRef: { path: "E:/video.mp4", name: "video.mp4" },
       preprocessingFiles: [{ path: "E:/video.mp4", name: "video.mp4", size: 1024 }],
       preprocessingIsProcessing: true,
-      preprocessingActiveTaskId: "pre-task-1",
-      preprocessingActiveTaskTool: "extract",
-      preprocessingActiveTaskVideoPath: "E:/video.mp4",
-      preprocessingActiveTaskVideoRef: { path: "E:/video.mp4", name: "video.mp4" },
+      currentPreprocessingTaskId: "pre-task-1",
+      currentPreprocessingTaskTool: "extract",
+      currentPreprocessingTaskVideoPath: "E:/video.mp4",
+      currentPreprocessingTaskVideoRef: { path: "E:/video.mp4", name: "video.mp4" },
     });
 
     const persistedRaw = localStorage.getItem("preprocessing-storage");
@@ -47,9 +47,9 @@ describe("preprocessingStore persistence", () => {
       preprocessingFiles: [{ path: "E:/video.mp4", name: "video.mp4", size: 1024 }],
     });
     expect(persisted.state.preprocessingIsProcessing).toBeUndefined();
-    expect(persisted.state.preprocessingActiveTaskId).toBeUndefined();
-    expect(persisted.state.preprocessingActiveTaskTool).toBeUndefined();
-    expect(persisted.state.preprocessingActiveTaskVideoPath).toBeUndefined();
-    expect(persisted.state.preprocessingActiveTaskVideoRef).toBeUndefined();
+    expect(persisted.state.currentPreprocessingTaskId).toBeUndefined();
+    expect(persisted.state.currentPreprocessingTaskTool).toBeUndefined();
+    expect(persisted.state.currentPreprocessingTaskVideoPath).toBeUndefined();
+    expect(persisted.state.currentPreprocessingTaskVideoRef).toBeUndefined();
   });
 });

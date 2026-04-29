@@ -75,10 +75,10 @@ describe("PreprocessingPage task ownership", () => {
         size: 123,
       },
       preprocessingIsProcessing: true,
-      preprocessingActiveTaskId: "task-own",
-      preprocessingActiveTaskTool: "extract",
-      preprocessingActiveTaskVideoPath: "E:/canonical/video-a.mp4",
-      preprocessingActiveTaskVideoRef: {
+      currentPreprocessingTaskId: "task-own",
+      currentPreprocessingTaskTool: "extract",
+      currentPreprocessingTaskVideoPath: "E:/canonical/video-a.mp4",
+      currentPreprocessingTaskVideoRef: {
         path: "E:/canonical/video-a.mp4",
         name: "video-a.mp4",
         size: 123,
@@ -117,8 +117,8 @@ describe("PreprocessingPage task ownership", () => {
 
   it("hides the overlay when the active preprocessing task belongs to another file", () => {
     usePreprocessingStore.setState({
-      preprocessingActiveTaskVideoPath: "E:/video-b.mp4",
-      preprocessingActiveTaskVideoRef: {
+      currentPreprocessingTaskVideoPath: "E:/video-b.mp4",
+      currentPreprocessingTaskVideoRef: {
         path: "E:/canonical/video-b.mp4",
         name: "video-b.mp4",
         size: 456,

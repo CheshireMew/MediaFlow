@@ -5,7 +5,7 @@ from backend.core.steps.base import PipelineStep
 from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
 from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
-from backend.utils.subtitle_manager import SubtitleManager
+from backend.utils.subtitle_writer import SubtitleWriter
 from backend.models.schemas import SubtitleSegment, FileRef
 
 class TranslateStep(PipelineStep):
@@ -70,13 +70,13 @@ class TranslateStep(PipelineStep):
             lang_suffix = suffix_map.get(target_language, f"_{target_language}")
             
             # e.g., video.mp4 -> video_CN.srt
-            output_filename = f"{p.stem}{lang_suffix}.srt"
-            output_path = p.parent / output_filename
+            output_name = f"{p.stem}{lang_suffix}.srt"
+            output_path = p.parent / output_name
         else:
             # Fallback
             output_path = Path(f"translated_{target_language}.srt")
             
-        saved_path = SubtitleManager.save_srt(translated_segments, str(output_path))
+        saved_path = SubtitleWriter.save_srt(translated_segments, str(output_path))
         
         # 5. Update Context
         ctx.set("translated_segments", [s.dict() for s in translated_segments])

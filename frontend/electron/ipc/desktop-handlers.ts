@@ -19,6 +19,9 @@ export function registerDesktopHandlers(supervisor: DesktopWorkerSupervisor) {
       if (descriptor.workerCommand !== DESKTOP_WORKER_INVOCATIONS.desktopPing.workerCommand) {
         desktopFileAccess.assertWorkerPayloadAccess(normalizedPayload);
       }
+      if ("responseMode" in descriptor && descriptor.responseMode === "task_submission") {
+        return supervisor.submitTask(descriptor.workerCommand, normalizedPayload);
+      }
       return await supervisor.request(descriptor.workerCommand, normalizedPayload);
     });
   }

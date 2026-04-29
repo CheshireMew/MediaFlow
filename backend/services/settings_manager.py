@@ -1,11 +1,11 @@
-
 import json
-import shutil
-from pathlib import Path
-from typing import List, Optional, Dict
-from pydantic import BaseModel, Field
+from typing import List, Optional
+
 from loguru import logger
+from pydantic import BaseModel, Field
+
 from backend.config import settings
+
 
 class LLMProvider(BaseModel):
     id: str = Field(..., description="Unique Identifier")
@@ -15,7 +15,9 @@ class LLMProvider(BaseModel):
     model: str
     is_active: bool = False
 
+
 SMART_SPLIT_TEXT_LIMIT_DEFAULT = 24
+
 
 class UserSettings(BaseModel):
     llm_providers: List[LLMProvider] = []
@@ -28,13 +30,12 @@ class UserSettings(BaseModel):
         ge=1,
     )
 
+
 class SettingsManager:
-    _legacy_file_path = settings.RESOURCE_DIR / "data" / "user_settings.json"
     _file_path = settings.USER_DATA_DIR / "user_settings.json"
 
     def __init__(self):
-        self._settings = UserSettings()
-        self._load()
+        self._ensure_settings_file()
 
     @staticmethod
     def _apply_runtime_settings(user_settings: UserSettings) -> None:
@@ -57,65 +58,53 @@ class SettingsManager:
                     provider.is_active = index == first_active
         return user_settings
 
-    def _load(self):
-        self._migrate_legacy_settings_file()
+    def _ensure_settings_file(self) -> None:
         if self._file_path.exists():
-            try:
-                with open(self._file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    data = self._deserialize_settings_data(data)
-                    data.setdefault(
-                        "faster_whisper_cli_path",
-                        settings.FASTER_WHISPER_CLI_PATH or None,
-                    )
-                                
-                    self._settings = self._normalize_settings(UserSettings(**data))
-                    self._apply_runtime_settings(self._settings)
-                logger.info(f"Loaded settings from {self._file_path}")
-            except Exception as e:
-                logger.error(f"Failed to load settings: {e}")
-                self._settings = UserSettings()
-        else:
-            # First run — start with empty defaults, user configures via UI
-            self._settings = UserSettings(
-                faster_whisper_cli_path=settings.FASTER_WHISPER_CLI_PATH or None,
-            )
-            self.save()
-
-    def _migrate_legacy_settings_file(self):
-        if self._file_path.exists() or not self._legacy_file_path.exists():
             return
 
-        self._file_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            shutil.move(str(self._legacy_file_path), str(self._file_path))
-            logger.info(
-                f"Migrated legacy settings file from {self._legacy_file_path} to {self._file_path}"
+        self.save(
+            UserSettings(
+                faster_whisper_cli_path=settings.FASTER_WHISPER_CLI_PATH or None,
             )
+        )
+
+    def _load(self) -> UserSettings:
+        self._ensure_settings_file()
+        try:
+            with open(self._file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                data = self._deserialize_settings_data(data)
+                data.setdefault(
+                    "faster_whisper_cli_path",
+                    settings.FASTER_WHISPER_CLI_PATH or None,
+                )
+
+                loaded_settings = self._normalize_settings(UserSettings(**data))
+                self._apply_runtime_settings(loaded_settings)
+            logger.info(f"Loaded settings from {self._file_path}")
+            return loaded_settings
         except Exception as e:
-            logger.warning(
-                f"Failed to migrate legacy settings file from {self._legacy_file_path} to {self._file_path}: {e}"
-            )
+            logger.error(f"Failed to load settings: {e}")
+            return UserSettings()
 
-
-    def save(self):
+    def save(self, user_settings: UserSettings) -> None:
         self._file_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            data = self._serialize_settings_data()
-            
+            data = self._serialize_settings_data(user_settings)
+
             with open(self._file_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-                
+
         except Exception as e:
             logger.error(f"Failed to save settings: {e}")
 
-    def _serialize_settings_data(self) -> dict:
+    def _serialize_settings_data(self, user_settings: UserSettings) -> dict:
         from backend.utils.security import SecurityManager
 
-        if hasattr(self._settings, "model_dump"):
-            data = self._settings.model_dump()
+        if hasattr(user_settings, "model_dump"):
+            data = user_settings.model_dump()
         else:
-            data = self._settings.dict()
+            data = user_settings.dict()
 
         for provider in data.get("llm_providers", []):
             api_key = provider.get("api_key")
@@ -150,31 +139,31 @@ class SettingsManager:
         return data
 
     def get_settings(self) -> UserSettings:
-        return self._settings
+        return self._load()
 
     def update_settings(self, new_settings: UserSettings):
-        self._settings = self._normalize_settings(new_settings)
-        self._apply_runtime_settings(self._settings)
-        self.save()
+        normalized_settings = self._normalize_settings(new_settings)
+        self._apply_runtime_settings(normalized_settings)
+        self.save(normalized_settings)
         logger.info("Settings updated and saved.")
 
     def get_active_llm_provider(self) -> Optional[LLMProvider]:
-        for p in self._settings.llm_providers:
-            if p.is_active:
-                return p
+        for provider in self.get_settings().llm_providers:
+            if provider.is_active:
+                return provider
         return None
-    
+
     def set_active_provider(self, provider_id: str):
+        current_settings = self.get_settings()
         found = False
-        for p in self._settings.llm_providers:
-            if p.id == provider_id:
-                p.is_active = True
+        for provider in current_settings.llm_providers:
+            if provider.id == provider_id:
+                provider.is_active = True
                 found = True
             else:
-                p.is_active = False
-        
+                provider.is_active = False
+
         if found:
-            self.save()
+            self.save(current_settings)
         else:
             raise ValueError(f"Provider {provider_id} not found")
-

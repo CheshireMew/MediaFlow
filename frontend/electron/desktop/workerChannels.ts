@@ -2,7 +2,7 @@ import { BrowserWindow } from "electron";
 
 import {
   DESKTOP_TASK_EVENT_CHANNEL,
-  DESKTOP_WORKER_EVENT_CHANNELS,
+  DESKTOP_WORKER_PROGRESS_CHANNEL,
 } from "./bridgeContract";
 
 export class DesktopWorkerChannels {
@@ -12,15 +12,19 @@ export class DesktopWorkerChannels {
     }
   }
 
-  emitWorkerEvent(event: string, payload: unknown) {
-    const channel =
-      DESKTOP_WORKER_EVENT_CHANNELS[event as keyof typeof DESKTOP_WORKER_EVENT_CHANNELS];
-    if (channel) {
-      for (const window of BrowserWindow.getAllWindows()) {
-        window.webContents.send(channel, payload);
-      }
-      return true;
+  emitWorkerEvent(event: string, payload: unknown, requestId: string | null) {
+    if (!payload || typeof payload !== "object" || !("progress" in payload)) {
+      return false;
     }
-    return false;
+
+    const progressPayload = {
+      ...(payload as Record<string, unknown>),
+      event,
+      task_id: requestId,
+    };
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(DESKTOP_WORKER_PROGRESS_CHANNEL, progressPayload);
+    }
+    return true;
   }
 }

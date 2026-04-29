@@ -104,7 +104,7 @@ export const findActiveTranslationTask = (
       return false;
     }
 
-    const sourceIdentity = resolveMediaReferencePath(sourceFileRef, sourceFilePath);
+    const sourceIdentity = resolveMediaReferencePath(sourceFileRef);
     if (sourceIdentity) {
       const taskMediaRefs = getTranslationTaskMediaRefs(task);
       const sourceSubtitleIdentity = resolveMediaReferencePath(taskMediaRefs.sourceSubtitleRef);
@@ -123,14 +123,14 @@ export const findCompletedTranslationTask = (
     if (task.type !== "translate") return false;
     if (task.status !== "completed") return false;
 
-    const sourceIdentity = resolveMediaReferencePath(sourceFileRef, sourceFilePath);
+    const sourceIdentity = resolveMediaReferencePath(sourceFileRef);
     if (sourceIdentity) {
       const taskMediaRefs = getTranslationTaskMediaRefs(task);
       const sourceSubtitleIdentity = resolveMediaReferencePath(taskMediaRefs.sourceSubtitleRef);
       return sourceSubtitleIdentity === sourceIdentity;
     }
 
-    return true;
+    return !sourceFileRef && !sourceFilePath;
   });
 
 export const findActiveTranscribeTask = (
@@ -142,8 +142,8 @@ export const findActiveTranscribeTask = (
     if (!isTaskRecoverable(task)) return false;
     if (!hasTranscribeStep(task)) return false;
 
-    const mediaIdentity = resolveMediaReferencePath(fileRef, filePath);
-    if (!mediaIdentity) return true;
+    const mediaIdentity = resolveMediaReferencePath(fileRef);
+    if (!mediaIdentity) return !fileRef && !filePath;
     const transcribeMediaRefs = resolveTranscribeTaskMedia(task);
     const sourceIdentity = resolveMediaReferencePath(transcribeMediaRefs.sourceMediaRef);
     if (sourceIdentity === mediaIdentity) {
@@ -152,7 +152,7 @@ export const findActiveTranscribeTask = (
     if (sourceIdentity) {
       return false;
     }
-    return transcribeMediaRefs.sourceCandidates.includes(mediaIdentity);
+    return false;
   });
 
 export const findCompletedTranscribeTask = (
@@ -164,8 +164,8 @@ export const findCompletedTranscribeTask = (
     if (task.status !== "completed") return false;
     if (!hasTranscribeStep(task)) return false;
 
-    const mediaIdentity = resolveMediaReferencePath(fileRef, filePath);
-    if (!mediaIdentity) return true;
+    const mediaIdentity = resolveMediaReferencePath(fileRef);
+    if (!mediaIdentity) return !fileRef && !filePath;
     const transcribeMediaRefs = resolveTranscribeTaskMedia(task);
     const sourceIdentity = resolveMediaReferencePath(transcribeMediaRefs.sourceMediaRef);
     if (sourceIdentity === mediaIdentity) {
@@ -174,13 +174,13 @@ export const findCompletedTranscribeTask = (
     if (sourceIdentity) {
       return false;
     }
-    return transcribeMediaRefs.sourceCandidates.includes(mediaIdentity);
+    return false;
   });
 
 export const mapTaskToTranscribeResult = (
   task: Task,
   fileRef: MediaReference | null,
-  filePath: string | null | undefined,
+  _filePath: string | null | undefined,
 ): TranscribeResult | null => {
   if (!task.result) return null;
 
@@ -189,11 +189,6 @@ export const mapTaskToTranscribeResult = (
   const files = backendResult.files || [];
   const srtFile = files.find((f: FileRef) => f.type === "subtitle");
   const transcribeMediaRefs = resolveTranscribeTaskMedia(task);
-  const candidatePath =
-    resolveMediaReferencePath(fileRef, filePath) ??
-    resolveMediaReferencePath(transcribeMediaRefs.sourceMediaRef) ??
-    transcribeMediaRefs.sourceCandidates[0] ??
-    undefined;
   const taskMediaRefs = getTaskMediaRefs(task);
   const subtitleRef =
     taskMediaRefs.subtitleRef ??
@@ -202,9 +197,7 @@ export const mapTaskToTranscribeResult = (
   const videoRef =
     taskMediaRefs.videoRef ??
     transcribeMediaRefs.sourceMediaRef ??
-    normalizeMediaReference(candidatePath);
-  const resolvedCandidatePath =
-    resolveMediaReferencePath(videoRef, candidatePath) ?? undefined;
+    fileRef;
 
   return {
     segments: Array.isArray(meta.segments) ? meta.segments : [],
@@ -215,9 +208,7 @@ export const mapTaskToTranscribeResult = (
           ? meta.transcript
           : "",
     language: typeof meta.language === "string" ? meta.language : "auto",
-    video_ref:
-      videoRef ??
-      normalizeMediaReference(resolvedCandidatePath),
+    video_ref: videoRef,
     subtitle_ref: subtitleRef,
   };
 };

@@ -27,8 +27,6 @@ export type {
   TaskExecutionSubmission,
 } from "./taskSubmission";
 export {
-  createDesktopTaskExecutionOutcome,
-  createDesktopTaskSubmissionReceipt,
   createDirectExecutionOutcome,
   createDirectExecutionResult,
   createExecutionOutcomeFromSubmission,

@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from backend.services.asr import ASRService
-from backend.utils.subtitle_manager import SubtitleManager
+from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils.audio_processor import AudioProcessor
 from backend.utils.segment_refiner import SegmentRefiner
 from backend.models.schemas import FileRef, TaskResult
@@ -14,10 +14,9 @@ def asr_service():
     return ASRService()
 
 def test_format_timestamp():
-    # Test moved to SubtitleManager
-    assert SubtitleManager.format_timestamp(0) == "00:00:00,000"
-    assert SubtitleManager.format_timestamp(61.5) == "00:01:01,500"
-    assert SubtitleManager.format_timestamp(3661.001) == "01:01:01,001"
+    assert SubtitleWriter.format_timestamp(0) == "00:00:00,000"
+    assert SubtitleWriter.format_timestamp(61.5) == "00:01:01,500"
+    assert SubtitleWriter.format_timestamp(3661.001) == "01:01:01,001"
 
 def test_calculate_split_points():
     # Test moved to AudioProcessor

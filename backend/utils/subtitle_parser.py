@@ -1,7 +1,7 @@
 """
 Subtitle Parser — VTT→SRT conversion and SRT parsing.
 
-Extracted from SubtitleManager to follow Single Responsibility Principle.
+VTT and SRT subtitle parsing helpers.
 """
 from pathlib import Path
 from typing import List

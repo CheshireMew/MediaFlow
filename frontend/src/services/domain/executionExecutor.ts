@@ -1,7 +1,6 @@
 import type { TaskResponse } from "../../types/api";
 import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop";
 import {
-  createDesktopTaskExecutionOutcome,
   createDirectExecutionOutcome,
   createTaskExecutionOutcome,
   type ExecutionOutcome,
@@ -96,8 +95,6 @@ export async function executeDesktopTaskSubmission<
   desktopMethod: K;
   desktopUnavailableMessage: string;
   desktopTaskIdPrefix: string;
-  desktopSubmissionMessage: string;
-  desktopFailureLogLabel: string;
   mapDesktopArgs?: (payload: TPayload, taskId: string) => DesktopMethodArgs<K>;
   backendSubmit: (payload: TPayload) => Promise<TaskResponse>;
 }): Promise<ExecutionOutcome<never>> {
@@ -110,17 +107,16 @@ export async function executeDesktopTaskSubmission<
     const desktopMethod = requireDesktopApiMethod(
       args.desktopMethod,
       args.desktopUnavailableMessage,
-    ) as (...desktopArgs: DesktopMethodArgs<K>) => Promise<unknown>;
+    ) as (...desktopArgs: DesktopMethodArgs<K>) => Promise<TaskResponse>;
 
-    void desktopMethod(
-      ...(args.mapDesktopArgs
-        ? args.mapDesktopArgs(normalizedPayload, taskId)
-        : ([withDesktopTaskId(normalizedPayload, taskId)] as unknown as DesktopMethodArgs<K>)),
-    ).catch((error: unknown) => {
-      console.error(args.desktopFailureLogLabel, error);
-    });
-
-    return createDesktopTaskExecutionOutcome(taskId, args.desktopSubmissionMessage);
+    return createTaskExecutionOutcome(
+      await desktopMethod(
+        ...(args.mapDesktopArgs
+          ? args.mapDesktopArgs(normalizedPayload, taskId)
+          : ([withDesktopTaskId(normalizedPayload, taskId)] as unknown as DesktopMethodArgs<K>)),
+      ),
+      "desktop",
+    );
   }
 
   return createTaskExecutionOutcome(

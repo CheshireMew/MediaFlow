@@ -46,6 +46,3 @@ class EnhancerService:
         if scale: kwargs['scale'] = scale
         # Ensure scale is int
         return self._realesrgan.upscale(input_path, output_path, progress_callback=progress_callback, **kwargs)
-
-# For backward compatibility if needed, but better to update consumers
-# RealESRGANService = RealESRGANService 

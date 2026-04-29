@@ -1,5 +1,4 @@
 import type { MediaReference } from "../ui/mediaReference";
-import { resolveMediaReferencePath } from "../ui/mediaReference";
 
 export type MediaInput = {
   path?: string | null;
@@ -12,7 +11,7 @@ export function resolveOptionalMediaInputPath(
   if (!input) {
     return null;
   }
-  return resolveMediaReferencePath(input.ref, input.path) ?? null;
+  return input.ref?.path ?? input.path ?? null;
 }
 
 export function resolveMediaInputPath(input: MediaInput, label: string): string {

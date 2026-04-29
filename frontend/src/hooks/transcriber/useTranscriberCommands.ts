@@ -39,7 +39,7 @@ type UseTranscriberCommandsArgs = {
   result: TranscribeResult | null;
   setResult: (value: TranscribeResult | null) => void;
   setFile: (value: ElectronFile | null) => void;
-  setActiveTaskId: (taskId: string | null) => void;
+  setCurrentTranscriptionTaskId: (taskId: string | null) => void;
   setDesktopProgress: (value: {
     progress: number;
     message: string;
@@ -87,7 +87,7 @@ export function useTranscriberCommands({
   result,
   setResult,
   setFile,
-  setActiveTaskId,
+  setCurrentTranscriptionTaskId,
   setDesktopProgress,
   setExecutionMode,
   setIsUploading,
@@ -187,7 +187,7 @@ export function useTranscriberCommands({
           message: t("progressCard.systemReady"),
           active: false,
         });
-        setActiveTaskId(null);
+        setCurrentTranscriptionTaskId(null);
         return;
       }
 
@@ -215,7 +215,7 @@ export function useTranscriberCommands({
           },
         },
       });
-      setActiveTaskId(submission.task_id);
+      setCurrentTranscriptionTaskId(submission.task_id);
     } catch (err: unknown) {
       console.error("[Transcriber] Error submitting task:", err);
       if (isCliTranscriptionSetupRequiredError(err)) {
@@ -252,7 +252,7 @@ export function useTranscriberCommands({
     file,
     model,
     addTask,
-    setActiveTaskId,
+    setCurrentTranscriptionTaskId,
     setDesktopProgress,
     setFile,
     setExecutionMode,

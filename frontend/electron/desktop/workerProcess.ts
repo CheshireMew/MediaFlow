@@ -15,6 +15,8 @@ type DesktopWorkerCommand = {
   cwd: string;
 };
 
+export type DesktopWorkerProcessFactory = typeof startDesktopWorkerProcess;
+
 function resolveDesktopWorkerCommand(): DesktopWorkerCommand | null {
   if (!isDesktopDevMode() && app.isPackaged) {
     const workerExe = resolveBundledDesktopWorkerExecutable();

@@ -20,7 +20,7 @@ type DesktopWorkerProtocolMessage = {
 type DesktopWorkerProtocolHandlers = {
   onLog: (line: string) => void;
   onReady: () => void;
-  onEvent: (event: string, payload: unknown) => void;
+  onEvent: (event: string, payload: unknown, requestId: string | null) => void;
   onTaskEvent: (taskId: string, payload: unknown) => void;
   onResponse: (response: DesktopWorkerProtocolResponse) => void;
   onParseError: (line: string, error: unknown) => void;
@@ -45,7 +45,7 @@ export function handleDesktopWorkerProtocolLine(
 
     if (message.type === "event") {
       if (message.event) {
-        handlers.onEvent(message.event, message.payload);
+        handlers.onEvent(message.event, message.payload, message.id ?? null);
       }
       if (message.id) {
         handlers.onTaskEvent(message.id, message.payload);

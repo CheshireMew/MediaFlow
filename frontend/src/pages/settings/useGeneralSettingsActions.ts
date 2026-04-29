@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import i18n from "i18next";
 import type { TFunction } from "i18next";
 import type { ToolUpdateResponse, UserSettings } from "../../types/api";
-import { getDesktopApi } from "../../services/desktop";
+import { desktopEventsService } from "../../services/desktop";
 import { settingsService } from "../../services/domain";
 import type { ShowSettingsNotification } from "./useSettingsData";
 
@@ -33,11 +33,11 @@ export function useGeneralSettingsActions({
   const [ytDlpUpdateInfo, setYtDlpUpdateInfo] = useState<ToolUpdateResponse | null>(null);
 
   useEffect(() => {
-    const unsubscribe = getDesktopApi()?.onDesktopSettingsProgress?.((payload) => {
+    const unsubscribe = desktopEventsService.onSettingsProgress((payload) => {
       setFasterWhisperCliInstallProgress(payload);
     });
     return () => {
-      unsubscribe?.();
+      unsubscribe();
     };
   }, []);
 

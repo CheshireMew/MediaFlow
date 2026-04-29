@@ -32,7 +32,7 @@ export const useDownloaderStore = create<DownloaderState>()(
     (set) => ({
       url: "",
       resolution: "best",
-      codec: "avc", // Default to AVC for compatibility
+      codec: "avc",
       downloadSubs: false,
       history: [],
 

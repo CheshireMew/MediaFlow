@@ -64,7 +64,7 @@ export interface ElectronAPI {
     watermark_path?: string | null;
     output_path?: string | null;
     options: Record<string, unknown>;
-  }) => Promise<import("./api").SynthesizeResponse>;
+  }) => Promise<import("./api").TaskResponse>;
   getDesktopSettings?: () => Promise<import("./api").UserSettings>;
   updateDesktopSettings?: (
     settings: import("./api").UserSettings,
@@ -101,7 +101,7 @@ export interface ElectronAPI {
     has_valid_cookies: boolean;
     cookie_path: string;
   }>;
-  desktopDownload?: (payload: Record<string, unknown>) => Promise<import("./task").TaskResult>;
+  desktopDownload?: (payload: Record<string, unknown>) => Promise<import("./api").TaskResponse>;
   desktopExtract?: (payload: {
     task_id?: string;
     video_path?: string | null;
@@ -109,10 +109,7 @@ export interface ElectronAPI {
     roi?: number[];
     engine: "rapid" | "paddle";
     sample_rate?: number;
-  }) => Promise<{
-    events: import("./api").OCRTextEvent[];
-    files: Array<{ type: string; path: string; label?: string }>;
-  }>;
+  }) => Promise<import("./api").TaskResponse>;
   getDesktopOcrResults?: (
     videoPath: string,
   ) => Promise<{ events: import("./api").OCRTextEvent[] }>;
@@ -139,29 +136,25 @@ export interface ElectronAPI {
     model?: string;
     scale?: string;
     method?: string;
-  }) => Promise<import("./task").TaskResult>;
+  }) => Promise<import("./api").TaskResponse>;
   desktopClean?: (payload: {
     task_id?: string;
     video_path?: string | null;
     video_ref?: import("../services/ui/mediaReference").MediaReference | null;
     roi: [number, number, number, number];
     method?: string;
-  }) => Promise<import("./task").TaskResult>;
+  }) => Promise<import("./api").TaskResponse>;
   pauseDesktopTask?: (taskId: string) => Promise<{ status: string }>;
   resumeDesktopTask?: (taskId: string) => Promise<{ status: string }>;
   cancelDesktopTask?: (taskId: string) => Promise<{ status: string }>;
   onDesktopTaskEvent?: (callback: (payload: unknown) => void) => () => void;
-  onDesktopTranscribeProgress?: (
-    callback: (payload: { progress: number; message: string }) => void,
-  ) => () => void;
-  onDesktopTranslateProgress?: (
-    callback: (payload: { progress: number; message: string }) => void,
-  ) => () => void;
-  onDesktopSynthesizeProgress?: (
-    callback: (payload: { progress: number; message: string }) => void,
-  ) => () => void;
-  onDesktopSettingsProgress?: (
-    callback: (payload: { progress: number; message: string }) => void,
+  onDesktopProgress?: (
+    callback: (payload: {
+      event: string;
+      task_id?: string | null;
+      progress: number;
+      message: string;
+    }) => void,
   ) => () => void;
   minimize: () => void;
   maximize: () => void;

@@ -20,14 +20,14 @@ type UseTranscriberFileActionsParams = {
   file: ElectronFile | null;
   setFile: (file: ElectronFile | null) => void;
   setResult: (value: null) => void;
-  setActiveTaskId: (taskId: string | null) => void;
+  setCurrentTranscriptionTaskId: (taskId: string | null) => void;
 };
 
 export function useTranscriberFileActions({
   file,
   setFile,
   setResult,
-  setActiveTaskId,
+  setCurrentTranscriptionTaskId,
 }: UseTranscriberFileActionsParams) {
   const fileProfile = "transcriber-media" as const;
 
@@ -35,11 +35,11 @@ export function useTranscriberFileActions({
     (nextFile: ElectronFile | null) => {
       if (nextFile?.path !== file?.path) {
         setResult(null);
-        setActiveTaskId(null);
+        setCurrentTranscriptionTaskId(null);
       }
       setFile(nextFile);
     },
-    [file?.path, setActiveTaskId, setFile, setResult],
+    [file?.path, setCurrentTranscriptionTaskId, setFile, setResult],
   );
 
   const handleFileDrop = useCallback(

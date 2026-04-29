@@ -8,7 +8,7 @@ def test_build_translation_task_result_emits_structured_media_refs(monkeypatch):
     saved_path = Path("C:/tmp/demo_CN.srt")
 
     monkeypatch.setattr(
-        "backend.utils.subtitle_manager.SubtitleManager.save_srt",
+        "backend.utils.subtitle_writer.SubtitleWriter.save_srt",
         lambda segments, output_path: str(saved_path),
     )
 
@@ -32,7 +32,7 @@ def test_build_translation_task_result_prefers_normalized_context_ref(monkeypatc
     saved_path = Path("C:/tmp/demo_CN.srt")
 
     monkeypatch.setattr(
-        "backend.utils.subtitle_manager.SubtitleManager.save_srt",
+        "backend.utils.subtitle_writer.SubtitleWriter.save_srt",
         lambda segments, output_path: str(saved_path),
     )
 

@@ -222,7 +222,7 @@ async function submitTranscribeRetry(task: Task): Promise<RetrySubmission | null
     return null;
   }
 
-  const audioRef = getTaskMediaReference(params, ["audio_ref", "video_ref", "audio_path", "video_path"], "video/mp4");
+  const audioRef = getTaskMediaReference(params, ["audio_ref", "video_ref"], "video/mp4");
   if (!audioRef?.path) {
     return null;
   }
@@ -285,7 +285,7 @@ async function submitTranslateRetry(task: Task): Promise<RetrySubmission | null>
 
   const contextRef = getTaskMediaReference(
     params,
-    ["context_ref", "subtitle_ref", "context_path", "srt_path"],
+    ["context_ref", "subtitle_ref"],
     "application/x-subrip",
   );
   const contextPath = contextRef?.path;
@@ -334,10 +334,10 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
   }
   const { params, options, watermarkPath, outputPath } = normalized;
 
-  const videoRef = getTaskMediaReference(params, ["video_ref", "video_path"], "video/mp4");
+  const videoRef = getTaskMediaReference(params, ["video_ref"], "video/mp4");
   const srtRef = getTaskMediaReference(
     params,
-    ["srt_ref", "subtitle_ref", "context_ref", "srt_path"],
+    ["srt_ref", "subtitle_ref", "context_ref"],
     "application/x-subrip",
   );
   if (!videoRef?.path || !srtRef?.path) {
@@ -378,7 +378,7 @@ async function submitExtractRetry(task: Task): Promise<RetrySubmission | null> {
   if (!params) {
     return null;
   }
-  const videoRef = getTaskMediaReference(params, ["video_ref", "video_path"], "video/mp4");
+  const videoRef = getTaskMediaReference(params, ["video_ref"], "video/mp4");
   if (!videoRef?.path) {
     return null;
   }
@@ -413,7 +413,7 @@ async function submitEnhanceRetry(task: Task): Promise<RetrySubmission | null> {
   if (!params) {
     return null;
   }
-  const videoRef = getTaskMediaReference(params, ["video_ref", "video_path"], "video/mp4");
+  const videoRef = getTaskMediaReference(params, ["video_ref"], "video/mp4");
   if (!videoRef?.path) {
     return null;
   }
@@ -448,7 +448,7 @@ async function submitCleanRetry(task: Task): Promise<RetrySubmission | null> {
   if (!params) {
     return null;
   }
-  const videoRef = getTaskMediaReference(params, ["video_ref", "video_path"], "video/mp4");
+  const videoRef = getTaskMediaReference(params, ["video_ref"], "video/mp4");
   const roi = isRoiTuple(params.roi) ? params.roi : null;
   if (!videoRef?.path || !roi) {
     return null;

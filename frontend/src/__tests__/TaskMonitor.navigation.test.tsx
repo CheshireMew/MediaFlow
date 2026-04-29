@@ -286,7 +286,7 @@ describe("TaskMonitor navigation actions", () => {
     });
   });
 
-  it("prefers explicit task media refs over legacy workspace paths when navigating", async () => {
+  it("uses explicit task media refs instead of workspace path mirrors when navigating", async () => {
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
@@ -406,4 +406,3 @@ describe("TaskMonitor navigation actions", () => {
     expect(screen.getByText("badges.history")).toBeInTheDocument();
   });
 });
-

@@ -4,7 +4,6 @@ import type { SubtitleSegment } from "../../types/task";
 import {
   normalizeMediaReference,
   type MediaReference,
-  resolveMediaReferencePath,
 } from "../../services/ui/mediaReference";
 import {
   createNavigationMediaPayload,
@@ -59,9 +58,7 @@ export function resolveSubtitleReferenceForTranslation(params: {
     return currentSubtitleRef;
   }
 
-  const subtitlePath =
-    resolveMediaReferencePath(null, currentSubtitlePath) ??
-    currentFilePath.replace(/\.[^.]+$/, ".srt");
+  const subtitlePath = currentSubtitlePath ?? currentFilePath.replace(/\.[^.]+$/, ".srt");
   return normalizeMediaReference(subtitlePath)!;
 }
 

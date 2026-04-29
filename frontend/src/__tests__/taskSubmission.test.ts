@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  createDesktopTaskSubmissionReceipt,
   createTaskFromSubmissionReceipt,
   createTaskExecutionSubmissionReceipt,
 } from "../services/domain/taskSubmission";
@@ -9,7 +8,14 @@ import {
 describe("taskSubmission", () => {
   it("builds a desktop task skeleton with aligned local source metadata", () => {
     const task = createTaskFromSubmissionReceipt({
-      receipt: createDesktopTaskSubmissionReceipt("desktop-task-1", "Queued"),
+      receipt: createTaskExecutionSubmissionReceipt(
+        {
+          task_id: "desktop-task-1",
+          status: "pending",
+          message: "Queued",
+        },
+        "desktop",
+      ),
       type: "download",
       name: "Sample video",
       request_params: {

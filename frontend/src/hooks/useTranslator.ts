@@ -62,7 +62,6 @@ export const useTranslator = (): UseTranslatorReturn => {
   const io = useFileIO();
 
   // 3. Aggregation
-  // We explicitly map to the interface to ensure compatibility
   return {
     // Data
     sourceSegments,

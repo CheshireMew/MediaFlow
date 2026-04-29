@@ -10,7 +10,7 @@ interface TranscriptionConfigProps {
   setDevice: (device: string) => void;
   onTranscribe: () => void;
   isFileSelected: boolean;
-  activeTaskId: string | null;
+  currentTranscriptionTaskId: string | null;
   isSubmitting: boolean;
 }
 
@@ -23,11 +23,11 @@ export function TranscriptionConfig({
   setDevice,
   onTranscribe,
   isFileSelected,
-  activeTaskId,
+  currentTranscriptionTaskId,
   isSubmitting,
 }: TranscriptionConfigProps) {
   const { t } = useTranslation('transcriber');
-  const isDisabled = !isFileSelected || !!activeTaskId || isSubmitting;
+  const isDisabled = !isFileSelected || !!currentTranscriptionTaskId || isSubmitting;
 
   return (
     <div className="flex flex-col gap-6">
@@ -107,7 +107,7 @@ export function TranscriptionConfig({
       >
         <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 pointer-events-none" />
         <span className="relative z-10 flex items-center gap-2">
-          {activeTaskId || isSubmitting ? (
+          {currentTranscriptionTaskId || isSubmitting ? (
             <>
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               {t('config.processingButton')}

@@ -1,20 +1,7 @@
 import desktopWorkerContract from "../../../contracts/desktop-worker-contract.json";
 
 export const DESKTOP_TASK_EVENT_CHANNEL = "desktop:task-event";
-
-export const DESKTOP_PROGRESS_CHANNELS = {
-  onDesktopTranscribeProgress: "desktop:transcribe-progress",
-  onDesktopTranslateProgress: "desktop:translate-progress",
-  onDesktopSynthesizeProgress: "desktop:synthesize-progress",
-  onDesktopSettingsProgress: "desktop:settings-progress",
-} as const;
-
-export const DESKTOP_WORKER_EVENT_CHANNELS = {
-  progress: DESKTOP_PROGRESS_CHANNELS.onDesktopTranscribeProgress,
-  translate_progress: DESKTOP_PROGRESS_CHANNELS.onDesktopTranslateProgress,
-  synthesize_progress: DESKTOP_PROGRESS_CHANNELS.onDesktopSynthesizeProgress,
-  settings_progress: DESKTOP_PROGRESS_CHANNELS.onDesktopSettingsProgress,
-} as const;
+export const DESKTOP_WORKER_PROGRESS_CHANNEL = "desktop:worker-progress";
 
 export const DESKTOP_WORKER_PROTOCOL_VERSION = desktopWorkerContract.protocol_version;
 export const DESKTOP_WORKER_INVOCATIONS = desktopWorkerContract.invocations;
@@ -38,7 +25,7 @@ export const DESKTOP_BRIDGE_CAPABILITIES = [
   "resumeDesktopTask",
   "cancelDesktopTask",
   "onDesktopTaskEvent",
-  ...Object.keys(DESKTOP_PROGRESS_CHANNELS),
+  "onDesktopProgress",
   "minimize",
   "maximize",
   "close",

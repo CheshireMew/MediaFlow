@@ -118,6 +118,9 @@ export function TaskMonitorItem({
   const typeInfo = useTaskTypeInfo(task);
   const hasVideo = task.status === "completed" && hasTaskVideoMedia(task);
   const hasSubtitle = task.status === "completed" && hasTaskSubtitleMedia(task);
+  const canPauseTask =
+    task.status === "pending" ||
+    (task.status === "running" && task.task_source !== "desktop");
 
   return (
     <div className="p-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors group relative">
@@ -140,7 +143,7 @@ export function TaskMonitorItem({
             </div>
 
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {(task.status === "running" || task.status === "pending") && (
+              {canPauseTask && (
                 <button
                   onClick={() => onPause(task.id)}
                   className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"

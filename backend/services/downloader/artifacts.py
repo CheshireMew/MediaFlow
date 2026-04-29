@@ -8,7 +8,7 @@ import re
 from loguru import logger
 
 from backend.models.schemas import FileRef
-from backend.utils.subtitle_manager import SubtitleManager
+from backend.utils.subtitle_parser import SubtitleParser
 
 
 def sanitize_filename(name: str) -> str:
@@ -201,7 +201,7 @@ class DownloadArtifactResolver:
 
             if candidate.suffix.lower() == ".vtt":
                 logger.info(f"Found VTT subtitle: {candidate}")
-                srt_out = SubtitleManager.process_vtt_file(candidate)
+                srt_out = SubtitleParser.process_vtt_file(candidate)
                 if not srt_out or not srt_out.exists():
                     logger.warning(f"Failed to convert subtitle to SRT: {candidate}")
                     continue

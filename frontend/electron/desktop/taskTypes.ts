@@ -25,8 +25,18 @@ export type PausedDesktopWorkerTask = {
   payload: Record<string, unknown>;
 };
 
+export type ActiveDesktopWorkerTask = {
+  taskId: string;
+  slotId: string;
+  command: DesktopTaskType;
+  payload: Record<string, unknown>;
+  startedAt: number;
+  progress: number;
+  message?: string;
+};
+
 export type DesktopTaskCollections = {
-  activeTaskId: string | null;
+  runningTaskIds: Set<string>;
   queuedTaskIds: string[];
   pausedTasks: Map<string, PausedDesktopWorkerTask>;
   requests: ReadonlyMap<string, DesktopWorkerRequest>;
@@ -43,7 +53,7 @@ export type DesktopTaskActionPlan =
       rejectMessage?: string;
       emitDelete?: boolean;
       emitTask?: Task;
-      shouldRestartWorker?: boolean;
+      shouldRestartAssignedSlot?: boolean;
       resumeTask?: PausedDesktopWorkerTask;
     };
 

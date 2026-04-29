@@ -32,11 +32,6 @@ def isolated_api_client(tmp_path, monkeypatch):
     settings.init_dirs()
 
     monkeypatch.setattr(SettingsManager, "_file_path", user_data_dir / "user_settings.json")
-    monkeypatch.setattr(
-        SettingsManager,
-        "_legacy_file_path",
-        runtime_root / "data" / "user_settings.json",
-    )
 
     database_url = f"sqlite+aiosqlite:///{user_data_dir / 'mediaflow.db'}"
     engine = create_async_engine(

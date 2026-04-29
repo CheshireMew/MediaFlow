@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import {
-  DESKTOP_PROGRESS_CHANNELS,
   DESKTOP_TASK_EVENT_CHANNEL,
+  DESKTOP_WORKER_PROGRESS_CHANNEL,
   DESKTOP_WORKER_INVOCATIONS,
 } from "./desktop/bridgeContract";
 import {
@@ -231,56 +231,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener(DESKTOP_TASK_EVENT_CHANNEL, listener);
     };
   },
-  onDesktopTranscribeProgress: (
-    callback: (payload: { progress: number; message: string }) => void,
+  onDesktopProgress: (
+    callback: (payload: { event: string; task_id?: string | null; progress: number; message: string }) => void,
   ) => {
     const listener = (
       _event: Electron.IpcRendererEvent,
-      payload: { progress: number; message: string },
+      payload: { event: string; task_id?: string | null; progress: number; message: string },
     ) => callback(payload);
 
-    ipcRenderer.on(DESKTOP_PROGRESS_CHANNELS.onDesktopTranscribeProgress, listener);
+    ipcRenderer.on(DESKTOP_WORKER_PROGRESS_CHANNEL, listener);
     return () => {
-      ipcRenderer.removeListener(DESKTOP_PROGRESS_CHANNELS.onDesktopTranscribeProgress, listener);
-    };
-  },
-  onDesktopTranslateProgress: (
-    callback: (payload: { progress: number; message: string }) => void,
-  ) => {
-    const listener = (
-      _event: Electron.IpcRendererEvent,
-      payload: { progress: number; message: string },
-    ) => callback(payload);
-
-    ipcRenderer.on(DESKTOP_PROGRESS_CHANNELS.onDesktopTranslateProgress, listener);
-    return () => {
-      ipcRenderer.removeListener(DESKTOP_PROGRESS_CHANNELS.onDesktopTranslateProgress, listener);
-    };
-  },
-  onDesktopSynthesizeProgress: (
-    callback: (payload: { progress: number; message: string }) => void,
-  ) => {
-    const listener = (
-      _event: Electron.IpcRendererEvent,
-      payload: { progress: number; message: string },
-    ) => callback(payload);
-
-    ipcRenderer.on(DESKTOP_PROGRESS_CHANNELS.onDesktopSynthesizeProgress, listener);
-    return () => {
-      ipcRenderer.removeListener(DESKTOP_PROGRESS_CHANNELS.onDesktopSynthesizeProgress, listener);
-    };
-  },
-  onDesktopSettingsProgress: (
-    callback: (payload: { progress: number; message: string }) => void,
-  ) => {
-    const listener = (
-      _event: Electron.IpcRendererEvent,
-      payload: { progress: number; message: string },
-    ) => callback(payload);
-
-    ipcRenderer.on(DESKTOP_PROGRESS_CHANNELS.onDesktopSettingsProgress, listener);
-    return () => {
-      ipcRenderer.removeListener(DESKTOP_PROGRESS_CHANNELS.onDesktopSettingsProgress, listener);
+      ipcRenderer.removeListener(DESKTOP_WORKER_PROGRESS_CHANNEL, listener);
     };
   },
 });

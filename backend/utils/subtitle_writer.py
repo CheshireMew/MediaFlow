@@ -1,7 +1,7 @@
 """
 Subtitle Writer — SRT/ASS file generation and timestamp formatting.
 
-Extracted from SubtitleManager to follow Single Responsibility Principle.
+SRT and ASS subtitle output helpers.
 """
 from pathlib import Path
 from typing import List

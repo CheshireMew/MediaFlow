@@ -123,9 +123,9 @@ describe("useTranscriber", () => {
     const { result } = renderHook(() => useTranscriber());
 
     await waitFor(() => {
-      expect(result.current.state.activeTaskId).toBe("pipeline-123");
+      expect(result.current.state.currentTranscriptionTaskId).toBe("pipeline-123");
     });
-    expect(result.current.state.activeTask?.id).toBe("pipeline-123");
+    expect(result.current.state.currentTranscriptionTask?.id).toBe("pipeline-123");
   });
 
   it("submits a transcribe pipeline with cpu as the default device", async () => {
@@ -351,7 +351,7 @@ describe("useTranscriber", () => {
     localStorage.setItem(
       "transcriber_snapshot",
       JSON.stringify({
-        schema_version: 1,
+        schema_version: 2,
         lifecycle: {
           model: "history-only",
           device: "history-only",
@@ -397,11 +397,11 @@ describe("useTranscriber", () => {
     localStorage.setItem(
       "transcriber_snapshot",
       JSON.stringify({
-        schema_version: 1,
+        schema_version: 2,
         payload: {
           model: "small",
           device: "cuda",
-          activeTaskId: "task-snapshot",
+          currentTranscriptionTaskId: "task-snapshot",
           file: {
             path: "E:/snapshot.mp4",
             name: "snapshot.mp4",
@@ -436,12 +436,12 @@ describe("useTranscriber", () => {
       expect(result.current.state.file?.path).toBe("E:/snapshot.mp4");
     });
 
-    expect(result.current.state.model).toBe("small");
-    expect(result.current.state.device).toBe("cuda");
-    expect(result.current.state.activeTaskId).toBeNull();
+    expect(result.current.state.model).toBe("base");
+    expect(result.current.state.device).toBe("cpu");
+    expect(result.current.state.currentTranscriptionTaskId).toBeNull();
     expect(result.current.state.result?.text).toBe("snapshot");
-    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"model\":\"small\"");
-    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"device\":\"cuda\"");
+    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"model\":\"base\"");
+    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"device\":\"cpu\"");
   });
 
   it("persists transcriber document state separately from shared ASR preferences", async () => {
@@ -462,49 +462,11 @@ describe("useTranscriber", () => {
       expect(localStorage.getItem("transcriber_snapshot")).toBeTruthy();
     });
 
-    expect(localStorage.getItem("transcriber_model")).toBeNull();
-    expect(localStorage.getItem("transcriber_device")).toBeNull();
-    expect(localStorage.getItem("transcriber_activeTaskId")).toBeNull();
-    expect(localStorage.getItem("transcriber_result")).toBeNull();
-    expect(localStorage.getItem("transcriber_file")).toBeNull();
-    expect(localStorage.getItem("transcriber_snapshot")).not.toContain("\"activeTaskId\"");
+    expect(localStorage.getItem("transcriber_snapshot")).not.toContain("\"currentTranscriptionTaskId\"");
     expect(localStorage.getItem("transcriber_snapshot")).not.toContain("\"model\"");
     expect(localStorage.getItem("transcriber_snapshot")).not.toContain("\"device\"");
     expect(localStorage.getItem("asr_execution_preferences")).toContain("\"model\":\"base\"");
     expect(localStorage.getItem("asr_execution_preferences")).toContain("\"device\":\"cpu\"");
-  });
-
-  it("ignores legacy transcriber keys when no versioned snapshot exists", async () => {
-    localStorage.setItem("transcriber_model", "small");
-    localStorage.setItem("transcriber_device", "cuda");
-    localStorage.setItem(
-      "transcriber_result",
-      JSON.stringify({
-        text: "legacy",
-        language: "en",
-        segments: [],
-      }),
-    );
-    localStorage.setItem(
-      "transcriber_file",
-      JSON.stringify({
-        name: "legacy.mp4",
-        path: "E:/legacy.mp4",
-        size: 512,
-      }),
-    );
-
-    const { result } = renderHook(() => useTranscriber());
-
-    expect(result.current.state.model).toBe("base");
-    expect(result.current.state.device).toBe("cpu");
-    expect(result.current.state.file).toBeNull();
-    expect(result.current.state.result).toBeNull();
-    expect(localStorage.getItem("transcriber_snapshot")).toBeTruthy();
-    expect(localStorage.getItem("transcriber_model")).toBe("small");
-    expect(localStorage.getItem("transcriber_device")).toBe("cuda");
-    expect(localStorage.getItem("transcriber_result")).toContain("\"legacy\"");
-    expect(localStorage.getItem("transcriber_file")).toContain("\"legacy.mp4\"");
   });
 
   it("falls back to replacing the basename when resolveExistingPath is unavailable", async () => {
@@ -566,7 +528,17 @@ describe("useTranscriber", () => {
       message: "Pipeline completed",
       request_params: {
         pipeline_id: "transcriber_tool",
-        steps: [{ step_name: "transcribe", params: { audio_path: "E:/sample.mp4" } }],
+        steps: [
+          {
+            step_name: "transcribe",
+            params: {
+              audio_ref: {
+                path: "E:/sample.mp4",
+                name: "sample.mp4",
+              },
+            },
+          },
+        ],
       },
       result: {
         success: true,
@@ -591,13 +563,13 @@ describe("useTranscriber", () => {
     localStorage.setItem(
       "transcriber_snapshot",
       JSON.stringify({
-        schema_version: 1,
+        schema_version: 2,
         lifecycle: {
           model: "history-only",
           device: "history-only",
           file: "history-only",
           result: "history-only",
-          activeTaskId: "runtime-only",
+          currentTranscriptionTaskId: "runtime-only",
         },
         payload: {
           model: "base",
@@ -624,7 +596,7 @@ describe("useTranscriber", () => {
     const { result } = renderHook(() => useTranscriber());
 
     await waitFor(() => {
-      expect(result.current.state.activeTaskId).toBeNull();
+      expect(result.current.state.currentTranscriptionTaskId).toBeNull();
     });
 
     expect(result.current.state.result).toMatchObject({
@@ -657,7 +629,17 @@ describe("useTranscriber", () => {
       message: "Pipeline completed",
       request_params: {
         pipeline_id: "transcriber_tool",
-        steps: [{ step_name: "transcribe", params: { audio_path: "E:/sample.mp4" } }],
+        steps: [
+          {
+            step_name: "transcribe",
+            params: {
+              audio_ref: {
+                path: "E:/sample.mp4",
+                name: "sample.mp4",
+              },
+            },
+          },
+        ],
       },
       result: {
         success: true,
@@ -668,7 +650,7 @@ describe("useTranscriber", () => {
           },
         ],
         meta: {
-          transcript: "legacy transcript",
+          transcript: "stored transcript",
           segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
         },
       },
@@ -678,13 +660,13 @@ describe("useTranscriber", () => {
     localStorage.setItem(
       "transcriber_snapshot",
       JSON.stringify({
-        schema_version: 1,
+        schema_version: 2,
         lifecycle: {
           model: "history-only",
           device: "history-only",
           file: "history-only",
           result: "history-only",
-          activeTaskId: "runtime-only",
+          currentTranscriptionTaskId: "runtime-only",
         },
         payload: {
           model: "base",
@@ -711,29 +693,29 @@ describe("useTranscriber", () => {
     const { result } = renderHook(() => useTranscriber());
 
     await waitFor(() => {
-      expect(result.current.state.activeTaskId).toBeNull();
+      expect(result.current.state.currentTranscriptionTaskId).toBeNull();
     });
 
-    expect(result.current.state.result?.text).toBe("legacy transcript");
+    expect(result.current.state.result?.text).toBe("stored transcript");
     expect(result.current.state.result?.language).toBe("auto");
   });
 
-  it("does not restore runtime-only activeTaskId during reload", async () => {
+  it("does not restore runtime-only currentTranscriptionTaskId during reload", async () => {
     localStorage.setItem(
       "transcriber_snapshot",
       JSON.stringify({
-        schema_version: 1,
+        schema_version: 2,
         lifecycle: {
           model: "history-only",
           device: "history-only",
           file: "history-only",
           result: "history-only",
-          activeTaskId: "runtime-only",
+          currentTranscriptionTaskId: "runtime-only",
         },
         payload: {
           model: "base",
           device: "cpu",
-          activeTaskId: "task-pending-sync",
+          currentTranscriptionTaskId: "task-pending-sync",
           file: {
             name: "sample.mp4",
             path: "E:/sample.mp4",
@@ -755,8 +737,8 @@ describe("useTranscriber", () => {
 
     const { result } = renderHook(() => useTranscriber());
 
-    expect(result.current.state.activeTaskId).toBeNull();
-    expect(result.current.state.activeTask).toBeNull();
+    expect(result.current.state.currentTranscriptionTaskId).toBeNull();
+    expect(result.current.state.currentTranscriptionTask).toBeNull();
   });
 
   it("writes smart-split output only through subtitle_ref path in desktop mode", async () => {
@@ -764,7 +746,7 @@ describe("useTranscriber", () => {
     localStorage.setItem(
       "transcriber_snapshot",
       JSON.stringify({
-        schema_version: 1,
+        schema_version: 2,
         payload: {
           model: "base",
           device: "cpu",
@@ -778,7 +760,7 @@ describe("useTranscriber", () => {
             text:
               "hello world this sentence is intentionally long enough to trigger smart split behavior, and the desktop runtime should persist the split output",
             language: "en",
-            srt_path: "E:/legacy/sample.srt",
+            srt_path: "E:/stale/sample.srt",
             subtitle_ref: {
               path: "E:/canonical/sample.srt",
               name: "sample.srt",

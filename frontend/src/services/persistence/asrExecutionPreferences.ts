@@ -8,16 +8,12 @@ export type AsrExecutionPreferences = {
 
 const ASR_EXECUTION_PREFERENCES_KEY = "asr_execution_preferences";
 const ASR_EXECUTION_PREFERENCES_VERSION = 1;
-const LEGACY_TRANSCRIBER_SNAPSHOT_KEY = "transcriber_snapshot";
-const LEGACY_TRANSCRIBER_SNAPSHOT_VERSION = 1;
 
 const DEFAULT_ASR_EXECUTION_PREFERENCES: AsrExecutionPreferences = {
   engine: "builtin",
   model: "base",
   device: "cpu",
 };
-
-type LegacyTranscriberSnapshotPayload = Partial<AsrExecutionPreferences>;
 
 function normalizeAsrExecutionPreferences(
   payload: Partial<AsrExecutionPreferences> | null | undefined,
@@ -57,11 +53,5 @@ export function restoreStoredAsrExecutionPreferences(): AsrExecutionPreferences 
     return normalizeAsrExecutionPreferences(snapshot);
   }
 
-  const legacySnapshot = parseVersionedSnapshot<LegacyTranscriberSnapshotPayload>(
-    localStorage.getItem(LEGACY_TRANSCRIBER_SNAPSHOT_KEY),
-    LEGACY_TRANSCRIBER_SNAPSHOT_VERSION,
-  );
-  const migratedPreferences = normalizeAsrExecutionPreferences(legacySnapshot);
-  persistStoredAsrExecutionPreferences(migratedPreferences);
-  return migratedPreferences;
+  return DEFAULT_ASR_EXECUTION_PREFERENCES;
 }

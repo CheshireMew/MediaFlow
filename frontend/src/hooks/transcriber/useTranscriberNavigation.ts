@@ -26,9 +26,9 @@ import {
 export function useTranscriberNavigation(params: {
   setFile: (file: ElectronFile | null) => void;
   setResult: (value: null) => void;
-  setActiveTaskId: (taskId: string | null) => void;
+  setCurrentTranscriptionTaskId: (taskId: string | null) => void;
 }) {
-  const { setFile, setResult, setActiveTaskId } = params;
+  const { setFile, setResult, setCurrentTranscriptionTaskId } = params;
 
   const applyNavigationPayload = useCallback(
     async (
@@ -50,7 +50,7 @@ export function useTranscriberNavigation(params: {
         }
       }
 
-      setActiveTaskId(null);
+      setCurrentTranscriptionTaskId(null);
       setResult(null);
       setFile(
         attachElectronFileSource(
@@ -64,7 +64,7 @@ export function useTranscriberNavigation(params: {
         ),
       );
     },
-    [setActiveTaskId, setFile, setResult],
+    [setCurrentTranscriptionTaskId, setFile, setResult],
   );
 
   const consumeNavigation = useCallback(

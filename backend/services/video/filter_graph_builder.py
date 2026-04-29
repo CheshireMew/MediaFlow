@@ -8,7 +8,7 @@ from loguru import logger
 
 from backend.services.video.media_prober import MediaProber
 from backend.utils.font_assets import stage_font_files
-from backend.utils.subtitle_manager import SubtitleManager
+from backend.utils.subtitle_writer import SubtitleWriter
 
 
 class FilterGraphBuilder:
@@ -153,7 +153,7 @@ class FilterGraphBuilder:
         temp_ass = os.path.abspath(f"temp_sub_{uuid.uuid4().hex[:8]}.ass")
         trim_start = float(options.get("trim_start", 0))
         sub_offset = -trim_start if trim_start > 0 else 0.0
-        SubtitleManager.convert_srt_to_ass(srt_path, temp_ass, options, time_offset=sub_offset)
+        SubtitleWriter.convert_srt_to_ass(srt_path, temp_ass, options, time_offset=sub_offset)
 
         temp_fonts_dir_path = stage_font_files(
             str(options.get("font_name", "")).strip(),

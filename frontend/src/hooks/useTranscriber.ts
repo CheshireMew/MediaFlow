@@ -55,7 +55,7 @@ export function useTranscriber() {
     message: "",
     active: false,
   });
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [currentTranscriptionTaskId, setCurrentTranscriptionTaskId] = useState<string | null>(null);
 
   // Persistence
   const [result, setResult] = useState<TranscribeResult | null>(
@@ -78,15 +78,15 @@ export function useTranscriber() {
     });
   }, [device, engine, model]);
 
-  useTranscriberNavigation({ setFile, setResult, setActiveTaskId });
+  useTranscriberNavigation({ setFile, setResult, setCurrentTranscriptionTaskId });
   useTranscriberTaskSync({
     tasks,
     tasksSettled,
-    activeTaskId,
+    currentTranscriptionTaskId,
     fileRef: normalizeMediaReference(file),
     filePath: file?.path,
     currentResult: result,
-    setActiveTaskId,
+    setCurrentTranscriptionTaskId,
     setResult,
     setExecutionMode,
   });
@@ -94,7 +94,7 @@ export function useTranscriber() {
     file,
     setFile,
     setResult,
-    setActiveTaskId,
+    setCurrentTranscriptionTaskId,
   });
   const {
     setFile: setResolvedFile,
@@ -109,7 +109,7 @@ export function useTranscriber() {
     result,
     setResult: (nextResult) => setResult(normalizeTranscribeResult(nextResult, file)),
     setFile: setResolvedFile,
-    setActiveTaskId,
+    setCurrentTranscriptionTaskId,
     setDesktopProgress,
     setExecutionMode,
     setIsUploading,
@@ -168,9 +168,9 @@ export function useTranscriber() {
       isSmartSplitting,
       desktopProgress,
       executionMode,
-      activeTaskId,
+      currentTranscriptionTaskId,
       result,
-      activeTask: selectTaskById(tasks, activeTaskId),
+      currentTranscriptionTask: selectTaskById(tasks, currentTranscriptionTaskId),
     },
     actions: {
       setFile: setResolvedFile,
