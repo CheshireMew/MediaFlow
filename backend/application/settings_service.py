@@ -8,7 +8,8 @@ from typing import Callable, Optional
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 from backend.config import settings
 from backend.services.settings_manager import LLMProvider, UserSettings
 

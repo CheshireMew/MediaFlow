@@ -1,7 +1,8 @@
 from pathlib import Path
 from typing import Any
 
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 from backend.desktop.command_registry import register_worker_command
 from backend.desktop.worker_context import emit
 from backend.models.schemas import CleanRequest, EnhanceRequest
@@ -15,7 +16,7 @@ def handle_enhance(request_id: str | None, payload: dict[str, Any]) -> None:
     if not request.video_path:
         raise ValueError("video_path or video_ref is required")
 
-    enhancer = RuntimeServices.enhancer()
+    enhancer = runtime_service(Services.ENHANCER)
     if not enhancer.is_available(request.method):
         detail = (
             "Real-ESRGAN binary not found."
@@ -59,7 +60,7 @@ def handle_clean(request_id: str | None, payload: dict[str, Any]) -> None:
     if not source.exists():
         raise FileNotFoundError(f"Video file not found: {request.video_path}")
 
-    RuntimeServices.cleaner()
+    runtime_service(Services.CLEANER)
 
     def progress_callback(progress: int | float, message: str) -> None:
         emit({

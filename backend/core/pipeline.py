@@ -6,7 +6,8 @@ from loguru import logger
 from backend.core.task_control import TaskCancelRequested, TaskPauseRequested
 from backend.models.schemas import PipelineStepRequest, TaskResult, FileRef
 from backend.core.context import PipelineContext
-from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 from backend.core.steps import StepRegistry
 
 

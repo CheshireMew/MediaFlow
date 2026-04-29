@@ -6,11 +6,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.application.settings_service import SettingsApplicationService
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 from backend.services.settings_manager import UserSettings
 
 def _settings_application():
-    return SettingsApplicationService(RuntimeServices.settings_manager())
+    return SettingsApplicationService(runtime_service(Services.SETTINGS_MANAGER))
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 

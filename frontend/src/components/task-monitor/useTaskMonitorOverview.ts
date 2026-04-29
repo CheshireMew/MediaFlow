@@ -67,12 +67,11 @@ export const useTaskMonitorOverview = (filterTypes?: string[]) => {
 
     const executionSummary = React.useMemo(() => {
         const activeModes = Object.values(runtimeExecutionScopes).filter(
-            (mode): mode is ExecutionMode => mode === 'task_submission' || mode === 'direct_result',
+            (mode): mode is ExecutionMode => mode === 'task_submission',
         );
 
         return {
             taskSubmission: activeModes.filter((mode) => mode === 'task_submission').length,
-            directResult: activeModes.filter((mode) => mode === 'direct_result').length,
         };
     }, [runtimeExecutionScopes]);
 
@@ -85,15 +84,8 @@ export const useTaskMonitorOverview = (filterTypes?: string[]) => {
                     ...getExecutionModeDisplay('task_submission'),
                 }
                 : null,
-            executionSummary.directResult > 0
-                ? {
-                    key: 'direct_result',
-                    count: executionSummary.directResult,
-                    ...getExecutionModeDisplay('direct_result'),
-                }
-                : null,
         ].filter((item): item is NonNullable<typeof item> => item !== null);
-    }, [executionSummary.directResult, executionSummary.taskSubmission]);
+    }, [executionSummary.taskSubmission]);
 
     return {
         connected,

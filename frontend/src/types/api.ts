@@ -8,11 +8,10 @@
 
 import type { SubtitleSegment } from "./task";
 import type { MediaReference } from "../services/ui/mediaReference";
-import type {
-  DesktopSynthesizeDirectResult,
-  DesktopTranslateDirectResult,
-  TaskResultShape,
-} from "../contracts/taskContract";
+import type { TaskResultShape } from "../contracts/taskContract";
+import type { TaskResponse } from "./generatedApi";
+
+export type { TaskResponse, TranslateResponse } from "./generatedApi";
 
 // ─── Generic Response Shapes ────────────────────────────────────
 
@@ -31,16 +30,8 @@ export interface StatusMessageResponse extends MessageResponse {
   status: string;
 }
 
-/** Task creation / pipeline submission response. */
-export interface TaskResponse {
-  task_id?: string;
-  status: string;
-  message?: string;
-}
-
 /** Explicit task submission receipt returned when a runtime task has been accepted. */
 export interface TaskSubmissionReceipt extends TaskResponse {
-  task_id: string;
   task_source?: "desktop" | "backend";
   task_contract_version?: number;
   persistence_scope?: "runtime" | "history";
@@ -238,8 +229,6 @@ export interface SynthesizeRequest {
   options: SynthesizeOptions;
 }
 
-export type SynthesizeResponse = DesktopSynthesizeDirectResult;
-
 export interface TranscribeSegmentRequest {
   audio_path?: string | null;
   audio_ref?: MediaReference | null;
@@ -276,12 +265,6 @@ export interface TranslateRequest {
   mode?: "standard" | "intelligent" | "proofread";
   context_path?: string | null;
   context_ref?: MediaReference | null;
-}
-
-export interface TranslateResponse extends Partial<DesktopTranslateDirectResult> {
-  task_id?: string;
-  status?: string;
-  srt_path?: string | null;
 }
 
 export interface TranslationTaskStatus {

@@ -8,25 +8,13 @@ export interface TaskExecutionSubmission extends TaskSubmissionReceipt {
   execution_mode: "task_submission";
 }
 
-export interface ExecutionOutcome<TResult> {
-  execution_mode: "task_submission" | "direct_result";
-  result: TResult | null;
-  submission: TaskExecutionSubmission | null;
+export interface ExecutionOutcome {
+  execution_mode: "task_submission";
+  result: null;
+  submission: TaskExecutionSubmission;
 }
 
-export type ExecutionOutcomeBranch<TResult> =
-  | {
-      kind: "result";
-      executionMode: "direct_result";
-      result: TResult;
-    }
-  | {
-      kind: "submission";
-      executionMode: "task_submission";
-      submission: TaskExecutionSubmission;
-    };
-
-export type ExecutionMode = ExecutionOutcome<unknown>["execution_mode"];
+export type ExecutionMode = ExecutionOutcome["execution_mode"];
 export type NullableExecutionMode = ExecutionMode | null;
 
 function mapSubmissionStatusToTaskStatus(
@@ -50,9 +38,9 @@ function mapSubmissionStatusToTaskStatus(
   return "pending";
 }
 
-export function createExecutionOutcomeFromSubmission<TResult = never>(
+export function createExecutionOutcomeFromSubmission(
   submission: TaskExecutionSubmission,
-): ExecutionOutcome<TResult> {
+): ExecutionOutcome {
   return {
     execution_mode: "task_submission",
     result: null,
@@ -99,11 +87,11 @@ export function createTaskExecutionSubmissionReceipt(
   };
 }
 
-export function createTaskExecutionOutcome<TResult = never>(
+export function createTaskExecutionOutcome(
   response: TaskResponse,
   taskSource: "desktop" | "backend",
-): ExecutionOutcome<TResult> {
-  return createExecutionOutcomeFromSubmission<TResult>(
+): ExecutionOutcome {
+  return createExecutionOutcomeFromSubmission(
     createTaskExecutionSubmissionReceipt(response, taskSource),
   );
 }
@@ -145,8 +133,8 @@ export function createTaskFromSubmissionReceipt(args: {
   };
 }
 
-export function createTaskFromExecutionOutcome<TResult>(args: {
-  outcome: ExecutionOutcome<TResult>;
+export function createTaskFromExecutionOutcome(args: {
+  outcome: ExecutionOutcome;
   type: TaskType;
   name?: string;
   request_params?: TaskRequestParams;
@@ -160,22 +148,6 @@ export function createTaskFromExecutionOutcome<TResult>(args: {
   });
 }
 
-export function createDirectExecutionOutcome<TResult>(
-  result: TResult,
-): ExecutionOutcome<TResult> {
-  return {
-    execution_mode: "direct_result",
-    result,
-    submission: null,
-  };
-}
-
-export function createDirectExecutionResult<TResult>(
-  result: TResult,
-): ExecutionOutcome<TResult> {
-  return createDirectExecutionOutcome(result);
-}
-
 export function isTaskExecutionSubmission(
   value: unknown,
 ): value is TaskExecutionSubmission {
@@ -187,50 +159,20 @@ export function isTaskExecutionSubmission(
   );
 }
 
-export function hasExecutionSubmission<TResult>(
-  value: ExecutionOutcome<TResult>,
-): value is ExecutionOutcome<TResult> & { submission: TaskExecutionSubmission } {
-  return value.submission !== null;
+export function hasExecutionSubmission(
+  value: ExecutionOutcome,
+): value is ExecutionOutcome {
+  return Boolean(value.submission);
 }
 
-export function hasExecutionResult<TResult>(
-  value: ExecutionOutcome<TResult>,
-): value is ExecutionOutcome<TResult> & { result: TResult } {
-  return value.result !== null;
-}
-
-export function getRequiredExecutionSubmission<TResult>(
-  value: ExecutionOutcome<TResult>,
+export function getRequiredExecutionSubmission(
+  value: ExecutionOutcome,
 ): TaskExecutionSubmission {
-  if (!value.submission) {
-    throw new Error("Execution outcome did not return a task submission");
-  }
   return value.submission;
 }
 
-export function getRequiredExecutionResult<TResult>(
-  value: ExecutionOutcome<TResult>,
-): TResult {
-  if (value.result === null) {
-    throw new Error("Execution outcome did not return a direct result");
-  }
-  return value.result;
-}
-
-export function resolveExecutionOutcomeBranch<TResult>(
-  value: ExecutionOutcome<TResult>,
-): ExecutionOutcomeBranch<TResult> {
-  if (hasExecutionResult(value)) {
-    return {
-      kind: "result",
-      executionMode: "direct_result",
-      result: value.result,
-    };
-  }
-
-  return {
-    kind: "submission",
-    executionMode: "task_submission",
-    submission: getRequiredExecutionSubmission(value),
-  };
+export function getExecutionSubmission(
+  value: ExecutionOutcome,
+): TaskExecutionSubmission {
+  return getRequiredExecutionSubmission(value);
 }

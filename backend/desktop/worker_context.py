@@ -7,7 +7,8 @@ from typing import Any
 from pydantic import BaseModel
 
 from backend.config import settings
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 
 WORKER_PREFIX = "__MEDIAFLOW_WORKER__"
 
@@ -37,11 +38,11 @@ def emit_error(request_id: str | None, error: str) -> None:
 
 
 def settings_service():
-    return RuntimeServices.settings_manager()
+    return runtime_service(Services.SETTINGS_MANAGER)
 
 
 def glossary_service():
-    return RuntimeServices.glossary()
+    return runtime_service(Services.GLOSSARY)
 
 
 def get_yt_dlp_version() -> str | None:

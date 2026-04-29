@@ -4,11 +4,9 @@ import { executionService } from "../services/domain/executionService";
 import { preprocessingService } from "../services/domain/preprocessingService";
 import { createMockUserSettings } from "./testUtils/mockUserSettings";
 import {
-  normalizeDirectTranscribeResult,
-  normalizeDirectTranslateResult,
-} from "../services/tasks/directResultMediaResolver";
+  normalizeTranscribeResultMediaReferences,
+} from "../services/tasks/resultMediaReferences";
 import { normalizeTranscribeResult } from "../services/ui/transcribeResult";
-import { normalizeTranslateResult } from "../services/ui/translateResult";
 
 const apiClientMock = vi.hoisted(() => ({
   getSettings: vi.fn(),
@@ -216,7 +214,7 @@ describe("service media contract", () => {
     );
   });
 
-  it("normalizes direct results into structured media refs before UI consumption", () => {
+  it("normalizes task results into structured media refs before UI consumption", () => {
     expect(
       normalizeTranscribeResult(
         {
@@ -255,48 +253,11 @@ describe("service media contract", () => {
       },
     });
 
-    expect(
-      normalizeTranslateResult(
-        {
-          segments: [],
-          language: "Chinese",
-          srt_path: "E:/canonical/output.srt",
-          subtitle_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-          output_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-          mode: "standard",
-        },
-        {
-          path: "E:/canonical/source.srt",
-          name: "source.srt",
-          media_kind: "subtitle",
-          role: "context",
-          origin: "task",
-        },
-      ),
-    ).toMatchObject({
-      context_ref: {
-        path: "E:/canonical/source.srt",
-        name: "source.srt",
-        media_kind: "subtitle",
-        role: "context",
-        origin: "task",
-      },
-      subtitle_ref: {
-        path: "E:/canonical/output.srt",
-        name: "output.srt",
-      },
-    });
   });
 
-  it("uses the shared direct-result resolver as the single media normalization source", () => {
+  it("uses shared result media reference normalization as the single source", () => {
     expect(
-      normalizeDirectTranscribeResult(
+      normalizeTranscribeResultMediaReferences(
         {
           segments: [],
           text: "",
@@ -333,48 +294,11 @@ describe("service media contract", () => {
       },
     });
 
-    expect(
-      normalizeDirectTranslateResult(
-        {
-          segments: [],
-          language: "Chinese",
-          srt_path: "E:/canonical/output.srt",
-          subtitle_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-          output_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-          mode: "standard",
-        },
-        {
-          path: "E:/canonical/source.srt",
-          name: "source.srt",
-          media_kind: "subtitle",
-          role: "context",
-          origin: "task",
-        },
-      ),
-    ).toMatchObject({
-      context_ref: {
-        path: "E:/canonical/source.srt",
-        name: "source.srt",
-        media_kind: "subtitle",
-        role: "context",
-        origin: "task",
-      },
-      subtitle_ref: {
-        path: "E:/canonical/output.srt",
-        name: "output.srt",
-      },
-    });
   });
 
-  it("does not synthesize subtitle refs from direct-result srt_path once producers emit structured refs", () => {
+  it("does not synthesize subtitle refs from srt_path once producers emit structured refs", () => {
     expect(
-      normalizeDirectTranscribeResult(
+      normalizeTranscribeResultMediaReferences(
         {
           segments: [],
           text: "",
@@ -394,25 +318,5 @@ describe("service media contract", () => {
       subtitle_ref: null,
     });
 
-    expect(
-      normalizeDirectTranslateResult(
-        {
-          segments: [],
-          language: "Chinese",
-          srt_path: "E:/stale/output.srt",
-          mode: "standard",
-        },
-        {
-          path: "E:/canonical/source.srt",
-          name: "source.srt",
-        },
-      ),
-    ).toMatchObject({
-      context_ref: {
-        path: "E:/canonical/source.srt",
-        name: "source.srt",
-      },
-      subtitle_ref: null,
-    });
   });
 });

@@ -68,7 +68,6 @@ function createBaseElectronMock(): MockedElectronAPI {
     resumeDesktopTask: vi.fn(),
     cancelDesktopTask: vi.fn(),
     onDesktopTaskEvent: vi.fn(() => vi.fn()),
-    onDesktopProgress: vi.fn(() => vi.fn()),
     minimize: vi.fn(),
     maximize: vi.fn(),
     close: vi.fn(),

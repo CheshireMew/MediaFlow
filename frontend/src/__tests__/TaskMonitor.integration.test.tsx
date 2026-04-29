@@ -206,7 +206,6 @@ describe("TaskMonitor integration", () => {
   it("shows active execution mode summary in the monitor header", () => {
     useRuntimeExecutionStore.setState({
       scopes: {
-        transcriber: "direct_result",
         translator: "task_submission",
       },
     });
@@ -214,7 +213,6 @@ describe("TaskMonitor integration", () => {
     render(<TaskMonitor />);
 
     expect(screen.getByText("queued task 1")).toBeTruthy();
-    expect(screen.getByText("direct result 1")).toBeTruthy();
   });
 
   it("calls pauseAllTasks after confirming bulk pause", async () => {

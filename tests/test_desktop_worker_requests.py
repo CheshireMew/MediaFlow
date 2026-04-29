@@ -182,8 +182,8 @@ def test_handle_transcribe_segment_normalizes_audio_ref_into_audio_path(monkeypa
             )
 
     monkeypatch.setattr(
-        "backend.core.runtime_access.RuntimeServices.asr",
-        staticmethod(lambda: FakeASRService()),
+        "backend.desktop.commands.editor_commands.runtime_service",
+        lambda _service_key: FakeASRService(),
     )
     monkeypatch.setattr("backend.desktop.commands.editor_commands.emit", emitted.append)
 

@@ -1,4 +1,5 @@
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 from backend.core.task_runner import BackgroundTaskRunner
 from backend.models.schemas import SynthesisRequest
 from backend.services.media_refs import create_media_ref
@@ -12,7 +13,7 @@ async def run_synthesis_task(task_id: str, req: SynthesisRequest):
 
     await BackgroundTaskRunner.run(
         task_id=task_id,
-        worker_fn=RuntimeServices.synthesis().synthesize,
+        worker_fn=runtime_service(Services.VIDEO_SYNTHESIS).synthesize,
         worker_kwargs={
             "video_path": req.video_path,
             "srt_path": req.srt_path,
@@ -42,7 +43,7 @@ def execute_synthesis(
     *,
     progress_callback=None,
 ):
-    final_path = RuntimeServices.synthesis().synthesize(
+    final_path = runtime_service(Services.VIDEO_SYNTHESIS).synthesize(
         video_path=req.video_path,
         srt_path=req.srt_path,
         output_path=req.output_path,
@@ -63,9 +64,8 @@ def execute_synthesis(
 async def submit_synthesis_task(req: SynthesisRequest) -> dict:
     from os.path import basename
 
-    return await RuntimeServices.task_orchestrator().submit_task(
+    return await runtime_service(Services.TASK_ORCHESTRATOR).submit_task(
         task_type="synthesis",
         task_name=basename(req.video_path or ""),
         request_params=req.model_dump(mode="json"),
-        runner_factory=lambda task_id: lambda: run_synthesis_task(task_id, req),
     )

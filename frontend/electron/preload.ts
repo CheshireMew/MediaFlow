@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import {
   DESKTOP_TASK_EVENT_CHANNEL,
-  DESKTOP_WORKER_PROGRESS_CHANNEL,
   DESKTOP_WORKER_INVOCATIONS,
 } from "./desktop/bridgeContract";
 import {
@@ -229,19 +228,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on(DESKTOP_TASK_EVENT_CHANNEL, listener);
     return () => {
       ipcRenderer.removeListener(DESKTOP_TASK_EVENT_CHANNEL, listener);
-    };
-  },
-  onDesktopProgress: (
-    callback: (payload: { event: string; task_id?: string | null; progress: number; message: string }) => void,
-  ) => {
-    const listener = (
-      _event: Electron.IpcRendererEvent,
-      payload: { event: string; task_id?: string | null; progress: number; message: string },
-    ) => callback(payload);
-
-    ipcRenderer.on(DESKTOP_WORKER_PROGRESS_CHANNEL, listener);
-    return () => {
-      ipcRenderer.removeListener(DESKTOP_WORKER_PROGRESS_CHANNEL, listener);
     };
   },
 });

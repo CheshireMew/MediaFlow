@@ -1,7 +1,6 @@
 import type { TaskResponse } from "../../types/api";
 import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop";
 import {
-  createDirectExecutionOutcome,
   createTaskExecutionOutcome,
   type ExecutionOutcome,
 } from "./taskSubmission";
@@ -11,9 +10,6 @@ type DesktopMethodKey = keyof ElectronApi;
 
 type DesktopMethodArgs<K extends DesktopMethodKey> =
   Parameters<NonNullable<ElectronApi[K]>>;
-
-type DesktopMethodResult<K extends DesktopMethodKey> =
-  Awaited<ReturnType<NonNullable<ElectronApi[K]>>>;
 
 function resolveDesktopTaskId<TPayload extends { task_id?: string | null }>(
   payload: TPayload | unknown,
@@ -43,48 +39,6 @@ function withDesktopTaskId<TPayload>(payload: TPayload, taskId: string) {
   };
 }
 
-export async function executeDesktopDirectResult<
-  TInput,
-  TResult,
-  K extends DesktopMethodKey,
-  TPayload = TInput,
->(args: {
-  payload: TInput;
-  normalizePayload?: (payload: TInput) => TPayload;
-  desktopMethod: K;
-  desktopUnavailableMessage: string;
-  mapDesktopArgs?: (payload: TPayload) => DesktopMethodArgs<K>;
-  backendSubmit: (payload: TPayload) => Promise<TaskResponse>;
-  normalizeDirectResult?: (
-    result: DesktopMethodResult<K>,
-    payload: TPayload,
-  ) => TResult;
-}): Promise<ExecutionOutcome<TResult>> {
-  const normalizedPayload = args.normalizePayload
-    ? args.normalizePayload(args.payload)
-    : (args.payload as unknown as TPayload);
-
-  if (isDesktopRuntime()) {
-    const desktopMethod = requireDesktopApiMethod(
-      args.desktopMethod,
-      args.desktopUnavailableMessage,
-    ) as (...desktopArgs: DesktopMethodArgs<K>) => Promise<DesktopMethodResult<K>>;
-    const result = await desktopMethod(
-      ...(args.mapDesktopArgs ? args.mapDesktopArgs(normalizedPayload) : ([normalizedPayload] as unknown as DesktopMethodArgs<K>)),
-    );
-    return createDirectExecutionOutcome(
-      args.normalizeDirectResult
-        ? args.normalizeDirectResult(result, normalizedPayload)
-        : (result as TResult),
-    );
-  }
-
-  return createTaskExecutionOutcome(
-    await args.backendSubmit(normalizedPayload),
-    "backend",
-  );
-}
-
 export async function executeDesktopTaskSubmission<
   TInput,
   K extends DesktopMethodKey,
@@ -97,7 +51,7 @@ export async function executeDesktopTaskSubmission<
   desktopTaskIdPrefix: string;
   mapDesktopArgs?: (payload: TPayload, taskId: string) => DesktopMethodArgs<K>;
   backendSubmit: (payload: TPayload) => Promise<TaskResponse>;
-}): Promise<ExecutionOutcome<never>> {
+}): Promise<ExecutionOutcome> {
   const normalizedPayload = args.normalizePayload
     ? args.normalizePayload(args.payload)
     : (args.payload as unknown as TPayload);
@@ -129,7 +83,7 @@ export async function executeBackendTaskSubmission<TInput, TPayload = TInput>(ar
   payload: TInput;
   normalizePayload?: (payload: TInput) => TPayload;
   submit: (payload: TPayload) => Promise<TaskResponse>;
-}): Promise<ExecutionOutcome<never>> {
+}): Promise<ExecutionOutcome> {
   const normalizedPayload = args.normalizePayload
     ? args.normalizePayload(args.payload)
     : (args.payload as unknown as TPayload);

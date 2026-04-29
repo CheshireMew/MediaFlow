@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel
 import os
 from backend.application.synthesis_service import submit_synthesis_task
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 from backend.models.schemas import SynthesisRequest
 from backend.utils.path_validator import validate_input_file, validate_output_file
 import uuid

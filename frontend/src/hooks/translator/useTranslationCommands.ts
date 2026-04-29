@@ -9,7 +9,6 @@ import {
   type NullableExecutionMode,
 } from "../../services/domain";
 import { normalizeMediaReference, type MediaReference } from "../../services/ui/mediaReference";
-import { normalizeTranslateResult } from "../../services/ui/translateResult";
 
 type UseTranslationCommandsParams = {
   sourceSegments: SubtitleSegment[];
@@ -22,9 +21,7 @@ type UseTranslationCommandsParams = {
   setTaskError: (error: string | null) => void;
   setExecutionMode: (mode: NullableExecutionMode) => void;
   setTaskId: (id: string | null) => void;
-  setTargetSegments: (segments: SubtitleSegment[]) => void;
   setSourceFileRef: (reference: MediaReference | null) => void;
-  setTargetSubtitleRef: (reference: MediaReference | null) => void;
   setMode: (mode: TranslatorMode) => void;
   setActiveMode: (mode: TranslatorMode | null) => void;
   setResultMode: (mode: TranslatorMode | null) => void;
@@ -43,9 +40,7 @@ export function useTranslationCommands({
   setTaskError,
   setExecutionMode,
   setTaskId,
-  setTargetSegments,
   setSourceFileRef,
-  setTargetSubtitleRef,
   setMode,
   setActiveMode,
   setResultMode,
@@ -77,32 +72,10 @@ export function useTranslationCommands({
         context_path: contextPath,
         context_ref: contextRef,
       });
-      const outcome = applyExecutionOutcome({
+      applyExecutionOutcome({
         outcome: executionResult,
         setExecutionMode,
       });
-
-      if (outcome.kind === "result") {
-        const normalizedResult = normalizeTranslateResult(
-          outcome.result,
-          contextRef,
-        );
-        if (mode === "proofread") {
-          setMode(effectiveMode);
-        }
-        setTargetSegments(normalizedResult?.segments ?? []);
-        setTargetSubtitleRef(normalizedResult?.subtitle_ref ?? null);
-        setTaskId(null);
-        setTaskStatus("processing_result");
-        setProgress(100);
-        setTaskError(null);
-        setResultMode(effectiveMode);
-        setTimeout(() => {
-          setTaskStatus("completed");
-          setActiveMode(null);
-        }, 600);
-        return;
-      }
 
       if (mode === "proofread") {
         setMode(effectiveMode);
@@ -169,28 +142,10 @@ export function useTranslationCommands({
         context_path: contextPath,
         context_ref: contextRef,
       });
-      const outcome = applyExecutionOutcome({
+      applyExecutionOutcome({
         outcome: executionResult,
         setExecutionMode,
       });
-
-      if (outcome.kind === "result") {
-        const normalizedResult = normalizeTranslateResult(
-          outcome.result,
-          contextRef,
-        );
-        setTargetSegments(normalizedResult?.segments ?? []);
-        setTargetSubtitleRef(normalizedResult?.subtitle_ref ?? null);
-        setTaskId(null);
-        setTaskStatus("processing_result");
-        setProgress(100);
-        setTaskError(null);
-        setTimeout(() => {
-          setTaskStatus("completed");
-          setActiveMode(null);
-        }, 600);
-        return;
-      }
 
       const submission = enqueueExecutionTask({
         addTask,

@@ -27,7 +27,6 @@ def create_orchestrator(manager: TaskManager) -> TaskOrchestrator:
 
     return TaskOrchestrator(
         task_manager=manager,
-        pipeline_runner=None,
         settings_manager=DummySettingsManager(),
         download_workflow_service=None,
         transcriber_workflow_service=None,

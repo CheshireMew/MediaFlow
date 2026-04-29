@@ -65,25 +65,20 @@ export { downloaderService } from "./downloaderService";
 export { preprocessingService } from "./preprocessingService";
 export { editorService } from "./editorService";
 export type {
-  ExecutionOutcomeBranch,
   ExecutionMode,
   ExecutionOutcome,
   NullableExecutionMode,
   TaskExecutionSubmission,
 } from "./taskSubmission";
 export {
-  createDirectExecutionOutcome,
-  createDirectExecutionResult,
   createExecutionOutcomeFromSubmission,
   createTaskExecutionOutcome,
   createTaskExecutionSubmissionReceipt,
   createTaskFromExecutionOutcome,
   createTaskFromSubmissionReceipt,
-  getRequiredExecutionResult,
+  getExecutionSubmission,
   getRequiredExecutionSubmission,
-  hasExecutionResult,
   hasExecutionSubmission,
   isTaskExecutionSubmission,
-  resolveExecutionOutcomeBranch,
 } from "./taskSubmission";
 export { applyExecutionOutcome, enqueueExecutionTask } from "./executionFlow";

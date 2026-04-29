@@ -7,7 +7,7 @@ import { ContextMenu, type ContextMenuItem } from "../components/ui/ContextMenu"
 import {
   createTaskFromExecutionOutcome,
   executionService,
-  resolveExecutionOutcomeBranch,
+  getExecutionSubmission,
 } from "../services/domain";
 import { useTaskContext } from "../context/taskContext";
 
@@ -292,10 +292,7 @@ export function EditorPage() {
                             output_path: output_path,
                             options: restOptions,
                         });
-                        const outcome = resolveExecutionOutcomeBranch(executionResult);
-                        if (outcome.kind !== "submission") {
-                            throw new Error("Synthesis should return a task submission");
-                        }
+                        getExecutionSubmission(executionResult);
                         addTask(
                             createTaskFromExecutionOutcome({
                                 outcome: executionResult,

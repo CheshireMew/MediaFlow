@@ -72,7 +72,6 @@ describe("runtimeDiagnostics", () => {
         },
         {
           taskSubmission: 1,
-          directResult: 0,
         },
       ),
     ).toEqual({
@@ -122,7 +121,6 @@ describe("runtimeDiagnostics", () => {
       },
       runtime_execution_summary: {
         taskSubmission: 1,
-        directResult: 0,
       },
     });
   });
@@ -146,7 +144,6 @@ describe("runtimeDiagnostics", () => {
         },
         {
           taskSubmission: 1,
-          directResult: 0,
         },
       ),
     ).toMatchObject({

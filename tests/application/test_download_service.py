@@ -21,21 +21,19 @@ def test_execute_desktop_download_injects_runtime_services(monkeypatch):
     synthesis = object()
     captured = {}
 
+    def fake_runtime_service(service_key):
+        from backend.core.container import Services
+
+        return {
+            Services.DOWNLOADER: downloader,
+            Services.ASR: asr_service,
+            Services.LLM_TRANSLATOR: translator,
+            Services.VIDEO_SYNTHESIS: synthesis,
+        }[service_key]
+
     monkeypatch.setattr(
-        "backend.application.download_service.RuntimeServices.downloader",
-        lambda: downloader,
-    )
-    monkeypatch.setattr(
-        "backend.application.download_service.RuntimeServices.asr",
-        lambda: asr_service,
-    )
-    monkeypatch.setattr(
-        "backend.application.download_service.RuntimeServices.translator",
-        lambda: translator,
-    )
-    monkeypatch.setattr(
-        "backend.application.download_service.RuntimeServices.synthesis",
-        lambda: synthesis,
+        "backend.application.download_service.runtime_service",
+        fake_runtime_service,
     )
 
     def fake_factory(**kwargs):

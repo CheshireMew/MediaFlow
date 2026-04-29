@@ -9,7 +9,7 @@ export type RetryDescriptor = {
 };
 
 export type RetrySubmission = {
-  outcome: ExecutionOutcome<unknown>;
+  outcome: ExecutionOutcome;
   descriptor: RetryDescriptor;
 };
 
@@ -17,4 +17,3 @@ export type RetryHandler = {
   accepts: (task: Task) => boolean;
   submit: (task: Task) => Promise<RetrySubmission | null>;
 };
-

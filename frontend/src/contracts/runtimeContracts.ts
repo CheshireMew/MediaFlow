@@ -8,6 +8,9 @@ type RuntimeContractShape = {
   desktop_bridge_contract_version: number;
   desktop_task_owner_mode: TaskOwnerMode;
   web_task_owner_mode: TaskOwnerMode;
+  features: {
+    preprocessing: boolean;
+  };
   task_lifecycle: {
     runtime_only: TaskLifecycle;
     history_only: TaskLifecycle;
@@ -22,6 +25,7 @@ export const TASK_CONTRACT_VERSION = contract.task_contract_version;
 export const DESKTOP_BRIDGE_CONTRACT_VERSION = contract.desktop_bridge_contract_version;
 export const DESKTOP_TASK_OWNER_MODE = contract.desktop_task_owner_mode;
 export const WEB_TASK_OWNER_MODE = contract.web_task_owner_mode;
+export const RUNTIME_FEATURES = contract.features;
 export const TASK_LIFECYCLE = contract.task_lifecycle;
 
 export function getRuntimeTaskOwnerMode(desktopRuntime: boolean): TaskOwnerMode {

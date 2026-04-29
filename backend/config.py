@@ -3,6 +3,8 @@ import json
 import os
 import sys
 
+from backend.contracts import RUNTIME_CONTRACT
+
 
 DEFAULT_ASR_MODELS = {
     "tiny": "pengzhendong/faster-whisper-tiny",
@@ -85,7 +87,9 @@ class Settings:
         self.APP_NAME = "MediaFlow Core"
         self.APP_VERSION = "0.1.0"
         self.DEBUG = False
-        self.ENABLE_EXPERIMENTAL_PREPROCESSING = not getattr(sys, "frozen", False)
+        self.ENABLE_EXPERIMENTAL_PREPROCESSING = bool(
+            RUNTIME_CONTRACT["features"]["preprocessing"]
+        )
 
         self.HOST = "127.0.0.1"
         self.PORT = 8800
@@ -126,11 +130,6 @@ class Settings:
         self.APP_NAME = env.get("APP_NAME", self.APP_NAME)
         self.APP_VERSION = env.get("APP_VERSION", self.APP_VERSION)
         self.DEBUG = _parse_bool(env.get("DEBUG"), self.DEBUG)
-        self.ENABLE_EXPERIMENTAL_PREPROCESSING = _parse_bool(
-            env.get("ENABLE_EXPERIMENTAL_PREPROCESSING"),
-            self.ENABLE_EXPERIMENTAL_PREPROCESSING,
-        )
-
         self.HOST = env.get("HOST", self.HOST)
         self.PORT = _parse_int(env.get("PORT"), self.PORT)
         self.TASK_MAX_CONCURRENT = _parse_int(

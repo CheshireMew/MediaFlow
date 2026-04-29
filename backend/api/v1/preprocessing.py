@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException
 import logging
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 from backend.application.preprocessing_service import (
     submit_cleanup_task,
     submit_enhancement_task,
@@ -29,8 +31,7 @@ async def enhance_video(request: EnhanceRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    from backend.core.runtime_access import RuntimeServices
-    enhancer = RuntimeServices.enhancer()
+    enhancer = runtime_service(Services.ENHANCER)
     # 1. Check availability
     if not enhancer.is_available(request.method):
         detail = "Real-ESRGAN binary not found." if request.method == "realesrgan" else "BasicVSR++ dependencies (mmmagic, cuda) not found."

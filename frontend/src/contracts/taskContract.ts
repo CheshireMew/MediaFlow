@@ -40,20 +40,3 @@ export interface TaskResultShape extends TaskStructuredMediaRefs {
       [key: string]: unknown;
     });
 }
-
-export interface DesktopTranscribeDirectResult extends TaskStructuredMediaRefs {
-  segments: Array<{ id: string | number; start: number; end: number; text: string }>;
-  text: string;
-  language: string;
-}
-
-export interface DesktopTranslateDirectResult extends TaskStructuredMediaRefs {
-  segments: Array<{ id: string | number; start: number; end: number; text: string }>;
-  language: string;
-  mode: "standard" | "intelligent" | "proofread";
-}
-
-export interface DesktopSynthesizeDirectResult extends TaskStructuredMediaRefs {
-  video_path: string;
-  output_path: string;
-}

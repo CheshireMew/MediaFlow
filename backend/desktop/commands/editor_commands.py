@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from backend.config import settings
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 from backend.desktop.command_registry import register_worker_command
 from backend.desktop.worker_context import emit
 from backend.models.schemas import SubtitleSegment, TranscribeSegmentRequest
@@ -42,7 +43,7 @@ def handle_transcribe_segment(request_id: str | None, payload: dict[str, Any]) -
     if duration <= 0:
         raise ValueError("Invalid duration")
 
-    service = RuntimeServices.asr()
+    service = runtime_service(Services.ASR)
     result = service.transcribe_segment(
         audio_path=request.audio_path,
         start=request.start,
@@ -68,7 +69,7 @@ def handle_transcribe_segment(request_id: str | None, payload: dict[str, Any]) -
 
 @register_worker_command("translate_segment")
 def handle_translate_segment(request_id: str | None, payload: dict[str, Any]) -> None:
-    translator = RuntimeServices.translator()
+    translator = runtime_service(Services.LLM_TRANSLATOR)
     segments = [SubtitleSegment.model_validate(seg) for seg in payload["segments"]]
     translated = translator.translate_segments(
         segments=segments,

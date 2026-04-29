@@ -21,72 +21,8 @@ def _get_runtime_container():
     return _runtime_container or container
 
 
-class RuntimeServices:
-    """Single access point for runtime services used by task execution flows."""
-
-    @staticmethod
-    def task_manager():
-        return _get_runtime_container().get(Services.TASK_MANAGER)
-
-    @staticmethod
-    def pipeline_runner():
-        return _get_runtime_container().get(Services.PIPELINE)
-
-    @staticmethod
-    def task_orchestrator():
-        return _get_runtime_container().get(Services.TASK_ORCHESTRATOR)
-
-    @staticmethod
-    def asr():
-        return _get_runtime_container().get(Services.ASR)
-
-    @staticmethod
-    def downloader():
-        return _get_runtime_container().get(Services.DOWNLOADER)
-
-    @staticmethod
-    def translator():
-        return _get_runtime_container().get(Services.LLM_TRANSLATOR)
-
-    @staticmethod
-    def synthesis():
-        return _get_runtime_container().get(Services.VIDEO_SYNTHESIS)
-
-    @staticmethod
-    def enhancer():
-        return _get_runtime_container().get(Services.ENHANCER)
-
-    @staticmethod
-    def cleaner():
-        return _get_runtime_container().get(Services.CLEANER)
-
-    @staticmethod
-    def analyzer():
-        return _get_runtime_container().get(Services.ANALYZER)
-
-    @staticmethod
-    def ws_notifier():
-        return _get_runtime_container().get(Services.WS_NOTIFIER)
-
-    @staticmethod
-    def settings_manager():
-        return _get_runtime_container().get(Services.SETTINGS_MANAGER)
-
-    @staticmethod
-    def glossary():
-        return _get_runtime_container().get(Services.GLOSSARY)
-
-    @staticmethod
-    def cookie_manager():
-        return _get_runtime_container().get(Services.COOKIE_MANAGER)
-
-    @staticmethod
-    def browser():
-        return _get_runtime_container().get(Services.BROWSER)
-
-    @staticmethod
-    def sniffer():
-        return _get_runtime_container().get(Services.SNIFFER)
+def runtime_service(service_key):
+    return _get_runtime_container().get(service_key)
 
 
 class TaskRuntimeContext:
@@ -101,7 +37,7 @@ class TaskRuntimeContext:
     def for_task(cls, task_id: str | None, *, task_manager=None) -> "TaskRuntimeContext":
         return cls(
             task_id,
-            task_manager=task_manager or RuntimeServices.task_manager(),
+            task_manager=task_manager or runtime_service(Services.TASK_MANAGER),
         )
 
     def checkpoint(self) -> None:

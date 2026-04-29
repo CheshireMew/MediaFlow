@@ -19,7 +19,6 @@ def _create_task_orchestrator(container):
 
     return TaskOrchestrator(
         task_manager=container.get(Services.TASK_MANAGER),
-        pipeline_runner=container.get(Services.PIPELINE),
         settings_manager=container.get(Services.SETTINGS_MANAGER),
         download_workflow_service=container.get(Services.DOWNLOAD_WORKFLOW),
         transcriber_workflow_service=container.get(Services.TRANSCRIBER_WORKFLOW),

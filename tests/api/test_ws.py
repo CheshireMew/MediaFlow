@@ -7,7 +7,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from backend.config import settings
 from backend.core.container import container, Services
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 from backend.models.schemas import FileRef, TaskResult
 
 
@@ -113,7 +114,7 @@ def _wait_for_queue_idle(client, timeout_s: float = 3.0):
 def test_websocket_connection(isolated_api_client: TestClient):
     with isolated_api_client.websocket_connect("/api/v1/ws/tasks") as websocket:
         # 1. Connection established
-        notifier = RuntimeServices.ws_notifier()
+        notifier = runtime_service(Services.WS_NOTIFIER)
         assert len(notifier.active_connections) == 1
         
         # 2. Simulate task update broadcast
@@ -128,7 +129,7 @@ def test_websocket_connection(isolated_api_client: TestClient):
         # 3. Disconnect
         websocket.close()
 
-    notifier = RuntimeServices.ws_notifier()
+    notifier = runtime_service(Services.WS_NOTIFIER)
     for _ in range(10):
         if len(notifier.active_connections) == 0:
             break
@@ -151,8 +152,8 @@ async def test_task_update_broadcast(isolated_api_client: TestClient):
             self.sent_messages.append(data)
             
     mock_ws = MockWS()
-    notifier = RuntimeServices.ws_notifier()
-    task_manager = RuntimeServices.task_manager()
+    notifier = runtime_service(Services.WS_NOTIFIER)
+    task_manager = runtime_service(Services.TASK_MANAGER)
     await notifier.connect(mock_ws)
     
     from backend.models.task_model import Task

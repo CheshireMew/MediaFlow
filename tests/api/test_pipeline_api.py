@@ -21,7 +21,6 @@ class StubSettingsManager:
 def _create_orchestrator() -> TaskOrchestrator:
     return TaskOrchestrator(
         task_manager=None,
-        pipeline_runner=None,
         settings_manager=StubSettingsManager(),
         download_workflow_service=DownloadWorkflowService(),
         transcriber_workflow_service=TranscriberWorkflowService(),

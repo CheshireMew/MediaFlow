@@ -250,6 +250,7 @@ describe("desktop task mapper and plans", () => {
   it("includes persisted desktop history tasks in snapshot restoration", () => {
     const snapshot = getDesktopTaskSnapshot({
       runningTaskIds: new Set(),
+      activeTasks: new Map(),
       queuedTaskIds: [],
       pausedTasks: new Map(),
       requests: new Map(),
@@ -311,6 +312,9 @@ describe("desktop task mapper and plans", () => {
       removeQueued: true,
       rejectMessage: "Desktop worker task paused",
     });
+    if (plan.status !== "paused") {
+      throw new Error("Expected queued pause plan");
+    }
     expect(plan.shouldRestartAssignedSlot).toBeUndefined();
   });
 

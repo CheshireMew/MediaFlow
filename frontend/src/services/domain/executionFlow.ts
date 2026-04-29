@@ -1,13 +1,12 @@
 import type { Task, TaskRequestParams, TaskType } from "../../types/task";
 import type {
   ExecutionOutcome,
-  ExecutionOutcomeBranch,
   NullableExecutionMode,
   TaskExecutionSubmission,
 } from "./taskSubmission";
 import {
   createTaskFromExecutionOutcome,
-  resolveExecutionOutcomeBranch,
+  getExecutionSubmission,
 } from "./taskSubmission";
 
 export type ExecutionTaskDescriptor = {
@@ -17,25 +16,20 @@ export type ExecutionTaskDescriptor = {
   created_at?: number;
 };
 
-export function applyExecutionOutcome<TResult>(args: {
-  outcome: ExecutionOutcome<TResult>;
+export function applyExecutionOutcome(args: {
+  outcome: ExecutionOutcome;
   setExecutionMode?: (mode: NullableExecutionMode) => void;
-}): ExecutionOutcomeBranch<TResult> {
-  const branch = resolveExecutionOutcomeBranch(args.outcome);
-  args.setExecutionMode?.(branch.executionMode);
-  return branch;
+}): TaskExecutionSubmission {
+  const submission = getExecutionSubmission(args.outcome);
+  args.setExecutionMode?.("task_submission");
+  return submission;
 }
 
 export function enqueueExecutionTask(args: {
   addTask: (task: Task) => void;
-  outcome: ExecutionOutcome<unknown>;
+  outcome: ExecutionOutcome;
   descriptor: ExecutionTaskDescriptor;
 }): TaskExecutionSubmission {
-  const branch = resolveExecutionOutcomeBranch(args.outcome);
-  if (branch.kind !== "submission") {
-    throw new Error("Execution outcome did not return a task submission");
-  }
-
   args.addTask(
     createTaskFromExecutionOutcome({
       outcome: args.outcome,
@@ -43,5 +37,5 @@ export function enqueueExecutionTask(args: {
     }),
   );
 
-  return branch.submission;
+  return getExecutionSubmission(args.outcome);
 }

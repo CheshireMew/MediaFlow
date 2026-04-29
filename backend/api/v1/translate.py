@@ -1,6 +1,4 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional
 from loguru import logger
 
 from backend.application.translation_service import (
@@ -8,16 +6,10 @@ from backend.application.translation_service import (
     execute_translation,
     submit_translation_task,
 )
-from backend.models.schemas import SubtitleSegment
-from backend.core.runtime_access import RuntimeServices
+from backend.models.schemas import TranslateResponse
 from backend.utils.path_validator import validate_input_file
 
 router = APIRouter(prefix="/translate", tags=["Translator"])
-
-class TranslateResponse(BaseModel):
-    task_id: str
-    status: str
-    segments: Optional[List[SubtitleSegment]] = None
 
 
 @router.post("/segment", response_model=TranslateResponse)

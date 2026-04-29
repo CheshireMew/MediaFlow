@@ -5,11 +5,8 @@ from backend.application.transcription_service import (
     execute_transcription_segment,
     submit_transcription_segment_task,
     submit_transcription_task,
-    supported_kwargs,
 )
-from backend.core.runtime_access import RuntimeServices
 from backend.models.schemas import TranscribeRequest, TranscribeSegmentRequest, TaskResponse
-from backend.core.task_runner import BackgroundTaskRunner
 from backend.utils.path_validator import validate_input_file
 
 router = APIRouter(prefix="/transcribe", tags=["Transcription"])

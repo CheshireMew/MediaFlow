@@ -1,6 +1,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
@@ -8,8 +9,8 @@ router = APIRouter(prefix="/ws", tags=["WebSocket"])
 @router.websocket("/tasks")
 async def websocket_endpoint(websocket: WebSocket):
     from loguru import logger
-    notifier = RuntimeServices.ws_notifier()
-    tm = RuntimeServices.task_manager()
+    notifier = runtime_service(Services.WS_NOTIFIER)
+    tm = runtime_service(Services.TASK_MANAGER)
     try:
         await notifier.connect(websocket)
         

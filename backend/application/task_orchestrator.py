@@ -5,13 +5,13 @@ from backend.services.settings_manager import UserSettings
 from backend.application.pipeline_submission_service import PipelineSubmissionService
 from backend.application.task_request_deduplicator import TaskRequestDeduplicator
 from backend.application.task_resume_service import TaskResumeService
+from backend.core.tasks.registry import build_task_runner
 
 
 class TaskOrchestrator:
     def __init__(
         self,
         task_manager,
-        pipeline_runner,
         settings_manager,
         *,
         download_workflow_service,
@@ -21,7 +21,6 @@ class TaskOrchestrator:
         pipeline_submission_service,
     ):
         self._task_manager = task_manager
-        self._pipeline_runner = pipeline_runner
         self._settings_manager = settings_manager
         self._download_workflow_service = download_workflow_service
         self._transcriber_workflow_service = transcriber_workflow_service
@@ -54,6 +53,19 @@ class TaskOrchestrator:
             request_params,
         )
 
+    def get_task(self, task_id: str):
+        return self._task_manager.get_task(task_id)
+
+    async def enqueue_existing_task(self, task_id: str, queued_message: str = "Queued") -> None:
+        task = self.get_task(task_id)
+        if not task:
+            raise ValueError("Task not found")
+        await self._task_manager.enqueue_task(
+            task_id,
+            self.build_resume_runner(task),
+            queued_message=queued_message,
+        )
+
     async def reset_task_for_reuse(self, task_id: str, message: str = "Resuming...") -> None:
         await self._task_resume_service.reset_task_for_reuse(
             self._task_manager,
@@ -81,7 +93,6 @@ class TaskOrchestrator:
         task_type: str,
         task_name: str,
         request_params: dict,
-        runner_factory,
         initial_message: str = "Queued",
         queued_message: str = "Queued",
     ) -> dict:
@@ -91,15 +102,18 @@ class TaskOrchestrator:
             task_name=task_name,
             request_params=request_params,
         )
+        task = self.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found after creation: {task_id}")
         await self._task_manager.enqueue_task(
             task_id,
-            runner_factory(task_id),
+            build_task_runner(task),
             queued_message=queued_message,
         )
         return {"task_id": task_id, "status": "pending", "message": queued_message}
 
     async def resume_task(self, task_id: str) -> dict:
-        task = self._task_manager.get_task(task_id)
+        task = self.get_task(task_id)
         if not task:
             raise ValueError("Task not found")
         if not task.request_params:
@@ -108,9 +122,5 @@ class TaskOrchestrator:
             return {"message": "Task is already running", "status": "running"}
 
         await self.reset_task_for_reuse(task_id)
-        await self._task_manager.enqueue_task(
-            task_id,
-            self.build_resume_runner(task),
-            queued_message="Queued",
-        )
+        await self.enqueue_existing_task(task_id, queued_message="Queued")
         return {"message": "Task resumed", "status": "pending"}

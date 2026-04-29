@@ -13,14 +13,16 @@
       "workerCommand": "transcribe",
       "pythonModule": "backend.desktop.commands.media_commands",
       "requiresRuntime": true,
-      "executionLane": "task"
+      "executionLane": "task",
+      "responseMode": "task_submission"
     },
     "desktopTranslate": {
       "ipcChannel": "desktop:translate",
       "workerCommand": "translate",
       "pythonModule": "backend.desktop.commands.media_commands",
       "requiresRuntime": true,
-      "executionLane": "task"
+      "executionLane": "task",
+      "responseMode": "task_submission"
     },
     "desktopSynthesize": {
       "ipcChannel": "desktop:synthesize",

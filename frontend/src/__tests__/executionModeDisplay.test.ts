@@ -9,11 +9,4 @@ describe("executionModeDisplay", () => {
       className: "border-indigo-500/20 bg-indigo-500/10 text-indigo-300",
     });
   });
-
-  it("returns a consistent display model for direct results", () => {
-    expect(getExecutionModeDisplay("direct_result")).toEqual({
-      label: "direct result",
-      className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-    });
-  });
 });

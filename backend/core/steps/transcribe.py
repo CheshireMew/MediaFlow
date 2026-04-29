@@ -3,7 +3,8 @@ from loguru import logger
 from backend.core.steps.base import PipelineStep
 from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
-from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 
 
 class TranscribeStep(PipelineStep):
@@ -28,7 +29,7 @@ class TranscribeStep(PipelineStep):
         
         # Also run transcribe in executor because it blocks!
         runtime = TaskRuntimeContext.for_task(task_id)
-        asr_service = RuntimeServices.asr()
+        asr_service = runtime_service(Services.ASR)
         progress_cb = runtime.build_progress_callback()
         
         result = await runtime.run_blocking(

@@ -5,7 +5,7 @@ from loguru import logger
 import contextlib
 
 from backend.config import settings
-from backend.core.app_runtime import ApplicationRuntime, write_server_config
+from backend.core.app_runtime import ApplicationRuntime
 from backend.core.container import container
 from backend.api.v1 import (
     transcribe, pipeline, analyze, ws, tasks, cookies,
@@ -49,11 +49,6 @@ async def lifespan(app: FastAPI):
     
     logger.info(f"Runtime directories initialized at {settings.RUNTIME_DIR}")
     logger.info(f"Log file configured at {log_file}")
-    try:
-        write_server_config()
-    except Exception as e:
-        logger.error(f"Failed to write server config: {e}")
-
     registered_count = await runtime.start()
     logger.info(f"Registered {registered_count} services")
 

@@ -6,7 +6,6 @@ import {
 import { useTaskContext } from "../context/taskContext";
 import { useTranslationTaskSync } from "./translator/useTranslationTaskSync";
 import { useTranslationCommands } from "./translator/useTranslationCommands";
-import { desktopEventsService } from "../services/desktop";
 import { useExecutionModeState } from "./execution/useExecutionModeState";
 
 export const useTranslationTask = () => {
@@ -33,19 +32,6 @@ export const useTranslationTask = () => {
       translatorStore.setActiveMode(null);
     }
   }, [translatorStore]);
-
-  useEffect(() => {
-    const unsubscribe = desktopEventsService.onTranslateProgress(({ progress }) => {
-      translatorStore.setTaskStatus("running");
-      translatorStore.setProgress(progress);
-      translatorStore.setTaskError(null);
-      setExecutionMode("direct_result");
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [setExecutionMode, translatorStore]);
 
   const isTranslating =
     translatorStore.taskStatus === "translating" ||

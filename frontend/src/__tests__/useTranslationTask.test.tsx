@@ -295,16 +295,9 @@ describe("useTranslationTask", () => {
   });
 
   test("uses desktop worker translation when available", async () => {
-    vi.useFakeTimers();
     const desktopTranslate = vi.fn().mockResolvedValue({
-      segments: [{ id: "1", start: 0, end: 1, text: "你好" }],
-      language: "Chinese",
-      subtitle_ref: {
-        path: "E:/subs/demo_CN.srt",
-        name: "demo_CN.srt",
-        type: "application/x-subrip",
-      },
-      mode: "standard",
+      task_id: "desktop-translate-task",
+      status: "pending",
     });
 
     installElectronMock({
@@ -328,30 +321,21 @@ describe("useTranslationTask", () => {
     }));
     expect(desktopTranslate.mock.calls[0]?.[0]).not.toHaveProperty("context_path");
     expect(translationServiceMock.startTranslation).not.toHaveBeenCalled();
-    expect(useTranslatorStore.getState().targetSegments).toEqual([
-      { id: "1", start: 0, end: 1, text: "你好" },
-    ]);
+    expect(useTranslatorStore.getState().targetSegments).toEqual([]);
     expectTranslatorMediaState({
       sourceFileRef: {
         path: "E:/subs/demo.srt",
         name: "demo.srt",
       },
-      targetSubtitleRef: {
-        path: "E:/subs/demo_CN.srt",
-        name: "demo_CN.srt",
-        type: "application/x-subrip",
-      },
+      targetSubtitleRef: null,
     });
-    expect(useTranslatorStore.getState().resultMode).toBe("standard");
-    expect(useTranslatorStore.getState().taskStatus).toBe("processing_result");
-
-    await act(async () => {
-      vi.runAllTimers();
-      await Promise.resolve();
-    });
-
-    expect(useTranslatorStore.getState().taskStatus).toBe("completed");
-    expect(useTranslatorStore.getState().activeMode).toBeNull();
+    expect(useTranslatorStore.getState().resultMode).toBeNull();
+    expect(taskContextMock.addTask).toHaveBeenCalledWith(expect.objectContaining({
+      id: "desktop-translate-task",
+      type: "translate",
+      status: "pending",
+      task_source: "desktop",
+    }));
   });
 
   test("uses sourceFileRef as the primary input when sourceFilePath is missing", async () => {

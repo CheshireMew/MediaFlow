@@ -6,7 +6,7 @@ from backend.application.pipeline_submission_service import PipelineSubmissionSe
 from backend.application.task_orchestrator import TaskOrchestrator
 from backend.application.task_request_deduplicator import TaskRequestDeduplicator
 from backend.application.task_resume_service import TaskResumeService
-from backend.core.tasks.registry import TaskHandlerRegistry
+from backend.core.tasks import registry as task_registry
 from backend.models.schemas import PipelineRequest
 
 
@@ -40,7 +40,6 @@ class FakeTaskManager:
 def create_orchestrator(task_manager):
     return TaskOrchestrator(
         task_manager=task_manager,
-        pipeline_runner=SimpleNamespace(run=lambda *args, **kwargs: None),
         settings_manager=DummySettingsManager(),
         download_workflow_service=None,
         transcriber_workflow_service=None,
@@ -89,9 +88,10 @@ async def test_submit_pipeline_recycles_matching_completed_task():
 
 
 @pytest.mark.asyncio
-async def test_resume_task_enqueues_runner_from_registered_handler():
-    original_handlers = dict(TaskHandlerRegistry._handlers)
-    TaskHandlerRegistry.clear()
+async def test_resume_task_enqueues_runner_from_registered_definition():
+    original_factories = dict(task_registry._TASK_RUNNER_FACTORIES)
+    original_loaded = task_registry._definitions_loaded
+    task_registry.clear_task_runners()
 
     task = SimpleNamespace(
         id="task-2",
@@ -104,16 +104,18 @@ async def test_resume_task_enqueues_runner_from_registered_handler():
 
     runner = object()
 
-    @TaskHandlerRegistry.register("resume_test")
-    class ResumeTestHandler:
-        def build_runner(self, incoming_task):
-            assert incoming_task is task
-            return runner
+    def build_runner(incoming_task):
+        assert incoming_task is task
+        return runner
+
+    task_registry.register_task_runner("resume_test", build_runner)
 
     try:
         result = await orchestrator.resume_task("task-2")
     finally:
-        TaskHandlerRegistry._handlers = original_handlers
+        task_registry._TASK_RUNNER_FACTORIES.clear()
+        task_registry._TASK_RUNNER_FACTORIES.update(original_factories)
+        task_registry._definitions_loaded = original_loaded
 
     assert result == {"message": "Task resumed", "status": "pending"}
     assert task_manager.updated[0][0] == "task-2"

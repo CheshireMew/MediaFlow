@@ -3,7 +3,7 @@ import { useTaskContext } from "../../context/taskContext";
 import {
   preprocessingService,
   createTaskFromExecutionOutcome,
-  resolveExecutionOutcomeBranch,
+  getExecutionSubmission,
 } from "../../services/domain";
 import type { OCRTextEvent } from "../../types/api";
 import type { ROIRect } from "./useROIInteraction";
@@ -138,22 +138,20 @@ export function useOCRProcessor({
         roi: videoROI,
         engine: ocrEngine as "rapid" | "paddle",
       });
-      const outcome = resolveExecutionOutcomeBranch(res);
-      if (outcome.kind === "submission") {
-        addTask(
-          createTaskFromExecutionOutcome({
-            outcome: res,
-            type: "extract",
-            name: "Extract text",
-            request_params: {
-              video_ref: videoRef,
-              roi: videoROI,
-              engine: ocrEngine,
-            },
-          }),
-        );
-        setCurrentPreprocessingTask(outcome.submission.task_id, "extract", resolvedVideoPath, videoRef);
-      }
+      const submission = getExecutionSubmission(res);
+      addTask(
+        createTaskFromExecutionOutcome({
+          outcome: res,
+          type: "extract",
+          name: "Extract text",
+          request_params: {
+            video_ref: videoRef,
+            roi: videoROI,
+            engine: ocrEngine,
+          },
+        }),
+      );
+      setCurrentPreprocessingTask(submission.task_id, "extract", resolvedVideoPath, videoRef);
       setOcrResults([]); // Clear while processing
     } catch (error) {
       console.error("OCR Failed", error);
@@ -239,12 +237,9 @@ export function useOCRProcessor({
           scale: enhanceScale,
           method: enhanceMethod,
         });
-        const outcome = resolveExecutionOutcomeBranch(res);
-        if (outcome.kind !== "submission") {
-          throw new Error("Enhancement should return a task submission");
-        }
-        console.log("Enhance started:", outcome.submission);
-        if (outcome.submission.task_id) {
+        const submission = getExecutionSubmission(res);
+        console.log("Enhance started:", submission);
+        if (submission.task_id) {
           addTask(
             createTaskFromExecutionOutcome({
               outcome: res,
@@ -258,7 +253,7 @@ export function useOCRProcessor({
               },
             }),
           );
-          setCurrentPreprocessingTask(outcome.submission.task_id, "enhance", resolvedVideoPath, videoRef);
+          setCurrentPreprocessingTask(submission.task_id, "enhance", resolvedVideoPath, videoRef);
         }
       } else if (activeTool === "clean") {
         const cleanRoi: [number, number, number, number] = roi
@@ -270,12 +265,9 @@ export function useOCRProcessor({
           roi: cleanRoi,
           method: cleanMethod,
         });
-        const outcome = resolveExecutionOutcomeBranch(res);
-        if (outcome.kind !== "submission") {
-          throw new Error("Cleanup should return a task submission");
-        }
-        console.log("Clean started:", outcome.submission);
-        if (outcome.submission.task_id) {
+        const submission = getExecutionSubmission(res);
+        console.log("Clean started:", submission);
+        if (submission.task_id) {
           addTask(
             createTaskFromExecutionOutcome({
               outcome: res,
@@ -288,7 +280,7 @@ export function useOCRProcessor({
               },
             }),
           );
-          setCurrentPreprocessingTask(outcome.submission.task_id, "clean", resolvedVideoPath, videoRef);
+          setCurrentPreprocessingTask(submission.task_id, "clean", resolvedVideoPath, videoRef);
         }
       } else if (activeTool === "extract") {
         await handleStartOCR();

@@ -5,7 +5,7 @@ import type { AnalyzeResult } from "../api/client";
 import { useTaskContext } from "../context/taskContext";
 import {
   createTaskFromExecutionOutcome,
-  resolveExecutionOutcomeBranch,
+  getExecutionSubmission,
 } from "../services/domain";
 import { useDownloaderStore } from "../stores/downloaderStore";
 import type { PipelineRequest } from "../types/api";
@@ -140,10 +140,7 @@ export function useDownloaderController() {
           if (isDesktopRuntime()) {
             const settings = await settingsService.getSettings();
             const executionResult = await executionService.download(basePipeline, settings);
-            const outcome = resolveExecutionOutcomeBranch(executionResult);
-            if (outcome.kind !== "submission") {
-              throw new Error("Download should return a task submission");
-            }
+            const submission = getExecutionSubmission(executionResult);
             addTask(
               createTaskFromExecutionOutcome({
                 outcome: executionResult,
@@ -156,7 +153,7 @@ export function useDownloaderController() {
               }),
             );
             addToHistory({
-              id: outcome.submission.task_id,
+              id: submission.task_id,
               url: currentUrl,
               title: customFilename || "Unknown Video",
               timestamp: Date.now(),
@@ -170,10 +167,7 @@ export function useDownloaderController() {
           }
 
           const executionResult = await executionService.download(basePipeline);
-          const outcome = resolveExecutionOutcomeBranch(executionResult);
-          if (outcome.kind !== "submission") {
-            throw new Error("Download should return a task submission");
-          }
+          const submission = getExecutionSubmission(executionResult);
           addTask(
             createTaskFromExecutionOutcome({
               outcome: executionResult,
@@ -186,7 +180,7 @@ export function useDownloaderController() {
               }),
             );
           addToHistory({
-            id: outcome.submission.task_id,
+            id: submission.task_id,
             url: currentUrl,
             title: customFilename || "Unknown Video",
             timestamp: Date.now(),

@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 from backend.models.schemas import GlossaryTerm
 
 

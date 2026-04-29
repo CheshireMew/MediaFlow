@@ -4,7 +4,8 @@ from loguru import logger
 from backend.core.steps.base import PipelineStep
 from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
-from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 from backend.models.schemas import FileRef
 
 class SynthesizeStep(PipelineStep):
@@ -13,7 +14,7 @@ class SynthesizeStep(PipelineStep):
         return "synthesize"
 
     async def execute(self, ctx: PipelineContext, params: dict, task_id: str = None):
-        # 1. Inputs â€” ctx takes priority (set by upstream steps), fall back to params
+        # 1. Inputs â€?ctx takes priority (set by upstream steps), fall back to params
         video_path = (
             ctx.get_media_path("video_ref", "video_path")
             or params.get("video_path")
@@ -33,7 +34,7 @@ class SynthesizeStep(PipelineStep):
         output_path = p.parent / f"{p.stem}_synthesized.mp4"
 
         # 3. Execution
-        synthesis = RuntimeServices.synthesis()
+        synthesis = runtime_service(Services.VIDEO_SYNTHESIS)
         runtime = TaskRuntimeContext.for_task(task_id)
 
         options = params.get("options", {})

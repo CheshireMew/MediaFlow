@@ -4,7 +4,8 @@ from typing import List, Optional
 from loguru import logger
 from pydantic import BaseModel
 
-from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 from backend.core.task_runner import BackgroundTaskRunner
 from backend.models.schemas import FileRef, MediaReference, SubtitleSegment, TaskResult
 from backend.services.media_refs import create_media_ref
@@ -97,7 +98,7 @@ def build_translation_task_result(
 
 
 async def run_translation_task(task_id: str, req: TranslationRequest) -> None:
-    llm_translator = RuntimeServices.translator()
+    llm_translator = runtime_service(Services.LLM_TRANSLATOR)
     runtime = TaskRuntimeContext.for_task(task_id)
 
     await BackgroundTaskRunner.run(
@@ -127,7 +128,7 @@ def execute_translation(
     *,
     progress_callback=None,
 ):
-    translated_segments = RuntimeServices.translator().translate_segments(
+    translated_segments = runtime_service(Services.LLM_TRANSLATOR).translate_segments(
         segments=req.segments,
         target_language=req.target_language,
         mode=req.mode,
@@ -153,9 +154,8 @@ def execute_translation(
 
 async def submit_translation_task(req: TranslationRequest) -> dict:
     source_name = Path(req.context_path or "").name if req.context_path else "Subtitles"
-    return await RuntimeServices.task_orchestrator().submit_task(
+    return await runtime_service(Services.TASK_ORCHESTRATOR).submit_task(
         task_type="translate",
         task_name=f"{source_name} ({req.target_language})",
         request_params=req.model_dump(mode="json"),
-        runner_factory=lambda task_id: lambda: run_translation_task(task_id, req),
     )

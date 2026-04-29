@@ -14,7 +14,7 @@ export const preprocessingService = {
       video_path?: string | null;
       video_ref?: MediaReference | null;
     },
-  ): Promise<ExecutionOutcome<never>> {
+  ): Promise<ExecutionOutcome> {
     return await executeDesktopTaskSubmission({
       payload,
       normalizePayload: (nextPayload) =>
@@ -67,7 +67,7 @@ export const preprocessingService = {
     scale?: string;
     method?: string;
     task_id?: string;
-  }): Promise<ExecutionOutcome<never>> {
+  }): Promise<ExecutionOutcome> {
     return await executeDesktopTaskSubmission({
       payload,
       normalizePayload: (nextPayload) =>
@@ -98,7 +98,7 @@ export const preprocessingService = {
     roi: [number, number, number, number];
     method?: string;
     task_id?: string;
-  }): Promise<ExecutionOutcome<never>> {
+  }): Promise<ExecutionOutcome> {
     return await executeDesktopTaskSubmission({
       payload,
       normalizePayload: (nextPayload) =>

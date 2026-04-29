@@ -3,7 +3,8 @@ URL Analysis API endpoints.
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, HttpUrl
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 from backend.models.schemas import AnalyzeResult
 from loguru import logger
 
@@ -22,7 +23,7 @@ async def analyze_url(req: AnalyzeRequest):
     Returns metadata about the content without downloading.
     """
     try:
-        result = await RuntimeServices.analyzer().analyze(str(req.url))
+        result = await runtime_service(Services.ANALYZER).analyze(str(req.url))
         return result
     except ValueError as e:
         logger.error(f"Analysis failed: {e}")

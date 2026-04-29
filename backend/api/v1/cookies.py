@@ -5,10 +5,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
 from loguru import logger
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 
 def _get_api_cookie_manager():
-    return RuntimeServices.cookie_manager()
+    return runtime_service(Services.COOKIE_MANAGER)
 
 
 router = APIRouter(prefix="/cookies", tags=["Cookies"])

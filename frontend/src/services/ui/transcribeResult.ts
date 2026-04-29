@@ -1,7 +1,7 @@
 import type { ElectronFile } from "../../types/electron";
 import type { TranscribeResult } from "../../types/transcriber";
 import type { MediaReference } from "./mediaReference";
-import { normalizeDirectTranscribeResult } from "../tasks/directResultMediaResolver";
+import { normalizeTranscribeResultMediaReferences } from "../tasks/resultMediaReferences";
 
 type TranscribeSourceFile = {
   path: string;
@@ -18,5 +18,5 @@ export function normalizeTranscribeResult(
   result: TranscribeResult | null,
   file?: TranscribeSourceFile | ElectronFile | null,
 ): TranscribeResult | null {
-  return normalizeDirectTranscribeResult(result, file);
+  return normalizeTranscribeResultMediaReferences(result, file);
 }

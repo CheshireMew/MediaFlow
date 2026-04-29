@@ -2,7 +2,7 @@ import time
 
 from loguru import logger
 
-from backend.core.tasks.registry import TaskHandlerRegistry
+from backend.core.tasks.registry import build_task_runner
 
 
 class TaskResumeService:
@@ -28,7 +28,4 @@ class TaskResumeService:
         if not task.request_params:
             raise ValueError("Cannot resume task: Missing parameters")
 
-        handler = TaskHandlerRegistry.get(task.type)
-        if not handler:
-            raise ValueError(f"No handler found for task type: {task.type}")
-        return handler.build_runner(task)
+        return build_task_runner(task)

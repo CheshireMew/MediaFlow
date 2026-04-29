@@ -47,14 +47,14 @@ export interface ElectronAPI {
     device: string;
     language?: string | null;
     initial_prompt?: string | null;
-  }) => Promise<import("../contracts/taskContract").DesktopTranscribeDirectResult>;
+  }) => Promise<import("./api").TaskResponse>;
   desktopTranslate?: (payload: {
     segments: Array<{ id: string | number; start: number; end: number; text: string }>;
     target_language: string;
     mode: "standard" | "intelligent" | "proofread";
     context_path?: string | null;
     context_ref?: import("../services/ui/mediaReference").MediaReference | null;
-  }) => Promise<import("./api").TranslateResponse>;
+  }) => Promise<import("./api").TaskResponse>;
   desktopSynthesize?: (payload: {
     task_id?: string;
     video_path?: string | null;
@@ -148,14 +148,6 @@ export interface ElectronAPI {
   resumeDesktopTask?: (taskId: string) => Promise<{ status: string }>;
   cancelDesktopTask?: (taskId: string) => Promise<{ status: string }>;
   onDesktopTaskEvent?: (callback: (payload: unknown) => void) => () => void;
-  onDesktopProgress?: (
-    callback: (payload: {
-      event: string;
-      task_id?: string | null;
-      progress: number;
-      message: string;
-    }) => void,
-  ) => () => void;
   minimize: () => void;
   maximize: () => void;
   close: () => void;

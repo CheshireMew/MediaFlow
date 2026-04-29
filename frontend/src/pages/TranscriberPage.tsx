@@ -79,20 +79,12 @@ export const TranscriberPage = () => {
           state.currentTranscriptionTask.message || t('progressCard.processingMessage'),
         active: true,
       }
-    : state.desktopProgress.active
-      ? {
-          status: "running",
-          progress: state.desktopProgress.progress,
-          message:
-            state.desktopProgress.message || t('progressCard.processingMessage'),
-          active: true,
-        }
-      : {
-          status: t('progressCard.systemReady'),
-          progress: 0,
-          message: t('progressCard.waitingMessage'),
-          active: false,
-        });
+    : {
+        status: t('progressCard.systemReady'),
+        progress: 0,
+        message: t('progressCard.waitingMessage'),
+        active: false,
+      });
   const progressPercent = Math.round(progressState.progress);
 
   return (

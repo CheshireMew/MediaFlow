@@ -1,4 +1,3 @@
-import type { TranslateResponse } from "../../types/api";
 import type { ElectronFile } from "../../types/electron";
 import type { TranscribeResult } from "../../types/transcriber";
 import { normalizeMediaReference, type MediaReference } from "../ui/mediaReference";
@@ -28,7 +27,7 @@ function chooseResultMediaRef(
   );
 }
 
-export function normalizeDirectTranscribeResult(
+export function normalizeTranscribeResultMediaReferences(
   result: TranscribeResult | null,
   sourceFile?: MediaSeed | ElectronFile | null,
 ): TranscribeResult | null {
@@ -40,23 +39,5 @@ export function normalizeDirectTranscribeResult(
     ...result,
     video_ref: chooseResultMediaRef(result.video_ref, null, sourceFile),
     subtitle_ref: chooseResultMediaRef(result.subtitle_ref, result.output_ref ?? null),
-  };
-}
-
-export function normalizeDirectTranslateResult(
-  result: TranslateResponse | null,
-  contextRef?: MediaReference | null,
-): TranslateResponse | null {
-  if (!result) {
-    return null;
-  }
-
-  return {
-    ...result,
-    context_ref: chooseResultMediaRef(result.context_ref ?? null, contextRef ?? null),
-    subtitle_ref: chooseResultMediaRef(
-      result.subtitle_ref ?? null,
-      result.output_ref ?? null,
-    ),
   };
 }

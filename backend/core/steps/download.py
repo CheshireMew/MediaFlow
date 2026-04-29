@@ -3,7 +3,8 @@ from loguru import logger
 from backend.core.steps.base import PipelineStep
 from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
-from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 
 
 class DownloadStep(PipelineStep):
@@ -28,7 +29,7 @@ class DownloadStep(PipelineStep):
             return False
 
         # Run download async (it handles thread pool internally)
-        downloader = RuntimeServices.downloader()
+        downloader = runtime_service(Services.DOWNLOADER)
         result = await downloader.download(
             url, 
             proxy=params.get("proxy"),

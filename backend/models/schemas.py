@@ -63,6 +63,12 @@ class TaskResponse(BaseModel):
     status: str
     message: str = "Task started"
 
+
+class TranslateResponse(BaseModel):
+    task_id: str
+    status: str
+    segments: Optional[List[SubtitleSegment]] = None
+
 # Step Params (used in PipelineStepRequest discriminated union)
 
 class DownloadParams(BaseModel):

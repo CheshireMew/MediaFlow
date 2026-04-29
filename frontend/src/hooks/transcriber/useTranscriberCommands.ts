@@ -20,7 +20,6 @@ import {
   normalizeMediaReference,
   toElectronFile,
 } from "../../services/ui/mediaReference";
-import { normalizeTranscribeResult } from "../../services/ui/transcribeResult";
 import {
   attachElectronFileSource,
   getElectronFileSource,
@@ -40,11 +39,6 @@ type UseTranscriberCommandsArgs = {
   setResult: (value: TranscribeResult | null) => void;
   setFile: (value: ElectronFile | null) => void;
   setCurrentTranscriptionTaskId: (taskId: string | null) => void;
-  setDesktopProgress: (value: {
-    progress: number;
-    message: string;
-    active: boolean;
-  }) => void;
   setExecutionMode: (value: NullableExecutionMode) => void;
   setIsUploading: (value: boolean) => void;
   setIsSmartSplitting: (value: boolean) => void;
@@ -88,7 +82,6 @@ export function useTranscriberCommands({
   setResult,
   setFile,
   setCurrentTranscriptionTaskId,
-  setDesktopProgress,
   setExecutionMode,
   setIsUploading,
   setIsSmartSplitting,
@@ -99,11 +92,6 @@ export function useTranscriberCommands({
   const startTranscription = useCallback(async () => {
     if (!file) return;
     setResult(null);
-    setDesktopProgress({
-      progress: 0,
-      message: "",
-      active: false,
-    });
 
     try {
       setIsUploading(true);
@@ -154,48 +142,16 @@ export function useTranscriberCommands({
         model,
         device,
       });
-      const outcome = applyExecutionOutcome({
+      applyExecutionOutcome({
         outcome: executionResult,
         setExecutionMode,
       });
-
-      if (outcome.kind === "result") {
-        setDesktopProgress({
-          progress: 0,
-          message: t("progressCard.processingMessage"),
-          active: true,
-        });
-
-        const completedResult =
-          normalizeTranscribeResult(outcome.result, {
-          path: submissionAudioRef.path,
-          name: submissionAudioRef.name,
-          size: submissionAudioRef.size,
-          type: submissionAudioRef.type,
-          }) ?? outcome.result;
-
-        setResult({
-          ...completedResult,
-          text: completedResult.text ?? "",
-          language: completedResult.language ?? "auto",
-          segments: completedResult.segments ?? [],
-          video_ref: completedResult.video_ref ?? submissionAudioRef,
-          subtitle_ref: completedResult.subtitle_ref ?? null,
-        });
-        setDesktopProgress({
-          progress: 100,
-          message: t("progressCard.systemReady"),
-          active: false,
-        });
-        setCurrentTranscriptionTaskId(null);
-        return;
-      }
 
       const submission = enqueueExecutionTask({
         addTask,
         outcome: executionResult,
         descriptor: {
-          type: "pipeline",
+          type: isDesktopRuntime() ? "transcribe" : "pipeline",
           name: `Transcribe ${file.name}`,
           request_params: {
             pipeline_id: "transcriber_tool",
@@ -219,27 +175,12 @@ export function useTranscriberCommands({
     } catch (err: unknown) {
       console.error("[Transcriber] Error submitting task:", err);
       if (isCliTranscriptionSetupRequiredError(err)) {
-        setDesktopProgress({
-          progress: 0,
-          message: "",
-          active: false,
-        });
         setExecutionMode(null);
         return;
       }
       if (err instanceof Error && /paused|cancelled/i.test(err.message)) {
-        setDesktopProgress({
-          progress: 0,
-          message: "",
-          active: false,
-        });
         return;
       }
-      setDesktopProgress({
-        progress: 0,
-        message: "",
-        active: false,
-      });
       setExecutionMode(null);
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
       alert(`Transcription failed to start.\nDetails: ${msg}`);
@@ -253,12 +194,10 @@ export function useTranscriberCommands({
     model,
     addTask,
     setCurrentTranscriptionTaskId,
-    setDesktopProgress,
     setFile,
     setExecutionMode,
     setIsUploading,
     setResult,
-    t,
   ]);
 
   const sendToTranslator = useCallback(

@@ -209,23 +209,8 @@ describe("useTranscriber", () => {
 
   it("uses desktop worker transcription when available", async () => {
     const desktopTranscribe = vi.fn().mockResolvedValue({
-      segments: [{ id: "1", start: 0, end: 1.5, text: "hello worker" }],
-      text: "hello worker",
-      language: "en",
-      video_ref: {
-        path: "E:/sample.mp4",
-        name: "sample.mp4",
-        size: 1024,
-        type: "video/mp4",
-      },
-      subtitle_ref: {
-        path: "E:/sample.srt",
-        name: "sample.srt",
-      },
-      output_ref: {
-        path: "E:/sample.srt",
-        name: "sample.srt",
-      },
+      task_id: "desktop-transcribe-task",
+      status: "pending",
     });
 
     installElectronMock({
@@ -260,44 +245,19 @@ describe("useTranscriber", () => {
     }));
     expect(desktopTranscribe.mock.calls[0]?.[0]).not.toHaveProperty("audio_path");
     expect(apiClient.runPipeline).not.toHaveBeenCalled();
-    expect(result.current.state.result).toMatchObject({
-      segments: [{ id: "1", start: 0, end: 1.5, text: "hello worker" }],
-      text: "hello worker",
-      language: "en",
-      video_ref: {
-        path: "E:/sample.mp4",
-        name: "sample.mp4",
-        size: 1024,
-        type: "video/mp4",
-      },
-    });
-    expectTranscriberResultMedia(result.current.state.result, {
-      videoRef: {
-        path: "E:/sample.mp4",
-        name: "sample.mp4",
-        size: 1024,
-        type: "video/mp4",
-      },
-      subtitleRef: {
-        path: "E:/sample.srt",
-        name: "sample.srt",
-      },
-    });
+    expect(result.current.state.result).toBeNull();
+    expect(addTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      id: "desktop-transcribe-task",
+      type: "transcribe",
+      status: "pending",
+      task_source: "desktop",
+    }));
   });
 
   it("repairs a stale cached path before invoking desktop transcription", async () => {
     const desktopTranscribe = vi.fn().mockResolvedValue({
-      segments: [{ id: "1", start: 0, end: 1.5, text: "hello worker" }],
-      text: "hello worker",
-      language: "en",
-      subtitle_ref: {
-        path: "E:/sample.srt",
-        name: "sample.srt",
-      },
-      output_ref: {
-        path: "E:/sample.srt",
-        name: "sample.srt",
-      },
+      task_id: "desktop-transcribe-repaired-task",
+      status: "pending",
     });
 
     installElectronMock({
@@ -340,9 +300,12 @@ describe("useTranscriber", () => {
       device: "cpu",
     }));
     expect(desktopTranscribe.mock.calls[0]?.[0]).not.toHaveProperty("audio_path");
-    expect(result.current.state.result?.video_ref?.path).toBe(
-      "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
-    );
+    expect(addTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      id: "desktop-transcribe-repaired-task",
+      type: "transcribe",
+      status: "pending",
+      task_source: "desktop",
+    }));
     expect(result.current.state.file?.path).toBe(
       "E:/workspace/Patient Investor - “AI Won’t Replace Software!.mp4",
     );
@@ -472,17 +435,8 @@ describe("useTranscriber", () => {
 
   it("falls back to replacing the basename when resolveExistingPath is unavailable", async () => {
     const desktopTranscribe = vi.fn().mockResolvedValue({
-      segments: [{ id: "1", start: 0, end: 1.5, text: "hello worker" }],
-      text: "hello worker",
-      language: "en",
-      subtitle_ref: {
-        path: "E:/sample.srt",
-        name: "sample.srt",
-      },
-      output_ref: {
-        path: "E:/sample.srt",
-        name: "sample.srt",
-      },
+      task_id: "desktop-transcribe-basename-task",
+      status: "pending",
     });
 
     installElectronMock({

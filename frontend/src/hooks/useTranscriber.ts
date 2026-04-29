@@ -18,7 +18,6 @@ import { useTranscriberNavigation } from "./transcriber/useTranscriberNavigation
 import { useTranscriberCommands } from "./transcriber/useTranscriberCommands";
 import { useTranscriberTaskSync } from "./transcriber/useTranscriberTaskSync";
 import { useTranscriberFileActions } from "./transcriber/useTranscriberFileActions";
-import { desktopEventsService } from "../services/desktop";
 import { isDesktopRuntime } from "../services/domain";
 import { fileService } from "../services/fileService";
 import {
@@ -46,15 +45,6 @@ export function useTranscriber() {
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSmartSplitting, setIsSmartSplitting] = useState(false);
-  const [desktopProgress, setDesktopProgress] = useState<{
-    progress: number;
-    message: string;
-    active: boolean;
-  }>({
-    progress: 0,
-    message: "",
-    active: false,
-  });
   const [currentTranscriptionTaskId, setCurrentTranscriptionTaskId] = useState<string | null>(null);
 
   // Persistence
@@ -110,7 +100,6 @@ export function useTranscriber() {
     setResult: (nextResult) => setResult(normalizeTranscribeResult(nextResult, file)),
     setFile: setResolvedFile,
     setCurrentTranscriptionTaskId,
-    setDesktopProgress,
     setExecutionMode,
     setIsUploading,
     setIsSmartSplitting,
@@ -144,20 +133,6 @@ export function useTranscriber() {
     };
   }, [file, setResolvedFile]);
 
-  useEffect(() => {
-    const unsubscribe = desktopEventsService.onTranscribeProgress(({ progress, message }) => {
-      setDesktopProgress({
-        progress,
-        message,
-        active: true,
-      });
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
   return {
     state: {
       file,
@@ -166,7 +141,6 @@ export function useTranscriber() {
       device,
       isUploading,
       isSmartSplitting,
-      desktopProgress,
       executionMode,
       currentTranscriptionTaskId,
       result,

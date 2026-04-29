@@ -14,7 +14,7 @@ class PipelineSubmissionService:
             req.model_dump(mode="json"),
         )
         if existing_task_id:
-            task = orchestrator._task_manager.get_task(existing_task_id)
+            task = orchestrator.get_task(existing_task_id)
             if task:
                 if task.status in ["running", "pending"]:
                     logger.info(f"Duplicate task request ignored: {existing_task_id}")
@@ -26,11 +26,7 @@ class PipelineSubmissionService:
 
                 logger.info(f"Recycling existing task: {existing_task_id}")
                 await orchestrator.reset_task_for_reuse(existing_task_id)
-                await orchestrator._task_manager.enqueue_task(
-                    existing_task_id,
-                    lambda: orchestrator._pipeline_runner.run(req.steps, existing_task_id),
-                    queued_message="Queued",
-                )
+                await orchestrator.enqueue_existing_task(existing_task_id, queued_message="Queued")
                 return {
                     "task_id": existing_task_id,
                     "status": "pending",
@@ -44,17 +40,10 @@ class PipelineSubmissionService:
         logger.debug(f"DEBUG PIPELINE PARAMS TYPE: {type(params)}")
         logger.debug(f"DEBUG PIPELINE PARAMS CONTENT: {params}")
 
-        task_id = await orchestrator._task_manager.create_task(
-            task_type,
-            "Queued",
-            request_params=req.model_dump(mode="json"),
+        return await orchestrator.submit_task(
+            task_type=task_type,
             task_name=req.task_name,
-        )
-
-        await orchestrator._task_manager.enqueue_task(
-            task_id,
-            lambda: orchestrator._pipeline_runner.run(req.steps, task_id),
+            request_params=req.model_dump(mode="json"),
+            initial_message="Queued",
             queued_message="Queued",
         )
-
-        return {"task_id": task_id, "status": "pending", "message": "Task queued"}

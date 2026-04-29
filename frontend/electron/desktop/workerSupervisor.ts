@@ -278,10 +278,8 @@ export class DesktopWorkerSupervisor {
       slotId,
       {
         onReady: (readySlotId) => this.handleSlotReady(readySlotId),
-        onEvent: (_readySlotId, event, payload, requestId) => {
-          if (!this.channels.emitWorkerEvent(event, payload, requestId)) {
-            console.log("[DesktopWorker event]", event, payload);
-          }
+        onEvent: (_readySlotId, event, payload) => {
+          console.log("[DesktopWorker event]", event, payload);
         },
         onTaskEvent: (readySlotId, taskId, payload) =>
           this.trackedTasks.handleTaskEvent(readySlotId, taskId, payload),
@@ -336,4 +334,3 @@ export class DesktopWorkerSupervisor {
     this.trackedTasks.handleSlotExit(slotId, activeRequestId, stopMode);
   }
 }
-

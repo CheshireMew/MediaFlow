@@ -1,6 +1,5 @@
 import type { PipelineRequest } from "../../types/api";
 import type { SubtitleSegment } from "../../types/task";
-import type { TranscribeResult } from "../../types/transcriber";
 import type { MediaReference } from "../ui/mediaReference";
 import type { ExecutionOutcome } from "./taskSubmission";
 import {
@@ -13,7 +12,6 @@ import {
 } from "./executionAccess";
 import { settingsService } from "./settingsService";
 import {
-  executeDesktopDirectResult,
   executeDesktopTaskSubmission,
 } from "./executionExecutor";
 import { restoreStoredAsrExecutionPreferences } from "../persistence/asrExecutionPreferences";
@@ -151,10 +149,10 @@ export const executionService = {
     device: string;
     language?: string | null;
     initial_prompt?: string | null;
-  }): Promise<ExecutionOutcome<TranscribeResult>> {
+  }): Promise<ExecutionOutcome> {
     await ensureCliTranscriptionConfigured(payload.engine);
 
-    return await executeDesktopDirectResult({
+    return await executeDesktopTaskSubmission({
       payload,
       normalizePayload: (nextPayload) =>
         prepareExecutionPayload({
@@ -167,9 +165,10 @@ export const executionService = {
               required: true,
             },
           ],
-        }),
+      }),
       desktopMethod: "desktopTranscribe",
       desktopUnavailableMessage: "Desktop transcription worker is unavailable.",
+      desktopTaskIdPrefix: "desktop-transcribe",
       backendSubmit: async (normalizedPayload) => {
         const settings = await settingsService.getSettings();
         const autoExecution = settings.auto_execute_flow
@@ -216,10 +215,10 @@ export const executionService = {
     mode: "standard" | "intelligent" | "proofread";
     context_path?: string | null;
     context_ref?: MediaReference | null;
-  }): Promise<ExecutionOutcome<import("../../types/api").TranslateResponse>> {
+  }): Promise<ExecutionOutcome> {
     await ensureAiTranslationConfigured();
 
-    return await executeDesktopDirectResult({
+    return await executeDesktopTaskSubmission({
       payload,
       normalizePayload: (nextPayload) =>
         prepareExecutionPayload({
@@ -234,6 +233,7 @@ export const executionService = {
         }),
       desktopMethod: "desktopTranslate",
       desktopUnavailableMessage: "Desktop translation worker is unavailable.",
+      desktopTaskIdPrefix: "desktop-translate",
       backendSubmit: async (normalizedPayload) => {
         const { translationService } = await import("./translationService");
         const response = await translationService.startTranslation(normalizedPayload);
@@ -255,7 +255,7 @@ export const executionService = {
     watermark_path?: string | null;
     output_path?: string | null;
     options: Record<string, unknown>;
-  }): Promise<ExecutionOutcome<never>> {
+  }): Promise<ExecutionOutcome> {
     return await executeDesktopTaskSubmission({
       payload,
       normalizePayload: (nextPayload) =>
@@ -298,7 +298,7 @@ export const executionService = {
     pipeline: PipelineRequest,
     settings?: DownloadExecutionSettings,
     taskId?: string,
-  ): Promise<ExecutionOutcome<never>> {
+  ): Promise<ExecutionOutcome> {
     const autoExecution = settings?.auto_execute_flow
       ? await buildSharedAutoExecutionSteps(true)
       : null;

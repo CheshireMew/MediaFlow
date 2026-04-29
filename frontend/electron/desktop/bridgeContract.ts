@@ -1,7 +1,6 @@
 import desktopWorkerContract from "../../../contracts/desktop-worker-contract.json";
 
 export const DESKTOP_TASK_EVENT_CHANNEL = "desktop:task-event";
-export const DESKTOP_WORKER_PROGRESS_CHANNEL = "desktop:worker-progress";
 
 export const DESKTOP_WORKER_PROTOCOL_VERSION = desktopWorkerContract.protocol_version;
 export const DESKTOP_WORKER_INVOCATIONS = desktopWorkerContract.invocations;
@@ -25,7 +24,6 @@ export const DESKTOP_BRIDGE_CAPABILITIES = [
   "resumeDesktopTask",
   "cancelDesktopTask",
   "onDesktopTaskEvent",
-  "onDesktopProgress",
   "minimize",
   "maximize",
   "close",

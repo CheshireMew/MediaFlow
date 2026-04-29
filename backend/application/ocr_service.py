@@ -1,7 +1,8 @@
 import os
 from loguru import logger
 
-from backend.core.runtime_access import RuntimeServices, TaskRuntimeContext
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 from backend.models.schemas import OCRExtractRequest
 from backend.services.ocr.engine_provider import get_ocr_engine
 
@@ -122,11 +123,10 @@ async def run_ocr_task(task_id: str, request: OCRExtractRequest):
 
 
 async def submit_ocr_task(request: OCRExtractRequest) -> dict:
-    return await RuntimeServices.task_orchestrator().submit_task(
+    return await runtime_service(Services.TASK_ORCHESTRATOR).submit_task(
         task_type="extract",
         task_name="OCR Extraction",
         request_params=request.model_dump(mode="json"),
-        runner_factory=lambda task_id: lambda: run_ocr_task(task_id, request),
     )
 
 

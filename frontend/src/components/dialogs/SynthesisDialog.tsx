@@ -15,7 +15,6 @@ import { SubtitleStylePanel } from './synthesis/components/SubtitleStylePanel';
 import { WatermarkPanel } from './synthesis/components/WatermarkPanel';
 import { OutputSettingsPanel } from './synthesis/components/OutputSettingsPanel';
 import { VideoPreview } from './synthesis/components/VideoPreview';
-import { desktopEventsService } from '../../services/desktop';
 import {
     buildSynthesisOptionsFromPreferences,
     resolvePreviewViewportMetrics,
@@ -109,19 +108,6 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         style.isInitialized,
         persistedPreferences,
     );
-
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const unsubscribe = desktopEventsService.onSynthesizeProgress(({ progress, message }) => {
-            setSynthesisProgress(Math.max(0, Math.min(100, Number(progress) || 0)));
-            setSynthesisMessage(message || '');
-        });
-
-        return () => {
-            unsubscribe();
-        };
-    }, [isOpen]);
 
     // --- Synthesize Action (cross-cutting: reads from all 3 hooks) ---
     const handleSynthesize = async () => {

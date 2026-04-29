@@ -3,7 +3,6 @@ import type { Task } from "../../types/task";
 
 export type RuntimeExecutionSummary = {
   taskSubmission: number;
-  directResult: number;
 };
 
 function getTaskDiagnosticMediaRefs(task: Task) {

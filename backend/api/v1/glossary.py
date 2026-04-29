@@ -7,10 +7,11 @@ from backend.application.glossary_service import (
     UpdateGlossaryTermRequest,
 )
 from backend.models.schemas import GlossaryTerm
-from backend.core.runtime_access import RuntimeServices
+from backend.core.container import Services
+from backend.core.runtime_access import runtime_service
 
 def _glossary_application():
-    return GlossaryApplicationService(RuntimeServices.glossary())
+    return GlossaryApplicationService(runtime_service(Services.GLOSSARY))
 
 router = APIRouter(prefix="/glossary", tags=["Glossary"])
 
