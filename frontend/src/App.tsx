@@ -17,6 +17,7 @@ import {
   resolveNavigationPath,
 } from "./services/ui/navigation";
 import { ensureI18nNamespaces } from "./i18n";
+import { ROUTE_PAGE_MODULES } from "./startup/routePageDefinitions";
 
 import { TaskProvider } from "./context/taskContext";
 import { TaskSummaryProvider } from "./context/taskSummaryContext";
@@ -36,44 +37,44 @@ function createLazyPage<TModule>(
 }
 
 const EditorPage = createLazyPage(
-  ["editor"],
-  () => import("./pages/EditorPage"),
+  ROUTE_PAGE_MODULES.editor.namespaces,
+  ROUTE_PAGE_MODULES.editor.load,
   (module) => module.EditorPage,
 );
 
 const DashboardPage = createLazyPage(
-  ["dashboard", "taskmonitor"],
-  () => import("./pages/DashboardPage"),
+  ROUTE_PAGE_MODULES.dashboard.namespaces,
+  ROUTE_PAGE_MODULES.dashboard.load,
   (module) => module.DashboardPage,
 );
 
 const DownloaderPage = createLazyPage(
-  ["downloader", "taskmonitor"],
-  () => import("./pages/DownloaderPage"),
+  ROUTE_PAGE_MODULES.downloader.namespaces,
+  ROUTE_PAGE_MODULES.downloader.load,
   (module) => module.DownloaderPage,
 );
 
 const TranscriberPage = createLazyPage(
-  ["transcriber"],
-  () => import("./pages/TranscriberPage"),
+  ROUTE_PAGE_MODULES.transcriber.namespaces,
+  ROUTE_PAGE_MODULES.transcriber.load,
   (module) => module.TranscriberPage,
 );
 
 const TranslatorPage = createLazyPage(
-  ["translator"],
-  () => import("./pages/TranslatorPage"),
+  ROUTE_PAGE_MODULES.translator.namespaces,
+  ROUTE_PAGE_MODULES.translator.load,
   (module) => module.TranslatorPage,
 );
 
 const PreprocessingPage = createLazyPage(
-  ["preprocessing"],
-  () => import("./pages/PreprocessingPage"),
+  ROUTE_PAGE_MODULES.preprocessing.namespaces,
+  ROUTE_PAGE_MODULES.preprocessing.load,
   (module) => module.PreprocessingPage,
 );
 
 const SettingsPage = createLazyPage(
-  ["settings", "common"],
-  () => import("./pages/SettingsPage"),
+  ROUTE_PAGE_MODULES.settings.namespaces,
+  ROUTE_PAGE_MODULES.settings.load,
   (module) => module.default,
 );
 

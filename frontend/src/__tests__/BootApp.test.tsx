@@ -7,6 +7,18 @@ import { installElectronMock, type MockedElectronAPI } from "./testUtils/electro
 const getSettingsMock = vi.fn();
 const changeLanguageMock = vi.fn();
 const checkHealthMock = vi.fn();
+const ensureI18nNamespacesMock = vi.fn();
+const routePreloadMock = vi.fn();
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
 
 vi.mock("../App", () => ({
   default: ({
@@ -44,7 +56,26 @@ vi.mock("../i18n", () => ({
     t: (key: string) => key,
     changeLanguage: (...args: unknown[]) => changeLanguageMock(...args),
   },
+  ensureI18nNamespaces: (...args: unknown[]) => ensureI18nNamespacesMock(...args),
 }));
+
+vi.mock("../startup/routePageDefinitions", () => {
+  const routeModule = {
+    namespaces: ["downloader", "taskmonitor"],
+    load: (...args: unknown[]) => routePreloadMock(...args),
+  };
+  return {
+    ROUTE_PAGE_MODULES: {
+      dashboard: routeModule,
+      editor: routeModule,
+      downloader: routeModule,
+      transcriber: routeModule,
+      translator: routeModule,
+      preprocessing: routeModule,
+      settings: routeModule,
+    },
+  };
+});
 
 describe("BootApp", () => {
   let electronMock: MockedElectronAPI;
@@ -55,6 +86,8 @@ describe("BootApp", () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     checkHealthMock.mockResolvedValue({ status: "ok" });
+    ensureI18nNamespacesMock.mockResolvedValue(undefined);
+    routePreloadMock.mockResolvedValue({});
     electronMock = installElectronMock();
   });
 
@@ -88,6 +121,38 @@ describe("BootApp", () => {
     expect(getSettingsMock).toHaveBeenCalledTimes(1);
     expect(changeLanguageMock).toHaveBeenCalledWith("zh");
     expect(electronMock.getDesktopRuntimeInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for the startup route module before marking the app ready", async () => {
+    vi.useFakeTimers();
+    const routePreload = createDeferred<Record<string, never>>();
+    routePreloadMock.mockReturnValue(routePreload.promise);
+    getSettingsMock.mockResolvedValue({ language: "zh" });
+
+    render(<BootApp />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("app-ready").textContent).toBe("false");
+    expect(screen.getByTestId("remote-backend-ready").textContent).toBe("false");
+    expect(routePreloadMock).toHaveBeenCalledTimes(1);
+    expect(ensureI18nNamespacesMock).toHaveBeenCalledWith([
+      "downloader",
+      "taskmonitor",
+    ]);
+
+    await act(async () => {
+      routePreload.resolve({});
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("app-ready").textContent).toBe("true");
+    expect(screen.getByTestId("remote-backend-ready").textContent).toBe("true");
   });
 
   it("stays in bootstrap retry when desktop runtime handshake is incompatible", async () => {

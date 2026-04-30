@@ -42,16 +42,9 @@ function createWindow() {
   });
 
   let loadFailureHandled = false;
-  let rendererReady = false;
-  let firstFrameReady = false;
   const revealWindow = () => {
     if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) {
       mainWindow.show();
-    }
-  };
-  const tryRevealWindow = () => {
-    if (rendererReady && firstFrameReady) {
-      revealWindow();
     }
   };
   const revealFallbackTimer = setTimeout(revealWindow, 4000);
@@ -60,12 +53,10 @@ function createWindow() {
     desktopWorkerSupervisor.prewarm();
   });
   mainWindow.once("ready-to-show", () => {
-    firstFrameReady = true;
-    tryRevealWindow();
+    revealWindow();
   });
   bindRendererReadyCallback(mainWindow, () => {
-    rendererReady = true;
-    tryRevealWindow();
+    revealWindow();
   });
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (!isMainFrame || loadFailureHandled) {
@@ -143,7 +134,9 @@ Error: ${safeDescription}</code>
 
   if (rendererTarget.kind === "url") {
     mainWindow.loadURL(rendererTarget.target);
-    mainWindow.webContents.openDevTools({ mode: "detach" });
+    if (process.env.MEDIAFLOW_OPEN_DEVTOOLS === "true") {
+      mainWindow.webContents.openDevTools({ mode: "detach" });
+    }
   } else {
     mainWindow.loadFile(rendererTarget.target);
   }

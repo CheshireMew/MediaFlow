@@ -1,27 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ComponentType } from "react";
-import { HashRouter } from "react-router-dom";
-import { Layout } from "../layout/Layout";
-import { StartupPlaceholderPage } from "./StartupPlaceholderPage";
+import App from "../../App";
 import { isDesktopRuntime, settingsService } from "../../services/domain";
 import { getDesktopRuntimeInfo, hasDesktopCapability } from "../../services/desktop";
 import { apiClient } from "../../api/client";
 import { windowService } from "../../services/desktop";
 import { createDesktopRuntimeDiagnostic } from "../../services/debug/runtimeDiagnostics";
 import { DESKTOP_BRIDGE_CONTRACT_VERSION, TASK_OWNER_MODE } from "../../contracts/runtimeContracts";
-import i18n from "../../i18n";
+import i18n, { ensureI18nNamespaces } from "../../i18n";
 import { resolveCurrentPresentationRoute } from "../../services/ui/pagePresentation";
+import { ROUTE_PAGE_MODULES } from "../../startup/routePageDefinitions";
 
 type StartupState = {
   appReady: boolean;
   remoteBackendReady: boolean;
   message: string;
-};
-
-type AppShellProps = {
-  appReady: boolean;
-  remoteBackendReady: boolean;
-  startupMessage: string;
 };
 
 const REQUIRED_DESKTOP_CAPABILITIES = [
@@ -42,7 +34,6 @@ export function BootApp() {
       ? STARTUP_TEXT_FALLBACKS[key]
       : translated;
   };
-  const [LoadedApp, setLoadedApp] = useState<ComponentType<AppShellProps> | null>(null);
   const [startupState, setStartupState] = useState<StartupState>({
     appReady: false,
     remoteBackendReady: false,
@@ -69,14 +60,6 @@ export function BootApp() {
   useEffect(() => {
     let cancelled = false;
 
-    window.requestAnimationFrame(() => {
-      void import("../../App").then((module) => {
-        if (!cancelled) {
-          setLoadedApp(() => module.default);
-        }
-      });
-    });
-
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     const updateState = (next: Partial<StartupState>) => {
@@ -84,7 +67,32 @@ export function BootApp() {
       setStartupState((prev) => ({ ...prev, ...next }));
     };
 
+    const preloadStartupRoute = async () => {
+      const routeModule = ROUTE_PAGE_MODULES[startupVariant];
+      await Promise.all([
+        routeModule.load(),
+        ensureI18nNamespaces(routeModule.namespaces),
+      ]);
+    };
+
+    const startStartupRoutePreload = () =>
+      preloadStartupRoute().then(
+        () => ({ ok: true as const }),
+        (error: unknown) => ({ ok: false as const, error }),
+      );
+
+    const waitForStartupRoutePreload = async (
+      preload: ReturnType<typeof startStartupRoutePreload>,
+    ) => {
+      const result = await preload;
+      if (!result.ok) {
+        throw result.error;
+      }
+    };
+
     const bootstrap = async () => {
+      let startupRoutePreload = startStartupRoutePreload();
+
       const loadUserSettings = async () => {
         try {
           const settings = await settingsService.getSettings();
@@ -98,9 +106,18 @@ export function BootApp() {
 
       while (!cancelled) {
         try {
+          const desktopRuntime = isDesktopRuntime();
+          const runtimeInfoPromise = desktopRuntime
+            ? getDesktopRuntimeInfo().then(
+                (runtimeInfo) => ({ runtimeInfo, error: null }),
+                (error: unknown) => ({ runtimeInfo: null, error }),
+              )
+            : null;
+
           await apiClient.checkHealth();
 
-          if (!isDesktopRuntime()) {
+          if (!desktopRuntime) {
+            await waitForStartupRoutePreload(startupRoutePreload);
             updateState({
               appReady: true,
               remoteBackendReady: true,
@@ -110,7 +127,11 @@ export function BootApp() {
           }
 
           try {
-            const runtimeInfo = await getDesktopRuntimeInfo();
+            const runtimeInfoResult = await runtimeInfoPromise;
+            if (!runtimeInfoResult || runtimeInfoResult.error || !runtimeInfoResult.runtimeInfo) {
+              throw runtimeInfoResult?.error ?? new Error("Desktop runtime handshake is unavailable.");
+            }
+            const { runtimeInfo } = runtimeInfoResult;
             if (runtimeInfo.contract_version < DESKTOP_BRIDGE_CONTRACT_VERSION) {
               throw new Error(
                 `Desktop bridge contract mismatch. Required >= ${DESKTOP_BRIDGE_CONTRACT_VERSION}, received ${runtimeInfo.contract_version}.`,
@@ -136,6 +157,7 @@ export function BootApp() {
               createDesktopRuntimeDiagnostic(runtimeInfo),
             );
 
+            await waitForStartupRoutePreload(startupRoutePreload);
             updateState({
               appReady: true,
               remoteBackendReady: true,
@@ -162,6 +184,7 @@ export function BootApp() {
                 ? error.message
                 : getStartupText("retryingGeneric"),
           });
+          startupRoutePreload = startStartupRoutePreload();
         }
 
         await sleep(1000);
@@ -173,7 +196,7 @@ export function BootApp() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [startupVariant]);
 
   useEffect(() => {
     let frameId = 0;
@@ -185,21 +208,8 @@ export function BootApp() {
     };
   }, []);
 
-  if (!LoadedApp) {
-    return (
-      <HashRouter>
-        <Layout>
-          <StartupPlaceholderPage
-            variant={startupVariant}
-            message={startupState.message}
-          />
-        </Layout>
-      </HashRouter>
-    );
-  }
-
   return (
-    <LoadedApp
+    <App
       appReady={startupState.appReady}
       remoteBackendReady={startupState.remoteBackendReady}
       startupMessage={startupState.message}
