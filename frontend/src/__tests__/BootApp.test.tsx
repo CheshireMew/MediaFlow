@@ -6,7 +6,7 @@ import { installElectronMock, type MockedElectronAPI } from "./testUtils/electro
 
 const getSettingsMock = vi.fn();
 const changeLanguageMock = vi.fn();
-const checkHealthMock = vi.fn();
+const probeBackendHealthMock = vi.fn();
 const ensureI18nNamespacesMock = vi.fn();
 const routePreloadMock = vi.fn();
 
@@ -45,10 +45,8 @@ vi.mock("../services/domain", () => ({
   },
 }));
 
-vi.mock("../api/client", () => ({
-  apiClient: {
-    checkHealth: (...args: unknown[]) => checkHealthMock(...args),
-  },
+vi.mock("../startup/backendHealthProbe", () => ({
+  probeBackendHealth: (...args: unknown[]) => probeBackendHealthMock(...args),
 }));
 
 vi.mock("../i18n", () => ({
@@ -85,7 +83,8 @@ describe("BootApp", () => {
     resetDesktopRuntimeInfoCache();
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    checkHealthMock.mockResolvedValue({ status: "ok" });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    probeBackendHealthMock.mockResolvedValue({ ok: true, health: { status: "ok" } });
     ensureI18nNamespacesMock.mockResolvedValue(undefined);
     routePreloadMock.mockResolvedValue({});
     electronMock = installElectronMock();
@@ -153,6 +152,46 @@ describe("BootApp", () => {
 
     expect(screen.getByTestId("app-ready").textContent).toBe("true");
     expect(screen.getByTestId("remote-backend-ready").textContent).toBe("true");
+  });
+
+  it("polls backend health quickly without restarting route preload", async () => {
+    vi.useFakeTimers();
+    probeBackendHealthMock
+      .mockResolvedValueOnce({ ok: false, error: new Error("offline") })
+      .mockResolvedValue({ ok: true, health: { status: "ok" } });
+    getSettingsMock.mockResolvedValue({ language: "zh" });
+
+    render(<BootApp />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("app-ready").textContent).toBe("false");
+    expect(screen.getByTestId("startup-message").textContent).toBe(
+      "后端正在启动中，正在重试健康检查...",
+    );
+    expect(probeBackendHealthMock).toHaveBeenCalledTimes(1);
+    expect(routePreloadMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(149);
+      await Promise.resolve();
+    });
+
+    expect(probeBackendHealthMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("app-ready").textContent).toBe("true");
+    expect(screen.getByTestId("remote-backend-ready").textContent).toBe("true");
+    expect(probeBackendHealthMock).toHaveBeenCalledTimes(2);
+    expect(routePreloadMock).toHaveBeenCalledTimes(1);
   });
 
   it("stays in bootstrap retry when desktop runtime handshake is incompatible", async () => {

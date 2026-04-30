@@ -26,76 +26,10 @@
         width: 100%;
         height: 100%;
       }
-
-      .startup-shell {
-        box-sizing: border-box;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 32px;
-        background: #0a0a0a;
-        color: #e5e7eb;
-        font-family: "Segoe UI", system-ui, sans-serif;
-      }
-
-      .startup-panel {
-        width: min(420px, 100%);
-        display: grid;
-        gap: 14px;
-      }
-
-      .startup-title {
-        margin: 0;
-        font-size: 24px;
-        font-weight: 700;
-      }
-
-      .startup-message {
-        margin: 0;
-        color: #94a3b8;
-        font-size: 14px;
-      }
-
-      .startup-bar {
-        position: relative;
-        height: 3px;
-        overflow: hidden;
-        border-radius: 999px;
-        background: rgba(148, 163, 184, 0.16);
-      }
-
-      .startup-bar::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        width: 45%;
-        border-radius: inherit;
-        background: #818cf8;
-        animation: startup-progress 1.1s ease-in-out infinite;
-      }
-
-      @keyframes startup-progress {
-        0% {
-          transform: translateX(-100%);
-        }
-        100% {
-          transform: translateX(230%);
-        }
-      }
     </style>
   </head>
   <body>
-    <div id="root">
-      <main class="startup-shell" data-startup-shell>
-        <section class="startup-panel">
-          <h1 class="startup-title">MediaFlow</h1>
-          <p class="startup-message">Starting desktop interface...</p>
-          <div class="startup-bar" aria-hidden="true"></div>
-        </section>
-      </main>
-    </div>
+    <div id="root"></div>
     <script>
       (() => {
         const root = document.getElementById("root");

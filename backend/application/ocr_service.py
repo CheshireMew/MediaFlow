@@ -5,7 +5,6 @@ from loguru import logger
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 from backend.models.schemas import OCRExtractRequest
-from backend.services.ocr.engine_provider import get_ocr_engine
 
 
 def load_ocr_results(video_path: str) -> dict[str, list]:
@@ -27,6 +26,8 @@ def load_ocr_results(video_path: str) -> dict[str, list]:
 
 
 async def _ocr_background(task_id: str, request: OCRExtractRequest):
+    from backend.services.ocr.engine_provider import get_ocr_engine
+
     runtime = TaskRuntimeContext.for_task(task_id)
     video_path = request.video_ref.path
     try:
@@ -128,6 +129,8 @@ def _ocr_desktop(
     *,
     progress_callback,
 ):
+    from backend.services.ocr.engine_provider import get_ocr_engine
+
     video_path = request.video_ref.path
     from backend.services.ocr.pipeline import VideoOCRPipeline
 

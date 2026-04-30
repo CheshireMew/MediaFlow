@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import App from "../../App";
 import { isDesktopRuntime, settingsService } from "../../services/domain";
 import { getDesktopRuntimeInfo, hasDesktopCapability } from "../../services/desktop";
-import { apiClient } from "../../api/client";
 import { windowService } from "../../services/desktop";
 import { createDesktopRuntimeDiagnostic } from "../../services/debug/runtimeDiagnostics";
 import { DESKTOP_BRIDGE_CONTRACT_VERSION, TASK_OWNER_MODE } from "../../contracts/runtimeContracts";
 import i18n, { ensureI18nNamespaces } from "../../i18n";
 import { resolveCurrentPresentationRoute } from "../../services/ui/pagePresentation";
+import { probeBackendHealth } from "../../startup/backendHealthProbe";
 import { ROUTE_PAGE_MODULES } from "../../startup/routePageDefinitions";
 
 type StartupState = {
@@ -20,7 +20,10 @@ const REQUIRED_DESKTOP_CAPABILITIES = [
   "getDesktopRuntimeInfo",
 ] as const;
 
+const STARTUP_HEALTH_RETRY_DELAY_MS = 150;
+
 const STARTUP_TEXT_FALLBACKS = {
+  retryingHealth: "后端正在启动中，正在重试健康检查...",
   checkingHealth: "已发现后端，正在检查服务健康状态...",
   retryingGeneric: "启动检查失败，正在重试...",
   ready: "后端已就绪。",
@@ -90,8 +93,35 @@ export function BootApp() {
       }
     };
 
+    const waitForBackendHealth = async () => {
+      let retryMessageShown = false;
+
+      while (!cancelled) {
+        const health = await probeBackendHealth();
+        if (health.ok) {
+          return true;
+        }
+
+        if (!retryMessageShown) {
+          retryMessageShown = true;
+          updateState({ message: getStartupText("retryingHealth") });
+        }
+
+        await sleep(STARTUP_HEALTH_RETRY_DELAY_MS);
+      }
+
+      return false;
+    };
+
     const bootstrap = async () => {
-      let startupRoutePreload = startStartupRoutePreload();
+      const startupRoutePreload = startStartupRoutePreload();
+      const desktopRuntime = isDesktopRuntime();
+      const runtimeInfoPromise = desktopRuntime
+        ? getDesktopRuntimeInfo().then(
+            (runtimeInfo) => ({ runtimeInfo, error: null }),
+            (error: unknown) => ({ runtimeInfo: null, error }),
+          )
+        : null;
 
       const loadUserSettings = async () => {
         try {
@@ -104,90 +134,69 @@ export function BootApp() {
         }
       };
 
-      while (!cancelled) {
-        try {
-          const desktopRuntime = isDesktopRuntime();
-          const runtimeInfoPromise = desktopRuntime
-            ? getDesktopRuntimeInfo().then(
-                (runtimeInfo) => ({ runtimeInfo, error: null }),
-                (error: unknown) => ({ runtimeInfo: null, error }),
-              )
-            : null;
-
-          await apiClient.checkHealth();
-
-          if (!desktopRuntime) {
-            await waitForStartupRoutePreload(startupRoutePreload);
-            updateState({
-              appReady: true,
-              remoteBackendReady: true,
-              message: getStartupText("webMode"),
-            });
-            return;
-          }
-
-          try {
-            const runtimeInfoResult = await runtimeInfoPromise;
-            if (!runtimeInfoResult || runtimeInfoResult.error || !runtimeInfoResult.runtimeInfo) {
-              throw runtimeInfoResult?.error ?? new Error("Desktop runtime handshake is unavailable.");
-            }
-            const { runtimeInfo } = runtimeInfoResult;
-            if (runtimeInfo.contract_version < DESKTOP_BRIDGE_CONTRACT_VERSION) {
-              throw new Error(
-                `Desktop bridge contract mismatch. Required >= ${DESKTOP_BRIDGE_CONTRACT_VERSION}, received ${runtimeInfo.contract_version}.`,
-              );
-            }
-            if (runtimeInfo.task_owner_mode !== TASK_OWNER_MODE) {
-              throw new Error(
-                `Task owner mismatch. Required ${TASK_OWNER_MODE}, received ${runtimeInfo.task_owner_mode}.`,
-              );
-            }
-
-            const missingCapabilities = REQUIRED_DESKTOP_CAPABILITIES.filter(
-              (capability) => !hasDesktopCapability(runtimeInfo, capability),
-            );
-            if (missingCapabilities.length > 0) {
-              throw new Error(
-                `Desktop bridge capability mismatch. Missing: ${missingCapabilities.join(", ")}.`,
-              );
-            }
-
-            console.log(
-              "[Init] Desktop runtime contract ready",
-              createDesktopRuntimeDiagnostic(runtimeInfo),
-            );
-
-            await waitForStartupRoutePreload(startupRoutePreload);
-            updateState({
-              appReady: true,
-              remoteBackendReady: true,
-              message: getStartupText("ready"),
-            });
-            window.requestAnimationFrame(() => {
-              void loadUserSettings();
-            });
-            return;
-          } catch (error) {
-            console.log("[Init] Desktop worker not ready yet...", error);
-            updateState({
-              message:
-                error instanceof Error && /mismatch/i.test(error.message)
-                  ? error.message
-                  : getStartupText("retryingGeneric"),
-            });
-          }
-        } catch (error) {
-          console.error("Failed to bootstrap desktop worker", error);
-          updateState({
-            message:
-              error instanceof Error && /mismatch/i.test(error.message)
-                ? error.message
-                : getStartupText("retryingGeneric"),
-          });
-          startupRoutePreload = startStartupRoutePreload();
+      try {
+        const backendReady = await waitForBackendHealth();
+        if (!backendReady) {
+          return;
         }
 
-        await sleep(1000);
+        if (!desktopRuntime) {
+          await waitForStartupRoutePreload(startupRoutePreload);
+          updateState({
+            appReady: true,
+            remoteBackendReady: true,
+            message: getStartupText("webMode"),
+          });
+          return;
+        }
+
+        const runtimeInfoResult = await runtimeInfoPromise;
+        if (!runtimeInfoResult || runtimeInfoResult.error || !runtimeInfoResult.runtimeInfo) {
+          throw runtimeInfoResult?.error ?? new Error("Desktop runtime handshake is unavailable.");
+        }
+        const { runtimeInfo } = runtimeInfoResult;
+        if (runtimeInfo.contract_version < DESKTOP_BRIDGE_CONTRACT_VERSION) {
+          throw new Error(
+            `Desktop bridge contract mismatch. Required >= ${DESKTOP_BRIDGE_CONTRACT_VERSION}, received ${runtimeInfo.contract_version}.`,
+          );
+        }
+        if (runtimeInfo.task_owner_mode !== TASK_OWNER_MODE) {
+          throw new Error(
+            `Task owner mismatch. Required ${TASK_OWNER_MODE}, received ${runtimeInfo.task_owner_mode}.`,
+          );
+        }
+
+        const missingCapabilities = REQUIRED_DESKTOP_CAPABILITIES.filter(
+          (capability) => !hasDesktopCapability(runtimeInfo, capability),
+        );
+        if (missingCapabilities.length > 0) {
+          throw new Error(
+            `Desktop bridge capability mismatch. Missing: ${missingCapabilities.join(", ")}.`,
+          );
+        }
+
+        console.log(
+          "[Init] Desktop runtime contract ready",
+          createDesktopRuntimeDiagnostic(runtimeInfo),
+        );
+
+        await waitForStartupRoutePreload(startupRoutePreload);
+        updateState({
+          appReady: true,
+          remoteBackendReady: true,
+          message: getStartupText("ready"),
+        });
+        window.requestAnimationFrame(() => {
+          void loadUserSettings();
+        });
+      } catch (error) {
+        console.error("Failed to bootstrap desktop worker", error);
+        updateState({
+          message:
+            error instanceof Error && /mismatch/i.test(error.message)
+              ? error.message
+              : getStartupText("retryingGeneric"),
+        });
       }
     };
 
