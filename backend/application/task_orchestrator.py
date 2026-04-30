@@ -5,7 +5,6 @@ from backend.services.settings_manager import UserSettings
 from backend.application.pipeline_submission_service import PipelineSubmissionService
 from backend.application.task_request_deduplicator import TaskRequestDeduplicator
 from backend.application.task_resume_service import TaskResumeService
-from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
 from backend.core.tasks.registry import build_task_runner
 
 
@@ -57,6 +56,16 @@ class TaskOrchestrator:
     def get_task(self, task_id: str):
         return self._task_manager.get_task(task_id)
 
+    def serialize_task(self, task):
+        if task is None:
+            raise ValueError("Task not found")
+        return self._task_manager.serialize_task(task)
+
+    async def wait_until_task_state_ready(self) -> None:
+        waiter = getattr(self._task_manager, "wait_until_tasks_loaded", None)
+        if callable(waiter):
+            await waiter()
+
     async def enqueue_existing_task(self, task_id: str, queued_message: str = "Queued") -> None:
         task = self.get_task(task_id)
         if not task:
@@ -78,6 +87,7 @@ class TaskOrchestrator:
         return self._task_resume_service.build_resume_runner(task)
 
     async def submit_pipeline(self, req: PipelineRequest) -> dict:
+        await self.wait_until_task_state_ready()
         req = self.prepare_pipeline_request(req)
         task_type = "pipeline"
         if self._download_workflow_service is not None:
@@ -97,6 +107,7 @@ class TaskOrchestrator:
         initial_message: str = "Queued",
         queued_message: str = "Queued",
     ) -> dict:
+        await self.wait_until_task_state_ready()
         task_id = await self._task_manager.create_task(
             task_type=task_type,
             initial_message=initial_message,
@@ -111,19 +122,15 @@ class TaskOrchestrator:
             build_task_runner(task),
             queued_message=queued_message,
         )
-        return {
-            "task_id": task_id,
-            "status": "pending",
-            "message": queued_message,
-            "task_source": "backend",
-            "task_contract_version": TASK_CONTRACT_VERSION,
-            "persistence_scope": "runtime",
-            "lifecycle": TASK_LIFECYCLE["resumable"],
-            "queue_state": "queued",
-            "queue_position": None,
-        }
+        from backend.application.pipeline_submission_service import task_submission_response
+
+        return task_submission_response(
+            self.serialize_task(self.get_task(task_id)),
+            queued_message,
+        )
 
     async def resume_task(self, task_id: str) -> dict:
+        await self.wait_until_task_state_ready()
         task = self.get_task(task_id)
         if not task:
             raise ValueError("Task not found")

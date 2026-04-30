@@ -27,6 +27,7 @@ export interface SubtitleSegment {
 export type TaskStep = PipelineRequest["steps"][number];
 
 export type { FileRef, TaskMediaRef, TaskTraceItem };
+export type { TaskArtifact } from "./generatedApi";
 
 export interface TaskMeta {
   segments?: SubtitleSegment[];

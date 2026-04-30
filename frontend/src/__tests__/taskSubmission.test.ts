@@ -18,6 +18,7 @@ describe("taskSubmission", () => {
         lifecycle: "resumable",
         queue_state: "running",
         queue_position: null,
+        primary_operation: "translate",
       }),
       type: "translate",
       request_params: {
@@ -32,6 +33,7 @@ describe("taskSubmission", () => {
       task_source: "backend",
       lifecycle: "resumable",
       queue_state: "running",
+      primary_operation: "translate",
       request_params: {
         context_path: "E:/video.srt",
       },

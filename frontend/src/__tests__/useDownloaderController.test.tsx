@@ -80,6 +80,7 @@ describe("useDownloaderController", () => {
         lifecycle: "resumable",
         queue_state: "queued",
         queue_position: null,
+        primary_operation: "download",
       },
     });
 
@@ -162,6 +163,7 @@ describe("useDownloaderController", () => {
         {
           id: "task-200",
           type: "download",
+          primary_operation: "download",
           status: "pending",
           progress: 0,
           created_at: Date.now(),

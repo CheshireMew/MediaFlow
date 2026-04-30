@@ -58,11 +58,13 @@ class TaskManager:
         self._max_concurrent = max(1, settings.TASK_MAX_CONCURRENT)
         self._startup_load_task: asyncio.Task | None = None
         self._tasks_loaded = asyncio.Event()
+        self._hydration_started = False
 
     async def init_async(self):
         """Initialize DB, load tasks, and start queue workers."""
         await init_db()
         self._start_workers()
+        self._hydration_started = True
         await self.load_tasks()
 
     async def warm_start_async(self):
@@ -74,6 +76,8 @@ class TaskManager:
         """
         await init_db()
         self._start_workers()
+        self._hydration_started = True
+        self._tasks_loaded.clear()
 
         if self._startup_load_task and not self._startup_load_task.done():
             return
@@ -98,6 +102,7 @@ class TaskManager:
         self._threadsafe_update_futures.clear()
         self._accept_threadsafe_updates = True
         self._tasks_loaded.clear()
+        self._hydration_started = False
 
     def submit_threadsafe_update(self, loop: asyncio.AbstractEventLoop, task_id: str, **kwargs):
         if not self._accept_threadsafe_updates or loop.is_closed():
@@ -224,6 +229,10 @@ class TaskManager:
     async def wait_until_tasks_loaded(self) -> None:
         await self._tasks_loaded.wait()
 
+    async def _wait_for_mutation_boundary(self) -> None:
+        if self._hydration_started:
+            await self.wait_until_tasks_loaded()
+
     async def create_task(
         self,
         task_type: str,
@@ -231,6 +240,7 @@ class TaskManager:
         request_params: Dict = None,
         task_name: str = None,
     ) -> str:
+        await self._wait_for_mutation_boundary()
         new_task = await self._repository.create_task(
             task_type=task_type,
             initial_message=initial_message,
@@ -247,6 +257,7 @@ class TaskManager:
         runner: Callable[[], Awaitable[None]],
         queued_message: Optional[str] = None,
     ) -> None:
+        await self._wait_for_mutation_boundary()
         self._execution_specs[task_id] = runner
         task = self.get_task(task_id)
         if not task:
@@ -302,12 +313,15 @@ class TaskManager:
             await self._event_publisher.publish_update(self.serialize_task(updated_task))
 
     async def pause_task(self, task_id: str) -> bool:
+        await self._wait_for_mutation_boundary()
         return await self._control_service.pause_task(self, task_id)
 
     async def cancel_task(self, task_id: str) -> bool:
+        await self._wait_for_mutation_boundary()
         return await self._control_service.cancel_task(self, task_id)
 
     async def delete_task(self, task_id: str) -> bool:
+        await self._wait_for_mutation_boundary()
         task = self.get_task(task_id)
         if task and task.status == "running":
             self._delete_after_stop.add(task_id)
@@ -344,6 +358,7 @@ class TaskManager:
         return False
 
     async def delete_all_tasks(self) -> int:
+        await self._wait_for_mutation_boundary()
         count = await self._repository.delete_all_tasks()
         self.tasks.clear()
         self._runtime_state.clear()
@@ -354,6 +369,7 @@ class TaskManager:
         return count
 
     async def pause_all_tasks(self) -> int:
+        await self._wait_for_mutation_boundary()
         count = 0
         priority = {"pending": 0, "paused": 1, "running": 2}
         for task in sorted(
@@ -367,6 +383,7 @@ class TaskManager:
         return count
 
     async def cancel_all_tasks(self):
+        await self._wait_for_mutation_boundary()
         cancelled_count = 0
         priority = {"pending": 0, "paused": 1, "running": 2}
         for task in sorted(

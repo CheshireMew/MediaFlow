@@ -14,7 +14,6 @@ export interface TranscribeResult {
   language: string;
   video_ref?: MediaReference | null;
   subtitle_ref?: MediaReference | null;
-  output_ref?: MediaReference | null;
 }
 
 export type { TranscriptionEngine };

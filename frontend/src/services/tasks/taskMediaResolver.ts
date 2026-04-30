@@ -1,66 +1,43 @@
-import type { FileRef, Task, TaskMeta, TaskRequestParams, TaskResult } from "../../types/task";
-import { normalizeMediaReference, type MediaReference } from "../ui/mediaReference";
+import type { Task, TaskArtifact, TaskRequestParams, TaskResult } from "../../types/task";
+import type { MediaReference } from "../ui/mediaReference";
 
 type TaskWithDetails = Task & {
   request_params?: TaskRequestParams;
   result?: TaskResult;
 };
 
-function getTaskFiles(result: TaskResult | undefined, type: string) {
-  return result?.files?.filter((file: FileRef) => file.type === type).map((file) => file.path) ?? [];
-}
+const artifactsOf = (task: TaskWithDetails): TaskArtifact[] => task.artifacts ?? [];
 
-function appendPathCandidate(
-  candidates: Array<string | undefined>,
-  candidate: string | null | undefined,
-) {
-  if (typeof candidate === "string" && candidate.length > 0) {
-    candidates.push(candidate);
-  }
-}
+const firstArtifactRef = (
+  task: TaskWithDetails,
+  predicate: (artifact: TaskArtifact) => boolean,
+): MediaReference | null => artifactsOf(task).find(predicate)?.ref ?? null;
+
+const artifactPaths = (
+  task: TaskWithDetails,
+  predicate: (artifact: TaskArtifact) => boolean,
+) => artifactsOf(task).filter(predicate).map((artifact) => artifact.ref.path);
 
 export function getTaskStructuredMediaRefs(task: TaskWithDetails) {
-  const result = task.result;
-  const params: TaskRequestParams = task.request_params || {};
-  const meta: TaskMeta = result?.meta || {};
-
   return {
     videoRef:
-      normalizeMediaReference(meta.video_ref) ??
-      normalizeMediaReference(params.video_ref),
+      firstArtifactRef(task, (artifact) => artifact.kind === "video" && artifact.role === "output") ??
+      firstArtifactRef(task, (artifact) => artifact.kind === "video" && artifact.role === "input"),
     subtitleRef:
-      normalizeMediaReference(meta.subtitle_ref) ??
-      normalizeMediaReference(params.subtitle_ref),
+      firstArtifactRef(task, (artifact) => artifact.kind === "subtitle" && artifact.role === "output") ??
+      firstArtifactRef(task, (artifact) => artifact.kind === "subtitle" && artifact.role === "input"),
     contextRef:
-      normalizeMediaReference(meta.context_ref) ??
-      normalizeMediaReference(params.context_ref),
+      firstArtifactRef(task, (artifact) => artifact.role === "context"),
     outputRef:
-      normalizeMediaReference(meta.output_ref) ??
-      normalizeMediaReference(params.output_ref),
+      firstArtifactRef(task, (artifact) => artifact.role === "output"),
   };
 }
 
 export function getTaskMediaCandidates(task: TaskWithDetails) {
-  const result = task.result;
-  const { videoRef, subtitleRef, contextRef, outputRef } = getTaskStructuredMediaRefs(task);
-  const videoFiles = getTaskFiles(result, "video");
-  const audioFiles = getTaskFiles(result, "audio");
-  const subtitleFiles = getTaskFiles(result, "subtitle");
-
-  const subtitleCandidates: Array<string | undefined> = [];
-  appendPathCandidate(subtitleCandidates, subtitleRef?.path);
-  appendPathCandidate(subtitleCandidates, contextRef?.path);
-  appendPathCandidate(subtitleCandidates, outputRef?.path);
-  subtitleCandidates.push(...subtitleFiles);
-
   return {
-    video: [
-      ...(videoRef?.path ? [videoRef.path] : []),
-      ...videoFiles,
-      ...audioFiles,
-    ],
-    subtitle: subtitleCandidates,
-    context: [] as Array<string | undefined>,
+    video: artifactPaths(task, (artifact) => artifact.kind === "video" || artifact.kind === "audio"),
+    subtitle: artifactPaths(task, (artifact) => artifact.kind === "subtitle"),
+    context: artifactPaths(task, (artifact) => artifact.role === "context"),
   };
 }
 
@@ -82,21 +59,12 @@ export function resolvePrimaryTaskMedia(task: TaskWithDetails) {
 }
 
 export function resolveTranslationTaskMedia(task: Task) {
-  const requestParams = task.request_params;
-  const resultMeta = task.result?.meta;
-  const structuredRefs = getTaskStructuredMediaRefs(task);
-
   const sourceSubtitleRef =
-    normalizeMediaReference(requestParams?.context_ref) ??
-    normalizeMediaReference(requestParams?.subtitle_ref) ??
-    structuredRefs.contextRef ??
-    structuredRefs.subtitleRef ??
-    null;
+    firstArtifactRef(task, (artifact) => artifact.kind === "subtitle" && artifact.role === "context") ??
+    firstArtifactRef(task, (artifact) => artifact.kind === "subtitle" && artifact.role === "input");
 
   const targetSubtitleRef =
-    normalizeMediaReference(resultMeta?.output_ref) ??
-    normalizeMediaReference(resultMeta?.subtitle_ref) ??
-    structuredRefs.outputRef;
+    firstArtifactRef(task, (artifact) => artifact.kind === "subtitle" && artifact.role === "output");
 
   return {
     sourceSubtitleRef,
@@ -105,53 +73,20 @@ export function resolveTranslationTaskMedia(task: Task) {
 }
 
 export function hasTranscribeStep(task: Task): boolean {
-  if (task.type === "transcribe") return true;
-  if (task.type !== "pipeline") return false;
-
-  const steps = task.request_params?.steps;
-  return Array.isArray(steps) && steps.some((step) => step.step_name === "transcribe");
+  return task.primary_operation === "transcribe";
 }
 
 export function resolveTranscribeTaskMedia(task: Task) {
-  const structuredRefs = getTaskStructuredMediaRefs(task);
-
-  if (structuredRefs.videoRef || structuredRefs.subtitleRef) {
-    return {
-      sourceMediaRef: structuredRefs.videoRef,
-      subtitleRef: structuredRefs.subtitleRef,
-      sourceCandidates: structuredRefs.videoRef?.path ? [structuredRefs.videoRef.path] : [],
-    };
-  }
-
-  let directAudioRef: MediaReference | null = null;
-  if (task.type === "transcribe") {
-    const params = task.request_params as Record<string, unknown> | undefined;
-    const audioRefCandidate = params?.audio_ref;
-    if (audioRefCandidate && typeof audioRefCandidate === "object") {
-      directAudioRef = normalizeMediaReference(audioRefCandidate);
-    }
-  } else if (task.type === "pipeline") {
-    const steps = task.request_params?.steps;
-    const transcribeStep = Array.isArray(steps)
-      ? steps.find((step) => step.step_name === "transcribe")
-      : null;
-    const params =
-      transcribeStep && typeof transcribeStep === "object" && transcribeStep.params
-        ? (transcribeStep.params as Record<string, unknown>)
-        : undefined;
-    const audioRefCandidate = params?.audio_ref;
-    if (audioRefCandidate && typeof audioRefCandidate === "object") {
-      directAudioRef = normalizeMediaReference(audioRefCandidate);
-    }
-  }
-
-  const candidatePaths = directAudioRef?.path
-    ? [directAudioRef.path]
-    : [];
+  const sourceMediaRef =
+    firstArtifactRef(task, (artifact) => artifact.kind === "video" && artifact.role === "input") ??
+    firstArtifactRef(task, (artifact) => artifact.kind === "audio" && artifact.role === "input") ??
+    firstArtifactRef(task, (artifact) => artifact.kind === "video" && artifact.role === "output") ??
+    firstArtifactRef(task, (artifact) => artifact.kind === "audio" && artifact.role === "output");
+  const subtitleRef = firstArtifactRef(task, (artifact) => artifact.kind === "subtitle" && artifact.role === "output");
 
   return {
-    sourceMediaRef: directAudioRef,
-    subtitleRef: null,
-    sourceCandidates: candidatePaths,
+    sourceMediaRef,
+    subtitleRef,
+    sourceCandidates: sourceMediaRef?.path ? [sourceMediaRef.path] : [],
   };
 }

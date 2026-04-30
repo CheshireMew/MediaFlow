@@ -1,19 +1,20 @@
 from loguru import logger
 
-from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
+from backend.models.schemas import TaskView
 
 
-def task_submission_response(task_id: str, status: str, message: str) -> dict:
+def task_submission_response(task: TaskView, message: str | None = None) -> dict:
     return {
-        "task_id": task_id,
-        "status": status,
-        "message": message,
-        "task_source": "backend",
-        "task_contract_version": TASK_CONTRACT_VERSION,
-        "persistence_scope": "runtime",
-        "lifecycle": TASK_LIFECYCLE["resumable"],
-        "queue_state": "queued" if status == "pending" else status,
-        "queue_position": None,
+        "task_id": task.id,
+        "status": task.status,
+        "message": message if message is not None else task.message,
+        "task_source": task.task_source,
+        "task_contract_version": task.task_contract_version,
+        "persistence_scope": task.persistence_scope,
+        "lifecycle": task.lifecycle,
+        "queue_state": task.queue_state,
+        "queue_position": task.queue_position,
+        "primary_operation": task.primary_operation,
     }
 
 
@@ -35,17 +36,16 @@ class PipelineSubmissionService:
                 if task.status in ["running", "pending"]:
                     logger.info(f"Duplicate task request ignored: {existing_task_id}")
                     return task_submission_response(
-                        existing_task_id,
-                        task.status,
+                        orchestrator.serialize_task(task),
                         "Task already active",
                     )
 
                 logger.info(f"Recycling existing task: {existing_task_id}")
                 await orchestrator.reset_task_for_reuse(existing_task_id)
                 await orchestrator.enqueue_existing_task(existing_task_id, queued_message="Queued")
+                restarted = orchestrator.get_task(existing_task_id)
                 return task_submission_response(
-                    existing_task_id,
-                    "pending",
+                    orchestrator.serialize_task(restarted),
                     "Task restarted",
                 )
 

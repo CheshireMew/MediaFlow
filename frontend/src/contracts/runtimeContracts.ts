@@ -29,6 +29,16 @@ type RuntimeContractShape = {
   task_sources: TaskSource[];
   task_persistence_scopes: TaskPersistenceScope[];
   task_queue_states: TaskQueueState[];
+  task_status_projection: Record<
+    TaskStatus,
+    {
+      persistence_scope: TaskPersistenceScope;
+      lifecycle: TaskLifecycle;
+      queue_state: TaskQueueState;
+      is_active: boolean;
+      is_running: boolean;
+    }
+  >;
   features: {
     preprocessing: boolean;
   };
@@ -49,23 +59,22 @@ export const TASK_STATUSES = contract.task_statuses;
 export const TASK_SOURCES = contract.task_sources;
 export const TASK_PERSISTENCE_SCOPES = contract.task_persistence_scopes;
 export const TASK_QUEUE_STATES = contract.task_queue_states;
+export const TASK_STATUS_PROJECTION = contract.task_status_projection;
 export const RUNTIME_FEATURES = contract.features;
 export const TASK_LIFECYCLE = contract.task_lifecycle;
 
-export function getTaskLifecycle(args: {
-  taskSource: TaskSource;
-  persistenceScope?: "runtime" | "history";
-  status: string;
-}): TaskLifecycle {
-  const { persistenceScope, status } = args;
+export function getTaskLifecycle(args: { status: TaskStatus }): TaskLifecycle {
+  return TASK_STATUS_PROJECTION[args.status].lifecycle;
+}
 
-  if (persistenceScope === "history") {
-    return TASK_LIFECYCLE.history_only;
-  }
+export function getTaskQueueState(status: TaskStatus): TaskQueueState {
+  return TASK_STATUS_PROJECTION[status].queue_state;
+}
 
-  if (status === "pending" || status === "running" || status === "paused" || status === "processing_result") {
-    return TASK_LIFECYCLE.resumable;
-  }
+export function isRuntimeTaskActive(status: TaskStatus): boolean {
+  return TASK_STATUS_PROJECTION[status].is_active;
+}
 
-  return TASK_LIFECYCLE.history_only;
+export function isRuntimeTaskRunning(status: TaskStatus): boolean {
+  return TASK_STATUS_PROJECTION[status].is_running;
 }

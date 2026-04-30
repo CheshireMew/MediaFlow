@@ -27,6 +27,57 @@
     "failed",
     "idle"
   ],
+  "task_status_projection": {
+    "pending": {
+      "persistence_scope": "runtime",
+      "lifecycle": "resumable",
+      "queue_state": "queued",
+      "is_active": true,
+      "is_running": false
+    },
+    "running": {
+      "persistence_scope": "runtime",
+      "lifecycle": "resumable",
+      "queue_state": "running",
+      "is_active": true,
+      "is_running": true
+    },
+    "processing_result": {
+      "persistence_scope": "runtime",
+      "lifecycle": "resumable",
+      "queue_state": "running",
+      "is_active": true,
+      "is_running": true
+    },
+    "completed": {
+      "persistence_scope": "history",
+      "lifecycle": "history-only",
+      "queue_state": "completed",
+      "is_active": false,
+      "is_running": false
+    },
+    "failed": {
+      "persistence_scope": "history",
+      "lifecycle": "history-only",
+      "queue_state": "failed",
+      "is_active": false,
+      "is_running": false
+    },
+    "cancelled": {
+      "persistence_scope": "history",
+      "lifecycle": "history-only",
+      "queue_state": "cancelled",
+      "is_active": false,
+      "is_running": false
+    },
+    "paused": {
+      "persistence_scope": "runtime",
+      "lifecycle": "resumable",
+      "queue_state": "paused",
+      "is_active": true,
+      "is_running": false
+    }
+  },
   "features": {
     "preprocessing": true
   },

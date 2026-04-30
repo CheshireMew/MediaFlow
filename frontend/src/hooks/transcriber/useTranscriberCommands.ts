@@ -127,7 +127,7 @@ export function useTranscriberCommands({
         addTask,
         outcome: executionResult,
         descriptor: {
-          type: isDesktopRuntime() ? "transcribe" : "pipeline",
+          type: "pipeline",
           name: `Transcribe ${file.name}`,
           request_params: {
             pipeline_id: "transcriber_tool",

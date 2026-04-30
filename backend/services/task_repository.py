@@ -1,11 +1,13 @@
 import json
 import uuid
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 from loguru import logger
+from pydantic import BaseModel
 from sqlmodel import delete, select
 
-from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
+from backend.contracts import TASK_CONTRACT_VERSION, task_lifecycle, task_persistence_scope
 from backend.core.database import get_session_context
 from backend.models.task_model import Task, task_timestamp_ms
 
@@ -17,14 +19,30 @@ def _clamp_progress(value):
         return value
 
 
-def _persistence_scope_for_status(status: str) -> str:
-    return "runtime" if status in {"pending", "running", "paused", "processing_result"} else "history"
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+
+    try:
+        json.dumps(value)
+        return value
+    except TypeError:
+        return json.loads(json.dumps(value, default=str))
 
 
-def _lifecycle_for_status(status: str) -> str:
-    if status in {"pending", "running", "paused", "processing_result"}:
-        return TASK_LIFECYCLE["resumable"]
-    return TASK_LIFECYCLE["history_only"]
+def _json_payload(value: Any) -> Dict | None:
+    if value is None:
+        return None
+    payload = _json_safe(value)
+    if isinstance(payload, dict):
+        return payload
+    return {"value": payload}
 
 
 class TaskRepository:
@@ -40,8 +58,8 @@ class TaskRepository:
                     task.status = "paused"
                     task.message = "Interrupted by restart"
                     task.cancelled = False
-                    task.persistence_scope = _persistence_scope_for_status(task.status)
-                    task.lifecycle = _lifecycle_for_status(task.status)
+                    task.persistence_scope = task_persistence_scope(task.status)
+                    task.lifecycle = task_lifecycle(task.status)
                     session.add(task)
                 tasks_by_id[task.id] = task
 
@@ -62,9 +80,7 @@ class TaskRepository:
 
         if request_params:
             try:
-                if hasattr(request_params, "model_dump"):
-                    request_params = request_params.model_dump(mode="json")
-                request_params = json.loads(json.dumps(request_params, default=str))
+                request_params = _json_payload(request_params)
             except Exception as e:
                 logger.warning(f"Failed to serialize request_params: {e}")
                 request_params = {}
@@ -76,8 +92,8 @@ class TaskRepository:
             status="pending",
             task_source="backend",
             task_contract_version=TASK_CONTRACT_VERSION,
-            persistence_scope=_persistence_scope_for_status("pending"),
-            lifecycle=_lifecycle_for_status("pending"),
+            persistence_scope=task_persistence_scope("pending"),
+            lifecycle=task_lifecycle("pending"),
             message=initial_message,
             created_at=task_timestamp_ms(),
             request_params=request_params,
@@ -94,6 +110,9 @@ class TaskRepository:
         updated_task = None
         if "progress" in kwargs:
             kwargs["progress"] = _clamp_progress(kwargs["progress"])
+        for key in ("result", "request_params"):
+            if key in kwargs:
+                kwargs[key] = _json_payload(kwargs[key])
 
         async with get_session_context() as session:
             db_task = await session.get(Task, task_id)
@@ -102,8 +121,8 @@ class TaskRepository:
                 if db_task.status in {"completed", "failed", "cancelled", "paused"} and incoming_status is None:
                     return None
                 if incoming_status is not None:
-                    kwargs["persistence_scope"] = _persistence_scope_for_status(str(incoming_status))
-                    kwargs["lifecycle"] = _lifecycle_for_status(str(incoming_status))
+                    kwargs["persistence_scope"] = task_persistence_scope(str(incoming_status))
+                    kwargs["lifecycle"] = task_lifecycle(str(incoming_status))
                 for key, value in kwargs.items():
                     if hasattr(db_task, key):
                         setattr(db_task, key, value)

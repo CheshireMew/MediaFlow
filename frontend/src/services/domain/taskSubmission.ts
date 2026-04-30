@@ -103,6 +103,7 @@ export function createTaskExecutionSubmissionReceipt(
     lifecycle,
     queue_state: queueState,
     queue_position: response.queue_position ?? null,
+    primary_operation: response.primary_operation,
   };
 }
 
@@ -135,6 +136,7 @@ export function createTaskFromSubmissionReceipt(args: {
     name,
     message: receipt.message,
     request_params,
+    primary_operation: receipt.primary_operation,
     created_at: created_at ?? Date.now(),
     queue_state: receipt.queue_state,
     queue_position: receipt.queue_position ?? null,

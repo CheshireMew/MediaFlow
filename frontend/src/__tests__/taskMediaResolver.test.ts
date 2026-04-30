@@ -8,6 +8,13 @@ import {
 } from "../services/tasks/taskMediaResolver";
 import type { Task } from "../types/task";
 
+const artifact = (
+  kind: "video" | "audio" | "subtitle" | "image" | "file",
+  role: "input" | "output" | "context",
+  path: string,
+  name: string,
+) => ({ kind, role, ref: { path, name } });
+
 describe("taskMediaResolver", () => {
   it("resolves structured refs as the only task media identity", () => {
     const task: Task = {
@@ -17,44 +24,27 @@ describe("taskMediaResolver", () => {
       status: "completed",
       progress: 100,
       created_at: 1,
-      request_params: {
-        context_ref: {
-          path: "E:/canonical/source.srt",
-          name: "source.srt",
-        },
-      },
-      result: {
-        meta: {
-          output_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-        },
-      },
+      request_params: {},
+      result: { meta: {} },
+      artifacts: [
+        artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt"),
+        artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
+      ],
     };
 
     expect(getTaskStructuredMediaRefs(task)).toEqual({
       videoRef: null,
-      subtitleRef: null,
+      subtitleRef: {
+        path: "E:/canonical/output.srt",
+        name: "output.srt",
+      },
       contextRef: {
         path: "E:/canonical/source.srt",
         name: "source.srt",
-        size: undefined,
-        type: undefined,
-        media_id: undefined,
-        media_kind: undefined,
-        role: undefined,
-        origin: undefined,
       },
       outputRef: {
         path: "E:/canonical/output.srt",
         name: "output.srt",
-        size: undefined,
-        type: undefined,
-        media_id: undefined,
-        media_kind: undefined,
-        role: undefined,
-        origin: undefined,
       },
     });
   });
@@ -116,23 +106,13 @@ describe("taskMediaResolver", () => {
       status: "completed",
       progress: 100,
       created_at: 1,
-      request_params: {
-        steps: [
-          {
-            step_name: "transcribe",
-            params: {
-              audio_ref: {
-                path: "E:/canonical/sample.mp4",
-                name: "sample.mp4",
-              },
-            },
-          },
-        ],
-      },
-      result: {
-        files: [{ type: "subtitle", path: "E:/canonical/sample.srt" }],
-        meta: {},
-      },
+      primary_operation: "transcribe",
+      request_params: {},
+      result: { meta: {} },
+      artifacts: [
+        artifact("video", "input", "E:/canonical/sample.mp4", "sample.mp4"),
+        artifact("subtitle", "output", "E:/canonical/sample.srt", "sample.srt"),
+      ],
     };
 
     expect(resolveTranscribeTaskMedia(task)).toEqual({
@@ -146,7 +126,10 @@ describe("taskMediaResolver", () => {
         role: undefined,
         origin: undefined,
       },
-      subtitleRef: null,
+      subtitleRef: {
+        path: "E:/canonical/sample.srt",
+        name: "sample.srt",
+      },
       sourceCandidates: ["E:/canonical/sample.mp4"],
     });
   });

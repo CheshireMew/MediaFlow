@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { useTranslationTask } from "../hooks/useTranslationTask";
 import { useTranslatorStore } from "../stores/translatorStore";
-import type { Task } from "../types/task";
+import type { Task, TaskArtifact } from "../types/task";
 import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
 import { createMockUserSettings } from "./testUtils/mockUserSettings";
 import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
@@ -37,6 +37,13 @@ vi.mock("../context/taskContext", () => ({
 }));
 
 describe("useTranslationTask", () => {
+  const artifact = (
+    kind: "subtitle",
+    role: "input" | "output" | "context",
+    path: string,
+    name: string,
+  ): TaskArtifact => ({ kind, role, ref: { path, name } });
+
   const expectTranslatorMediaState = (expected: {
     sourceFileRef: { path: string; name: string } | null;
     targetSubtitleRef?: { path: string; name: string; type?: string } | null;
@@ -94,6 +101,7 @@ describe("useTranslationTask", () => {
       lifecycle: "resumable",
       queue_state: "queued",
       queue_position: null,
+      primary_operation: "translate",
     });
     clearElectronMock();
 
@@ -130,6 +138,7 @@ describe("useTranslationTask", () => {
           ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-1",
           type: "translate",
+          primary_operation: "translate",
           status: "completed",
           progress: 100,
           created_at: 1,
@@ -142,6 +151,10 @@ describe("useTranslationTask", () => {
               segments: [{ id: "1", start: 0, end: 1, text: "fixed text" }],
             },
           },
+          artifacts: [
+            artifact("subtitle", "context", "E:/subs/demo.srt", "demo.srt"),
+            artifact("subtitle", "output", "E:/subs/demo_zh.srt", "demo_zh.srt"),
+          ],
         } as Task,
       ];
       rerender();
@@ -163,6 +176,7 @@ describe("useTranslationTask", () => {
         ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-recover",
         type: "translate",
+        primary_operation: "translate",
         status: "running",
         progress: 42,
         created_at: 1,
@@ -174,6 +188,7 @@ describe("useTranslationTask", () => {
           },
           mode: "intelligent",
         },
+        artifacts: [artifact("subtitle", "context", "E:/subs/demo.srt", "demo.srt")],
       } as Task,
     ];
 
@@ -198,6 +213,7 @@ describe("useTranslationTask", () => {
         ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-history",
         type: "translate",
+        primary_operation: "translate",
         status: "completed",
         progress: 100,
         created_at: 1,
@@ -218,6 +234,10 @@ describe("useTranslationTask", () => {
             },
           },
         },
+        artifacts: [
+          artifact("subtitle", "context", "E:/subs/demo.srt", "demo.srt"),
+          artifact("subtitle", "output", "E:/subs/demo_zh.srt", "demo_zh.srt"),
+        ],
       } as Task,
     ];
 
@@ -254,6 +274,7 @@ describe("useTranslationTask", () => {
         ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-recover-ref",
         type: "translate",
+        primary_operation: "translate",
         status: "running",
         progress: 42,
         created_at: 1,
@@ -265,6 +286,7 @@ describe("useTranslationTask", () => {
           },
           mode: "intelligent",
         },
+        artifacts: [artifact("subtitle", "context", "E:/canonical/demo.srt", "demo.srt")],
       } as Task,
     ];
 

@@ -102,7 +102,7 @@ class BackgroundTaskRunner:
             if result_transformer:
                 final_result = result_transformer(result)
             elif hasattr(result, 'model_dump'):
-                final_result = result.model_dump()
+                final_result = result.model_dump(mode="json")
             elif hasattr(result, 'dict'):
                 # Pydantic model - auto-serialize
                 final_result = result.dict()

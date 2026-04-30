@@ -36,6 +36,7 @@ describe("runtimeDiagnostics", () => {
           ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-1",
           type: "translate",
+          primary_operation: "translate",
           status: "running",
           progress: 42,
           task_source: "backend",
@@ -70,6 +71,24 @@ describe("runtimeDiagnostics", () => {
               },
             },
           },
+          artifacts: [
+            {
+              kind: "subtitle",
+              role: "context",
+              ref: {
+                path: "E:/canonical/demo.srt",
+                name: "demo.srt",
+              },
+            },
+            {
+              kind: "subtitle",
+              role: "output",
+              ref: {
+                path: "E:/canonical/demo.zh.srt",
+                name: "demo.zh.srt",
+              },
+            },
+          ],
           created_at: 1,
         },
         {
@@ -78,6 +97,7 @@ describe("runtimeDiagnostics", () => {
       ),
     ).toEqual({
       task_source: "backend",
+      primary_operation: "translate",
       lifecycle: "resumable",
       task_contract_version: 1,
       persistence_scope: "runtime",
@@ -86,18 +106,6 @@ describe("runtimeDiagnostics", () => {
       type: "translate",
       status: "running",
       params_keys: ["context_path", "mode", "context_ref", "subtitle_ref"],
-      request_media_refs: {
-        video_ref: null,
-        subtitle_ref: {
-          path: "E:/canonical/demo.srt",
-          name: "demo.srt",
-        },
-        context_ref: {
-          path: "E:/canonical/demo.srt",
-          name: "demo.srt",
-        },
-      },
-      result_files: [{ type: "subtitle", path: "E:/demo.zh.srt" }],
       result_meta: {
         language: "Chinese",
         subtitle_ref: {
@@ -109,18 +117,24 @@ describe("runtimeDiagnostics", () => {
           name: "demo.zh.srt",
         },
       },
-      result_media_refs: {
-        video_ref: null,
-        subtitle_ref: {
-          path: "E:/canonical/demo.zh.srt",
-          name: "demo.zh.srt",
+      artifacts: [
+        {
+          kind: "subtitle",
+          role: "context",
+          ref: {
+            path: "E:/canonical/demo.srt",
+            name: "demo.srt",
+          },
         },
-        context_ref: null,
-        output_ref: {
-          path: "E:/canonical/demo.zh.srt",
-          name: "demo.zh.srt",
+        {
+          kind: "subtitle",
+          role: "output",
+          ref: {
+            path: "E:/canonical/demo.zh.srt",
+            name: "demo.zh.srt",
+          },
         },
-      },
+      ],
       runtime_execution_summary: {
         taskSubmission: 1,
       },

@@ -27,6 +27,24 @@ function chooseResultMediaRef(
   );
 }
 
+const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"]);
+
+function normalizeVideoMediaReference(
+  value?: MediaSeed | ElectronFile | MediaReference | null,
+): MediaReference | null {
+  const ref = normalizeMediaReference(value);
+  if (!ref) return null;
+
+  const mediaKind = typeof ref.media_kind === "string" ? ref.media_kind.toLowerCase() : "";
+  const mimeType = typeof ref.type === "string" ? ref.type.toLowerCase() : "";
+  const lowerPath = ref.path.toLowerCase();
+  const hasVideoExtension = [...VIDEO_EXTENSIONS].some((extension) => lowerPath.endsWith(extension));
+
+  return mediaKind === "video" || mimeType.startsWith("video/") || hasVideoExtension
+    ? ref
+    : null;
+}
+
 export function normalizeTranscribeResultMediaReferences(
   result: TranscribeResult | null,
   sourceFile?: MediaSeed | ElectronFile | null,
@@ -37,7 +55,7 @@ export function normalizeTranscribeResultMediaReferences(
 
   return {
     ...result,
-    video_ref: chooseResultMediaRef(result.video_ref, null, sourceFile),
-    subtitle_ref: chooseResultMediaRef(result.subtitle_ref, result.output_ref ?? null),
+    video_ref: normalizeVideoMediaReference(result.video_ref) ?? normalizeVideoMediaReference(sourceFile),
+    subtitle_ref: chooseResultMediaRef(result.subtitle_ref, null),
   };
 }

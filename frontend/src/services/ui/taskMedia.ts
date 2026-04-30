@@ -29,8 +29,13 @@ export function getTaskMediaCandidates(task: TaskWithDetails) {
 }
 
 export function hasTaskVideoMedia(task: TaskWithDetails) {
-  const candidates = getTaskMediaCandidates(task);
-  return candidates.video.some((candidate) => typeof candidate === "string" && candidate.length > 0);
+  return (task.artifacts ?? []).some((artifact) => artifact.kind === "video" && artifact.ref.path);
+}
+
+export function hasTaskTranscribableMedia(task: TaskWithDetails) {
+  return (task.artifacts ?? []).some(
+    (artifact) => (artifact.kind === "video" || artifact.kind === "audio") && artifact.ref.path,
+  );
 }
 
 export function hasTaskSubtitleMedia(task: TaskWithDetails) {

@@ -32,7 +32,7 @@ async def test_pipeline_runner_success():
         mock_step.execute.assert_called_once()
         call_args = mock_step.execute.call_args
         assert isinstance(call_args[0][0], PipelineContext)
-        assert call_args[0][1] == params.model_dump()
+        assert call_args[0][1] == params.model_dump(mode="json")
         assert call_args[0][2] == "task-123"
 
 @pytest.mark.asyncio

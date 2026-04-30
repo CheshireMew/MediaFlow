@@ -25,6 +25,7 @@ import {
 import { canRetryTask } from "../../services/tasks/retry";
 import {
   hasTaskSubtitleMedia,
+  hasTaskTranscribableMedia,
   hasTaskVideoMedia,
   resolveTaskMediaPaths,
   resolveTaskNavigationPayload,
@@ -60,20 +61,15 @@ function TaskStatusIcon({ status }: { status: string }) {
 
 function useTaskTypeInfo(task: TaskWithDetails) {
   const { t } = useTranslation("taskmonitor");
-  const { type, name, request_params } = task;
-  const isDownloadPipeline = type === "pipeline" && (
-    name?.toLowerCase().includes("download") ||
-    request_params?.steps?.some((step) => step.step_name === "download")
-  );
+  const { primary_operation } = task;
 
-  if (type === "download" || isDownloadPipeline) {
+  if (primary_operation === "download") {
     return { icon: <Download size={16} />, label: t("taskTypes.download"), color: "text-blue-400", bg: "bg-blue-400/10", border: "border-blue-400/20" };
   }
 
-  switch (type) {
+  switch (primary_operation) {
     case "transcribe": return { icon: <FileAudio size={16} />, label: t("taskTypes.transcribe"), color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/20" };
     case "translate": return { icon: <Languages size={16} />, label: t("taskTypes.translate"), color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/20" };
-    case "pipeline":
     case "synthesis": return { icon: <Video size={16} />, label: t("taskTypes.synthesize"), color: "text-pink-400", bg: "bg-pink-400/10", border: "border-pink-400/20" };
     default: return { icon: <Activity size={16} />, label: t("taskTypes.generic"), color: "text-slate-400", bg: "bg-slate-400/10", border: "border-slate-400/20" };
   }
@@ -116,6 +112,7 @@ export function TaskMonitorItem({
   const { t } = useTranslation("taskmonitor");
   const typeInfo = useTaskTypeInfo(task);
   const hasVideo = task.status === "completed" && hasTaskVideoMedia(task);
+  const hasTranscribableMedia = task.status === "completed" && hasTaskTranscribableMedia(task);
   const hasSubtitle = task.status === "completed" && hasTaskSubtitleMedia(task);
   const canPauseTask =
     task.status === "pending" ||
@@ -188,12 +185,12 @@ export function TaskMonitorItem({
                       <FolderOpen size={14} />
                     </button>
                   )}
-                  {hasVideo && task.type !== "transcribe" && (
+                  {hasTranscribableMedia && task.primary_operation !== "transcribe" && (
                     <TaskNavigationButton task={task} destination="transcriber" title="Transcribe">
                       <FileAudio size={14} />
                     </TaskNavigationButton>
                   )}
-                  {hasSubtitle && task.type !== "translate" && (
+                  {hasSubtitle && task.primary_operation !== "translate" && (
                     <TaskNavigationButton task={task} destination="translator" title="Translate">
                       <Languages size={14} />
                     </TaskNavigationButton>

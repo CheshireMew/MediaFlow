@@ -150,3 +150,43 @@ async def test_warm_start_returns_before_background_task_hydration_finishes(
     release_load.set()
     await asyncio.wait_for(tm._startup_load_task, timeout=1.0)
     await tm.shutdown_async()
+
+
+@pytest.mark.asyncio
+async def test_warm_start_blocks_task_creation_until_hydration_finishes(
+    test_engine,
+    monkeypatch,
+):
+    monkeypatch.setattr(db_module, "engine", test_engine)
+
+    test_session_maker = sessionmaker(
+        test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    monkeypatch.setattr(db_module, "async_session_maker", test_session_maker)
+
+    tm = create_task_manager()
+    load_started = asyncio.Event()
+    release_load = asyncio.Event()
+
+    async def slow_load_tasks():
+        load_started.set()
+        await release_load.wait()
+        tm.tasks = {}
+        tm._tasks_loaded.set()
+
+    monkeypatch.setattr(tm, "load_tasks", slow_load_tasks)
+
+    await tm.warm_start_async()
+    await asyncio.wait_for(load_started.wait(), timeout=1.0)
+
+    create_task = asyncio.create_task(tm.create_task("download", "Queued"))
+    await asyncio.sleep(0.05)
+    assert not create_task.done()
+
+    release_load.set()
+    task_id = await asyncio.wait_for(create_task, timeout=1.0)
+
+    assert task_id in tm.tasks
+    await tm.shutdown_async()

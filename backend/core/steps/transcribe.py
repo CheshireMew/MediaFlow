@@ -69,16 +69,19 @@ class TranscribeStep(PipelineStep):
                 media_type="application/x-subrip",
                 extra_ref_keys=("context_ref", "output_ref"),
             )
-            
-        # Ensure video_path is set for downstream steps (like Synthesize)
-        # If we started here (not from download), video_path might be empty.
-        if not ctx.get("video_path") and audio_path:
-             ctx.set_media(
-                 path_key="video_path",
-                 ref_key="video_ref",
-                 path=audio_path,
-                 media_type="video/mp4",
-             )
+
+        input_ref = params.get("audio_ref") or {}
+        input_kind = str(input_ref.get("media_kind") or "").lower() if isinstance(input_ref, dict) else ""
+        input_type = str(input_ref.get("type") or "").lower() if isinstance(input_ref, dict) else ""
+        if not ctx.get("video_path") and audio_path and (
+            input_kind == "video" or input_type.startswith("video/")
+        ):
+            ctx.set_media(
+                path_key="video_path",
+                ref_key="video_ref",
+                path=audio_path,
+                media_type=input_type or "video/mp4",
+            )
              
         logger.success(f"Step Transcribe finished. Text len: {len(text)}")
 

@@ -28,3 +28,31 @@ TASK_STATUSES = set(RUNTIME_CONTRACT["task_statuses"])
 TASK_SOURCES = set(RUNTIME_CONTRACT["task_sources"])
 TASK_PERSISTENCE_SCOPES = set(RUNTIME_CONTRACT["task_persistence_scopes"])
 TASK_QUEUE_STATES = set(RUNTIME_CONTRACT["task_queue_states"])
+TASK_STATUS_PROJECTION = RUNTIME_CONTRACT["task_status_projection"]
+
+
+def task_status_projection(status: str) -> dict[str, Any]:
+    try:
+        return TASK_STATUS_PROJECTION[status]
+    except KeyError as exc:
+        raise ValueError(f"Unknown task status: {status}") from exc
+
+
+def task_persistence_scope(status: str) -> str:
+    return str(task_status_projection(status)["persistence_scope"])
+
+
+def task_lifecycle(status: str) -> str:
+    return str(task_status_projection(status)["lifecycle"])
+
+
+def task_queue_state(status: str) -> str:
+    return str(task_status_projection(status)["queue_state"])
+
+
+def task_is_active(status: str) -> bool:
+    return bool(task_status_projection(status)["is_active"])
+
+
+def task_is_running(status: str) -> bool:
+    return bool(task_status_projection(status)["is_running"])

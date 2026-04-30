@@ -16,15 +16,8 @@ const matchesFilterType = (task: Task, filterTypes?: string[]) => {
         return true;
     }
 
-    if (filterTypes.includes(task.type)) {
+    if (filterTypes.includes(task.primary_operation)) {
         return true;
-    }
-
-    if (task.type === 'pipeline' && filterTypes.includes('download')) {
-        return Boolean(
-            task.name?.toLowerCase().includes('download') ||
-            task.request_params?.steps?.some((step) => step.step_name === 'download'),
-        );
     }
 
     return false;

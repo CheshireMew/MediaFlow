@@ -38,6 +38,7 @@ export type {
   PreprocessingResponse,
   SynthesisRequest as GeneratedSynthesisRequest,
   TaskResponse,
+  TaskArtifact,
   TextEvent,
   ToolUpdateResponse,
   TranscribeRequest,

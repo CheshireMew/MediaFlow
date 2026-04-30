@@ -38,6 +38,22 @@ class FakeTaskManager:
 
     async def enqueue_task(self, task_id, runner, queued_message=None):
         self.enqueued.append((task_id, runner, queued_message))
+        self.tasks[task_id].status = "pending"
+        self.tasks[task_id].message = queued_message or ""
+
+    def serialize_task(self, task):
+        return SimpleNamespace(
+            id=task.id,
+            status=task.status,
+            message=getattr(task, "message", ""),
+            task_source="backend",
+            task_contract_version=2,
+            persistence_scope="runtime",
+            lifecycle="resumable",
+            queue_state="queued" if task.status == "pending" else task.status,
+            queue_position=None,
+            primary_operation=task.type,
+        )
 
 
 def create_orchestrator(task_manager):
@@ -96,8 +112,7 @@ async def test_submit_pipeline_recycles_matching_completed_task():
     result = await orchestrator.submit_pipeline(req)
 
     assert result == task_submission_response(
-        "task-1",
-        "pending",
+        task_manager.serialize_task(task),
         "Task restarted",
     )
     assert task_manager.updated

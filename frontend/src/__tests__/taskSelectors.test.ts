@@ -11,7 +11,14 @@ import {
   getTranslationTaskMediaRefs,
   mapTaskToTranscribeResult,
 } from "../hooks/tasks/taskSelectors";
-import type { Task } from "../types/task";
+import type { Task, TaskArtifact } from "../types/task";
+
+const artifact = (
+  kind: "video" | "audio" | "subtitle" | "image" | "file",
+  role: "input" | "output" | "context",
+  path: string,
+  name: string,
+): TaskArtifact => ({ kind, role, ref: { path, name } });
 
 describe("taskSelectors transcribe media matching", () => {
   it("matches an active transcribe task using structured media refs", () => {
@@ -19,10 +26,12 @@ describe("taskSelectors transcribe media matching", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-1",
       type: "pipeline",
+      primary_operation: "transcribe",
       status: "running",
       progress: 10,
       created_at: Date.now(),
       request_params: createTranscribeStepRequestParams(),
+      artifacts: [artifact("video", "input", "E:/sample.mp4", "sample.mp4")],
     };
 
     expect(
@@ -39,6 +48,7 @@ describe("taskSelectors transcribe media matching", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-1-ref",
       type: "pipeline",
+      primary_operation: "transcribe",
       status: "running",
       progress: 10,
       created_at: Date.now(),
@@ -55,6 +65,7 @@ describe("taskSelectors transcribe media matching", () => {
           },
         ],
       },
+      artifacts: [artifact("video", "input", "E:/canonical/sample.mp4", "sample.mp4")],
     };
 
     expect(
@@ -71,6 +82,7 @@ describe("taskSelectors transcribe media matching", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-1-ref-mismatch",
       type: "pipeline",
+      primary_operation: "transcribe",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
@@ -92,6 +104,7 @@ describe("taskSelectors transcribe media matching", () => {
           transcript: "hello",
         },
       },
+      artifacts: [artifact("video", "input", "E:/canonical/sample.mp4", "sample.mp4")],
     };
 
     expect(
@@ -110,6 +123,7 @@ describe("taskSelectors transcribe media matching", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-2",
       type: "pipeline",
+      primary_operation: "transcribe",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
@@ -133,10 +147,7 @@ describe("taskSelectors transcribe media matching", () => {
       text: "hello",
       language: "auto",
       video_ref: null,
-      subtitle_ref: expect.objectContaining({
-        path: "E:/sample.srt",
-        name: "sample.srt",
-      }),
+      subtitle_ref: null,
     });
   });
 
@@ -145,6 +156,7 @@ describe("taskSelectors transcribe media matching", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-completed-ref",
       type: "pipeline",
+      primary_operation: "transcribe",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
@@ -161,6 +173,7 @@ describe("taskSelectors transcribe media matching", () => {
           },
         ],
       },
+      artifacts: [artifact("video", "input", "E:/canonical/sample.mp4", "sample.mp4")],
     };
 
     expect(
@@ -177,6 +190,7 @@ describe("taskSelectors transcribe media matching", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate",
       type: "translate",
+      primary_operation: "translate",
       status: "running",
       progress: 15,
       created_at: Date.now(),
@@ -188,6 +202,7 @@ describe("taskSelectors transcribe media matching", () => {
         },
         mode: "standard",
       },
+      artifacts: [artifact("subtitle", "context", "E:/subs/demo.srt", "demo.srt")],
     };
 
     expect(
@@ -204,6 +219,7 @@ describe("taskSelectors transcribe media matching", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-ref",
       type: "translate",
+      primary_operation: "translate",
       status: "running",
       progress: 15,
       created_at: Date.now(),
@@ -215,12 +231,14 @@ describe("taskSelectors transcribe media matching", () => {
         },
         mode: "standard",
       },
+      artifacts: [artifact("subtitle", "input", "E:/canonical/demo.srt", "demo.srt")],
     };
 
     const transcribeTask: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-transcribe-ref",
       type: "pipeline",
+      primary_operation: "transcribe",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
@@ -237,6 +255,10 @@ describe("taskSelectors transcribe media matching", () => {
           transcript: "hello",
         },
       },
+      artifacts: [
+        artifact("video", "input", "E:/canonical/sample.mp4", "sample.mp4"),
+        artifact("subtitle", "output", "E:/sample.srt", "sample.srt"),
+      ],
     };
 
     expect(
@@ -263,27 +285,16 @@ describe("taskSelectors transcribe media matching", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-refs",
       type: "translate",
+      primary_operation: "translate",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {
-        context_ref: {
-          path: "E:/canonical/source.srt",
-          name: "source.srt",
-        },
-      },
-      result: {
-        meta: {
-          subtitle_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-          output_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-        },
-      },
+      request_params: {},
+      result: { meta: {} },
+      artifacts: [
+        artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt"),
+        artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
+      ],
     };
 
     expect(getTranslationTaskMediaRefs(task)).toEqual({

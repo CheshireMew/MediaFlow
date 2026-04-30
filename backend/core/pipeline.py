@@ -56,7 +56,7 @@ class PipelineRunner:
                     try:
                         step_instance = StepRegistry.get_step(step_req.step_name)
                         params_dict = (
-                            step_req.params.model_dump()
+                            step_req.params.model_dump(mode="json")
                             if hasattr(step_req.params, "model_dump")
                             else dict(step_req.params)
                         )
@@ -114,7 +114,7 @@ class PipelineRunner:
                     cancelled=False,
                     progress=100.0,
                     message="Pipeline completed",
-                    result=task_result.model_dump(),
+                    result=task_result.model_dump(mode="json"),
                 )
 
             return {

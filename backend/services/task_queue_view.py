@@ -1,21 +1,12 @@
 from typing import Optional
 
-from backend.contracts import TASK_LIFECYCLE
+from backend.contracts import task_queue_state
 from backend.models.schemas import TaskView
 from backend.models.task_model import Task
+from backend.services.task_projection import primary_operation, task_artifacts
 
 
 class TaskQueueView:
-    @staticmethod
-    def get_persistence_scope(task: Task) -> str:
-        return "runtime" if task.status in {"pending", "running", "paused", "processing_result"} else "history"
-
-    @staticmethod
-    def get_lifecycle(task: Task) -> str:
-        if task.status in {"pending", "running", "paused", "processing_result"}:
-            return TASK_LIFECYCLE["resumable"]
-        return TASK_LIFECYCLE["history_only"]
-
     @staticmethod
     def get_queue_position(task_id: str, queued_ids: set[str], queued_order: list[str]) -> Optional[int]:
         if task_id not in queued_ids:
@@ -34,25 +25,25 @@ class TaskQueueView:
         queued_order: list[str],
     ) -> TaskView:
         data = task.model_dump(mode="json")
-        queue_state = "idle"
+        queue_state = task_queue_state(task.status)
         queue_position = None
 
-        if task.status == "paused":
-            queue_state = "paused"
-        elif task.status == "cancelled":
-            queue_state = "cancelled"
-        elif task.status == "completed":
-            queue_state = "completed"
-        elif task.status == "failed":
-            queue_state = "failed"
-        elif task.id in running_ids or task.status == "running":
+        if queue_state in {"queued", "running"} and task.id in running_ids:
             queue_state = "running"
-        elif task.id in queued_ids or task.status == "pending":
+        elif queue_state in {"queued", "running"} and task.id in queued_ids:
             queue_state = "queued"
             queue_position = self.get_queue_position(task.id, queued_ids, queued_order)
 
         data["queue_state"] = queue_state
         data["queue_position"] = queue_position
+        data["primary_operation"] = primary_operation(task.type, task.request_params)
+        data["artifacts"] = [
+            artifact.model_dump(mode="json")
+            for artifact in task_artifacts(
+                request_params=task.request_params,
+                result=task.result,
+            )
+        ]
         return TaskView.model_validate(data)
 
     @staticmethod

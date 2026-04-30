@@ -61,15 +61,20 @@ def _transcription_desktop(
     if not result.success:
         raise RuntimeError(result.error or "Transcription failed")
 
-    video_ref = req.audio_ref
-    subtitle_ref = result.meta.get("subtitle_ref") or result.meta.get("output_ref")
+    input_kind = (req.audio_ref.media_kind or "").lower()
+    input_type = (req.audio_ref.type or "").lower()
+    video_ref = (
+        req.audio_ref
+        if input_kind == "video" or input_type.startswith("video/")
+        else None
+    )
+    subtitle_ref = result.meta.get("subtitle_ref")
     return {
         "segments": result.meta.get("segments", []),
         "text": result.meta.get("text", ""),
         "language": result.meta.get("language", req.language or "auto"),
         "video_ref": video_ref,
         "subtitle_ref": subtitle_ref,
-        "output_ref": result.meta.get("output_ref") or subtitle_ref,
     }
 
 

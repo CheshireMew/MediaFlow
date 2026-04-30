@@ -178,7 +178,6 @@ class ASRService:
                 "segments": [s.model_dump() for s in final_segments],
                 "text": full_text,
                 "subtitle_ref": subtitle_ref,
-                "output_ref": subtitle_ref,
             }
         )
 

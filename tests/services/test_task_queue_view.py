@@ -7,7 +7,7 @@ def create_task(task_id: str, status: str) -> Task:
     terminal = status in {"completed", "failed", "cancelled"}
     return Task(
         id=task_id,
-        type="test",
+        type="download",
         status=status,
         persistence_scope="history" if terminal else "runtime",
         lifecycle=TASK_LIFECYCLE["history_only"] if terminal else TASK_LIFECYCLE["resumable"],
@@ -51,6 +51,138 @@ def test_serialize_task_marks_terminal_backend_tasks_as_history():
     assert payload["task_contract_version"] == TASK_CONTRACT_VERSION
     assert payload["persistence_scope"] == "history"
     assert payload["lifecycle"] == "history-only"
+
+
+def test_serialize_processing_result_uses_contract_queue_projection():
+    view = TaskQueueView()
+    task = create_task("task-processing", "processing_result")
+
+    payload = view.serialize_task(
+        task,
+        running_ids=set(),
+        queued_ids=set(),
+        queued_order=[],
+    ).model_dump(mode="json")
+
+    assert payload["queue_state"] == "running"
+    assert payload["persistence_scope"] == "runtime"
+    assert payload["lifecycle"] == "resumable"
+
+
+def test_serialize_paused_task_status_wins_over_runtime_membership():
+    view = TaskQueueView()
+    task = create_task("task-paused", "paused")
+
+    payload = view.serialize_task(
+        task,
+        running_ids={"task-paused"},
+        queued_ids=set(),
+        queued_order=[],
+    ).model_dump(mode="json")
+
+    assert payload["queue_state"] == "paused"
+    assert payload["persistence_scope"] == "runtime"
+    assert payload["lifecycle"] == "resumable"
+
+
+def test_serialize_pipeline_primary_operation_comes_from_first_step():
+    view = TaskQueueView()
+    task = Task(
+        id="task-transcriber-pipeline",
+        type="pipeline",
+        status="pending",
+        progress=0.0,
+        message="",
+        request_params={
+            "pipeline_id": "transcriber_tool",
+            "steps": [
+                {
+                    "step_name": "transcribe",
+                    "params": {
+                        "audio_ref": {
+                            "path": "E:/media/input.wav",
+                            "name": "input.wav",
+                            "media_kind": "audio",
+                        }
+                    },
+                }
+            ],
+        },
+    )
+
+    payload = view.serialize_task(
+        task,
+        running_ids=set(),
+        queued_ids={"task-transcriber-pipeline"},
+        queued_order=["task-transcriber-pipeline"],
+    ).model_dump(mode="json")
+
+    assert payload["primary_operation"] == "transcribe"
+    assert payload["artifacts"] == [
+        {
+            "kind": "audio",
+            "role": "input",
+            "ref": {
+                "path": "E:/media/input.wav",
+                "name": "input.wav",
+                "size": None,
+                "type": None,
+                "media_id": None,
+                "media_kind": "audio",
+                "role": None,
+                "origin": None,
+            },
+        }
+    ]
+
+
+def test_serialize_video_output_ref_does_not_create_subtitle_artifact():
+    view = TaskQueueView()
+    task = Task(
+        id="task-enhancement",
+        type="enhancement",
+        status="completed",
+        persistence_scope="history",
+        lifecycle=TASK_LIFECYCLE["history_only"],
+        progress=100.0,
+        message="",
+        request_params={
+            "video_ref": {
+                "path": "E:/video/input.mp4",
+                "name": "input.mp4",
+                "media_kind": "video",
+                "role": "input",
+            }
+        },
+        result={
+            "files": [{"type": "video", "path": "E:/video/input_4x.mp4"}],
+            "meta": {
+                "output_ref": {
+                    "path": "E:/video/input_4x.mp4",
+                    "name": "input_4x.mp4",
+                    "media_kind": "video",
+                    "role": "output",
+                    "origin": "task",
+                }
+            },
+        },
+    )
+
+    payload = view.serialize_task(
+        task,
+        running_ids=set(),
+        queued_ids=set(),
+        queued_order=[],
+    ).model_dump(mode="json")
+
+    assert {
+        (artifact["kind"], artifact["role"], artifact["ref"]["path"])
+        for artifact in payload["artifacts"]
+    } == {
+        ("video", "input", "E:/video/input.mp4"),
+        ("video", "output", "E:/video/input_4x.mp4"),
+    }
+    assert not any(artifact["kind"] == "subtitle" for artifact in payload["artifacts"])
 
 
 def test_serialize_translate_task_does_not_add_empty_video_ref_slot():

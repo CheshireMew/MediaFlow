@@ -5,46 +5,6 @@ export type RuntimeExecutionSummary = {
   taskSubmission: number;
 };
 
-function getTaskDiagnosticMediaRefs(task: Task) {
-  const requestParams = task.request_params as Record<string, unknown> | undefined;
-  const resultMeta = task.result?.meta as Record<string, unknown> | undefined;
-
-  return {
-    request: {
-      video_ref:
-        requestParams?.video_ref && typeof requestParams.video_ref === "object"
-          ? requestParams.video_ref
-          : null,
-      subtitle_ref:
-        requestParams?.subtitle_ref && typeof requestParams.subtitle_ref === "object"
-          ? requestParams.subtitle_ref
-          : null,
-      context_ref:
-        requestParams?.context_ref && typeof requestParams.context_ref === "object"
-          ? requestParams.context_ref
-          : null,
-    },
-    result: {
-      video_ref:
-        resultMeta?.video_ref && typeof resultMeta.video_ref === "object"
-          ? resultMeta.video_ref
-          : null,
-      subtitle_ref:
-        resultMeta?.subtitle_ref && typeof resultMeta.subtitle_ref === "object"
-          ? resultMeta.subtitle_ref
-          : null,
-      context_ref:
-        resultMeta?.context_ref && typeof resultMeta.context_ref === "object"
-          ? resultMeta.context_ref
-          : null,
-      output_ref:
-        resultMeta?.output_ref && typeof resultMeta.output_ref === "object"
-          ? resultMeta.output_ref
-          : null,
-    },
-  };
-}
-
 export function createDesktopRuntimeDiagnostic(runtimeInfo: DesktopRuntimeInfo) {
   return {
     contract_version: runtimeInfo.contract_version,
@@ -59,10 +19,9 @@ export function createTaskDiagnostic(
   task: Task,
   executionSummary: RuntimeExecutionSummary,
 ) {
-  const mediaRefs = getTaskDiagnosticMediaRefs(task);
-
   return {
     task_source: task.task_source,
+    primary_operation: task.primary_operation,
     lifecycle: task.lifecycle,
     task_contract_version: task.task_contract_version,
     persistence_scope: task.persistence_scope,
@@ -71,10 +30,8 @@ export function createTaskDiagnostic(
     type: task.type,
     status: task.status,
     params_keys: Object.keys(task.request_params || {}),
-    request_media_refs: mediaRefs.request,
-    result_files: task.result?.files,
     result_meta: task.result?.meta,
-    result_media_refs: mediaRefs.result,
+    artifacts: task.artifacts,
     runtime_execution_summary: executionSummary,
   };
 }

@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TaskMonitor } from "../components/TaskMonitor";
+import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
 import { installElectronMock } from "./testUtils/electronMock";
 
 const useTaskContextMock = vi.fn();
@@ -21,6 +22,13 @@ vi.mock("../components/TaskTraceView", () => ({
 }));
 
 describe("TaskMonitor navigation actions", () => {
+  const artifact = (
+    kind: "video" | "audio" | "subtitle" | "image" | "file",
+    role: "input" | "output" | "context",
+    path: string,
+    name: string,
+  ) => ({ kind, role, ref: { path, name } });
+
   const expectNavigationPayload = (payload: unknown, expected: {
     target: "translator" | "editor" | "transcriber";
     videoRef: { path: string; name: string };
@@ -51,8 +59,10 @@ describe("TaskMonitor navigation actions", () => {
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
+          ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-1",
           type: "pipeline",
+          primary_operation: "download",
           status: "completed",
           progress: 100,
           name: "Transcribe sample.mp4",
@@ -77,6 +87,10 @@ describe("TaskMonitor navigation actions", () => {
               srt_path: "E:/sample.srt",
             },
           },
+          artifacts: [
+            artifact("video", "output", "E:/sample.mp4", "sample.mp4"),
+            artifact("subtitle", "output", "E:/sample.srt", "sample.srt"),
+          ],
         },
       ],
       connected: true,
@@ -220,8 +234,10 @@ describe("TaskMonitor navigation actions", () => {
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
+          ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-2",
           type: "pipeline",
+          primary_operation: "download",
           status: "completed",
           progress: 100,
           name: "Download sample.mp4",
@@ -239,6 +255,7 @@ describe("TaskMonitor navigation actions", () => {
               video_path: "E:/workspace/Patient Investor - 鈥淎I Won鈥檛 Replace Software!.mp4",
             },
           },
+          artifacts: [artifact("video", "output", "E:/sample.mp4", "sample.mp4")],
         },
       ],
       connected: true,
@@ -290,8 +307,10 @@ describe("TaskMonitor navigation actions", () => {
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
+          ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-3",
           type: "pipeline",
+          primary_operation: "translate",
           status: "completed",
           progress: 100,
           name: "Translate sample.mp4",
@@ -326,6 +345,10 @@ describe("TaskMonitor navigation actions", () => {
               },
             },
           },
+          artifacts: [
+            artifact("video", "output", "E:/canonical/sample.mp4", "sample.mp4"),
+            artifact("subtitle", "output", "E:/canonical/sample_CN.srt", "sample_CN.srt"),
+          ],
         },
       ],
       connected: true,
@@ -368,8 +391,10 @@ describe("TaskMonitor navigation actions", () => {
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
+          ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-history",
           type: "download",
+          primary_operation: "download",
           status: "completed",
           persistence_scope: "history",
           progress: 100,

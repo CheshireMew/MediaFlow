@@ -27,6 +27,11 @@ export interface TaskResult {
   meta?: Record<string, unknown>;
   error?: string | null;
 }
+export interface TaskArtifact {
+  kind: "video" | "audio" | "subtitle" | "image" | "file";
+  role: "input" | "output" | "context";
+  ref: MediaReference;
+}
 export interface TaskResponse {
   task_source: "backend";
   task_contract_version: number;
@@ -34,6 +39,7 @@ export interface TaskResponse {
   lifecycle: string;
   queue_state: string;
   queue_position: number | null;
+  primary_operation: string;
   task_id: string;
   status: string;
   message?: string;
@@ -52,6 +58,8 @@ export interface TaskView {
   error?: string | null;
   result?: Record<string, unknown> | null;
   request_params?: Record<string, unknown> | null;
+  primary_operation: string;
+  artifacts?: TaskArtifact[];
   created_at: number;
   queue_state: string;
   queue_position?: number | null;
@@ -63,6 +71,7 @@ export interface TranslateResponse {
   lifecycle: string;
   queue_state: string;
   queue_position: number | null;
+  primary_operation: string;
   task_id: string;
   status: string;
   segments?: import("./task").SubtitleSegment[] | null;
@@ -144,6 +153,7 @@ export interface OCRExtractResponse {
   lifecycle: string;
   queue_state: string;
   queue_position: number | null;
+  primary_operation: string;
   task_id: string;
   status?: string;
   message?: string;
@@ -167,6 +177,7 @@ export interface PreprocessingResponse {
   lifecycle: string;
   queue_state: string;
   queue_position: number | null;
+  primary_operation: string;
   task_id: string;
   status: string;
   message: string;

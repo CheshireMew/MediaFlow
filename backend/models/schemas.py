@@ -62,6 +62,7 @@ class TaskSubmissionMetadata(BaseModel):
     lifecycle: str
     queue_state: str
     queue_position: Optional[int]
+    primary_operation: str
 
 
 class TaskResponse(TaskSubmissionMetadata):
@@ -84,6 +85,8 @@ class TaskView(BaseModel):
     error: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
     request_params: Optional[Dict[str, Any]] = None
+    primary_operation: str
+    artifacts: List["TaskArtifact"] = Field(default_factory=list)
     created_at: int
     queue_state: str
     queue_position: Optional[int] = None
@@ -248,6 +251,12 @@ class FileRef(BaseModel):
     path: str
     label: Optional[str] = None # "source", "output", "translated"
     mime_type: Optional[str] = None
+
+
+class TaskArtifact(BaseModel):
+    kind: Literal["video", "audio", "subtitle", "image", "file"]
+    role: Literal["input", "output", "context"]
+    ref: MediaReference
 
 class TaskResult(BaseModel):
     """Standardized result for all tasks."""

@@ -10,9 +10,17 @@ export const BACKEND_TASK_CONTRACT_FIELDS = {
   persistence_scope: "runtime",
   lifecycle: TASK_LIFECYCLE.resumable,
   queue_state: "idle",
+  primary_operation: "pipeline",
+  artifacts: [],
 } as const satisfies Pick<
   Task,
-  "task_source" | "task_contract_version" | "persistence_scope" | "lifecycle" | "queue_state"
+  | "task_source"
+  | "task_contract_version"
+  | "persistence_scope"
+  | "lifecycle"
+  | "queue_state"
+  | "primary_operation"
+  | "artifacts"
 >;
 
 export function createSampleTranscriptionResult(

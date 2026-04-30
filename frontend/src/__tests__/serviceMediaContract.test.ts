@@ -38,6 +38,7 @@ const backendReceipt = (task_id: string) => ({
   lifecycle: "resumable",
   queue_state: "queued",
   queue_position: null,
+  primary_operation: "pipeline",
 });
 
 describe("service media contract", () => {
@@ -225,10 +226,6 @@ describe("service media contract", () => {
             path: "E:/canonical/source.srt",
             name: "source.srt",
           },
-          output_ref: {
-            path: "E:/canonical/source.srt",
-            name: "source.srt",
-          },
         },
         {
           path: "E:/canonical/source.mp4",
@@ -262,10 +259,6 @@ describe("service media contract", () => {
           text: "",
           language: "en",
           subtitle_ref: {
-            path: "E:/canonical/source.srt",
-            name: "source.srt",
-          },
-          output_ref: {
             path: "E:/canonical/source.srt",
             name: "source.srt",
           },
@@ -315,5 +308,33 @@ describe("service media contract", () => {
       subtitle_ref: null,
     });
 
+  });
+
+  it("does not expose audio-only transcribe sources as video refs", () => {
+    expect(
+      normalizeTranscribeResultMediaReferences(
+        {
+          segments: [],
+          text: "",
+          language: "en",
+          subtitle_ref: {
+            path: "E:/canonical/source.srt",
+            name: "source.srt",
+          },
+        },
+        {
+          path: "E:/canonical/source.mp3",
+          name: "source.mp3",
+          media_kind: "audio",
+          type: "audio/mpeg",
+        },
+      ),
+    ).toMatchObject({
+      video_ref: null,
+      subtitle_ref: {
+        path: "E:/canonical/source.srt",
+        name: "source.srt",
+      },
+    });
   });
 });

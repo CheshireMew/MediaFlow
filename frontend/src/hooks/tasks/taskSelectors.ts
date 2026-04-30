@@ -1,5 +1,5 @@
 import type { PipelineRequest } from "../../types/api";
-import type { FileRef, SubtitleSegment, Task, TaskResult } from "../../types/task";
+import type { SubtitleSegment, Task, TaskResult } from "../../types/task";
 import type { TranscribeResult } from "../../types/transcriber";
 import type { TranslatorMode } from "../../stores/translatorStore";
 import type { DownloadHistoryItem } from "../../stores/downloaderStore";
@@ -10,7 +10,6 @@ import {
   resolveTranslationTaskMedia,
 } from "../../services/tasks/taskMediaResolver";
 import {
-  normalizeMediaReference,
   type MediaReference,
   resolveMediaReferencePath,
 } from "../../services/ui/mediaReference";
@@ -48,11 +47,7 @@ export const selectTaskById = (
 };
 
 export const isDownloadTask = (task: Task): boolean => {
-  if (task.type === "download") return true;
-  if (task.type !== "pipeline") return false;
-
-  const steps = (task.request_params as PipelineRequest | undefined)?.steps;
-  return Array.isArray(steps) && steps.some((step) => step.step_name === "download");
+  return task.primary_operation === "download";
 };
 
 export const getDownloadTaskUrl = (task: Task): string | null => {
@@ -184,14 +179,11 @@ export const mapTaskToTranscribeResult = (
 
   const backendResult = task.result as TaskResult;
   const meta = backendResult.meta || {};
-  const files = backendResult.files || [];
-  const srtFile = files.find((f: FileRef) => f.type === "subtitle");
   const transcribeMediaRefs = resolveTranscribeTaskMedia(task);
   const taskMediaRefs = getTaskMediaRefs(task);
   const subtitleRef =
     taskMediaRefs.subtitleRef ??
-    transcribeMediaRefs.subtitleRef ??
-    normalizeMediaReference(srtFile?.path);
+    transcribeMediaRefs.subtitleRef;
   const videoRef =
     taskMediaRefs.videoRef ??
     transcribeMediaRefs.sourceMediaRef ??

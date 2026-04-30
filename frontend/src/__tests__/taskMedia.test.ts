@@ -6,7 +6,23 @@ import {
   resolveTaskMediaReferences,
   resolveTaskNavigationPayload,
 } from "../services/ui/taskMedia";
-import type { Task } from "../types/task";
+import type { Task, TaskArtifact } from "../types/task";
+
+const artifact = (
+  kind: "video" | "audio" | "subtitle" | "image" | "file",
+  role: "input" | "output" | "context",
+  path: string,
+  name: string,
+  extra: Partial<TaskArtifact["ref"]> = {},
+): TaskArtifact => ({
+  kind,
+  role,
+  ref: {
+    path,
+    name,
+    ...extra,
+  },
+});
 
 describe("taskMedia", () => {
   beforeEach(() => {
@@ -22,14 +38,10 @@ describe("taskMedia", () => {
       progress: 100,
       created_at: Date.now(),
       request_params: {},
-      result: {
-        success: true,
-        files: [
-          { type: "video", path: "E:/sample.mp4" },
-          { type: "subtitle", path: "E:/sample.srt" },
-        ],
-        meta: {},
-      },
+      artifacts: [
+        artifact("video", "output", "E:/sample.mp4", "sample.mp4"),
+        artifact("subtitle", "output", "E:/sample.srt", "sample.srt"),
+      ],
     };
 
     const payload = await resolveTaskNavigationPayload(task);
@@ -54,30 +66,22 @@ describe("taskMedia", () => {
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {
-        video_ref: {
-          path: "E:/canonical.mp4",
-          name: "canonical.mp4",
+      request_params: {},
+      result: { success: true, files: [{ type: "video", path: "E:/stale.mp4" }] },
+      artifacts: [
+        artifact("video", "input", "E:/canonical.mp4", "canonical.mp4", {
           type: "video/mp4",
           media_kind: "video",
-          role: "source",
+          role: "input",
           origin: "task",
-        },
-      },
-      result: {
-        success: true,
-        files: [{ type: "video", path: "E:/stale.mp4" }],
-        meta: {
-          subtitle_ref: {
-            path: "E:/canonical.srt",
-            name: "canonical.srt",
-            type: "application/x-subrip",
-            media_kind: "subtitle",
-            role: "output",
-            origin: "task",
-          },
-        },
-      },
+        }),
+        artifact("subtitle", "output", "E:/canonical.srt", "canonical.srt", {
+          type: "application/x-subrip",
+          media_kind: "subtitle",
+          role: "output",
+          origin: "task",
+        }),
+      ],
     };
 
     const refs = await resolveTaskMediaReferences(task);
@@ -90,7 +94,7 @@ describe("taskMedia", () => {
       size: undefined,
       media_id: undefined,
       media_kind: "video",
-      role: "source",
+      role: "input",
       origin: "task",
     });
     expect(refs.subtitleRef).toEqual({
@@ -104,7 +108,16 @@ describe("taskMedia", () => {
       origin: "task",
     });
     expect(refs.contextRef).toBeNull();
-    expect(refs.outputRef).toBeNull();
+    expect(refs.outputRef).toEqual({
+      path: "E:/canonical.srt",
+      name: "canonical.srt",
+      type: "application/x-subrip",
+      size: undefined,
+      media_id: undefined,
+      media_kind: "subtitle",
+      role: "output",
+      origin: "task",
+    });
     expect(payload.video_ref).toEqual({
       path: "E:/canonical.mp4",
       name: "canonical.mp4",
@@ -112,7 +125,7 @@ describe("taskMedia", () => {
       type: "video/mp4",
       media_id: undefined,
       media_kind: "video",
-      role: "source",
+      role: "input",
       origin: "task",
     });
     expect(payload.subtitle_ref).toEqual({
@@ -135,13 +148,8 @@ describe("taskMedia", () => {
       status: "running",
       progress: 10,
       created_at: Date.now(),
-      request_params: {
-        context_path: "E:/workspace/demo.srt",
-        subtitle_ref: {
-          path: "E:/canonical/demo.srt",
-          name: "demo.srt",
-        },
-      },
+      request_params: { context_path: "E:/workspace/demo.srt" },
+      artifacts: [artifact("subtitle", "input", "E:/canonical/demo.srt", "demo.srt")],
     };
 
     const refs = await resolveTaskMediaReferences(task);
@@ -160,31 +168,20 @@ describe("taskMedia", () => {
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {
-        context_ref: {
-          path: "E:/canonical/source.srt",
-          name: "source.srt",
+      request_params: {},
+      result: { success: true, meta: {} },
+      artifacts: [
+        artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt", {
           media_kind: "subtitle",
           role: "context",
           origin: "task",
-        },
-      },
-      result: {
-        success: true,
-        meta: {
-          output_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-            media_kind: "subtitle",
-            role: "output",
-            origin: "task",
-          },
-          subtitle_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-        },
-      },
+        }),
+        artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt", {
+          media_kind: "subtitle",
+          role: "output",
+          origin: "task",
+        }),
+      ],
     };
 
     const refs = await resolveTaskMediaReferences(task);
@@ -227,20 +224,12 @@ describe("taskMedia", () => {
         context_path: "E:/stale/source.srt",
         srt_path: "E:/stale/request-output.srt",
       },
-      result: {
-        success: true,
-        meta: {
-          subtitle_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-          output_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-          srt_path: "E:/stale/result-output.srt",
-        },
-      },
+      result: { success: true, meta: { srt_path: "E:/stale/result-output.srt" } },
+      artifacts: [
+        artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
+        artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt"),
+        artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
+      ],
     };
 
     expect(getTaskMediaCandidates(task)).toEqual({
@@ -250,7 +239,7 @@ describe("taskMedia", () => {
         "E:/canonical/source.srt",
         "E:/canonical/output.srt",
       ],
-      context: [],
+      context: ["E:/canonical/source.srt"],
     });
   });
 
@@ -289,11 +278,11 @@ describe("taskMedia", () => {
       request_params: {},
       result: {
         success: true,
-        files: [{ type: "video", path: "E:/canonical/video.mp4" }],
         meta: {
           file_path: "E:/stale/stale-video.mp4",
         },
       },
+      artifacts: [artifact("video", "output", "E:/canonical/video.mp4", "video.mp4")],
     };
 
     expect(getTaskMediaCandidates(task)).toEqual({
@@ -390,11 +379,13 @@ describe("taskMedia", () => {
       request_params: {},
       result: {
         success: true,
-        files: [{ type: "subtitle", path: "E:/canonical/output-from-files.srt" }],
         meta: {
           srt_path: "E:/stale/output-from-meta.srt",
         },
       },
+      artifacts: [
+        artifact("subtitle", "output", "E:/canonical/output-from-files.srt", "output-from-files.srt"),
+      ],
     };
 
     expect(getTaskMediaCandidates(task)).toEqual({
@@ -443,9 +434,11 @@ describe("taskMedia", () => {
       },
       result: {
         success: true,
-        files: [{ type: "video", path: "E:/canonical/final-output.mp4" }],
         meta: {},
       },
+      artifacts: [
+        artifact("video", "output", "E:/canonical/final-output.mp4", "final-output.mp4"),
+      ],
     };
 
     expect(getTaskMediaCandidates(task)).toEqual({

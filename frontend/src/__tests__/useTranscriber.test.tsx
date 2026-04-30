@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTranscriber } from "../hooks/useTranscriber";
-import type { Task } from "../types/task";
+import type { Task, TaskArtifact } from "../types/task";
 import { apiClient } from "../api/client";
 import {
   BACKEND_TASK_CONTRACT_FIELDS,
@@ -32,6 +32,13 @@ vi.mock("../api/client", () => ({
 
 describe("useTranscriber", () => {
   let electronMock: MockedElectronAPI;
+
+  const artifact = (
+    kind: "video" | "audio" | "subtitle" | "image" | "file",
+    role: "input" | "output" | "context",
+    path: string,
+    name: string,
+  ): TaskArtifact => ({ kind, role, ref: { path, name } });
 
   const expectTranscriberResultMedia = (
     currentResult: ReturnType<typeof useTranscriber>["state"]["result"],
@@ -96,6 +103,7 @@ describe("useTranscriber", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "pipeline-123",
       type: "pipeline",
+      primary_operation: "transcribe",
       status: "running",
       progress: 35,
       name: "Transcribe sample.mp4",
@@ -116,6 +124,7 @@ describe("useTranscriber", () => {
           },
         ],
       },
+      artifacts: [artifact("video", "input", "E:/sample.mp4", "sample.mp4")],
       created_at: Date.now(),
     };
 
@@ -146,6 +155,7 @@ describe("useTranscriber", () => {
       lifecycle: "resumable",
       queue_state: "queued",
       queue_position: null,
+      primary_operation: "transcribe",
     });
     clearElectronMock();
 
@@ -230,6 +240,7 @@ describe("useTranscriber", () => {
       lifecycle: "resumable",
       queue_state: "queued",
       queue_position: null,
+      primary_operation: "transcribe",
     });
 
     installElectronMock();
@@ -270,7 +281,8 @@ describe("useTranscriber", () => {
     expect(result.current.state.result).toBeNull();
     expect(addTaskMock).toHaveBeenCalledWith(expect.objectContaining({
       id: "backend-transcribe-task",
-      type: "transcribe",
+      type: "pipeline",
+      primary_operation: "transcribe",
       status: "pending",
       task_source: "backend",
     }));
@@ -359,6 +371,7 @@ describe("useTranscriber", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-789",
       type: "pipeline",
+      primary_operation: "transcribe",
       status: "completed",
       progress: 100,
       name: "Transcribe sample.mp4",
@@ -384,6 +397,10 @@ describe("useTranscriber", () => {
           ],
         },
       },
+      artifacts: [
+        artifact("video", "input", "E:/sample.mp4", "sample.mp4"),
+        artifact("subtitle", "output", "E:/sample.srt", "sample.srt"),
+      ],
       created_at: Date.now(),
     };
 
@@ -451,6 +468,7 @@ describe("useTranscriber", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-790",
       type: "pipeline",
+      primary_operation: "transcribe",
       status: "completed",
       progress: 100,
       name: "Transcribe sample.mp4",
@@ -472,6 +490,10 @@ describe("useTranscriber", () => {
           segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
         },
       },
+      artifacts: [
+        artifact("video", "input", "E:/sample.mp4", "sample.mp4"),
+        artifact("subtitle", "output", "E:/sample.srt", "sample.srt"),
+      ],
       created_at: Date.now(),
     };
 

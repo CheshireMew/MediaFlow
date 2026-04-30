@@ -40,6 +40,7 @@ async def translate_segment_sync(req: TranslateRequest):
             lifecycle=TASK_LIFECYCLE["runtime_only"],
             queue_state="completed",
             queue_position=None,
+            primary_operation="translate",
         )
     except Exception as e:
         logger.error(f"Sync translation failed: {e}")
