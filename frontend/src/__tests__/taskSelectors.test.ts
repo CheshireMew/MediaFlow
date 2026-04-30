@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  BACKEND_TASK_CONTRACT_FIELDS,
+  createTranscribeStepRequestParams,
+} from "./testFixtures";
+import {
   findActiveTranscribeTask,
   findActiveTranslationTask,
   findCompletedTranscribeTask,
@@ -8,11 +12,11 @@ import {
   mapTaskToTranscribeResult,
 } from "../hooks/tasks/taskSelectors";
 import type { Task } from "../types/task";
-import { createTranscribeStepRequestParams } from "./testFixtures";
 
 describe("taskSelectors transcribe media matching", () => {
   it("matches an active transcribe task using structured media refs", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-1",
       type: "pipeline",
       status: "running",
@@ -32,6 +36,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("uses explicit audio refs instead of audio_path mirrors when matching active transcribe tasks", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-1-ref",
       type: "pipeline",
       status: "running",
@@ -63,6 +68,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("does not fall back to stale audio_path when transcribe refs disagree", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-1-ref-mismatch",
       type: "pipeline",
       status: "completed",
@@ -101,6 +107,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("does not synthesize source media refs from result file candidates", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-2",
       type: "pipeline",
       status: "completed",
@@ -135,6 +142,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("does not match a completed transcribe task from stale path mirrors when a ref is present", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-completed-ref",
       type: "pipeline",
       status: "completed",
@@ -166,6 +174,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("matches an active translation task using structured subtitle refs", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate",
       type: "translate",
       status: "running",
@@ -192,6 +201,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("prefers explicit media refs when matching translation tasks and mapping transcribe results", () => {
     const translateTask: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-ref",
       type: "translate",
       status: "running",
@@ -208,6 +218,7 @@ describe("taskSelectors transcribe media matching", () => {
     };
 
     const transcribeTask: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-transcribe-ref",
       type: "pipeline",
       status: "completed",
@@ -249,6 +260,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("distinguishes translation context refs from output refs", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-refs",
       type: "translate",
       status: "completed",
@@ -300,6 +312,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("does not fall back to stale path candidates when translation refs disagree", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-mismatch",
       type: "translate",
       status: "completed",
@@ -333,6 +346,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("no longer recovers translation targets from meta srt_path alone", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-path-mirrors",
       type: "translate",
       status: "completed",
@@ -356,6 +370,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("does not synthesize translation target refs from result files", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-result-files",
       type: "translate",
       status: "completed",
@@ -380,6 +395,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("does not use meta srt_path for translation task snapshots", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-current-contract",
       type: "translate",
       status: "completed",
@@ -402,6 +418,7 @@ describe("taskSelectors transcribe media matching", () => {
 
   it("does not match path-only translation tasks once source refs are required", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-path-only-active",
       type: "translate",
       status: "running",

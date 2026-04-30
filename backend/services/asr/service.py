@@ -12,6 +12,7 @@ from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils.segment_refiner import SegmentRefiner
 from backend.core.adapters.faster_whisper import FasterWhisperAdapter, FasterWhisperConfig
 from backend.core.task_control import TaskControlRequested
+from backend.services.runtime_diagnostics import RuntimeDiagnosticsService
 from backend.services.media_refs import create_media_ref
 
 from .model_manager import ModelManager
@@ -106,24 +107,38 @@ class ASRService:
                          pass
 
         if not use_cli:
-            # 1. Load Model
-            model = self.model_manager.load_model(model_name, device, progress_callback)
-
-            # 2. Analyze Audio
-            logger.info(f"Audio Duration: {duration:.2f}s")
-
-            # 3. Strategy Decision
-            if duration > 900:
-                all_segments = self.core_strategies.transcribe_smart_split(
-                    audio_path, duration, model, language, initial_prompt, progress_callback
+            try:
+                all_segments = self._transcribe_builtin(
+                    audio_path=audio_path,
+                    duration=duration,
+                    model_name=model_name,
+                    device=device,
+                    language=language,
+                    initial_prompt=initial_prompt,
+                    progress_callback=progress_callback,
                 )
-            else:
-                all_segments = self.core_strategies.transcribe_direct(
-                    audio_path, duration, model, language, initial_prompt, progress_callback
-                )
+            except TaskControlRequested:
+                raise
+            except RuntimeError as error:
+                if device == "cuda" and self._is_cuda_runtime_unavailable_error(error):
+                    logger.warning(f"Built-in CUDA runtime unavailable, retrying on CPU: {error}")
+                    self.model_manager.clear_loaded_model()
+                    if progress_callback:
+                        progress_callback(8, "CUDA runtime unavailable. Retrying transcription on CPU...")
+                    all_segments = self._transcribe_builtin(
+                        audio_path=audio_path,
+                        duration=duration,
+                        model_name=model_name,
+                        device="cpu",
+                        language=language,
+                        initial_prompt=initial_prompt,
+                        progress_callback=progress_callback,
+                    )
+                else:
+                    raise
 
-            # 4. Sort and assign to final_segments
-            if progress_callback: progress_callback(95, "Finalizing segments...")
+            if progress_callback:
+                progress_callback(95, "Finalizing segments...")
             all_segments.sort(key=lambda x: x.start)
             final_segments = all_segments
 
@@ -167,14 +182,35 @@ class ASRService:
             }
         )
 
+    def _transcribe_builtin(
+        self,
+        *,
+        audio_path: str,
+        duration: float,
+        model_name: str,
+        device: str,
+        language: str | None,
+        initial_prompt: str | None,
+        progress_callback=None,
+    ) -> list:
+        model = self.model_manager.load_model(model_name, device, progress_callback)
+        logger.info(f"Audio Duration: {duration:.2f}s")
+
+        if duration > 900:
+            return self.core_strategies.transcribe_smart_split(
+                audio_path, duration, model, language, initial_prompt, progress_callback
+            )
+        return self.core_strategies.transcribe_direct(
+            audio_path, duration, model, language, initial_prompt, progress_callback
+        )
+
     @staticmethod
     def _is_cli_cuda_unavailable_error(error: Exception) -> bool:
-        message = str(error).lower()
-        return (
-            "cuda failed" in message
-            or "cuda driver version is insufficient" in message
-            or "no cuda" in message
-        )
+        return RuntimeDiagnosticsService.is_cuda_runtime_unavailable_error(error)
+
+    @staticmethod
+    def _is_cuda_runtime_unavailable_error(error: Exception) -> bool:
+        return RuntimeDiagnosticsService.is_cuda_runtime_unavailable_error(error)
 
     def transcribe_segment(
         self,

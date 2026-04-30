@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
 import {
   getTaskMediaCandidates,
   hasTaskVideoMedia,
@@ -14,6 +15,7 @@ describe("taskMedia", () => {
 
   it("builds a navigation payload from resolved task media", async () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-1",
       type: "pipeline",
       status: "completed",
@@ -46,6 +48,7 @@ describe("taskMedia", () => {
 
   it("uses structured task media refs as the task media identity", async () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-2",
       type: "pipeline",
       status: "completed",
@@ -126,6 +129,7 @@ describe("taskMedia", () => {
 
   it("includes explicit task media refs in candidate resolution before path fields", async () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-3",
       type: "translate",
       status: "running",
@@ -150,6 +154,7 @@ describe("taskMedia", () => {
 
   it("returns explicit context and output refs when present", async () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-5",
       type: "translate",
       status: "completed",
@@ -208,6 +213,7 @@ describe("taskMedia", () => {
 
   it("does not prioritize stale path fields when structured subtitle refs exist", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-6",
       type: "translate",
       status: "completed",
@@ -250,6 +256,7 @@ describe("taskMedia", () => {
 
   it("does not treat translation context paths as video media candidates", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-4",
       type: "translate",
       status: "completed",
@@ -273,6 +280,7 @@ describe("taskMedia", () => {
 
   it("does not keep stale result file_path as a dedicated context candidate", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-7",
       type: "download",
       status: "completed",
@@ -297,6 +305,7 @@ describe("taskMedia", () => {
 
   it("does not treat request srt_path as a standalone subtitle identity candidate", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-8",
       type: "synthesis",
       status: "completed",
@@ -321,6 +330,7 @@ describe("taskMedia", () => {
 
   it("does not scan arbitrary request string fields for translated subtitle candidates", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-9",
       type: "translate",
       status: "completed",
@@ -346,6 +356,7 @@ describe("taskMedia", () => {
 
   it("does not treat translation context_path as a generic subtitle candidate without refs", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-12",
       type: "translate",
       status: "completed",
@@ -370,6 +381,7 @@ describe("taskMedia", () => {
 
   it("does not use meta srt_path when subtitle files already exist", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-10",
       type: "translate",
       status: "completed",
@@ -394,6 +406,7 @@ describe("taskMedia", () => {
 
   it("does not use meta srt_path for task snapshot subtitle recovery on path-mirror-shaped tasks", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-13",
       type: "translate",
       status: "completed",
@@ -419,6 +432,7 @@ describe("taskMedia", () => {
 
   it("does not keep request output_path as a context candidate when media files already exist", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-11",
       type: "synthesis",
       status: "completed",

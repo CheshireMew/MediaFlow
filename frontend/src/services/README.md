@@ -22,11 +22,10 @@
 ## Current Boundary
 
 - `services/desktop` is the single renderer entry point for Electron APIs.
-- Desktop runtime is worker-first.
-  - Desktop mode talks to the Python desktop worker through Electron IPC only.
-  - Web mode talks to the backend HTTP API directly.
+- Task execution is backend-owned in both desktop and web runtime.
+  - Desktop mode uses Electron IPC only for local shell/file utilities and direct editor utilities.
+  - All task submission, task history, pause/resume/delete, snapshots, and socket updates go through the backend HTTP/WebSocket boundary.
 - `context/TaskProvider.tsx` is the renderer task orchestration entry point.
-  - Desktop mode owns desktop task snapshot loading and event subscription.
-  - Web mode owns backend task snapshot loading and socket updates.
+  - It owns backend task snapshot loading and socket updates.
   - `context/taskSources/shared.ts` now only contains task normalization and contract helpers.
 - Tests should use `src/__tests__/testUtils/electronMock.ts` instead of assigning large ad hoc Electron mocks.

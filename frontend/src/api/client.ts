@@ -21,6 +21,7 @@ export type {
   ProviderConnectionResponse,
   ToolUpdateResponse,
   FasterWhisperCliInstallResponse,
+  CudaReadinessResponse,
   ImagePreviewResponse,
   SynthesizeOptions,
   SynthesizeRequest,
@@ -52,6 +53,7 @@ import type {
   ProviderConnectionResponse,
   ToolUpdateResponse,
   FasterWhisperCliInstallResponse,
+  CudaReadinessResponse,
   ImagePreviewResponse,
   SynthesizeRequest,
   TranscribeSegmentRequest,
@@ -317,6 +319,10 @@ export const apiClient = {
     return request<FasterWhisperCliInstallResponse>("/settings/install-faster-whisper-cli", {
       method: "POST",
     }, 1_800_000);
+  },
+
+  getCudaReadiness: () => {
+    return request<CudaReadinessResponse>("/settings/cuda-readiness");
   },
 
   synthesizeVideo: (payload: SynthesizeRequest) => {

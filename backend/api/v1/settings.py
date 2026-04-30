@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from backend.application.settings_service import SettingsApplicationService
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
+from backend.services.runtime_diagnostics import CudaReadinessResponse
 from backend.services.settings_manager import UserSettings
 
 def _settings_application():
@@ -44,6 +45,12 @@ class FasterWhisperCliInstallResponse(BaseModel):
 async def get_records():
     """Get all user settings."""
     return _settings_application().get_settings()
+
+
+@router.get("/cuda-readiness", response_model=CudaReadinessResponse)
+async def get_cuda_readiness():
+    """Report whether the backend process can run built-in ASR on CUDA."""
+    return _settings_application().get_cuda_readiness()
 
 @router.post("/", response_model=UserSettings)
 async def update_settings(settings: UserSettings):

@@ -3,6 +3,7 @@ import types
 import uuid
 from pathlib import Path
 import shutil
+from unittest.mock import MagicMock
 
 from backend.config import settings
 from backend.services.asr.model_manager import (
@@ -190,3 +191,25 @@ def test_ensure_model_downloaded_reports_huggingface_fallback_progress(monkeypat
         assert emitted[-1] == (8.0, "Downloaded model large-v2.")
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)
+
+
+def test_model_cache_is_scoped_by_device(monkeypatch):
+    created: list[tuple[str, str]] = []
+
+    class FakeWhisperModel:
+        def __init__(self, model_path, *, device, compute_type, download_root):
+            created.append((device, compute_type))
+
+    faster_whisper_module = types.ModuleType("faster_whisper")
+    faster_whisper_module.WhisperModel = FakeWhisperModel
+    monkeypatch.setitem(sys.modules, "faster_whisper", faster_whisper_module)
+
+    manager = ModelManager()
+    monkeypatch.setattr(manager, "ensure_model_downloaded", MagicMock(return_value="local-model"))
+
+    cuda_model = manager.load_model("base", "cuda")
+    assert manager.load_model("base", "cuda") is cuda_model
+    cpu_model = manager.load_model("base", "cpu")
+
+    assert cpu_model is not cuda_model
+    assert created == [("cuda", "float16"), ("cpu", "int8")]

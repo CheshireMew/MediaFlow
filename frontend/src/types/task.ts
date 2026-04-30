@@ -5,8 +5,17 @@ import type {
   TaskTraceItem,
 } from "../contracts/taskContract";
 import type { PipelineRequest } from "./generatedApi";
+import type { TaskView } from "./generatedApi";
 import type { TaskType } from "../contracts/generatedTaskCatalog";
+import type {
+  TaskLifecycle,
+  TaskPersistenceScope,
+  TaskQueueState,
+  TaskSource,
+  TaskStatus,
+} from "../contracts/runtimeContracts";
 export type { TaskType } from "../contracts/generatedTaskCatalog";
+export type { TaskStatus } from "../contracts/runtimeContracts";
 
 export interface SubtitleSegment {
   id: number | string;
@@ -33,7 +42,6 @@ export interface TaskMeta {
 }
 
 export interface TaskRequestParams {
-  __desktop_worker?: boolean;
   steps?: PipelineRequest["steps"];
   video_ref?: TaskMediaRef | null;
   subtitle_ref?: TaskMediaRef | null;
@@ -50,30 +58,31 @@ export interface TaskResult extends Omit<TaskResultShape, "segments" | "meta"> {
   meta?: TaskMeta;
 }
 
-export type TaskStatus =
-  | "pending"
-  | "running"
-  | "processing_result"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "paused";
-
-export interface Task {
-  id: string;
+export interface Task extends Omit<
+  TaskView,
+  | "type"
+  | "status"
+  | "task_source"
+  | "task_contract_version"
+  | "persistence_scope"
+  | "lifecycle"
+  | "result"
+  | "request_params"
+  | "queue_state"
+  | "name"
+  | "message"
+  | "error"
+> {
   type: TaskType;
   status: TaskStatus;
-  task_source?: "desktop" | "backend";
-  task_contract_version?: number;
-  persistence_scope?: "runtime" | "history";
-  lifecycle?: import("../contracts/runtimeContracts").TaskLifecycle;
-  progress: number;
+  task_source: TaskSource;
+  task_contract_version: number;
+  persistence_scope: TaskPersistenceScope;
+  lifecycle: TaskLifecycle;
   name?: string;
   message?: string;
-  error?: string;
+  error?: string | null;
   result?: TaskResult;
   request_params?: TaskRequestParams;
-  created_at: number;
-  queue_state?: "queued" | "running" | "paused" | "cancelled" | "completed" | "failed" | "idle";
-  queue_position?: number | null;
+  queue_state: TaskQueueState;
 }

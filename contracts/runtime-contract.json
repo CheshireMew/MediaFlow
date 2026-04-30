@@ -1,8 +1,32 @@
 {
   "task_contract_version": 2,
   "desktop_bridge_contract_version": 1,
-  "desktop_task_owner_mode": "desktop",
-  "web_task_owner_mode": "backend",
+  "task_owner_mode": "backend",
+  "task_statuses": [
+    "pending",
+    "running",
+    "processing_result",
+    "completed",
+    "failed",
+    "cancelled",
+    "paused"
+  ],
+  "task_sources": [
+    "backend"
+  ],
+  "task_persistence_scopes": [
+    "runtime",
+    "history"
+  ],
+  "task_queue_states": [
+    "queued",
+    "running",
+    "paused",
+    "cancelled",
+    "completed",
+    "failed",
+    "idle"
+  ],
   "features": {
     "preprocessing": true
   },

@@ -38,28 +38,5 @@
     "synthesize": {
       "task_type": "synthesis"
     }
-  },
-  "desktop_task_commands": {
-    "download": {
-      "task_type": "download"
-    },
-    "transcribe": {
-      "task_type": "transcribe"
-    },
-    "translate": {
-      "task_type": "translate"
-    },
-    "synthesize": {
-      "task_type": "synthesis"
-    },
-    "extract": {
-      "task_type": "extract"
-    },
-    "enhance": {
-      "task_type": "enhancement"
-    },
-    "clean": {
-      "task_type": "cleanup"
-    }
   }
 }

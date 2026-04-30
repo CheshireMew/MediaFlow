@@ -5,6 +5,7 @@ from backend.services.settings_manager import UserSettings
 from backend.application.pipeline_submission_service import PipelineSubmissionService
 from backend.application.task_request_deduplicator import TaskRequestDeduplicator
 from backend.application.task_resume_service import TaskResumeService
+from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
 from backend.core.tasks.registry import build_task_runner
 
 
@@ -110,7 +111,17 @@ class TaskOrchestrator:
             build_task_runner(task),
             queued_message=queued_message,
         )
-        return {"task_id": task_id, "status": "pending", "message": queued_message}
+        return {
+            "task_id": task_id,
+            "status": "pending",
+            "message": queued_message,
+            "task_source": "backend",
+            "task_contract_version": TASK_CONTRACT_VERSION,
+            "persistence_scope": "runtime",
+            "lifecycle": TASK_LIFECYCLE["resumable"],
+            "queue_state": "queued",
+            "queue_position": None,
+        }
 
     async def resume_task(self, task_id: str) -> dict:
         task = self.get_task(task_id)

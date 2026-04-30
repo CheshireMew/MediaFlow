@@ -2,8 +2,8 @@ from fastapi import APIRouter, HTTPException
 from loguru import logger
 
 from backend.application.task_operations import (
-    execute_task_operation_immediate,
-    queue_task_operation,
+    run_task_operation,
+    submit_task_operation,
 )
 from backend.models.schemas import TranscribeRequest, TranscribeSegmentRequest, TaskResponse
 from backend.utils.path_validator import validate_input_file
@@ -20,8 +20,8 @@ async def transcribe_audio(req: TranscribeRequest):
     logger.info(f"Received transcription request: {req.model_dump()}")
     try:
         validate_input_file(req.audio_ref.path, label="audio_ref.path")
-        response = await queue_task_operation("transcribe", req)
-        return TaskResponse(task_id=response["task_id"], status=response["status"])
+        response = await submit_task_operation("transcribe", req)
+        return TaskResponse(**response)
     except ValueError as e:
         logger.warning(f"Rejected transcription request: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -53,13 +53,14 @@ async def transcribe_segment(req: TranscribeSegmentRequest):
 
     # HYBRID STRATEGY
     if duration > 30:
-        response = await queue_task_operation("transcribe_segment", req)
-        
-        return TaskResponse(task_id=response["task_id"], status="pending", message="Segment too long, processing in background")
+        response = await submit_task_operation("transcribe_segment", req)
+        return TaskResponse.model_validate(
+            {**response, "message": "Segment too long, processing in background"}
+        )
 
     else:
         try:
-            return await execute_task_operation_immediate("transcribe_segment", req)
+            return await run_task_operation("transcribe_segment", req, execution="immediate")
         except HTTPException:
             raise
         except Exception as e:

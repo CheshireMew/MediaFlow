@@ -16,7 +16,6 @@ import {
 } from "../../services/ui/mediaReference";
 import {
   isTaskActive,
-  isTaskRecoverable,
 } from "../../services/tasks/taskRuntimeState";
 
 export const isTranslatorMode = (value: unknown): value is TranslatorMode =>
@@ -100,7 +99,7 @@ export const findActiveTranslationTask = (
 ): Task | undefined =>
   tasks.find((task) => {
     if (task.type !== "translate") return false;
-    if (!isTaskRecoverable(task)) {
+    if (!isTaskActive(task)) {
       return false;
     }
 
@@ -139,7 +138,7 @@ export const findActiveTranscribeTask = (
   filePath: string | null | undefined,
 ): Task | undefined =>
   tasks.find((task) => {
-    if (!isTaskRecoverable(task)) return false;
+    if (!isTaskActive(task)) return false;
     if (!hasTranscribeStep(task)) return false;
 
     const mediaIdentity = resolveMediaReferencePath(fileRef);

@@ -4,7 +4,7 @@ import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -174,7 +174,7 @@ def build_operation_runner(task: Task):
     return lambda: operation.background(task.id, request)
 
 
-async def queue_task_operation(task_type: str, request: BaseModel) -> dict:
+async def submit_task_operation(task_type: str, request: BaseModel) -> dict:
     operation = task_operation(task_type)
     typed_request = operation.request_model.model_validate(request)
     if operation.before_queue:
@@ -188,38 +188,21 @@ async def queue_task_operation(task_type: str, request: BaseModel) -> dict:
     )
 
 
-def execute_task_operation(
+async def run_task_operation(
     task_type: str,
     request: BaseModel | dict[str, Any],
     *,
     progress_callback=None,
     task_id: str | None = None,
+    execution: Literal["desktop", "immediate"] = "desktop",
 ) -> Any:
     operation = task_operation(task_type)
-    if operation.desktop is None:
-        raise ValueError(f"Task operation has no desktop executor: {task_type}")
-    typed_request = operation.request_model.model_validate(request)
-    return _call_with_supported_kwargs(
-        operation.desktop,
-        typed_request,
-        {"progress_callback": progress_callback, "task_id": task_id},
-    )
-
-
-async def execute_task_operation_immediate(
-    task_type: str,
-    request: BaseModel | dict[str, Any],
-    *,
-    progress_callback=None,
-    task_id: str | None = None,
-) -> Any:
-    operation = task_operation(task_type)
-    immediate = operation.immediate or operation.desktop
-    if immediate is None:
-        raise ValueError(f"Task operation has no immediate executor: {task_type}")
+    executor = operation.immediate if execution == "immediate" else operation.desktop
+    if executor is None:
+        raise ValueError(f"Task operation has no {execution} executor: {task_type}")
     typed_request = operation.request_model.model_validate(request)
     result = _call_with_supported_kwargs(
-        immediate,
+        executor,
         typed_request,
         {"progress_callback": progress_callback, "task_id": task_id},
     )

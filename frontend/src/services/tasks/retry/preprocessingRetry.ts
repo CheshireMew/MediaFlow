@@ -9,7 +9,6 @@ import {
   isFiniteNumber,
   isRoiTuple,
   readOptionalString,
-  resolveRetryTaskId,
 } from "./taskParams";
 
 type OcrEngine = OCRExtractRequest["engine"];
@@ -31,7 +30,6 @@ async function submitExtractRetry(task: Task): Promise<RetrySubmission | null> {
   const engine: OcrEngine = isOcrEngine(params.engine) ? params.engine : "rapid";
   const sampleRate = isFiniteNumber(params.sample_rate) ? params.sample_rate : undefined;
   const outcome = await preprocessingService.extractText({
-    task_id: resolveRetryTaskId(task),
     video_ref: videoRef,
     roi,
     engine,
@@ -66,7 +64,6 @@ async function submitEnhanceRetry(task: Task): Promise<RetrySubmission | null> {
   const scale = readOptionalString(params.scale);
   const method = readOptionalString(params.method);
   const outcome = await preprocessingService.enhanceVideo({
-    task_id: resolveRetryTaskId(task),
     video_ref: videoRef,
     model,
     scale,
@@ -100,7 +97,6 @@ async function submitCleanRetry(task: Task): Promise<RetrySubmission | null> {
   }
   const method = readOptionalString(params.method);
   const outcome = await preprocessingService.cleanVideo({
-    task_id: resolveRetryTaskId(task),
     video_ref: videoRef,
     roi,
     method,
@@ -125,4 +121,3 @@ export const preprocessingRetryHandlers: RetryHandler[] = [
   { accepts: (task) => task.type === "enhancement", submit: submitEnhanceRetry },
   { accepts: (task) => task.type === "cleanup", submit: submitCleanRetry },
 ];
-

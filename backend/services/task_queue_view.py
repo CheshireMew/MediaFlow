@@ -1,6 +1,7 @@
 from typing import Optional
 
-from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
+from backend.contracts import TASK_LIFECYCLE
+from backend.models.schemas import TaskView
 from backend.models.task_model import Task
 
 
@@ -31,7 +32,7 @@ class TaskQueueView:
         running_ids: set[str],
         queued_ids: set[str],
         queued_order: list[str],
-    ) -> dict:
+    ) -> TaskView:
         data = task.model_dump(mode="json")
         queue_state = "idle"
         queue_position = None
@@ -52,11 +53,7 @@ class TaskQueueView:
 
         data["queue_state"] = queue_state
         data["queue_position"] = queue_position
-        data["task_source"] = "backend"
-        data["task_contract_version"] = TASK_CONTRACT_VERSION
-        data["persistence_scope"] = self.get_persistence_scope(task)
-        data["lifecycle"] = self.get_lifecycle(task)
-        return data
+        return TaskView.model_validate(data)
 
     @staticmethod
     def get_queue_summary(max_concurrent: int, running_ids: set[str], queued_ids: set[str]) -> dict:

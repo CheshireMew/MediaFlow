@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
 
 import { useTaskStore } from "../hooks/tasks/useTaskStore";
 import { SUPPORTED_TASK_CONTRACT_VERSION } from "../context/taskSources";
@@ -17,6 +18,7 @@ describe("useTaskStore", () => {
       result.current.applyMessage({
         type: "update",
         task: {
+          ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-unsupported",
           type: "pipeline",
           status: "pending",
@@ -39,6 +41,7 @@ describe("useTaskStore", () => {
         type: "snapshot",
         tasks: [
           {
+            ...BACKEND_TASK_CONTRACT_FIELDS,
             id: "task-supported",
             type: "pipeline",
             status: "pending",
@@ -47,6 +50,7 @@ describe("useTaskStore", () => {
             task_contract_version: SUPPORTED_TASK_CONTRACT_VERSION,
           },
           {
+            ...BACKEND_TASK_CONTRACT_FIELDS,
             id: "task-unsupported",
             type: "pipeline",
             status: "pending",

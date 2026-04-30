@@ -4,20 +4,17 @@ import type { MediaReference } from "../ui/mediaReference";
 import { requireExecutionMediaReference } from "./executionPayload";
 import {
   executeBackendDirectCall,
-  executeDesktopTaskSubmission,
+  executeTaskSubmission,
 } from "./executionExecutor";
 
 export const preprocessingService = {
   async extractText(payload: OCRExtractRequest & { task_id?: string }): Promise<ExecutionOutcome> {
-    return await executeDesktopTaskSubmission({
+    return await executeTaskSubmission({
       payload,
       normalizePayload: (nextPayload) => ({
         ...nextPayload,
         video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Preprocessing video"),
       }),
-      desktopMethod: "desktopExtract",
-      desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
-      desktopTaskIdPrefix: "desktop-extract",
       backendSubmit: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.extractText(normalizedPayload),
@@ -32,6 +29,7 @@ export const preprocessingService = {
       payload: videoRef,
       desktopMethod: "getDesktopOcrResults",
       desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
+      mapDesktopArgs: (resolvedVideoRef) => [{ video_ref: resolvedVideoRef }] as [{ video_ref: MediaReference }],
       backendCall: (resolvedVideoRef) =>
         import("../../api/client").then(({ apiClient }) => apiClient.getOcrResults(resolvedVideoRef)),
     });
@@ -44,15 +42,12 @@ export const preprocessingService = {
     method?: string;
     task_id?: string;
   }): Promise<ExecutionOutcome> {
-    return await executeDesktopTaskSubmission({
+    return await executeTaskSubmission({
       payload,
       normalizePayload: (nextPayload) => ({
         ...nextPayload,
         video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Preprocessing video"),
       }),
-      desktopMethod: "desktopEnhance",
-      desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
-      desktopTaskIdPrefix: "desktop-enhance",
       backendSubmit: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.enhanceVideo(normalizedPayload),
@@ -66,15 +61,12 @@ export const preprocessingService = {
     method?: string;
     task_id?: string;
   }): Promise<ExecutionOutcome> {
-    return await executeDesktopTaskSubmission({
+    return await executeTaskSubmission({
       payload,
       normalizePayload: (nextPayload) => ({
         ...nextPayload,
         video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Preprocessing video"),
       }),
-      desktopMethod: "desktopClean",
-      desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
-      desktopTaskIdPrefix: "desktop-clean",
       backendSubmit: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.cleanVideo(normalizedPayload),

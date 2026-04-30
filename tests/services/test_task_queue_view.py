@@ -1,12 +1,16 @@
+from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
 from backend.models.task_model import Task
-from backend.services.task_queue_view import TASK_CONTRACT_VERSION, TaskQueueView
+from backend.services.task_queue_view import TaskQueueView
 
 
 def create_task(task_id: str, status: str) -> Task:
+    terminal = status in {"completed", "failed", "cancelled"}
     return Task(
         id=task_id,
         type="test",
         status=status,
+        persistence_scope="history" if terminal else "runtime",
+        lifecycle=TASK_LIFECYCLE["history_only"] if terminal else TASK_LIFECYCLE["resumable"],
         progress=0.0,
         message="",
         request_params={},
@@ -22,7 +26,7 @@ def test_serialize_task_marks_active_backend_tasks_as_runtime():
         running_ids={"task-runtime"},
         queued_ids=set(),
         queued_order=[],
-    )
+    ).model_dump(mode="json")
 
     assert payload["queue_state"] == "running"
     assert payload["task_source"] == "backend"
@@ -40,7 +44,7 @@ def test_serialize_task_marks_terminal_backend_tasks_as_history():
         running_ids=set(),
         queued_ids=set(),
         queued_order=[],
-    )
+    ).model_dump(mode="json")
 
     assert payload["queue_state"] == "completed"
     assert payload["task_source"] == "backend"
@@ -71,7 +75,7 @@ def test_serialize_translate_task_does_not_add_empty_video_ref_slot():
         running_ids={"task-translate-no-video"},
         queued_ids=set(),
         queued_order=[],
-    )
+    ).model_dump(mode="json")
 
     assert "video_ref" not in payload["request_params"]
 
@@ -82,6 +86,8 @@ def test_serialize_task_preserves_native_structured_refs_without_path_normalizat
         id="task-native-refs",
         type="translate",
         status="completed",
+        persistence_scope="history",
+        lifecycle=TASK_LIFECYCLE["history_only"],
         progress=100.0,
         message="",
         request_params={
@@ -119,7 +125,7 @@ def test_serialize_task_preserves_native_structured_refs_without_path_normalizat
         running_ids=set(),
         queued_ids=set(),
         queued_order=[],
-    )
+    ).model_dump(mode="json")
 
     assert payload["request_params"]["context_ref"]["path"] == "E:/subs/demo.srt"
     assert payload["result"]["meta"]["subtitle_ref"]["path"] == "E:/subs/demo_zh.srt"

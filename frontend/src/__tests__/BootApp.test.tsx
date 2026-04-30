@@ -6,6 +6,7 @@ import { installElectronMock, type MockedElectronAPI } from "./testUtils/electro
 
 const getSettingsMock = vi.fn();
 const changeLanguageMock = vi.fn();
+const checkHealthMock = vi.fn();
 
 vi.mock("../App", () => ({
   default: ({
@@ -32,6 +33,12 @@ vi.mock("../services/domain", () => ({
   },
 }));
 
+vi.mock("../api/client", () => ({
+  apiClient: {
+    checkHealth: (...args: unknown[]) => checkHealthMock(...args),
+  },
+}));
+
 vi.mock("../i18n", () => ({
   default: {
     t: (key: string) => key,
@@ -47,6 +54,7 @@ describe("BootApp", () => {
     resetDesktopRuntimeInfoCache();
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    checkHealthMock.mockResolvedValue({ status: "ok" });
     electronMock = installElectronMock();
   });
 

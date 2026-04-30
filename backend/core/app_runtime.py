@@ -18,6 +18,16 @@ class ApplicationRuntime:
     def register_task_runners(self) -> None:
         register_all_task_runners()
         validate_required_task_runners()
+        from backend.models.schemas import PIPELINE_STEP_PARAM_MODELS
+        from backend.core.task_catalog import pipeline_step_names
+
+        configured_steps = pipeline_step_names()
+        model_steps = set(PIPELINE_STEP_PARAM_MODELS)
+        if configured_steps != model_steps:
+            raise RuntimeError(
+                "Pipeline step model/catalog mismatch: "
+                f"catalog={sorted(configured_steps)}, models={sorted(model_steps)}"
+            )
 
     async def start(self) -> int:
         registered_count = self.register_services()

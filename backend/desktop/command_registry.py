@@ -4,7 +4,6 @@ from importlib import import_module
 from typing import Any
 
 from backend.contracts import DESKTOP_WORKER_CONTRACT
-from backend.core.task_catalog import desktop_task_commands
 
 
 WorkerCommandHandler = Callable[[str | None, dict[str, Any]], None]
@@ -18,6 +17,7 @@ class WorkerCommandDefinition:
     module: str | None
     requires_runtime: bool = True
     execution_lane: str = "control"
+    payload_model: str | None = None
 
 
 def _definition_from_contract(raw: dict[str, Any]) -> WorkerCommandDefinition:
@@ -28,24 +28,24 @@ def _definition_from_contract(raw: dict[str, Any]) -> WorkerCommandDefinition:
         module=module,
         requires_runtime=bool(raw.get("requiresRuntime", True)),
         execution_lane=str(raw.get("executionLane", "control")),
+        payload_model=raw.get("payloadModel") if isinstance(raw.get("payloadModel"), str) else None,
     )
 
 
 def _load_command_definitions() -> dict[str, WorkerCommandDefinition]:
     definitions: dict[str, WorkerCommandDefinition] = {}
-    catalog_task_commands = desktop_task_commands()
 
     for raw in DESKTOP_WORKER_CONTRACT["invocations"].values():
         command = raw["workerCommand"]
         definition = _definition_from_contract(raw)
-        if definition.execution_lane == "task" and command not in catalog_task_commands:
-            raise RuntimeError(f"Desktop task command is not in task catalog: {command}")
+        if definition.execution_lane == "task":
+            raise RuntimeError(f"Desktop worker contract cannot own task command: {command}")
         definitions[command] = definition
 
     for command, raw in DESKTOP_WORKER_CONTRACT.get("workerCommands", {}).items():
         definition = _definition_from_contract(raw)
-        if definition.execution_lane == "task" and command not in catalog_task_commands:
-            raise RuntimeError(f"Desktop task command is not in task catalog: {command}")
+        if definition.execution_lane == "task":
+            raise RuntimeError(f"Desktop worker contract cannot own task command: {command}")
         definitions[command] = definition
 
     return definitions
@@ -91,4 +91,19 @@ def dispatch_worker_command(command: str, request_id: str | None, payload: dict[
     handler = _COMMAND_HANDLERS.get(command)
     if handler is None:
         raise ValueError(f"Unknown worker command: {command}")
-    handler(request_id, payload)
+    handler(request_id, validate_worker_payload(command, payload))
+
+
+def validate_worker_payload(command: str, payload: dict[str, Any]) -> dict[str, Any]:
+    definition = get_worker_command_definition(command)
+    if not definition.payload_model:
+        return payload
+
+    module_name, class_name = definition.payload_model.rsplit(".", 1)
+    model_cls = getattr(import_module(module_name), class_name)
+    model = model_cls.model_validate(payload)
+    validated = model.model_dump(mode="json")
+    for key in ("task_id", "created_at"):
+        if key in payload:
+            validated[key] = payload[key]
+    return validated

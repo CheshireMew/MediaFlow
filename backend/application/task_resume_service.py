@@ -1,8 +1,7 @@
-import time
-
 from loguru import logger
 
 from backend.core.tasks.registry import build_task_runner
+from backend.models.task_model import task_timestamp_ms
 
 
 class TaskResumeService:
@@ -17,7 +16,7 @@ class TaskResumeService:
             status="pending",
             progress=0.0,
             message=message,
-            created_at=time.time(),
+            created_at=task_timestamp_ms(),
             result=None,
             error=None,
             cancelled=False,

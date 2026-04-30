@@ -68,6 +68,8 @@ def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypa
     assert result.success is True
     config = mock_execute.call_args.args[0]
     assert config.initial_prompt is None
+    cmd = asr_service.adapter.build_command(config)
+    assert cmd[cmd.index("--initial_prompt") + 1] == "None"
 
 
 def test_split_audio_physically_uses_precise_wav_chunks(monkeypatch, tmp_path):
@@ -200,3 +202,52 @@ def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, m
         )
 
     assert load_calls["count"] == 0
+
+
+def test_builtin_cuda_runtime_error_retries_on_cpu(asr_service, monkeypatch, tmp_path):
+    audio_path = tmp_path / "sample.mp4"
+    audio_path.write_bytes(b"fake-audio")
+
+    monkeypatch.setattr("backend.services.asr.service.os.path.exists", lambda path: True)
+    monkeypatch.setattr("backend.services.asr.service.AudioProcessor.get_audio_duration", lambda path: 12.0)
+    monkeypatch.setattr(
+        "backend.services.asr.service.SubtitleWriter.save_srt",
+        lambda segments, path: tmp_path / "sample.srt",
+    )
+
+    loaded_devices: list[str] = []
+
+    def fake_load_model(_model_name, device, _progress_callback=None):
+        loaded_devices.append(device)
+        return MagicMock()
+
+    calls = {"count": 0}
+
+    def fake_transcribe_direct(*_args, **_kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("Library cublas64_12.dll is not found or cannot be loaded")
+        return [
+            SubtitleSegment(id="1", start=0.0, end=1.0, text="hello"),
+        ]
+
+    monkeypatch.setattr(asr_service.model_manager, "load_model", fake_load_model)
+    monkeypatch.setattr(asr_service.model_manager, "clear_loaded_model", MagicMock())
+    monkeypatch.setattr(asr_service.core_strategies, "transcribe_direct", fake_transcribe_direct)
+
+    emitted: list[tuple[float, str]] = []
+    result = asr_service.transcribe(
+        audio_path=str(audio_path),
+        model_name="base",
+        device="cuda",
+        language="en",
+        engine="builtin",
+        progress_callback=lambda progress, message: emitted.append((progress, message)),
+        generate_peaks=False,
+    )
+
+    assert result.success is True
+    assert loaded_devices == ["cuda", "cpu"]
+    assert calls["count"] == 2
+    assert any("Retrying transcription on CPU" in message for _progress, message in emitted)
+    asr_service.model_manager.clear_loaded_model.assert_called_once()

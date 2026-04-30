@@ -1,5 +1,7 @@
-from pydantic import BaseModel, HttpUrl, Field
-from typing import Optional, List, Union, Dict, Any, Literal, Annotated
+﻿from pydantic import BaseModel, HttpUrl, Field, model_validator
+from typing import Optional, List, Dict, Any, Literal
+
+from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
 
 class DownloadRequest(BaseModel):
     url: HttpUrl
@@ -53,16 +55,45 @@ class TranscribeResponse(BaseModel):
     text: str
     language: str | None
 
-class TaskResponse(BaseModel):
+class TaskSubmissionMetadata(BaseModel):
+    task_source: Literal["backend"]
+    task_contract_version: int
+    persistence_scope: str
+    lifecycle: str
+    queue_state: str
+    queue_position: Optional[int]
+
+
+class TaskResponse(TaskSubmissionMetadata):
     task_id: str
     status: str
     message: str = "Task started"
 
 
-class TranslateResponse(BaseModel):
+class TaskView(BaseModel):
+    id: str
+    type: str
+    status: str
+    task_source: Literal["backend"]
+    task_contract_version: int
+    persistence_scope: str
+    lifecycle: str
+    progress: float
+    name: Optional[str] = None
+    message: str = ""
+    error: Optional[str] = None
+    result: Optional[Dict[str, Any]] = None
+    request_params: Optional[Dict[str, Any]] = None
+    created_at: int
+    queue_state: str
+    queue_position: Optional[int] = None
+
+
+class TranslateResponse(TaskSubmissionMetadata):
     task_id: str
     status: str
     segments: Optional[List[SubtitleSegment]] = None
+    message: str = "Task started"
 
 # Step Params (used in PipelineStepRequest discriminated union)
 
@@ -126,7 +157,7 @@ class OCRExtractRequest(BaseModel):
     sample_rate: int = 2
 
 
-class OCRExtractResponse(BaseModel):
+class OCRExtractResponse(TaskSubmissionMetadata):
     task_id: str
     status: str = "queued"
     message: str = "OCR task started"
@@ -146,35 +177,34 @@ class CleanRequest(BaseModel):
     method: str = "telea"
 
 
-class PreprocessingResponse(BaseModel):
+class PreprocessingResponse(TaskSubmissionMetadata):
     task_id: str
     status: str
     message: str
 
-class BaseStepRequest(BaseModel):
+PIPELINE_STEP_PARAM_MODELS: dict[str, type[BaseModel]] = {
+    "download": DownloadParams,
+    "transcribe": TranscribeParams,
+    "translate": TranslateParams,
+    "synthesize": SynthesizeParams,
+}
+
+class PipelineStepRequest(BaseModel):
     step_name: str
+    params: Any
 
-class DownloadStepRequest(BaseStepRequest):
-    step_name: Literal["download"]
-    params: DownloadParams
+    @model_validator(mode="after")
+    def validate_catalog_step(self):
+        from backend.core.task_catalog import pipeline_step_names
 
-class TranscribeStepRequest(BaseStepRequest):
-    step_name: Literal["transcribe"]
-    params: TranscribeParams
-
-class TranslateStepRequest(BaseStepRequest):
-    step_name: Literal["translate"]
-    params: TranslateParams
-
-class SynthesizeStepRequest(BaseStepRequest):
-    step_name: Literal["synthesize"]
-    params: SynthesizeParams
-
-# Discriminated Union — must list ALL step types for Pydantic validation
-PipelineStepRequest = Annotated[
-    Union[DownloadStepRequest, TranscribeStepRequest, TranslateStepRequest, SynthesizeStepRequest],
-    Field(discriminator="step_name")
-]
+        if self.step_name not in pipeline_step_names():
+            raise ValueError(f"Unknown pipeline step: {self.step_name}")
+        param_model = PIPELINE_STEP_PARAM_MODELS.get(self.step_name)
+        if param_model is None:
+            raise ValueError(f"Pipeline step has no parameter model: {self.step_name}")
+        if not isinstance(self.params, param_model):
+            self.params = param_model.model_validate(self.params)
+        return self
 
 class PipelineRequest(BaseModel):
     pipeline_id: str = "default_ingest_flow"

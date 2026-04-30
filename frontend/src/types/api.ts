@@ -26,12 +26,13 @@ import type {
 export type {
   AnalyzeResult,
   CleanRequest,
+  CreateGlossaryTermRequest,
   DownloadParams,
-  DownloadStepRequest,
   EnhanceRequest,
   FileRef,
   GlossaryTerm,
   MediaReference,
+  PipelineStepRequest,
   PipelineRequest,
   PlaylistItem,
   PreprocessingResponse,
@@ -44,6 +45,8 @@ export type {
   TranslateParams,
   TranslateResponse,
   FasterWhisperCliInstallResponse,
+  CudaReadinessResponse,
+  RuntimeDependencyCheck,
 } from "./generatedApi";
 
 export type LLMProvider = Omit<GeneratedLLMProvider, "is_active"> & {
@@ -76,11 +79,11 @@ export interface StatusMessageResponse extends MessageResponse {
 }
 
 export interface TaskSubmissionReceipt extends TaskResponse {
-  task_source?: "desktop" | "backend";
-  task_contract_version?: number;
-  persistence_scope?: "runtime" | "history";
-  lifecycle?: import("../contracts/runtimeContracts").TaskLifecycle;
-  queue_state?:
+  task_source: import("../contracts/runtimeContracts").TaskSource;
+  task_contract_version: number;
+  persistence_scope: "runtime" | "history";
+  lifecycle: import("../contracts/runtimeContracts").TaskLifecycle;
+  queue_state:
     | "queued"
     | "running"
     | "paused"
@@ -88,7 +91,7 @@ export interface TaskSubmissionReceipt extends TaskResponse {
     | "completed"
     | "failed"
     | "idle";
-  queue_position?: number | null;
+  queue_position: number | null;
 }
 
 export interface HealthResponse {

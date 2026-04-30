@@ -194,7 +194,7 @@ describe("TaskMonitor integration", () => {
     });
   });
 
-  it("hides backend task controls in desktop single-source mode", () => {
+  it("hides remote-task-only controls in desktop presentation mode", () => {
     isDesktopRuntimeMock.mockReturnValue(true);
 
     render(<TaskMonitor />);
@@ -235,26 +235,25 @@ describe("TaskMonitor integration", () => {
     });
   });
 
-  it("calls deleteTask for a running desktop worker task", async () => {
+  it("calls deleteTask for a running backend task", async () => {
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
-          id: "desktop-task",
+          id: "backend-task",
           type: "transcribe",
           status: "running",
           progress: 40,
-          name: "Desktop task",
+          name: "Backend task",
           message: "Processing",
           created_at: 2,
           request_params: {
-            __desktop_worker: true,
           },
         },
       ],
       connected: false,
       remoteTasksReady: false,
       tasksSettled: false,
-      taskOwnerMode: "desktop",
+      taskOwnerMode: "backend",
       pauseLocalTasks: pauseLocalTasksMock,
       pauseRemoteTasks: pauseRemoteTasksMock,
       pauseAllTasks: pauseAllTasksMock,
@@ -267,36 +266,35 @@ describe("TaskMonitor integration", () => {
 
     render(<TaskMonitor />);
 
-    const taskRow = screen.getByText("Desktop task").closest(".group") as HTMLElement | null;
-    if (!taskRow) throw new Error("Desktop task row not found");
+    const taskRow = screen.getByText("Backend task").closest(".group") as HTMLElement | null;
+    if (!taskRow) throw new Error("Backend task row not found");
 
     fireEvent.click(within(taskRow).getByTitle("actions.delete.tooltip"));
 
     await waitFor(() => {
-      expect(deleteTaskMock).toHaveBeenCalledWith("desktop-task");
+      expect(deleteTaskMock).toHaveBeenCalledWith("backend-task");
     });
   });
 
-  it("calls resumeTask for a paused desktop worker task", async () => {
+  it("calls resumeTask for a paused backend task", async () => {
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
-          id: "paused-desktop-task",
+          id: "paused-backend-task",
           type: "transcribe",
           status: "paused",
           progress: 40,
-          name: "Paused desktop task",
+          name: "Paused backend task",
           message: "Paused",
           created_at: 2,
           request_params: {
-            __desktop_worker: true,
           },
         },
       ],
       connected: false,
       remoteTasksReady: false,
       tasksSettled: false,
-      taskOwnerMode: "desktop",
+      taskOwnerMode: "backend",
       pauseLocalTasks: pauseLocalTasksMock,
       pauseRemoteTasks: pauseRemoteTasksMock,
       pauseAllTasks: pauseAllTasksMock,
@@ -309,13 +307,13 @@ describe("TaskMonitor integration", () => {
 
     render(<TaskMonitor />);
 
-    const taskRow = screen.getByText("Paused desktop task").closest(".group") as HTMLElement | null;
-    if (!taskRow) throw new Error("Paused desktop task row not found");
+    const taskRow = screen.getByText("Paused backend task").closest(".group") as HTMLElement | null;
+    if (!taskRow) throw new Error("Paused backend task row not found");
 
     fireEvent.click(within(taskRow).getByTitle("actions.resume.tooltip"));
 
     await waitFor(() => {
-      expect(resumeTaskMock).toHaveBeenCalledWith("paused-desktop-task");
+      expect(resumeTaskMock).toHaveBeenCalledWith("paused-backend-task");
     });
   });
 

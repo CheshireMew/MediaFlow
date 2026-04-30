@@ -29,38 +29,31 @@ vi.mock("../services/desktop", () => ({
   requireDesktopApiMethod: vi.fn(),
 }));
 
+const backendReceipt = (task_id: string) => ({
+  task_id,
+  status: "pending",
+  task_source: "backend",
+  task_contract_version: 2,
+  persistence_scope: "runtime",
+  lifecycle: "resumable",
+  queue_state: "queued",
+  queue_position: null,
+});
+
 describe("service media contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiClientMock.getSettings.mockResolvedValue(createMockUserSettings());
-    apiClientMock.synthesizeVideo.mockResolvedValue({
-      task_id: "task-synthesize",
-      status: "pending",
-    });
-    apiClientMock.runPipeline.mockResolvedValue({
-      task_id: "task-transcribe",
-      status: "pending",
-    });
-    apiClientMock.startTranslation.mockResolvedValue({
-      task_id: "task-translate",
-      status: "pending",
-    });
-    apiClientMock.extractText.mockResolvedValue({
-      task_id: "task-extract",
-      status: "pending",
-    });
+    apiClientMock.synthesizeVideo.mockResolvedValue(backendReceipt("task-synthesize"));
+    apiClientMock.runPipeline.mockResolvedValue(backendReceipt("task-transcribe"));
+    apiClientMock.startTranslation.mockResolvedValue(backendReceipt("task-translate"));
+    apiClientMock.extractText.mockResolvedValue(backendReceipt("task-extract"));
     apiClientMock.getOcrResults.mockResolvedValue({
       events: [],
     });
     apiClientMock.getPeaks.mockResolvedValue(new ArrayBuffer(8));
-    apiClientMock.enhanceVideo.mockResolvedValue({
-      task_id: "task-enhance",
-      status: "pending",
-    });
-    apiClientMock.cleanVideo.mockResolvedValue({
-      task_id: "task-clean",
-      status: "pending",
-    });
+    apiClientMock.enhanceVideo.mockResolvedValue(backendReceipt("task-enhance"));
+    apiClientMock.cleanVideo.mockResolvedValue(backendReceipt("task-clean"));
   });
 
   it("keeps video and subtitle refs in backend synthesis submissions", async () => {

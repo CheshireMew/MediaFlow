@@ -36,6 +36,7 @@ from backend.models.schemas import (
     SynthesisRequest,
     SynthesizeParams,
     TaskResponse,
+    TaskView,
     TaskResult,
     TextEvent,
     TranscribeParams,
@@ -44,6 +45,7 @@ from backend.models.schemas import (
     TranslateParams,
     TranslateResponse,
 )
+from backend.services.runtime_diagnostics import CudaReadinessResponse, RuntimeDependencyCheck
 from backend.services.settings_manager import LLMProvider, UserSettings
 
 OUTPUT = REPO_ROOT / "frontend" / "src" / "types" / "generatedApi.ts"
@@ -55,6 +57,7 @@ MODELS: list[type[BaseModel]] = [
     FileRef,
     TaskResult,
     TaskResponse,
+    TaskView,
     TranslateResponse,
     DownloadParams,
     TranscribeParams,
@@ -78,6 +81,8 @@ MODELS: list[type[BaseModel]] = [
     ProviderConnectionRequest,
     ToolUpdateResponse,
     FasterWhisperCliInstallResponse,
+    RuntimeDependencyCheck,
+    CudaReadinessResponse,
     CreateGlossaryTermRequest,
     UpdateGlossaryTermRequest,
     PipelineRequest,
@@ -179,7 +184,6 @@ def _definition_interfaces() -> list[str]:
 def _write_task_catalog() -> None:
     catalog = json.loads((REPO_ROOT / "contracts" / "task-catalog.json").read_text(encoding="utf-8"))
     task_types = ", ".join(_string_literal(item) for item in catalog["task_types"])
-    desktop_commands = ", ".join(_string_literal(item) for item in catalog["desktop_task_commands"].keys())
     step_names = ", ".join(_string_literal(item) for item in catalog["pipeline_steps"].keys())
     TASK_CATALOG_OUTPUT.write_text(
         "\n".join(
@@ -190,17 +194,8 @@ def _write_task_catalog() -> None:
                 f"export const TASK_TYPES = [{task_types}] as const;",
                 "export type TaskType = (typeof TASK_TYPES)[number];",
                 "",
-                f"export const DESKTOP_TASK_COMMANDS = [{desktop_commands}] as const;",
-                "export type DesktopTaskCommand = (typeof DESKTOP_TASK_COMMANDS)[number];",
-                "",
                 f"export const PIPELINE_STEP_NAMES = [{step_names}] as const;",
                 "export type PipelineStepName = (typeof PIPELINE_STEP_NAMES)[number];",
-                "",
-                "export const DESKTOP_TASK_COMMAND_TO_TYPE = " + json.dumps(
-                    {key: value["task_type"] for key, value in catalog["desktop_task_commands"].items()},
-                    ensure_ascii=False,
-                    indent=2,
-                ) + " as const;",
                 "",
             ]
         ),

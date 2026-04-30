@@ -4,7 +4,6 @@ import { app, BrowserWindow, Menu, shell } from "electron";
 import { registerDialogHandlers } from "./ipc/dialog-handlers";
 import { bindRendererReadyCallback, registerWindowHandlers } from "./ipc/window-handlers";
 import { registerCookieHandlers } from "./ipc/cookie-handlers";
-import { DesktopTaskHistoryStore } from "./desktop/historyStore";
 import { registerDesktopHandlers } from "./ipc/desktop-handlers";
 import { DesktopWorkerSupervisor } from "./desktop/workerSupervisor";
 import {
@@ -13,7 +12,7 @@ import {
   resolveDesktopRendererTarget,
 } from "./desktopRuntime";
 
-const desktopWorkerSupervisor = new DesktopWorkerSupervisor(new DesktopTaskHistoryStore());
+const desktopWorkerSupervisor = new DesktopWorkerSupervisor();
 
 function registerIpcHandlers() {
   registerDialogHandlers();

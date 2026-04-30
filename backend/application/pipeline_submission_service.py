@@ -1,5 +1,21 @@
 from loguru import logger
 
+from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
+
+
+def task_submission_response(task_id: str, status: str, message: str) -> dict:
+    return {
+        "task_id": task_id,
+        "status": status,
+        "message": message,
+        "task_source": "backend",
+        "task_contract_version": TASK_CONTRACT_VERSION,
+        "persistence_scope": "runtime",
+        "lifecycle": TASK_LIFECYCLE["resumable"],
+        "queue_state": "queued" if status == "pending" else status,
+        "queue_position": None,
+    }
+
 
 class PipelineSubmissionService:
     async def submit_pipeline(
@@ -18,20 +34,20 @@ class PipelineSubmissionService:
             if task:
                 if task.status in ["running", "pending"]:
                     logger.info(f"Duplicate task request ignored: {existing_task_id}")
-                    return {
-                        "task_id": existing_task_id,
-                        "status": task.status,
-                        "message": "Task already active",
-                    }
+                    return task_submission_response(
+                        existing_task_id,
+                        task.status,
+                        "Task already active",
+                    )
 
                 logger.info(f"Recycling existing task: {existing_task_id}")
                 await orchestrator.reset_task_for_reuse(existing_task_id)
                 await orchestrator.enqueue_existing_task(existing_task_id, queued_message="Queued")
-                return {
-                    "task_id": existing_task_id,
-                    "status": "pending",
-                    "message": "Task restarted (Recycled)",
-                }
+                return task_submission_response(
+                    existing_task_id,
+                    "pending",
+                    "Task restarted",
+                )
 
         params = req.model_dump(mode="json")
         logger.info(

@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTranscriber } from "../hooks/useTranscriber";
 import type { Task } from "../types/task";
 import { apiClient } from "../api/client";
-import { createTranscribeStepRequestParams } from "./testFixtures";
+import {
+  BACKEND_TASK_CONTRACT_FIELDS,
+  createTranscribeStepRequestParams,
+} from "./testFixtures";
 import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
 import type { MockedElectronAPI } from "./testUtils/electronMock";
 
@@ -90,6 +93,7 @@ describe("useTranscriber", () => {
 
   it("recovers an active pipeline task containing a transcribe step", async () => {
     const pipelineTask: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "pipeline-123",
       type: "pipeline",
       status: "running",
@@ -136,6 +140,12 @@ describe("useTranscriber", () => {
     vi.mocked(apiClient.runPipeline).mockResolvedValue({
       task_id: "task-123",
       status: "pending",
+      task_source: "backend",
+      task_contract_version: 2,
+      persistence_scope: "runtime",
+      lifecycle: "resumable",
+      queue_state: "queued",
+      queue_position: null,
     });
     clearElectronMock();
 
@@ -210,15 +220,19 @@ describe("useTranscriber", () => {
     );
   });
 
-  it("uses desktop worker transcription when available", async () => {
-    const desktopTranscribe = vi.fn().mockResolvedValue({
-      task_id: "desktop-transcribe-task",
+  it("uses backend task owner for transcription in desktop runtime", async () => {
+    vi.mocked(apiClient.runPipeline).mockResolvedValue({
+      task_id: "backend-transcribe-task",
       status: "pending",
+      task_source: "backend",
+      task_contract_version: 2,
+      persistence_scope: "runtime",
+      lifecycle: "resumable",
+      queue_state: "queued",
+      queue_position: null,
     });
 
-    installElectronMock({
-      desktopTranscribe,
-    });
+    installElectronMock();
 
     const { result } = renderHook(() => useTranscriber());
 
@@ -235,25 +249,30 @@ describe("useTranscriber", () => {
       await result.current.actions.startTranscription();
     });
 
-    expect(desktopTranscribe).toHaveBeenCalledWith(expect.objectContaining({
-      audio_ref: expect.objectContaining({
-        path: "E:/sample.mp4",
-        name: "sample.mp4",
-        size: 1024,
-        type: "video/mp4",
-      }),
-      engine: "builtin",
-      model: "base",
-      device: "cpu",
+    expect(apiClient.runPipeline).toHaveBeenCalledWith(expect.objectContaining({
+      steps: expect.arrayContaining([
+        expect.objectContaining({
+          step_name: "transcribe",
+          params: expect.objectContaining({
+            audio_ref: expect.objectContaining({
+              path: "E:/sample.mp4",
+              name: "sample.mp4",
+              size: 1024,
+              type: "video/mp4",
+            }),
+            engine: "builtin",
+            model: "base",
+            device: "cpu",
+          }),
+        }),
+      ]),
     }));
-    expect(desktopTranscribe.mock.calls[0]?.[0]).not.toHaveProperty("audio_path");
-    expect(apiClient.runPipeline).not.toHaveBeenCalled();
     expect(result.current.state.result).toBeNull();
     expect(addTaskMock).toHaveBeenCalledWith(expect.objectContaining({
-      id: "desktop-transcribe-task",
+      id: "backend-transcribe-task",
       type: "transcribe",
       status: "pending",
-      task_source: "desktop",
+      task_source: "backend",
     }));
   });
 
@@ -337,6 +356,7 @@ describe("useTranscriber", () => {
 
   it("maps a completed task result back into transcriber state", async () => {
     const completedTask: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-789",
       type: "pipeline",
       status: "completed",
@@ -428,6 +448,7 @@ describe("useTranscriber", () => {
 
   it("falls back to transcript when pipeline metadata has no text field", async () => {
     const completedTask: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-790",
       type: "pipeline",
       status: "completed",
@@ -564,6 +585,7 @@ describe("useTranscriber", () => {
             },
             segments: [
               {
+                ...BACKEND_TASK_CONTRACT_FIELDS,
                 id: "1",
                 start: 0,
                 end: 6,

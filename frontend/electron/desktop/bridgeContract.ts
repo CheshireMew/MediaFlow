@@ -1,9 +1,8 @@
 import desktopWorkerContract from "../../../contracts/desktop-worker-contract.json";
-
-export const DESKTOP_TASK_EVENT_CHANNEL = "desktop:task-event";
+import { DESKTOP_WORKER_INVOCATION_DESCRIPTORS } from "../../src/contracts/generatedDesktopWorkerApi";
 
 export const DESKTOP_WORKER_PROTOCOL_VERSION = desktopWorkerContract.protocol_version;
-export const DESKTOP_WORKER_INVOCATIONS = desktopWorkerContract.invocations;
+export const DESKTOP_WORKER_INVOCATIONS = DESKTOP_WORKER_INVOCATION_DESCRIPTORS;
 
 export const DESKTOP_BRIDGE_CAPABILITIES = [
   "openFile",
@@ -17,12 +16,7 @@ export const DESKTOP_BRIDGE_CAPABILITIES = [
   "writeFile",
   "getFileSize",
   "getDesktopRuntimeInfo",
-  "listDesktopTasks",
   ...Object.keys(DESKTOP_WORKER_INVOCATIONS),
-  "pauseDesktopTask",
-  "resumeDesktopTask",
-  "cancelDesktopTask",
-  "onDesktopTaskEvent",
   "minimize",
   "maximize",
   "close",

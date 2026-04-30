@@ -5,6 +5,7 @@ import { useTranslatorStore } from "../stores/translatorStore";
 import type { Task } from "../types/task";
 import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
 import { createMockUserSettings } from "./testUtils/mockUserSettings";
+import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
 
 const translationServiceMock = vi.hoisted(() => ({
   startTranslation: vi.fn(),
@@ -87,6 +88,12 @@ describe("useTranslationTask", () => {
     translationServiceMock.startTranslation.mockResolvedValue({
       task_id: "task-1",
       status: "pending",
+      task_source: "backend",
+      task_contract_version: 2,
+      persistence_scope: "runtime",
+      lifecycle: "resumable",
+      queue_state: "queued",
+      queue_position: null,
     });
     clearElectronMock();
 
@@ -120,6 +127,7 @@ describe("useTranslationTask", () => {
     await act(async () => {
       taskContextMock.tasks = [
         {
+          ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-1",
           type: "translate",
           status: "completed",
@@ -152,6 +160,7 @@ describe("useTranslationTask", () => {
   test("recovers an active translate task from task context after reload", () => {
     taskContextMock.tasks = [
       {
+        ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-recover",
         type: "translate",
         status: "running",
@@ -186,6 +195,7 @@ describe("useTranslationTask", () => {
   test("recovers completed translation output from task context after reload without restoring taskId", () => {
     taskContextMock.tasks = [
       {
+        ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-history",
         type: "translate",
         status: "completed",
@@ -241,6 +251,7 @@ describe("useTranslationTask", () => {
     });
     taskContextMock.tasks = [
       {
+        ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-recover-ref",
         type: "translate",
         status: "running",
@@ -275,6 +286,7 @@ describe("useTranslationTask", () => {
     useTranslatorStore.setState({ taskId: "task-fail" });
     taskContextMock.tasks = [
       {
+        ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-fail",
         type: "translate",
         status: "failed",
@@ -297,15 +309,19 @@ describe("useTranslationTask", () => {
     expect(useTranslatorStore.getState().taskId).toBeNull();
   });
 
-  test("uses desktop worker translation when available", async () => {
-    const desktopTranslate = vi.fn().mockResolvedValue({
-      task_id: "desktop-translate-task",
+  test("uses backend translation task owner in desktop runtime", async () => {
+    translationServiceMock.startTranslation.mockResolvedValue({
+      task_id: "backend-translate-task",
       status: "pending",
+      task_source: "backend",
+      task_contract_version: 2,
+      persistence_scope: "runtime",
+      lifecycle: "resumable",
+      queue_state: "queued",
+      queue_position: null,
     });
 
-    installElectronMock({
-      desktopTranslate,
-    });
+    installElectronMock();
 
     const { result } = renderHook(() => useTranslationTask());
 
@@ -313,7 +329,7 @@ describe("useTranslationTask", () => {
       await result.current.startTranslation();
     });
 
-    expect(desktopTranslate).toHaveBeenCalledWith(expect.objectContaining({
+    expect(translationServiceMock.startTranslation).toHaveBeenCalledWith(expect.objectContaining({
       segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
       target_language: "Chinese",
       mode: "standard",
@@ -322,8 +338,7 @@ describe("useTranslationTask", () => {
         name: "demo.srt",
       }),
     }));
-    expect(desktopTranslate.mock.calls[0]?.[0]).not.toHaveProperty("context_path");
-    expect(translationServiceMock.startTranslation).not.toHaveBeenCalled();
+    expect(translationServiceMock.startTranslation.mock.calls[0]?.[0]).not.toHaveProperty("context_path");
     expect(useTranslatorStore.getState().targetSegments).toEqual([]);
     expectTranslatorMediaState({
       sourceFileRef: {
@@ -334,10 +349,10 @@ describe("useTranslationTask", () => {
     });
     expect(useTranslatorStore.getState().resultMode).toBeNull();
     expect(taskContextMock.addTask).toHaveBeenCalledWith(expect.objectContaining({
-      id: "desktop-translate-task",
+      id: "backend-translate-task",
       type: "translate",
       status: "pending",
-      task_source: "desktop",
+      task_source: "backend",
     }));
   });
 
@@ -353,6 +368,12 @@ describe("useTranslationTask", () => {
     translationServiceMock.startTranslation.mockResolvedValue({
       task_id: "task-ref-only",
       status: "pending",
+      task_source: "backend",
+      task_contract_version: 2,
+      persistence_scope: "runtime",
+      lifecycle: "resumable",
+      queue_state: "queued",
+      queue_position: null,
     });
     clearElectronMock();
 

@@ -6,54 +6,19 @@ import {
 } from "../services/domain/taskSubmission";
 
 describe("taskSubmission", () => {
-  it("builds a desktop task skeleton with aligned local source metadata", () => {
+  it("builds backend task skeletons from submission metadata", () => {
     const task = createTaskFromSubmissionReceipt({
-      receipt: createTaskExecutionSubmissionReceipt(
-        {
-          task_id: "desktop-task-1",
-          status: "pending",
-          message: "Queued",
-        },
-        "desktop",
-      ),
-      type: "download",
-      name: "Sample video",
-      request_params: {
-        url: "https://example.com/video",
-      },
-      created_at: 123,
-    });
-
-    expect(task).toMatchObject({
-      id: "desktop-task-1",
-      type: "download",
-      status: "pending",
-      task_source: "desktop",
-      task_contract_version: 2,
-      persistence_scope: "runtime",
-      lifecycle: "runtime-only",
-      queue_state: "queued",
-      queue_position: null,
-      name: "Sample video",
-      message: "Queued",
-      created_at: 123,
-      request_params: {
-        __desktop_worker: true,
-        url: "https://example.com/video",
-      },
-    });
-  });
-
-  it("keeps backend submissions as backend tasks without desktop markers", () => {
-    const task = createTaskFromSubmissionReceipt({
-      receipt: createTaskExecutionSubmissionReceipt(
-        {
-          task_id: "backend-task-1",
-          status: "running",
-          message: "Working",
-        },
-        "backend",
-      ),
+      receipt: createTaskExecutionSubmissionReceipt({
+        task_id: "backend-task-1",
+        status: "running",
+        message: "Working",
+        task_source: "backend",
+        task_contract_version: 2,
+        persistence_scope: "runtime",
+        lifecycle: "resumable",
+        queue_state: "running",
+        queue_position: null,
+      }),
       type: "translate",
       request_params: {
         context_path: "E:/video.srt",
@@ -71,6 +36,5 @@ describe("taskSubmission", () => {
         context_path: "E:/video.srt",
       },
     });
-    expect(task.request_params?.__desktop_worker).toBeUndefined();
   });
 });

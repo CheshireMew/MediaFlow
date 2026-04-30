@@ -277,7 +277,7 @@ def test_load_tasks_marks_interrupted_work_as_paused_and_snapshot_reflects_it(mo
     assert tm.get_task(paused_task.id).status == "paused"
     assert tm.get_task(paused_task.id).message == "Paused by user"
 
-    snapshot = {task["id"]: task for task in tm.get_tasks_snapshot()}
-    assert snapshot[running_task.id]["queue_state"] == "paused"
-    assert snapshot[pending_task.id]["queue_state"] == "paused"
-    assert snapshot[paused_task.id]["queue_state"] == "paused"
+    snapshot = {task.id: task for task in tm.get_tasks_snapshot()}
+    assert snapshot[running_task.id].queue_state == "paused"
+    assert snapshot[pending_task.id].queue_state == "paused"
+    assert snapshot[paused_task.id].queue_state == "paused"

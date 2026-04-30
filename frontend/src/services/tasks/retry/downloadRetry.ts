@@ -1,4 +1,4 @@
-import type { DownloadStepRequest, PipelineRequest } from "../../../types/api";
+import type { PipelineRequest, PipelineStepRequest } from "../../../types/api";
 import type { Task } from "../../../types/task";
 import { executionService, settingsService } from "../../domain";
 import type { RetryHandler, RetrySubmission } from "./types";
@@ -7,7 +7,6 @@ import {
   getPipelineStep,
   getPipelineSteps,
   getRequestParams,
-  resolveRetryTaskId,
 } from "./taskParams";
 
 async function submitDownloadRetry(task: Task): Promise<RetrySubmission | null> {
@@ -46,18 +45,19 @@ async function submitDownloadRetry(task: Task): Promise<RetrySubmission | null> 
           ],
         };
 
-  const downloadStep = pipeline.steps.find((step): step is DownloadStepRequest => step.step_name === "download");
-  const downloadParams = downloadStep?.params;
+  const downloadStep = pipeline.steps.find(
+    (step): step is PipelineStepRequest => step.step_name === "download",
+  );
+  const downloadParams =
+    downloadStep?.params && typeof downloadStep.params === "object"
+      ? (downloadStep.params as Record<string, unknown>)
+      : null;
   if (!downloadParams || typeof downloadParams.url !== "string" || !downloadParams.url.trim()) {
     return null;
   }
 
   const settings = await settingsService.getSettings().catch(() => undefined);
-  const outcome = await executionService.download(
-    pipeline,
-    settings,
-    resolveRetryTaskId(task),
-  );
+  const outcome = await executionService.download(pipeline, settings);
 
   return {
     outcome,

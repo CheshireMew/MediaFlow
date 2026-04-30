@@ -1,7 +1,19 @@
 import { useEditorStore } from "../stores/editorStore";
 import { usePreprocessingStore } from "../stores/preprocessingStore";
-import type { TaskRequestParams } from "../types/task";
+import { TASK_CONTRACT_VERSION, TASK_LIFECYCLE } from "../contracts/runtimeContracts";
+import type { Task, TaskRequestParams } from "../types/task";
 import type { TranscribeResult } from "../types/transcriber";
+
+export const BACKEND_TASK_CONTRACT_FIELDS = {
+  task_source: "backend",
+  task_contract_version: TASK_CONTRACT_VERSION,
+  persistence_scope: "runtime",
+  lifecycle: TASK_LIFECYCLE.resumable,
+  queue_state: "idle",
+} as const satisfies Pick<
+  Task,
+  "task_source" | "task_contract_version" | "persistence_scope" | "lifecycle" | "queue_state"
+>;
 
 export function createSampleTranscriptionResult(
   overrides: Partial<TranscribeResult> = {},

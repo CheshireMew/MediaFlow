@@ -62,11 +62,11 @@ export function createTaskDiagnostic(
   const mediaRefs = getTaskDiagnosticMediaRefs(task);
 
   return {
-    task_source: task.task_source ?? null,
-    lifecycle: task.lifecycle ?? null,
-    task_contract_version: task.task_contract_version ?? null,
-    persistence_scope: task.persistence_scope ?? null,
-    queue_state: task.queue_state ?? null,
+    task_source: task.task_source,
+    lifecycle: task.lifecycle,
+    task_contract_version: task.task_contract_version,
+    persistence_scope: task.persistence_scope,
+    queue_state: task.queue_state,
     queue_position: task.queue_position ?? null,
     type: task.type,
     status: task.status,

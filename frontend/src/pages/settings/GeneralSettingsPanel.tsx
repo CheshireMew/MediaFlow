@@ -1,5 +1,6 @@
 import type { SettingsController, SettingsT } from "./settingsTypes";
 import { AutoExecuteSetting } from "./general/AutoExecuteSetting";
+import { CudaReadinessSetting } from "./general/CudaReadinessSetting";
 import { DefaultDownloadPathSetting } from "./general/DefaultDownloadPathSetting";
 import { FasterWhisperCliSetting } from "./general/FasterWhisperCliSetting";
 import { LanguageSetting } from "./general/LanguageSetting";
@@ -20,6 +21,7 @@ export function GeneralSettingsPanel({ controller, t }: GeneralSettingsPanelProp
         <LanguageSetting controller={controller} t={t} />
         <AutoExecuteSetting controller={controller} t={t} />
         <SmartSplitLimitSetting controller={controller} t={t} />
+        <CudaReadinessSetting controller={controller} t={t} />
         <DefaultDownloadPathSetting controller={controller} t={t} />
         <FasterWhisperCliSetting controller={controller} t={t} />
         <YtDlpSetting controller={controller} t={t} />

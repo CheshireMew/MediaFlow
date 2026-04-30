@@ -105,7 +105,7 @@ export function useTranscriberCommands({
 
       const submissionAudioRef = normalizeMediaReference({ ...file, path: filePath })!;
 
-      console.info("[Transcriber] desktop:transcribe payload", {
+      console.info("[Transcriber] backend transcribe payload", {
         source: getElectronFileSource(file),
         engine,
         audio_ref: submissionAudioRef.path,

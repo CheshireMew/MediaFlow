@@ -11,6 +11,7 @@ from urllib.request import Request, urlopen
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
 from backend.config import settings
+from backend.services.runtime_diagnostics import CudaReadinessResponse, RuntimeDiagnosticsService
 from backend.services.settings_manager import LLMProvider, UserSettings
 
 OpenAI = None
@@ -31,6 +32,9 @@ class SettingsApplicationService:
 
     def get_settings(self) -> UserSettings:
         return self._settings_manager.get_settings()
+
+    def get_cuda_readiness(self) -> CudaReadinessResponse:
+        return RuntimeDiagnosticsService().cuda_readiness()
 
     def update_settings(self, settings: UserSettings) -> UserSettings:
         self._settings_manager.update_settings(settings)

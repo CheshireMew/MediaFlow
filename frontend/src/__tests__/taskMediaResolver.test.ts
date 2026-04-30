@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
 import {
   getTaskMediaCandidates,
   getTaskStructuredMediaRefs,
@@ -10,6 +11,7 @@ import type { Task } from "../types/task";
 describe("taskMediaResolver", () => {
   it("resolves structured refs as the only task media identity", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "resolver-structured",
       type: "translate",
       status: "completed",
@@ -59,6 +61,7 @@ describe("taskMediaResolver", () => {
 
   it("requires structured refs for translation task source resolution", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "resolver-path-mirror-translate",
       type: "translate",
       status: "completed",
@@ -83,6 +86,7 @@ describe("taskMediaResolver", () => {
 
   it("does not surface request output_path as a task-media candidate", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "resolver-candidates",
       type: "synthesis",
       status: "completed",
@@ -106,6 +110,7 @@ describe("taskMediaResolver", () => {
 
   it("resolves transcribe source media and candidates through the shared resolver", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "resolver-transcribe",
       type: "pipeline",
       status: "completed",

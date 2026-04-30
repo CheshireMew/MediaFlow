@@ -7,7 +7,7 @@ import {
 import { DesktopWorkerSupervisor } from "../desktop/workerSupervisor";
 import {
   DESKTOP_BRIDGE_CONTRACT_VERSION,
-  DESKTOP_TASK_OWNER_MODE,
+  TASK_OWNER_MODE,
 } from "../../src/contracts/runtimeContracts";
 import { desktopFileAccess } from "./file-access";
 
@@ -18,9 +18,6 @@ export function registerDesktopHandlers(supervisor: DesktopWorkerSupervisor) {
         payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
       if (descriptor.workerCommand !== DESKTOP_WORKER_INVOCATIONS.desktopPing.workerCommand) {
         desktopFileAccess.assertWorkerPayloadAccess(normalizedPayload);
-      }
-      if ("responseMode" in descriptor && descriptor.responseMode === "task_submission") {
-        return supervisor.submitTask(descriptor.workerCommand, normalizedPayload);
       }
       return await supervisor.request(descriptor.workerCommand, normalizedPayload);
     });
@@ -46,22 +43,12 @@ export function registerDesktopHandlers(supervisor: DesktopWorkerSupervisor) {
       status: "pong" as const,
       contract_version: DESKTOP_BRIDGE_CONTRACT_VERSION,
       bridge_version: app.getVersion(),
-      task_owner_mode: DESKTOP_TASK_OWNER_MODE,
+      task_owner_mode: TASK_OWNER_MODE,
       capabilities: [...DESKTOP_BRIDGE_CAPABILITIES],
       worker: {
         protocol_version: worker.protocol_version,
         app_version: worker.app_version ?? null,
       },
     };
-  });
-  ipcMain.handle("desktop:list-tasks", async () => supervisor.listTasks());
-  ipcMain.handle("desktop:pause-task", async (_event, payload) => {
-    return await supervisor.pauseTask(String(payload.task_id));
-  });
-  ipcMain.handle("desktop:resume-task", async (_event, payload) => {
-    return await supervisor.resumeTask(String(payload.task_id));
-  });
-  ipcMain.handle("desktop:cancel-task", async (_event, payload) => {
-    return await supervisor.cancelTask(String(payload.task_id));
   });
 }

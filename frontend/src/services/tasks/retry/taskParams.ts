@@ -42,10 +42,6 @@ export function createRetryDescriptor(
   };
 }
 
-export function resolveRetryTaskId(task: Task): string | undefined {
-  return task.task_source === "desktop" ? task.id : undefined;
-}
-
 export function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }

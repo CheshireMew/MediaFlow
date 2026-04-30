@@ -44,10 +44,6 @@ export function isTaskHistoryEntry(task: Task) {
   );
 }
 
-export function isTaskRecoverable(task: Task) {
-  return task.lifecycle === TASK_LIFECYCLE.resumable || isTaskActive(task);
-}
-
-export function getTaskLifecycleKind(task: Task): TaskLifecycle | null {
-  return task.lifecycle ?? null;
+export function getTaskLifecycleKind(task: Task): TaskLifecycle {
+  return task.lifecycle;
 }

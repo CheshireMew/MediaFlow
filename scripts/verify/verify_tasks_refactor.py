@@ -11,8 +11,8 @@ from backend.core.tasks.registry import (
     validate_required_task_runners,
 )
 from backend.contracts import DESKTOP_WORKER_CONTRACT
-from backend.core.task_catalog import desktop_task_commands, pipeline_step_names, task_types
-from backend.models.schemas import PipelineRequest
+from backend.core.task_catalog import pipeline_step_names, task_types
+from backend.models.schemas import PIPELINE_STEP_PARAM_MODELS, PipelineRequest
 from backend.models.task_model import Task
 
 
@@ -55,10 +55,8 @@ def verify_runner_build():
 def verify_catalog_boundaries():
     print("\nVerifying task catalog boundaries...")
 
-    pipeline_schema = PipelineRequest.model_json_schema()
-    schema_step_names = set(
-        pipeline_schema["properties"]["steps"]["items"]["discriminator"]["mapping"]
-    )
+    PipelineRequest.model_json_schema()
+    schema_step_names = set(PIPELINE_STEP_PARAM_MODELS)
     catalog_step_names = pipeline_step_names()
     if schema_step_names != catalog_step_names:
         raise RuntimeError(
@@ -76,18 +74,17 @@ def verify_catalog_boundaries():
         for command, raw in DESKTOP_WORKER_CONTRACT.get("workerCommands", {}).items()
         if raw.get("executionLane") == "task"
     )
-    catalog_task_commands = desktop_task_commands()
-    if contract_task_commands != catalog_task_commands:
+    if contract_task_commands:
         raise RuntimeError(
-            "Desktop worker task command/catalog mismatch: "
-            f"contract={sorted(contract_task_commands)}, catalog={sorted(catalog_task_commands)}"
+            "Desktop worker contract must not own task commands: "
+            f"contract={sorted(contract_task_commands)}"
         )
 
     unknown_registered = registered_task_types() - task_types()
     if unknown_registered:
         raise RuntimeError(f"Registered task types outside catalog: {sorted(unknown_registered)}")
 
-    print("Task types, pipeline steps, and desktop task commands match the catalog.")
+    print("Task types and pipeline steps match the catalog; desktop worker owns no task commands.")
 
 
 if __name__ == "__main__":

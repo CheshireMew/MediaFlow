@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
 
 import {
   createDesktopRuntimeDiagnostic,
@@ -12,8 +13,8 @@ describe("runtimeDiagnostics", () => {
         status: "pong",
         contract_version: 1,
         bridge_version: "1.2.3",
-        task_owner_mode: "desktop",
-        capabilities: ["getDesktopRuntimeInfo", "listDesktopTasks"],
+        task_owner_mode: "backend",
+        capabilities: ["getDesktopRuntimeInfo", "desktopPing"],
         worker: {
           protocol_version: 1,
           app_version: "0.1.0",
@@ -22,9 +23,9 @@ describe("runtimeDiagnostics", () => {
     ).toEqual({
       contract_version: 1,
       bridge_version: "1.2.3",
-      task_owner_mode: "desktop",
+      task_owner_mode: "backend",
       worker_protocol_version: 1,
-      capabilities: ["getDesktopRuntimeInfo", "listDesktopTasks"],
+      capabilities: ["getDesktopRuntimeInfo", "desktopPing"],
     });
   });
 
@@ -32,6 +33,7 @@ describe("runtimeDiagnostics", () => {
     expect(
       createTaskDiagnostic(
         {
+          ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-1",
           type: "translate",
           status: "running",
@@ -129,6 +131,7 @@ describe("runtimeDiagnostics", () => {
     expect(
       createTaskDiagnostic(
         {
+          ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-raw-meta-srt",
           type: "translate",
           status: "completed",

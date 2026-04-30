@@ -24,6 +24,7 @@ class TranscribeStep(PipelineStep):
 
         model = params.get("model", "base")
         device = params.get("device", "cpu")
+        engine = params.get("engine", "builtin")
         language = params.get("language")
         initial_prompt = params.get("initial_prompt")
         
@@ -37,6 +38,7 @@ class TranscribeStep(PipelineStep):
                 audio_path=audio_path,
                 model_name=model,
                 device=device,
+                engine=engine,
                 language=language,
                 initial_prompt=initial_prompt,
                 task_id=task_id,

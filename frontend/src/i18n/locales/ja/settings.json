@@ -83,7 +83,16 @@
     "ytDlpUpdateFailed": "yt-dlp の更新に失敗しました",
     "ytDlpVersionInfo": "バージョン: {{previous}} -> {{current}}",
     "updateSuccess": "設定を更新しました",
-    "updateFailed": "設定の更新に失敗しました"
+    "updateFailed": "設定の更新に失敗しました",
+    "cudaTitle": "CUDA Readiness",
+    "cudaDesc": "Checks whether built-in faster-whisper can use the NVIDIA GPU on this machine.",
+    "cudaRefresh": "Check",
+    "cudaLoading": "Checking CUDA dependencies...",
+    "cudaLoadFailed": "Failed to check CUDA readiness",
+    "cudaStatusReady": "Ready",
+    "cudaStatusMissing": "Missing",
+    "cudaStatusNotOnPath": "Not on PATH",
+    "cudaStatusUnknown": "Unknown"
   },
   "loadFailed": "設定の読み込みに失敗しました"
 }

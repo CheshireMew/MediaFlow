@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel
 import os
-from backend.application.task_operations import queue_task_operation
+from backend.application.task_operations import submit_task_operation
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
-from backend.models.schemas import MediaReference, SynthesisRequest
+from backend.models.schemas import MediaReference, SynthesisRequest, TaskResponse
 from backend.utils.path_validator import validate_input_file, validate_output_file
 import uuid
 
@@ -114,7 +114,7 @@ async def get_current_watermark():
         # If file is corrupted, return nothing
         return None
 
-@router.post("/synthesize")
+@router.post("/synthesize", response_model=TaskResponse)
 async def start_synthesis_task(req: SynthesisRequest):
     """
     Start a video synthesis task (burn-in subtitles/watermark).
@@ -144,6 +144,5 @@ async def start_synthesis_task(req: SynthesisRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    response = await queue_task_operation("synthesis", req)
-
-    return {"task_id": response["task_id"], "status": response["status"]}
+    response = await submit_task_operation("synthesis", req)
+    return TaskResponse(**response)

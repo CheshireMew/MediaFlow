@@ -160,15 +160,14 @@ async def test_task_update_broadcast(isolated_api_client: TestClient):
     task_manager = runtime_service(Services.TASK_MANAGER)
     await notifier.connect(mock_ws)
     
-    from backend.models.task_model import Task
-    import time
+    from backend.models.task_model import Task, task_timestamp_ms
     
     # Create a real Task object
     task_manager.tasks["test_task"] = Task(
         id="test_task", 
         type="test", 
         status="pending", 
-        created_at=time.time(), 
+        created_at=task_timestamp_ms(), 
         message="Created"
     )
     

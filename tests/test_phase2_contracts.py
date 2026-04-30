@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 
@@ -10,7 +10,6 @@ from backend.core.container import container, Services
 
 @pytest.mark.asyncio
 async def test_pipeline_runner_result_structure():
-    # Mock TaskManager — PipelineRunner now requires it as constructor arg
     mock_tm = AsyncMock()
     mock_tm.update_task.return_value = None
     # is_cancelled is synchronous in real implementation
@@ -26,17 +25,7 @@ async def test_pipeline_runner_result_structure():
 
     # Patch StepRegistry.get_step (correct module path: backend.core.steps)
     with patch('backend.core.steps.StepRegistry.get_step', return_value=MockStep()):
-        
-        # Create a mock request object since PipelineStepRequest is a Union and cannot be instantiated
-        from pydantic import BaseModel
-        class MockParams(BaseModel):
-            pass
-
-        class MockStepRequest(BaseModel):
-            step_name: str
-            params: MockParams
-
-        steps = [MockStepRequest(step_name="mock_step", params=MockParams())]
+        steps = [PipelineStepRequest(step_name="download", params={"url": "https://example.com/video"})]
         
         await runner.run(steps, task_id="test_task")
         

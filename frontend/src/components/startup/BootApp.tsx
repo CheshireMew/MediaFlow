@@ -5,9 +5,10 @@ import { Layout } from "../layout/Layout";
 import { StartupPlaceholderPage } from "./StartupPlaceholderPage";
 import { isDesktopRuntime, settingsService } from "../../services/domain";
 import { getDesktopRuntimeInfo, hasDesktopCapability } from "../../services/desktop";
+import { apiClient } from "../../api/client";
 import { windowService } from "../../services/desktop";
 import { createDesktopRuntimeDiagnostic } from "../../services/debug/runtimeDiagnostics";
-import { DESKTOP_BRIDGE_CONTRACT_VERSION, DESKTOP_TASK_OWNER_MODE } from "../../contracts/runtimeContracts";
+import { DESKTOP_BRIDGE_CONTRACT_VERSION, TASK_OWNER_MODE } from "../../contracts/runtimeContracts";
 import i18n from "../../i18n";
 import { resolveCurrentPresentationRoute } from "../../services/ui/pagePresentation";
 
@@ -24,9 +25,7 @@ type AppShellProps = {
 };
 
 const REQUIRED_DESKTOP_CAPABILITIES = [
-  "listDesktopTasks",
-  "onDesktopTaskEvent",
-  "desktopTranscribe",
+  "getDesktopRuntimeInfo",
 ] as const;
 
 const STARTUP_TEXT_FALLBACKS = {
@@ -99,8 +98,9 @@ export function BootApp() {
 
       while (!cancelled) {
         try {
+          await apiClient.checkHealth();
+
           if (!isDesktopRuntime()) {
-            console.warn("[Init] Electron API not found, assuming web mode.");
             updateState({
               appReady: true,
               remoteBackendReady: true,
@@ -116,9 +116,9 @@ export function BootApp() {
                 `Desktop bridge contract mismatch. Required >= ${DESKTOP_BRIDGE_CONTRACT_VERSION}, received ${runtimeInfo.contract_version}.`,
               );
             }
-            if (runtimeInfo.task_owner_mode !== DESKTOP_TASK_OWNER_MODE) {
+            if (runtimeInfo.task_owner_mode !== TASK_OWNER_MODE) {
               throw new Error(
-                `Desktop task owner mismatch. Required ${DESKTOP_TASK_OWNER_MODE}, received ${runtimeInfo.task_owner_mode}.`,
+                `Task owner mismatch. Required ${TASK_OWNER_MODE}, received ${runtimeInfo.task_owner_mode}.`,
               );
             }
 

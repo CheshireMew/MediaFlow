@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import type { Task } from "../../types/task";
 import type { SubtitleSegment } from "../../types/task";
@@ -57,6 +57,8 @@ export function useTranslationTaskSync({
   activeTaskModeRef,
   previousTranslateModeRef,
 }: UseTranslationTaskSyncParams) {
+  const recoveredCompletedTaskIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (taskId) return;
 
@@ -107,6 +109,10 @@ export function useTranslationTaskSync({
     if (!completedTask) {
       return;
     }
+    if (recoveredCompletedTaskIdRef.current === completedTask.id) {
+      return;
+    }
+    recoveredCompletedTaskIdRef.current = completedTask.id;
 
     const segments = getTranslationTaskSegments(completedTask);
     if (segments.length === 0) {

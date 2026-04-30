@@ -12,7 +12,7 @@ import {
 } from "./executionAccess";
 import { settingsService } from "./settingsService";
 import {
-  executeDesktopTaskSubmission,
+  executeTaskSubmission,
 } from "./executionExecutor";
 import { restoreStoredAsrExecutionPreferences } from "../persistence/asrExecutionPreferences";
 import { restoreStoredTranslationPreferences } from "../persistence/translationPreferences";
@@ -119,27 +119,6 @@ async function buildSharedAutoExecutionSteps(includeTranscription: boolean) {
   };
 }
 
-export async function createDesktopDownloadSubmissionPayload(
-  pipeline: PipelineRequest,
-  settings?: DownloadExecutionSettings,
-) {
-  const autoExecution = settings?.auto_execute_flow
-    ? await buildSharedAutoExecutionSteps(false)
-    : null;
-  return omitUndefinedFields({
-    ...resolveDownloadStepParams(pipeline),
-    output_dir: settings?.default_download_path || undefined,
-    auto_execute_flow: settings?.auto_execute_flow,
-    transcription_engine: autoExecution?.asrPreferences.engine,
-    transcription_model: autoExecution?.asrPreferences.model,
-    translation_mode: autoExecution?.translationPreferences.mode,
-    target_language: autoExecution?.translationPreferences.targetLanguage,
-    device: autoExecution?.asrPreferences.device,
-    synthesis_options: autoExecution?.synthesisPayload.options,
-    watermark_path: autoExecution?.synthesisPayload.watermarkPath,
-  });
-}
-
 export const executionService = {
   async transcribe(payload: {
     audio_ref: MediaReference;
@@ -151,15 +130,12 @@ export const executionService = {
   }): Promise<ExecutionOutcome> {
     await ensureCliTranscriptionConfigured(payload.engine);
 
-    return await executeDesktopTaskSubmission({
+    return await executeTaskSubmission({
       payload,
       normalizePayload: (nextPayload) => ({
         ...nextPayload,
         audio_ref: requireExecutionMediaReference(nextPayload.audio_ref, "Transcription audio"),
       }),
-      desktopMethod: "desktopTranscribe",
-      desktopUnavailableMessage: "Desktop transcription worker is unavailable.",
-      desktopTaskIdPrefix: "desktop-transcribe",
       backendSubmit: async (normalizedPayload) => {
         const settings = await settingsService.getSettings();
         const autoExecution = settings.auto_execute_flow
@@ -206,23 +182,15 @@ export const executionService = {
   }): Promise<ExecutionOutcome> {
     await ensureAiTranslationConfigured();
 
-    return await executeDesktopTaskSubmission({
+    return await executeTaskSubmission({
       payload,
       normalizePayload: (nextPayload) => ({
         ...nextPayload,
         context_ref: nextPayload.context_ref ?? null,
       }),
-      desktopMethod: "desktopTranslate",
-      desktopUnavailableMessage: "Desktop translation worker is unavailable.",
-      desktopTaskIdPrefix: "desktop-translate",
       backendSubmit: async (normalizedPayload) => {
         const { translationService } = await import("./translationService");
-        const response = await translationService.startTranslation(normalizedPayload);
-        return {
-          task_id: response.task_id,
-          status: response.status ?? "pending",
-          message: undefined,
-        };
+        return await translationService.startTranslation(normalizedPayload);
       },
     });
   },
@@ -235,7 +203,7 @@ export const executionService = {
     output_ref?: MediaReference | null;
     options: Record<string, unknown>;
   }): Promise<ExecutionOutcome> {
-    return await executeDesktopTaskSubmission({
+    return await executeTaskSubmission({
       payload,
       normalizePayload: (nextPayload) => ({
         ...nextPayload,
@@ -243,9 +211,6 @@ export const executionService = {
         srt_ref: requireExecutionMediaReference(nextPayload.srt_ref, "Synthesis subtitle"),
         output_ref: nextPayload.output_ref ?? null,
       }),
-      desktopMethod: "desktopSynthesize",
-      desktopUnavailableMessage: "Desktop synthesis worker is unavailable.",
-      desktopTaskIdPrefix: "desktop-synthesize",
       backendSubmit: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.synthesizeVideo(omitUndefinedFields({
@@ -262,7 +227,6 @@ export const executionService = {
   async download(
     pipeline: PipelineRequest,
     settings?: DownloadExecutionSettings,
-    taskId?: string,
   ): Promise<ExecutionOutcome> {
     const autoExecution = settings?.auto_execute_flow
       ? await buildSharedAutoExecutionSteps(true)
@@ -271,23 +235,25 @@ export const executionService = {
       settings?.auto_execute_flow
         ? appendAutoExecutionSteps(pipeline, () => autoExecution?.steps ?? [])
         : pipeline;
-
-    return await executeDesktopTaskSubmission({
-      payload: {
-        pipeline: pipelineForSubmission,
-        desktopPayload: await createDesktopDownloadSubmissionPayload(pipeline, settings),
-      },
-      normalizePayload: ({ pipeline: nextPipeline, desktopPayload }) => ({
-        pipeline: nextPipeline,
-        desktopPayload,
-        task_id: taskId ?? null,
+    const pipelineWithDownloadSettings: PipelineRequest = {
+      ...pipelineForSubmission,
+      steps: pipelineForSubmission.steps.map((step) => {
+        if (step.step_name !== "download" || !step.params || typeof step.params !== "object") {
+          return step;
+        }
+        return {
+          ...step,
+          params: omitUndefinedFields({
+            ...(step.params as Record<string, unknown>),
+            output_dir: settings?.default_download_path || undefined,
+          }),
+        };
       }),
-      desktopMethod: "desktopDownload",
-      desktopUnavailableMessage: "Desktop download worker is unavailable.",
-      desktopTaskIdPrefix: "desktop-download",
-      mapDesktopArgs: (normalizedPayload, taskId) =>
-        [{ task_id: taskId, ...normalizedPayload.desktopPayload }],
-      backendSubmit: ({ pipeline: nextPipeline }) =>
+    };
+
+    return await executeTaskSubmission({
+      payload: pipelineWithDownloadSettings,
+      backendSubmit: (nextPipeline) =>
         import("../../api/client").then(({ apiClient }) => apiClient.runPipeline(nextPipeline)),
     });
   },

@@ -48,7 +48,7 @@ vi.mock('../context/taskContext', () => ({
     connected: false,
     remoteTasksReady: false,
     tasksSettled: false,
-      taskOwnerMode: "desktop",
+      taskOwnerMode: "backend",
     pauseLocalTasks: vi.fn(),
     pauseRemoteTasks: vi.fn(),
     pauseAllTasks: vi.fn(),
@@ -97,20 +97,17 @@ test('restores the last opened page from localStorage', async () => {
   })
 })
 
-test('renders preprocessing page without backend readiness gate', async () => {
+test('gates preprocessing page on backend readiness', async () => {
   window.location.hash = '#/preprocessing'
   render(<App appReady remoteBackendReady={false} startupMessage="Waiting" />)
-  await waitFor(() => {
-    expect(screen.getByTestId('page-preprocessing')).toBeInTheDocument()
-  })
+  expect(screen.queryByTestId('page-preprocessing')).not.toBeInTheDocument()
+  expect(screen.getByText('Waiting')).toBeInTheDocument()
 })
 
-test('allows editor in desktop runtime before backend health is ready', async () => {
+test('gates editor page on backend readiness', async () => {
   window.location.hash = '#/editor'
   render(<App appReady remoteBackendReady={false} startupMessage="Waiting" />)
-  await waitFor(() => {
-    expect(screen.getByTestId('page-editor')).toBeInTheDocument()
-  })
+  expect(screen.queryByTestId('page-editor')).not.toBeInTheDocument()
+  expect(screen.getByText('Waiting')).toBeInTheDocument()
 })
-
 

@@ -2,7 +2,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from backend.application.pipeline_submission_service import PipelineSubmissionService
+from backend.application.pipeline_submission_service import (
+    PipelineSubmissionService,
+    task_submission_response,
+)
 from backend.application.task_orchestrator import TaskOrchestrator
 from backend.application.task_request_deduplicator import TaskRequestDeduplicator
 from backend.application.task_resume_service import TaskResumeService
@@ -92,11 +95,11 @@ async def test_submit_pipeline_recycles_matching_completed_task():
 
     result = await orchestrator.submit_pipeline(req)
 
-    assert result == {
-        "task_id": "task-1",
-        "status": "pending",
-        "message": "Task restarted (Recycled)",
-    }
+    assert result == task_submission_response(
+        "task-1",
+        "pending",
+        "Task restarted",
+    )
     assert task_manager.updated
     updated_task_id, updates = task_manager.updated[0]
     assert updated_task_id == "task-1"

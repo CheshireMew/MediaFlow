@@ -1,12 +1,15 @@
 from typing import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlmodel import SQLModel, create_engine
+from sqlmodel import SQLModel
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
+from sqlalchemy import inspect
 
 from backend.config import settings
+from backend.models.task_model import Task
 
 # Database URL (SQLite + aiosqlite)
 DATABASE_URL = f"sqlite+aiosqlite:///{settings.USER_DATA_DIR}/mediaflow.db"
@@ -27,9 +30,29 @@ async_session_maker = sessionmaker(
     expire_on_commit=False
 )
 
+
+def _reset_task_table_if_contract_mismatch(sync_connection) -> None:
+    inspector = inspect(sync_connection)
+    if not inspector.has_table(Task.__tablename__):
+        return
+
+    current_columns = {column["name"] for column in inspector.get_columns(Task.__tablename__)}
+    contract_columns = {column.name for column in Task.__table__.columns}
+    if current_columns == contract_columns:
+        return
+
+    missing = sorted(contract_columns - current_columns)
+    extra = sorted(current_columns - contract_columns)
+    logger.warning(
+        "Dropping incompatible task table before startup. "
+        f"Missing columns: {missing}; extra columns: {extra}."
+    )
+    Task.__table__.drop(sync_connection, checkfirst=True)
+
+
 async def init_db():
     async with engine.begin() as conn:
-        # Create tables
+        await conn.run_sync(_reset_task_table_if_contract_mismatch)
         await conn.run_sync(SQLModel.metadata.create_all)
 
 

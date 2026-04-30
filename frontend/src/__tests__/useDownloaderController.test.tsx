@@ -77,6 +77,7 @@ describe("useDownloaderController", () => {
         task_source: "backend",
         task_contract_version: 2,
         persistence_scope: "runtime",
+        lifecycle: "resumable",
         queue_state: "queued",
         queue_position: null,
       },

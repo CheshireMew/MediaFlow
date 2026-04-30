@@ -137,8 +137,37 @@ npm run test
   - 官方仓库: https://github.com/Purfview/whisper-standalone-win
   - Release 页面: https://github.com/Purfview/whisper-standalone-win/releases/tag/Faster-Whisper-XXL
   - Windows 下载直链: https://github.com/Purfview/whisper-standalone-win/releases/download/Faster-Whisper-XXL/Faster-Whisper-XXL_r245.4_windows.7z
-- **GPU**: 推荐 NVIDIA 显卡以获得最佳转录速度 (CUDA 11.8+)
+- **GPU / CUDA**: 推荐 NVIDIA 显卡以获得最佳转录速度。内置 `faster-whisper` GPU 转录需要 CUDA 12 运行库、cuBLAS for CUDA 12、cuDNN 9 for CUDA 12。
 - **安装依赖**: Python 依赖见 `pyproject.toml`，前端依赖见 `frontend/package.json`
+
+### CUDA 手动依赖
+
+只有选择内置转录引擎并把计算设备设为 `cuda` 时，才需要安装下面的 NVIDIA 依赖；CPU 转录和 Faster-Whisper CLI 不依赖这组 DLL。
+
+Windows 推荐全局安装：
+
+1. 安装 NVIDIA 显卡驱动，并确认 `nvidia-smi` 可执行。
+2. 安装 CUDA Toolkit 12.x，确保 `bin` 目录加入 PATH，例如：
+   - `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\bin`
+3. 安装 cuDNN 9 for CUDA 12，确保 cuDNN 的 `bin` 目录加入 PATH，例如：
+   - `C:\Program Files\NVIDIA\CUDNN\v9.21\bin\12.9\x64`
+4. 重新打开终端或重启后端进程，让新的 PATH 对后端生效。
+
+验证命令：
+
+```powershell
+nvidia-smi
+where cudart64_12.dll
+where cublas64_12.dll
+where cudnn64_9.dll
+```
+
+应用内也可以在 `设置 -> 通用设置 -> CUDA 就绪检查` 查看当前机器是否满足 GPU 转录要求。`nvidia-smi` 输出中的 `CUDA Version` 表示驱动支持的最高 CUDA API 版本，不等于已经安装了 CUDA Toolkit 或 cuDNN；最终以就绪检查和 `where` 命令能否找到上述 DLL 为准。
+
+参考：
+- CUDA Toolkit: https://developer.nvidia.com/cuda-downloads
+- cuDNN: https://developer.nvidia.com/cudnn
+- faster-whisper GPU requirements: https://github.com/SYSTRAN/faster-whisper#gpu
 
 ## ⚙️ 设置说明
 

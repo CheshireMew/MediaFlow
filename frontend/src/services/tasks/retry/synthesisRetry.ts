@@ -6,7 +6,6 @@ import {
   getRequestParams,
   getTaskMediaReference,
   readRecord,
-  resolveRetryTaskId,
 } from "./taskParams";
 
 function normalizeSynthesisTaskParams(task: Task) {
@@ -22,7 +21,6 @@ function normalizeSynthesisTaskParams(task: Task) {
       Object.entries(params).filter(
         ([key]) =>
           ![
-            "__desktop_worker",
             "task_id",
             "video_ref",
             "subtitle_ref",
@@ -61,7 +59,6 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
   }
 
   const outcome = await executionService.synthesize({
-    task_id: resolveRetryTaskId(task),
     video_ref: videoRef,
     srt_ref: srtRef,
     watermark_path: watermarkPath ?? null,

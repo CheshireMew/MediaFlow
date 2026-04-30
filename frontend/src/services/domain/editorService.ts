@@ -61,6 +61,7 @@ export const editorService = {
         payload: filePath,
         desktopMethod: "uploadDesktopWatermark",
         desktopUnavailableMessage: "Desktop watermark upload is unavailable.",
+        mapDesktopArgs: (nextFilePath) => [{ file_path: nextFilePath }] as [{ file_path: string }],
         backendCall: async () =>
           await import("../../api/client").then(({ apiClient }) => apiClient.uploadWatermark(file)),
       });
@@ -74,7 +75,7 @@ export const editorService = {
       payload: undefined,
       desktopMethod: "getDesktopLatestWatermark",
       desktopUnavailableMessage: "Desktop watermark loading is unavailable.",
-      mapDesktopArgs: () => [],
+      mapDesktopArgs: () => [] as [],
       backendCall: () =>
         import("../../api/client").then(({ apiClient }) => apiClient.getLatestWatermark()),
     });

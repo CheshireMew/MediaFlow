@@ -55,7 +55,11 @@ class PipelineRunner:
 
                     try:
                         step_instance = StepRegistry.get_step(step_req.step_name)
-                        params_dict = step_req.params.model_dump()
+                        params_dict = (
+                            step_req.params.model_dump()
+                            if hasattr(step_req.params, "model_dump")
+                            else dict(step_req.params)
+                        )
                         await step_instance.execute(ctx, params_dict, task_id)
                         ctx.history.append(step_req.step_name)
                     except Exception as step_err:

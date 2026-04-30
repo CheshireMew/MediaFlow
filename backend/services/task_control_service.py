@@ -43,6 +43,11 @@ class TaskControlService:
         if not task:
             return False
 
+        if task_id in task_manager._running_ids or task.status == "running":
+            task_manager._stop_requests[task_id] = "pause"
+            await task_manager.update_task(task_id, message="Pause requested...")
+            return True
+
         if task.status == "pending":
             task_manager._stop_requests[task_id] = "pause"
             task_manager._queued_ids.discard(task_id)
@@ -56,17 +61,17 @@ class TaskControlService:
             )
             return True
 
-        if task.status == "running":
-            task_manager._stop_requests[task_id] = "pause"
-            await task_manager.update_task(task_id, message="Pause requested...")
-            return True
-
         return task.status == "paused"
 
     async def cancel_task(self, task_manager, task_id: str) -> bool:
         task = task_manager.get_task(task_id)
         if not task:
             return False
+
+        if task_id in task_manager._running_ids or task.status == "running":
+            task_manager._stop_requests[task_id] = "cancel"
+            await task_manager.update_task(task_id, message="Cancellation requested...")
+            return True
 
         if task.status == "pending":
             task_manager._stop_requests[task_id] = "cancel"
@@ -79,11 +84,6 @@ class TaskControlService:
                 cancelled=True,
                 message="Cancelled in queue",
             )
-            return True
-
-        if task.status == "running":
-            task_manager._stop_requests[task_id] = "cancel"
-            await task_manager.update_task(task_id, message="Cancellation requested...")
             return True
 
         if task.status == "paused":

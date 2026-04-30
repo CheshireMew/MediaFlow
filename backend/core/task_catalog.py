@@ -34,13 +34,5 @@ def pipeline_step_names() -> set[str]:
     return set(load_task_catalog()["pipeline_steps"])
 
 
-def desktop_task_commands() -> set[str]:
-    return set(load_task_catalog()["desktop_task_commands"])
-
-
 def pipeline_step_to_type(step_name: str) -> str:
     return load_task_catalog()["pipeline_steps"][step_name]["task_type"]
-
-
-def desktop_task_command_to_type(command: str) -> str:
-    return load_task_catalog()["desktop_task_commands"][command]["task_type"]

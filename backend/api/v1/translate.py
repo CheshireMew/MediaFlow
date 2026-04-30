@@ -2,10 +2,11 @@ from fastapi import APIRouter, HTTPException
 from loguru import logger
 
 from backend.application.task_operations import (
-    execute_task_operation,
-    queue_task_operation,
+    run_task_operation,
+    submit_task_operation,
 )
 from backend.application.translation_service import TranslationRequest as TranslateRequest
+from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
 from backend.models.schemas import TranslateResponse
 from backend.utils.path_validator import validate_input_file
 
@@ -19,22 +20,26 @@ async def translate_segment_sync(req: TranslateRequest):
     Designed for small batches (user selection).
     Uses run_in_executor to avoid blocking the event loop.
     """
-    import asyncio
-
     try:
         if req.context_ref:
             validate_input_file(req.context_ref.path, label="context_ref.path")
-        translated = await asyncio.to_thread(
-            execute_task_operation,
+        translated = await run_task_operation(
             "translate",
             req,
             progress_callback=None,
+            execution="immediate",
         )
 
         return TranslateResponse(
             task_id="sync_translation",
             status="completed",
             segments=translated["segments"],
+            task_source="backend",
+            task_contract_version=TASK_CONTRACT_VERSION,
+            persistence_scope="runtime",
+            lifecycle=TASK_LIFECYCLE["runtime_only"],
+            queue_state="completed",
+            queue_position=None,
         )
     except Exception as e:
         logger.error(f"Sync translation failed: {e}")
@@ -49,9 +54,8 @@ async def translate_subtitles(req: TranslateRequest):
         if req.context_ref:
             validate_input_file(req.context_ref.path, label="context_ref.path")
 
-        response = await queue_task_operation("translate", req)
-        
-        return TranslateResponse(task_id=response["task_id"], status=response["status"])
+        response = await submit_task_operation("translate", req)
+        return TranslateResponse(**response)
     except ValueError as e:
         logger.warning(f"Rejected translation request: {e}")
         raise HTTPException(status_code=400, detail=str(e))

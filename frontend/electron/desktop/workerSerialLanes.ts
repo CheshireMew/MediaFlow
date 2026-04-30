@@ -1,4 +1,4 @@
-import type { DesktopWorkerRuntimeRequest } from "./taskTypes";
+import type { DesktopWorkerRuntimeRequest } from "./workerRequestTypes";
 import type {
   DesktopWorkerExecutionLane,
 } from "./workerCommandLanes";
@@ -8,7 +8,7 @@ import {
 } from "./workerSlot";
 import type { DesktopWorkerProtocolResponse } from "./workerProtocol";
 
-export type SerialWorkerLane = Exclude<DesktopWorkerExecutionLane, "task">;
+export type SerialWorkerLane = DesktopWorkerExecutionLane;
 
 type SerialWorkerLaneState = {
   slot: DesktopWorkerSlot;

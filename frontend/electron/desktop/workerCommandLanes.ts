@@ -1,8 +1,6 @@
 import desktopWorkerContract from "../../../contracts/desktop-worker-contract.json";
-import { DESKTOP_TASK_COMMANDS } from "../../src/contracts/generatedTaskCatalog";
-import type { DesktopTaskType } from "./taskTypes";
 
-export type DesktopWorkerExecutionLane = "control" | "utility" | "task";
+export type DesktopWorkerExecutionLane = "control" | "utility";
 
 type ContractCommandDefinition = {
   workerCommand?: string;
@@ -12,7 +10,7 @@ type ContractCommandDefinition = {
 const workerCommandLanes = new Map<string, DesktopWorkerExecutionLane>();
 
 function normalizeExecutionLane(command: string, lane: string | undefined): DesktopWorkerExecutionLane {
-  if (lane === "control" || lane === "utility" || lane === "task") {
+  if (lane === "control" || lane === "utility") {
     return lane;
   }
   throw new Error(`Desktop worker command ${command} is missing a valid executionLane.`);
@@ -42,10 +40,4 @@ export function getDesktopWorkerExecutionLane(command: string): DesktopWorkerExe
     throw new Error(`Unknown desktop worker command: ${command}`);
   }
   return lane;
-}
-
-export function isDesktopTaskCommand(command: string): command is DesktopTaskType {
-  return getDesktopWorkerExecutionLane(command) === "task" && (
-    DESKTOP_TASK_COMMANDS as readonly string[]
-  ).includes(command);
 }

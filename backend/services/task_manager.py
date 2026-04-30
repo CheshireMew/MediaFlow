@@ -12,6 +12,7 @@ from backend.core.task_control import (
     TaskControlRequested,
     TaskPauseRequested,
 )
+from backend.models.schemas import TaskView
 from backend.models.task_model import Task
 from backend.services.task_control_service import TaskControlService
 from backend.services.task_event_publisher import TaskEventPublisher
@@ -201,7 +202,7 @@ class TaskManager:
         except Exception as e:
             logger.error(f"Background task hydration failed: {e}")
 
-    def serialize_task(self, task: Task) -> dict:
+    def serialize_task(self, task: Task) -> TaskView:
         return self._queue_view.serialize_task(
             task,
             running_ids=self._running_ids,
@@ -216,7 +217,7 @@ class TaskManager:
             self._queued_ids,
         )
 
-    def get_tasks_snapshot(self) -> list:
+    def get_tasks_snapshot(self) -> list[TaskView]:
         """Return serialized list of all tasks (for WebSocket snapshot)."""
         return [self.serialize_task(task) for task in self.tasks.values()]
 

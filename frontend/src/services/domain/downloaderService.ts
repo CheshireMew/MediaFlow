@@ -7,6 +7,7 @@ export const downloaderService = {
       payload: url,
       desktopMethod: "analyzeDesktopUrl",
       desktopUnavailableMessage: "Desktop downloader worker is unavailable.",
+      mapDesktopArgs: (nextUrl) => [{ url: nextUrl }] as [{ url: string }],
       backendCall: (nextUrl) =>
         import("../../api/client").then(({ apiClient }) => apiClient.analyzeUrl(nextUrl)),
     });
@@ -17,7 +18,6 @@ export const downloaderService = {
       payload: { domain, cookies },
       desktopMethod: "saveDesktopCookies",
       desktopUnavailableMessage: "Desktop downloader worker is unavailable.",
-      mapDesktopArgs: ({ domain: nextDomain, cookies: nextCookies }) => [nextDomain, nextCookies],
       backendCall: ({ domain: nextDomain, cookies: nextCookies }) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.saveCookies(nextDomain, nextCookies),

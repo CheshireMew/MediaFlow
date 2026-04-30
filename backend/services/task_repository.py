@@ -1,13 +1,13 @@
 import json
-import time
 import uuid
 from typing import Dict, Optional
 
 from loguru import logger
 from sqlmodel import delete, select
 
+from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
 from backend.core.database import get_session_context
-from backend.models.task_model import Task
+from backend.models.task_model import Task, task_timestamp_ms
 
 
 def _clamp_progress(value):
@@ -15,6 +15,16 @@ def _clamp_progress(value):
         return max(0.0, min(100.0, float(value)))
     except (TypeError, ValueError):
         return value
+
+
+def _persistence_scope_for_status(status: str) -> str:
+    return "runtime" if status in {"pending", "running", "paused", "processing_result"} else "history"
+
+
+def _lifecycle_for_status(status: str) -> str:
+    if status in {"pending", "running", "paused", "processing_result"}:
+        return TASK_LIFECYCLE["resumable"]
+    return TASK_LIFECYCLE["history_only"]
 
 
 class TaskRepository:
@@ -30,6 +40,8 @@ class TaskRepository:
                     task.status = "paused"
                     task.message = "Interrupted by restart"
                     task.cancelled = False
+                    task.persistence_scope = _persistence_scope_for_status(task.status)
+                    task.lifecycle = _lifecycle_for_status(task.status)
                     session.add(task)
                 tasks_by_id[task.id] = task
 
@@ -62,8 +74,12 @@ class TaskRepository:
             name=final_name,
             type=task_type,
             status="pending",
+            task_source="backend",
+            task_contract_version=TASK_CONTRACT_VERSION,
+            persistence_scope=_persistence_scope_for_status("pending"),
+            lifecycle=_lifecycle_for_status("pending"),
             message=initial_message,
-            created_at=time.time(),
+            created_at=task_timestamp_ms(),
             request_params=request_params,
         )
 
@@ -85,6 +101,9 @@ class TaskRepository:
                 incoming_status = kwargs.get("status")
                 if db_task.status in {"completed", "failed", "cancelled", "paused"} and incoming_status is None:
                     return None
+                if incoming_status is not None:
+                    kwargs["persistence_scope"] = _persistence_scope_for_status(str(incoming_status))
+                    kwargs["lifecycle"] = _lifecycle_for_status(str(incoming_status))
                 for key, value in kwargs.items():
                     if hasattr(db_task, key):
                         setattr(db_task, key, value)

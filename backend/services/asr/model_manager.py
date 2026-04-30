@@ -203,6 +203,7 @@ class ModelManager:
     def __init__(self):
         self._model_instance = None
         self._current_model_name = None
+        self._current_device = None
 
     @property
     def model_map(self):
@@ -404,7 +405,11 @@ class ModelManager:
         """
         Load or reload the Whisper model securely from the local models directory.
         """
-        if self._model_instance and self._current_model_name == model_name:
+        if (
+            self._model_instance
+            and self._current_model_name == model_name
+            and self._current_device == device
+        ):
             return self._model_instance
 
         logger.info(f"Loading Whisper Model: {model_name} on {device}...")
@@ -424,6 +429,7 @@ class ModelManager:
                 download_root=None,
             )
             self._current_model_name = model_name
+            self._current_device = device
             logger.success(f"Model {model_name} loaded successfully.")
             if progress_callback:
                 progress_callback(10, "Model loaded successfully.")
@@ -433,3 +439,8 @@ class ModelManager:
         except Exception as e:
             logger.error(f"Failed to load model {model_name}: {e}")
             raise RuntimeError(f"Model loading failed: {e}")
+
+    def clear_loaded_model(self) -> None:
+        self._model_instance = None
+        self._current_model_name = None
+        self._current_device = None

@@ -1,62 +1,26 @@
 import type { Task } from "../../types/task";
 import type { TaskSocketMessage } from "../../hooks/tasks/useTaskStore";
 import {
-  getTaskLifecycle,
   TASK_CONTRACT_VERSION,
   type TaskOwnerMode,
 } from "../../contracts/runtimeContracts";
 import { reportTaskSourceIssue } from "./diagnostics";
-import { isTaskActive } from "../../services/tasks/taskRuntimeState";
 
 export const SUPPORTED_TASK_CONTRACT_VERSION = TASK_CONTRACT_VERSION;
 const warnedTaskContracts = new Set<string>();
 
-export function isDesktopTask(task: Task) {
-  return Boolean(
-    task.request_params &&
-      typeof task.request_params === "object" &&
-      "__desktop_worker" in task.request_params &&
-      task.request_params.__desktop_worker === true,
-  );
-}
-
-export function hasActiveRemoteTasks(tasks: Task[]) {
-  return tasks.some((task) => !isDesktopTask(task) && isTaskActive(task));
-}
-
 export function hasSupportedTaskContract(task: Task) {
-  return (task.task_contract_version ?? SUPPORTED_TASK_CONTRACT_VERSION) === SUPPORTED_TASK_CONTRACT_VERSION;
+  return task.task_contract_version === SUPPORTED_TASK_CONTRACT_VERSION;
 }
 
 export function normalizeTaskContract(task: Task): Task {
-  const taskSource =
-    task.task_source ??
-    (isDesktopTask(task) ? "desktop" : "backend");
-  const persistenceScope = task.persistence_scope ?? "runtime";
+  const taskSource = task.task_source;
   return {
     ...task,
     task_source: taskSource,
-    task_contract_version:
-      task.task_contract_version ?? SUPPORTED_TASK_CONTRACT_VERSION,
-    lifecycle:
-      task.lifecycle ??
-      getTaskLifecycle({
-        taskSource,
-        persistenceScope,
-        status: task.status,
-      }),
+    task_contract_version: task.task_contract_version,
+    lifecycle: task.lifecycle,
   };
-}
-
-export function getTaskSourceOwnerMode(task: Task): "desktop" | "backend" {
-  return isDesktopTask(task) || task.task_source === "desktop" ? "desktop" : "backend";
-}
-
-export function isTaskAllowedInOwnerMode(task: Task, ownerMode: TaskOwnerMode) {
-  if (ownerMode === "hybrid") {
-    return true;
-  }
-  return getTaskSourceOwnerMode(task) === ownerMode;
 }
 
 export function normalizeTaskForOwnerMode(
@@ -65,7 +29,7 @@ export function normalizeTaskForOwnerMode(
   ownerMode: TaskOwnerMode,
 ): Task | null {
   const normalizedTask = normalizeTaskContract(task);
-  if (isTaskAllowedInOwnerMode(normalizedTask, ownerMode)) {
+  if (ownerMode === "backend" && normalizedTask.task_source === "backend") {
     return normalizedTask;
   }
 
@@ -74,12 +38,12 @@ export function normalizeTaskForOwnerMode(
     source,
     taskId: normalizedTask.id,
     expected: ownerMode,
-    received: getTaskSourceOwnerMode(normalizedTask),
+    received: normalizedTask.task_source,
     ownerMode,
   });
   console.warn(
     `[TaskOwnerMode] Ignoring task ${normalizedTask.id} from ${source}. ` +
-      `Owner mode ${ownerMode} does not accept ${getTaskSourceOwnerMode(normalizedTask)} tasks.`,
+      `Owner mode ${ownerMode} does not accept ${normalizedTask.task_source} tasks.`,
   );
   return null;
 }

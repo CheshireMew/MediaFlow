@@ -10,6 +10,8 @@ from typing import List
 from fastapi import WebSocket
 from loguru import logger
 
+from backend.models.schemas import TaskView
+
 
 class WebSocketNotifier:
     """Manages WebSocket connections and broadcasts task updates."""
@@ -40,12 +42,12 @@ class WebSocketNotifier:
         for connection in disconnected:
             self.disconnect(connection)
 
-    async def send_snapshot(self, websocket: WebSocket, tasks_data: list):
+    async def send_snapshot(self, websocket: WebSocket, tasks_data: list[TaskView]):
         """Send all current tasks to a specific client (initial sync)."""
         try:
             await websocket.send_json({
                 "type": "snapshot",
-                "tasks": tasks_data,
+                "tasks": [task.model_dump(mode="json") for task in tasks_data],
             })
         except Exception as e:
             logger.error(f"Error sending snapshot: {repr(e)}")

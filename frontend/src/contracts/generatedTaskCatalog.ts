@@ -4,18 +4,5 @@
 export const TASK_TYPES = ["download", "transcribe", "transcribe_segment", "translate", "pipeline", "synthesis", "enhancement", "cleanup", "extract"] as const;
 export type TaskType = (typeof TASK_TYPES)[number];
 
-export const DESKTOP_TASK_COMMANDS = ["download", "transcribe", "translate", "synthesize", "extract", "enhance", "clean"] as const;
-export type DesktopTaskCommand = (typeof DESKTOP_TASK_COMMANDS)[number];
-
 export const PIPELINE_STEP_NAMES = ["download", "transcribe", "translate", "synthesize"] as const;
 export type PipelineStepName = (typeof PIPELINE_STEP_NAMES)[number];
-
-export const DESKTOP_TASK_COMMAND_TO_TYPE = {
-  "download": "download",
-  "transcribe": "transcribe",
-  "translate": "translate",
-  "synthesize": "synthesis",
-  "extract": "extract",
-  "enhance": "enhancement",
-  "clean": "cleanup"
-} as const;

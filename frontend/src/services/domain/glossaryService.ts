@@ -32,7 +32,7 @@ export const glossaryService = {
       await requireDesktopApiMethod(
         "deleteDesktopGlossaryTerm",
         "Desktop glossary worker is unavailable.",
-      )(termId);
+      )({ term_id: termId });
       return;
     }
     await import("../../api/client").then(({ apiClient }) => apiClient.deleteGlossaryTerm(termId));

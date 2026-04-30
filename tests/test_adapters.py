@@ -51,6 +51,42 @@ class TestFasterWhisperAdapter:
         assert "20" in cmd
         assert "--max_comma_cent" in cmd
         assert "50" in cmd
+        assert "--initial_prompt" in cmd
+        assert "None" in cmd
+
+    def test_build_command_disables_cli_default_initial_prompt(self, tmp_path):
+        audio = tmp_path / "test.wav"
+        audio.touch()
+
+        config = FasterWhisperConfig(
+            audio_path=audio,
+            output_dir=tmp_path / "out",
+            model_dir=Path("/models"),
+            initial_prompt=None,
+        )
+
+        adapter = FasterWhisperAdapter()
+        cmd = adapter.build_command(config)
+
+        prompt_index = cmd.index("--initial_prompt")
+        assert cmd[prompt_index + 1] == "None"
+
+    def test_build_command_passes_explicit_initial_prompt(self, tmp_path):
+        audio = tmp_path / "test.wav"
+        audio.touch()
+
+        config = FasterWhisperConfig(
+            audio_path=audio,
+            output_dir=tmp_path / "out",
+            model_dir=Path("/models"),
+            initial_prompt="finance terms",
+        )
+
+        adapter = FasterWhisperAdapter()
+        cmd = adapter.build_command(config)
+
+        prompt_index = cmd.index("--initial_prompt")
+        assert cmd[prompt_index + 1] == "finance terms"
 
     def test_build_command_auto_language(self, tmp_path):
         audio = tmp_path / "test.wav"

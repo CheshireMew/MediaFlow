@@ -101,8 +101,7 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         if config.language and config.language != "auto":
             cmd.extend(["--language", config.language])
 
-        if config.initial_prompt:
-            cmd.extend(["--initial_prompt", config.initial_prompt])
+        cmd.extend(["--initial_prompt", config.initial_prompt or "None"])
 
         return cmd
 

@@ -1,5 +1,6 @@
 import type {
   ActiveProviderResponse,
+  CudaReadinessResponse,
   FasterWhisperCliInstallResponse,
   ProviderConnectionRequest,
   ProviderConnectionResponse,
@@ -25,7 +26,7 @@ export const settingsService = {
       return requireDesktopApiMethod(
         "updateDesktopSettings",
         "Desktop settings worker is unavailable.",
-      )(settings);
+      )({ settings });
     }
     return import("../../api/client").then(({ apiClient }) => apiClient.updateSettings(settings));
   },
@@ -35,7 +36,7 @@ export const settingsService = {
       return requireDesktopApiMethod(
         "setDesktopActiveProvider",
         "Desktop settings worker is unavailable.",
-      )(providerId);
+      )({ provider_id: providerId });
     }
     return import("../../api/client").then(({ apiClient }) => apiClient.setActiveProvider(providerId));
   },
@@ -70,6 +71,10 @@ export const settingsService = {
       )();
     }
     return import("../../api/client").then(({ apiClient }) => apiClient.installFasterWhisperCli());
+  },
+
+  getCudaReadiness(): Promise<CudaReadinessResponse> {
+    return import("../../api/client").then(({ apiClient }) => apiClient.getCudaReadiness());
   },
 
   async getSmartSplitTextLimit(): Promise<number> {

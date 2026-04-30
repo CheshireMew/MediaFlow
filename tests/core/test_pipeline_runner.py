@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from backend.core.pipeline import PipelineRunner
 from backend.core.context import PipelineContext
-from backend.models.schemas import DownloadStepRequest, DownloadParams
+from backend.models.schemas import DownloadParams, PipelineStepRequest
 from backend.core.steps.registry import StepRegistry
 
 @pytest.mark.asyncio
@@ -19,7 +19,7 @@ async def test_pipeline_runner_success():
     with patch.object(StepRegistry, 'get_step', return_value=mock_step) as mock_get_step:
         # Use valid Pydantic model
         params = DownloadParams(url="https://example.com/video")
-        step_req = DownloadStepRequest(step_name="download", params=params)
+        step_req = PipelineStepRequest(step_name="download", params=params)
         steps = [step_req]
         
         # Execute
@@ -43,7 +43,7 @@ async def test_pipeline_runner_cancellation():
     runner = PipelineRunner(task_manager=mock_tm)
 
     params = DownloadParams(url="https://example.com/video")
-    step_req = DownloadStepRequest(step_name="download", params=params)
+    step_req = PipelineStepRequest(step_name="download", params=params)
     steps = [step_req]
 
     result = await runner.run(steps, task_id="task-123")
@@ -62,7 +62,7 @@ async def test_pipeline_runner_step_failure():
     
     with patch.object(StepRegistry, 'get_step', return_value=mock_step):
         params = DownloadParams(url="https://example.com/video")
-        step_req = DownloadStepRequest(step_name="download", params=params)
+        step_req = PipelineStepRequest(step_name="download", params=params)
         steps = [step_req]
         
         with pytest.raises(Exception, match="Step Failed!"):

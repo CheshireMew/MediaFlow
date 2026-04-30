@@ -7,7 +7,6 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastContainer } from "./components/ui/ToastContainer";
 import { StartupPlaceholderPage } from "./components/startup/StartupPlaceholderPage";
 import { ENABLE_EXPERIMENTAL_PREPROCESSING } from "./config/features";
-import { isDesktopRuntime } from "./services/domain";
 import {
   persistNavigationDestination,
   resolveCurrentNavigationPath,
@@ -128,7 +127,7 @@ function routeElement(
     | "preprocessing"
     | "settings",
 ) {
-  const requiresBackend = variant === "editor" && !isDesktopRuntime();
+  const requiresBackend = true;
 
   if (appReady && (!requiresBackend || remoteBackendReady)) {
     return (
@@ -146,8 +145,7 @@ function App({
   remoteBackendReady = true,
   startupMessage = "",
 }: AppProps) {
-  const desktopRuntime = isDesktopRuntime();
-  const taskProviderEnabled = appReady && (desktopRuntime || remoteBackendReady);
+  const taskProviderEnabled = appReady && remoteBackendReady;
 
   return (
     <TaskProvider enabled={taskProviderEnabled}>

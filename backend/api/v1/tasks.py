@@ -2,12 +2,13 @@ from fastapi import APIRouter, HTTPException
 
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
+from backend.models.schemas import TaskView
 from loguru import logger
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 
-@router.get("/", response_model=list[dict])
+@router.get("/", response_model=list[TaskView])
 async def list_tasks():
     """Get all tasks."""
     tm = runtime_service(Services.TASK_MANAGER)
@@ -21,7 +22,7 @@ async def get_queue_summary():
     return runtime_service(Services.TASK_MANAGER).get_queue_summary()
 
 
-@router.get("/{task_id}", response_model=dict)
+@router.get("/{task_id}", response_model=TaskView)
 async def get_task(task_id: str):
     """Get task status."""
     tm = runtime_service(Services.TASK_MANAGER)

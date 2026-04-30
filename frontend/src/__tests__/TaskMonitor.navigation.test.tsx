@@ -364,7 +364,7 @@ describe("TaskMonitor navigation actions", () => {
     });
   });
 
-  it("shows a history badge for persisted desktop history tasks", () => {
+  it("shows a history badge for persisted backend history tasks", () => {
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
@@ -377,7 +377,6 @@ describe("TaskMonitor navigation actions", () => {
           message: "Completed",
           created_at: Date.now(),
           request_params: {
-            __desktop_worker: true,
             url: "https://example.com/video",
           },
           result: {

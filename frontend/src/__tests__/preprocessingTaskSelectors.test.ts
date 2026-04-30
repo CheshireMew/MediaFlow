@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
 import {
   findRecoverablePreprocessingTask,
   getActivePreprocessingTask,
@@ -8,6 +9,7 @@ import type { Task } from "../types/task";
 describe("preprocessing task selectors", () => {
   it("treats the current preprocessing task as active when canonical refs match", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-own",
       type: "extract",
       status: "running",
@@ -35,6 +37,7 @@ describe("preprocessing task selectors", () => {
 
   it("hides the task when canonical refs differ even if path mirrors still match", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-own",
       type: "extract",
       status: "running",
@@ -62,6 +65,7 @@ describe("preprocessing task selectors", () => {
 
   it("finds a recoverable completed preprocessing task by canonical video identity", () => {
     const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-history",
       type: "extract",
       status: "completed",

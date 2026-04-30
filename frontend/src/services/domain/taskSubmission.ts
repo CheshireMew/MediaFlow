@@ -1,6 +1,15 @@
 import type { TaskResponse, TaskSubmissionReceipt } from "../../types/api";
 import type { Task, TaskRequestParams, TaskType } from "../../types/task";
-import { getTaskLifecycle, TASK_CONTRACT_VERSION } from "../../contracts/runtimeContracts";
+import {
+  TASK_CONTRACT_VERSION,
+  TASK_LIFECYCLE,
+  TASK_QUEUE_STATES,
+  TASK_PERSISTENCE_SCOPES,
+  type TaskLifecycle,
+  type TaskPersistenceScope,
+  type TaskQueueState,
+  type TaskSource,
+} from "../../contracts/runtimeContracts";
 
 export const TASK_SUBMISSION_CONTRACT_VERSION = TASK_CONTRACT_VERSION;
 
@@ -50,46 +59,56 @@ export function createExecutionOutcomeFromSubmission(
 
 export function createTaskExecutionSubmissionReceipt(
   response: TaskResponse,
-  taskSource: "desktop" | "backend",
+  taskSource: TaskSource = "backend",
 ): TaskExecutionSubmission {
   if (!response.task_id) {
     throw new Error("Task submission did not return a task_id");
   }
+  if (response.task_source !== taskSource) {
+    throw new Error(`Task submission source mismatch: expected ${taskSource}, received ${response.task_source}`);
+  }
+  if (response.task_contract_version !== TASK_SUBMISSION_CONTRACT_VERSION) {
+    throw new Error(
+      `Task submission contract mismatch: expected ${TASK_SUBMISSION_CONTRACT_VERSION}, received ${response.task_contract_version}`,
+    );
+  }
+  if (
+    !response.persistence_scope ||
+    !TASK_PERSISTENCE_SCOPES.includes(response.persistence_scope as TaskPersistenceScope)
+  ) {
+    throw new Error(`Task submission returned invalid persistence scope: ${response.persistence_scope}`);
+  }
+  if (
+    !response.lifecycle ||
+    !Object.values(TASK_LIFECYCLE).includes(response.lifecycle as TaskLifecycle)
+  ) {
+    throw new Error("Task submission did not return lifecycle metadata");
+  }
+  if (!TASK_QUEUE_STATES.includes(response.queue_state as TaskQueueState)) {
+    throw new Error(`Task submission returned invalid queue state: ${response.queue_state}`);
+  }
+
+  const persistenceScope = response.persistence_scope as TaskPersistenceScope;
+  const lifecycle = response.lifecycle as TaskLifecycle;
+  const queueState = response.queue_state as TaskQueueState;
 
   return {
     execution_mode: "task_submission",
     task_id: response.task_id,
     status: response.status,
     message: response.message,
-    task_source: taskSource,
-    task_contract_version: TASK_SUBMISSION_CONTRACT_VERSION,
-    persistence_scope: "runtime",
-    lifecycle: getTaskLifecycle({
-      taskSource,
-      persistenceScope: "runtime",
-      status: response.status,
-    }),
-    queue_state:
-      response.status === "pending"
-        ? "queued"
-        : response.status === "running"
-          ? "running"
-          : response.status === "paused"
-            ? "paused"
-            : response.status === "cancelled"
-              ? "cancelled"
-              : response.status === "completed"
-                ? "completed"
-                : response.status === "failed"
-                  ? "failed"
-                  : "idle",
-    queue_position: null,
+    task_source: response.task_source,
+    task_contract_version: response.task_contract_version,
+    persistence_scope: persistenceScope,
+    lifecycle,
+    queue_state: queueState,
+    queue_position: response.queue_position ?? null,
   };
 }
 
 export function createTaskExecutionOutcome(
   response: TaskResponse,
-  taskSource: "desktop" | "backend",
+  taskSource: TaskSource = "backend",
 ): ExecutionOutcome {
   return createExecutionOutcomeFromSubmission(
     createTaskExecutionSubmissionReceipt(response, taskSource),
@@ -104,29 +123,18 @@ export function createTaskFromSubmissionReceipt(args: {
   created_at?: number;
 }): Task {
   const { receipt, type, name, request_params, created_at } = args;
-  const taskSource = receipt.task_source ?? "backend";
-
   return {
     id: receipt.task_id,
     type,
     status: mapSubmissionStatusToTaskStatus(receipt),
-    task_source: taskSource,
-    task_contract_version: receipt.task_contract_version ?? TASK_SUBMISSION_CONTRACT_VERSION,
-    persistence_scope: receipt.persistence_scope ?? "runtime",
-    lifecycle:
-      receipt.lifecycle ??
-      getTaskLifecycle({
-        taskSource,
-        persistenceScope: receipt.persistence_scope ?? "runtime",
-        status: mapSubmissionStatusToTaskStatus(receipt),
-      }),
+    task_source: receipt.task_source,
+    task_contract_version: receipt.task_contract_version,
+    persistence_scope: receipt.persistence_scope,
+    lifecycle: receipt.lifecycle,
     progress: 0,
     name,
     message: receipt.message,
-    request_params: {
-      ...(taskSource === "desktop" ? { __desktop_worker: true } : {}),
-      ...request_params,
-    },
+    request_params,
     created_at: created_at ?? Date.now(),
     queue_state: receipt.queue_state,
     queue_position: receipt.queue_position ?? null,
