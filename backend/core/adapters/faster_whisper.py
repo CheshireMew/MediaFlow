@@ -2,6 +2,7 @@ import os
 import subprocess
 import re
 import shutil
+import time
 from pathlib import Path
 from typing import Optional, List, Callable, Any
 from pydantic import BaseModel, Field, field_validator
@@ -132,6 +133,13 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         return self._run_subprocess(cmd, config, progress_callback)
 
     def _run_subprocess(self, cmd: List[str], config: FasterWhisperConfig, progress_callback) -> List[SubtitleSegment]:
+        started_at = time.perf_counter()
+        first_output_at: float | None = None
+        cuda_ready_at: float | None = None
+        process_start_at: float | None = None
+        language_detect_at: float | None = None
+        first_progress_at: float | None = None
+
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -141,6 +149,11 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
             errors='replace',
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
+        logger.info(
+            "Faster-Whisper CLI process spawned: pid={} spawn_elapsed={:.3f}s",
+            process.pid,
+            time.perf_counter() - started_at,
+        )
         notable_output: list[str] = []
         
         while True:
@@ -149,8 +162,28 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
                 break
             if line:
                 line = line.strip()
+                now = time.perf_counter()
+                if first_output_at is None:
+                    first_output_at = now
+                    logger.info(
+                        "Faster-Whisper CLI first output after {:.3f}s: {}",
+                        first_output_at - started_at,
+                        line,
+                    )
+                if cuda_ready_at is None and "running on:" in line:
+                    cuda_ready_at = now
+                    logger.info("Faster-Whisper CLI runtime ready after {:.3f}s", now - started_at)
+                if process_start_at is None and line.startswith("Starting to process:"):
+                    process_start_at = now
+                    logger.info("Faster-Whisper CLI media processing started after {:.3f}s", now - started_at)
+                if language_detect_at is None and "Detecting language" in line:
+                    language_detect_at = now
+                    logger.info("Faster-Whisper CLI language detection started after {:.3f}s", now - started_at)
                 # Progress parsing
                 if match := re.search(r"(\d+)%", line):
+                    if first_progress_at is None:
+                        first_progress_at = now
+                        logger.info("Faster-Whisper CLI first progress after {:.3f}s", now - started_at)
                     p = max(0, min(100, int(match.group(1))))
                     if "MB" not in line and "kB" not in line and progress_callback: 
                         progress_callback(10 + int(p * 0.8), f"Transcribing... {p}%")
@@ -161,6 +194,11 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         
         # Wait for process to really finish
         process.wait()
+        logger.info(
+            "Faster-Whisper CLI process exited: returncode={} total_elapsed={:.3f}s",
+            process.returncode,
+            time.perf_counter() - started_at,
+        )
 
         # Post-process: Find SRT first to see if work was actually done
         srt_files = list(config.output_dir.glob("*.srt"))
