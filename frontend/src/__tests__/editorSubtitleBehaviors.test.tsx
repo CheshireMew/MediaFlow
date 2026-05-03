@@ -139,6 +139,23 @@ describe("editor subtitle behaviors", () => {
     expect(result.segments[1].text.length).toBeGreaterThan(0);
   });
 
+  test("smart split does not break immediately after a number followed by whitespace", () => {
+    const input = [
+      {
+        id: "1",
+        start: 0,
+        end: 6,
+        text: "this subtitle has enough words before marker 1 and enough words after marker to force a split without punctuation",
+      },
+    ];
+
+    const result = smartSplitSubtitleSegments(input, { textLimit: 12 });
+    const joined = result.segments.map((segment) => segment.text).join("|");
+
+    expect(result.splitCount).toBe(1);
+    expect(joined).not.toContain("1|and");
+  });
+
   test("smart split keeps english words intact inside mixed CJK subtitles", () => {
     const input = [
       {

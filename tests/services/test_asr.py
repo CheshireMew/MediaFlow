@@ -1,3 +1,4 @@
+import subprocess
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -36,6 +37,33 @@ def test_asr_service_initializes_processing_dependencies(asr_service):
     assert asr_service.model_manager is not None
     assert asr_service.adapter is not None
     assert asr_service.core_strategies is not None
+
+
+def test_cli_prewarm_runs_help_once(asr_service, monkeypatch, tmp_path):
+    cli_path = tmp_path / "faster-whisper-xxl.exe"
+    cli_path.write_bytes(b"fake")
+    resolved_path = str(cli_path.resolve())
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path))
+    monkeypatch.setattr("backend.services.asr.service.subprocess.run", fake_run)
+    ASRService._cli_prewarmed_paths.discard(resolved_path)
+    ASRService._cli_prewarm_threads.pop(resolved_path, None)
+
+    assert asr_service.start_cli_prewarm() is True
+    prewarm_thread = ASRService._cli_prewarm_threads[resolved_path]
+    prewarm_thread.join(timeout=5)
+
+    assert len(calls) == 1
+    assert calls[0][0] == [resolved_path, "--help"]
+    assert calls[0][1]["stdout"] is subprocess.DEVNULL
+    assert calls[0][1]["stderr"] is subprocess.STDOUT
+    assert asr_service.start_cli_prewarm() is False
+
 
 def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypatch, tmp_path):
     audio_path = tmp_path / "sample.mp3"

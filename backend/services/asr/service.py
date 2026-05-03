@@ -1,6 +1,8 @@
 import os
 import time
 import shutil
+import subprocess
+import threading
 from pathlib import Path
 from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor
@@ -19,11 +21,82 @@ from .model_manager import ModelManager
 from .core_strategies import CoreStrategies
 
 class ASRService:
+    _cli_prewarm_lock = threading.Lock()
+    _cli_prewarmed_paths: set[str] = set()
+    _cli_prewarm_threads: dict[str, threading.Thread] = {}
+
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=settings.ASR_MAX_WORKERS)
         self.model_manager = ModelManager()
         self.adapter = FasterWhisperAdapter()
         self.core_strategies = CoreStrategies(self.executor)
+
+    def start_cli_prewarm(self) -> bool:
+        cli_path = getattr(settings, "FASTER_WHISPER_CLI_PATH", "") or ""
+        if not cli_path or not Path(cli_path).exists():
+            logger.info("Faster-Whisper CLI prewarm skipped: executable is not configured.")
+            return False
+
+        resolved_path = str(Path(cli_path).resolve())
+        with ASRService._cli_prewarm_lock:
+            if resolved_path in ASRService._cli_prewarmed_paths:
+                logger.debug("Faster-Whisper CLI prewarm already completed for {}", resolved_path)
+                return False
+            existing_thread = ASRService._cli_prewarm_threads.get(resolved_path)
+            if existing_thread and existing_thread.is_alive():
+                logger.debug("Faster-Whisper CLI prewarm is already running for {}", resolved_path)
+                return False
+
+            thread = threading.Thread(
+                target=self._run_cli_prewarm,
+                args=(resolved_path,),
+                name="faster-whisper-cli-prewarm",
+                daemon=True,
+            )
+            ASRService._cli_prewarm_threads[resolved_path] = thread
+            thread.start()
+            return True
+
+    def _run_cli_prewarm(self, cli_path: str) -> None:
+        started_at = time.perf_counter()
+        logger.info("Faster-Whisper CLI prewarm started: {}", cli_path)
+        try:
+            result = subprocess.run(
+                [cli_path, "--help"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+                timeout=180,
+                check=False,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+        except subprocess.TimeoutExpired:
+            with ASRService._cli_prewarm_lock:
+                ASRService._cli_prewarm_threads.pop(cli_path, None)
+            logger.warning(
+                "Faster-Whisper CLI prewarm timed out after {:.3f}s",
+                time.perf_counter() - started_at,
+            )
+            return
+        except OSError as exc:
+            with ASRService._cli_prewarm_lock:
+                ASRService._cli_prewarm_threads.pop(cli_path, None)
+            logger.warning("Faster-Whisper CLI prewarm failed to start: {}", exc)
+            return
+
+        elapsed = time.perf_counter() - started_at
+        if result.returncode == 0:
+            with ASRService._cli_prewarm_lock:
+                ASRService._cli_prewarmed_paths.add(cli_path)
+                ASRService._cli_prewarm_threads.pop(cli_path, None)
+            logger.info("Faster-Whisper CLI prewarm completed in {:.3f}s", elapsed)
+        else:
+            with ASRService._cli_prewarm_lock:
+                ASRService._cli_prewarm_threads.pop(cli_path, None)
+            logger.warning(
+                "Faster-Whisper CLI prewarm exited with code {} after {:.3f}s",
+                result.returncode,
+                elapsed,
+            )
 
     def transcribe(self, audio_path: str, model_name: str = "base", device: str = "cpu", language: str = None, task_id: str = None, initial_prompt: str = None, progress_callback=None, generate_peaks: bool = True, engine: str = "builtin") -> TaskResult:
         """

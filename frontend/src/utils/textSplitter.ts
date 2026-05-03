@@ -157,20 +157,50 @@ function getFirstCjkChar(text: string): string {
   return match ? match[1] : "";
 }
 
-function canBreakAt(text: string, index: number): boolean {
-  if (index <= 0 || index >= text.length) {
+function touchesNumberWhitespaceBoundary(text: string, splitIndex: number): boolean {
+  const prev = text[splitIndex - 1] ?? "";
+  const next = text[splitIndex] ?? "";
+  if (/\d/.test(prev) && /\s/.test(next)) {
+    return true;
+  }
+
+  let index = splitIndex - 1;
+  if (!/\s/.test(prev)) {
     return false;
   }
 
-  const prev = text[index - 1];
-  const curr = text[index];
-  const next = text[index + 1];
+  while (index >= 0 && /\s/.test(text[index])) {
+    index -= 1;
+  }
 
-  if ((curr === "." || curr === ",") && /\d/.test(prev) && next && /\d/.test(next)) {
+  return index >= 0 && /\d/.test(text[index]);
+}
+
+function canBreakAt(text: string, splitIndex: number): boolean {
+  if (splitIndex <= 0 || splitIndex >= text.length) {
     return false;
   }
 
-  const textUpToSplit = text.slice(0, index + 1);
+  const prev = text[splitIndex - 1];
+  const next = text[splitIndex];
+  const boundaryChar = prev;
+  const charBeforeBoundary = text[splitIndex - 2];
+
+  if (touchesNumberWhitespaceBoundary(text, splitIndex)) {
+    return false;
+  }
+
+  if (
+    (boundaryChar === "." || boundaryChar === ",") &&
+    charBeforeBoundary &&
+    /\d/.test(charBeforeBoundary) &&
+    next &&
+    /\d/.test(next)
+  ) {
+    return false;
+  }
+
+  const textUpToSplit = text.slice(0, splitIndex);
   const lastWord = textUpToSplit.trim().split(/\s+/).pop();
   if (lastWord && ABBREVIATIONS.some((abbr) => lastWord.endsWith(abbr))) {
     return false;
@@ -374,6 +404,10 @@ function addCandidate(
     return;
   }
 
+  if (!canBreakAt(text, splitIndex)) {
+    return;
+  }
+
   if (!hasEnoughPunctuationContext(text, splitIndex, reason, profile, options)) {
     return;
   }
@@ -436,6 +470,9 @@ function getMidpointBoundaryIndex(text: string, profile: TextProfile): number {
 
   for (const token of tokens) {
     if (token.end <= 0 || token.end >= text.length) {
+      continue;
+    }
+    if (!canBreakAt(text, token.end)) {
       continue;
     }
 
@@ -513,10 +550,6 @@ export function getBestSplitIndex(
 
   for (let i = 0; i < len - 1; i++) {
     const char = text[i];
-    if (!canBreakAt(text, i)) {
-      continue;
-    }
-
     if (sentenceEndings.includes(char)) {
       addCandidate(candidates, text, i + 1, "sentence", profile, options);
     } else if (pauseMarks.includes(char)) {

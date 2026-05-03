@@ -166,7 +166,7 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
                 if first_output_at is None:
                     first_output_at = now
                     logger.info(
-                        "Faster-Whisper CLI first output after {:.3f}s: {}",
+                        "Faster-Whisper CLI first output after {:.3f}s: {!r}",
                         first_output_at - started_at,
                         line,
                     )

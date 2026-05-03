@@ -61,6 +61,15 @@ describe("text splitter heuristics", () => {
     expect(text.slice(splitIndex).startsWith("ne")).toBe(false);
   });
 
+  it("does not split immediately after a number followed by whitespace", () => {
+    const text = "abcdef 1 ghijklmno";
+    const numberEndIndex = text.indexOf("1 ") + 1;
+    const whitespaceEndIndex = text.indexOf("1 ") + 2;
+
+    expect(getBestSplitIndex(text)).not.toBe(numberEndIndex);
+    expect(getBestSplitIndex(text)).not.toBe(whitespaceEndIndex);
+  });
+
   it("only splits at a pause mark when both sides are substantial in smart mode", () => {
     const validText = "这是前半句足够长的说明内容部分，这也是后半句足够长的说明内容部分";
     const shortTailText = "这是前半句足够长的说明内容部分，很短";

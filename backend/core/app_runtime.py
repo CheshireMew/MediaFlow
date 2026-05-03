@@ -33,7 +33,9 @@ class ApplicationRuntime:
         registered_count = self.register_services()
         configure_runtime_services(self._container)
         self.register_task_runners()
+        self._container.get(Services.SETTINGS_MANAGER).get_settings()
         await self._container.get(Services.TASK_MANAGER).warm_start_async()
+        self._container.get(Services.ASR).start_cli_prewarm()
         return registered_count
 
     async def stop(self) -> None:
