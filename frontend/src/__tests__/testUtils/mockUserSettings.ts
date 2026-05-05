@@ -22,5 +22,6 @@ export function createMockUserSettings(
     language: overrides.language ?? "zh",
     auto_execute_flow: overrides.auto_execute_flow ?? false,
     smart_split_text_limit: overrides.smart_split_text_limit ?? 18,
+    ui_state: overrides.ui_state ?? {},
   };
 }

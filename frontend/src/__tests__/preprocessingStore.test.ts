@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { usePreprocessingStore } from "../stores/preprocessingStore";
+import { readUiStateValue } from "../services/persistence/uiStateSettings";
 import { resetPreprocessingStoreForTests } from "./testFixtures";
 
 describe("preprocessingStore persistence", () => {
@@ -20,21 +21,18 @@ describe("preprocessingStore persistence", () => {
       currentPreprocessingTaskVideoRef: { path: "E:/video.mp4", name: "video.mp4" },
     });
 
-    const persistedRaw = localStorage.getItem("preprocessing-storage");
-    expect(persistedRaw).toBeTruthy();
-    const persisted = JSON.parse(persistedRaw as string) as {
-      state: Record<string, unknown>;
-    };
+    const persisted = readUiStateValue<Record<string, unknown>>("preprocessing-storage");
+    expect(persisted).toBeTruthy();
 
-    expect(persisted.state).toMatchObject({
+    expect(persisted).toMatchObject({
       preprocessingVideoPath: "E:/video.mp4",
       preprocessingVideoRef: { path: "E:/video.mp4", name: "video.mp4" },
       preprocessingFiles: [{ path: "E:/video.mp4", name: "video.mp4", size: 1024 }],
     });
-    expect(persisted.state.preprocessingIsProcessing).toBeUndefined();
-    expect(persisted.state.currentPreprocessingTaskId).toBeUndefined();
-    expect(persisted.state.currentPreprocessingTaskTool).toBeUndefined();
-    expect(persisted.state.currentPreprocessingTaskVideoPath).toBeUndefined();
-    expect(persisted.state.currentPreprocessingTaskVideoRef).toBeUndefined();
+    expect(persisted?.preprocessingIsProcessing).toBeUndefined();
+    expect(persisted?.currentPreprocessingTaskId).toBeUndefined();
+    expect(persisted?.currentPreprocessingTaskTool).toBeUndefined();
+    expect(persisted?.currentPreprocessingTaskVideoPath).toBeUndefined();
+    expect(persisted?.currentPreprocessingTaskVideoRef).toBeUndefined();
   });
 });

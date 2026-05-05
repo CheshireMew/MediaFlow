@@ -61,6 +61,7 @@ export type UserSettings = Omit<GeneratedUserSettings, "llm_providers"> & {
   language: string;
   auto_execute_flow: boolean;
   smart_split_text_limit: number;
+  ui_state: Record<string, unknown>;
 };
 
 export type ProviderConnectionRequest = Omit<GeneratedProviderConnectionRequest, "name"> & {

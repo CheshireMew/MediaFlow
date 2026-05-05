@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useEditorPlaybackPersistence } from "../hooks/editor/useEditorPlaybackPersistence";
+import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
 
 describe("useEditorPlaybackPersistence", () => {
   beforeEach(() => {
@@ -10,7 +11,7 @@ describe("useEditorPlaybackPersistence", () => {
 
   it("restores the saved playback time from the versioned snapshot on metadata load", () => {
     const filePath = "C:\\video.mp4";
-    localStorage.setItem(
+    writeUiStateValue(
       `editor_playback_snapshot_${filePath}`,
       JSON.stringify({
         schema_version: 1,
@@ -80,7 +81,7 @@ describe("useEditorPlaybackPersistence", () => {
     });
 
     expect(
-      localStorage.getItem(`editor_playback_snapshot_${filePath}`),
+      readUiStateValue(`editor_playback_snapshot_${filePath}`),
     ).toBeTruthy();
 
     unmount();

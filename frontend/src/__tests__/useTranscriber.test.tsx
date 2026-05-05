@@ -9,6 +9,7 @@ import {
 } from "./testFixtures";
 import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
 import type { MockedElectronAPI } from "./testUtils/electronMock";
+import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
 
 const useTaskContextMock = vi.fn();
 const addTaskMock = vi.fn();
@@ -62,6 +63,7 @@ describe("useTranscriber", () => {
       language: "zh",
       auto_execute_flow: false,
       smart_split_text_limit: 24,
+      ui_state: {},
     });
 
     useTaskContextMock.mockReturnValue({
@@ -290,7 +292,7 @@ describe("useTranscriber", () => {
 
 
   it("restores transcriber state from the versioned snapshot only", async () => {
-    localStorage.setItem(
+    writeUiStateValue(
       "transcriber_snapshot",
       JSON.stringify({
         schema_version: 2,
@@ -336,8 +338,8 @@ describe("useTranscriber", () => {
     expect(result.current.state.device).toBe("cpu");
     expect(result.current.state.currentTranscriptionTaskId).toBeNull();
     expect(result.current.state.result?.text).toBe("snapshot");
-    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"model\":\"base\"");
-    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"device\":\"cpu\"");
+    expect(readUiStateValue<string>("asr_execution_preferences")).toContain("\"model\":\"base\"");
+    expect(readUiStateValue<string>("asr_execution_preferences")).toContain("\"device\":\"cpu\"");
   });
 
   it("persists transcriber document state separately from shared ASR preferences", async () => {
@@ -355,14 +357,14 @@ describe("useTranscriber", () => {
     });
 
     await waitFor(() => {
-      expect(localStorage.getItem("transcriber_snapshot")).toBeTruthy();
+      expect(readUiStateValue("transcriber_snapshot")).toBeTruthy();
     });
 
-    expect(localStorage.getItem("transcriber_snapshot")).not.toContain("\"currentTranscriptionTaskId\"");
-    expect(localStorage.getItem("transcriber_snapshot")).not.toContain("\"model\"");
-    expect(localStorage.getItem("transcriber_snapshot")).not.toContain("\"device\"");
-    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"model\":\"base\"");
-    expect(localStorage.getItem("asr_execution_preferences")).toContain("\"device\":\"cpu\"");
+    expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"currentTranscriptionTaskId\"");
+    expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"model\"");
+    expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"device\"");
+    expect(readUiStateValue<string>("asr_execution_preferences")).toContain("\"model\":\"base\"");
+    expect(readUiStateValue<string>("asr_execution_preferences")).toContain("\"device\":\"cpu\"");
   });
 
 
@@ -404,7 +406,7 @@ describe("useTranscriber", () => {
       created_at: Date.now(),
     };
 
-    localStorage.setItem(
+    writeUiStateValue(
       "transcriber_snapshot",
       JSON.stringify({
         schema_version: 2,
@@ -497,7 +499,7 @@ describe("useTranscriber", () => {
       created_at: Date.now(),
     };
 
-    localStorage.setItem(
+    writeUiStateValue(
       "transcriber_snapshot",
       JSON.stringify({
         schema_version: 2,
@@ -541,7 +543,7 @@ describe("useTranscriber", () => {
   });
 
   it("does not restore runtime-only currentTranscriptionTaskId during reload", async () => {
-    localStorage.setItem(
+    writeUiStateValue(
       "transcriber_snapshot",
       JSON.stringify({
         schema_version: 2,
@@ -583,7 +585,7 @@ describe("useTranscriber", () => {
 
   it("writes smart-split output only through subtitle_ref path in desktop mode", async () => {
     const writeFile = vi.fn().mockResolvedValue(undefined);
-    localStorage.setItem(
+    writeUiStateValue(
       "transcriber_snapshot",
       JSON.stringify({
         schema_version: 2,

@@ -3,6 +3,8 @@ import { afterEach, expect, test, vi } from 'vitest'
 import type { ReactElement, ReactNode } from 'react'
 import App from '../App'
 import { installElectronMock } from './testUtils/electronMock'
+import { initializeUiStateSettings } from '../services/persistence/uiStateSettings'
+import { createMockUserSettings } from './testUtils/mockUserSettings'
 
 type MockIconComponent = (props: Record<string, unknown>) => ReactElement
 
@@ -89,8 +91,12 @@ test('opens downloader on first launch', async () => {
   })
 })
 
-test('restores the last opened page from localStorage', async () => {
-  localStorage.setItem('mediaflow:last-route', 'translator')
+test('restores the last opened page from shared UI settings', async () => {
+  initializeUiStateSettings(createMockUserSettings({
+    ui_state: {
+      'mediaflow:last-route': 'translator',
+    },
+  }))
   render(<App />)
   await waitFor(() => {
     expect(screen.getByTestId('page-translator')).toBeInTheDocument()
@@ -110,4 +116,3 @@ test('gates editor page on backend readiness', async () => {
   expect(screen.queryByTestId('page-editor')).not.toBeInTheDocument()
   expect(screen.getByText('Waiting')).toBeInTheDocument()
 })
-

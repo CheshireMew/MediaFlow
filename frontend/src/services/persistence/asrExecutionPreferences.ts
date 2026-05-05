@@ -1,4 +1,5 @@
 import { parseVersionedSnapshot, serializeVersionedSnapshot } from "./versionedSnapshot";
+import { readUiStateValue, writeUiStateValue } from "./uiStateSettings";
 
 export type AsrExecutionPreferences = {
   engine: "builtin" | "cli";
@@ -34,7 +35,7 @@ function normalizeAsrExecutionPreferences(
 export function persistStoredAsrExecutionPreferences(
   preferences: AsrExecutionPreferences,
 ) {
-  localStorage.setItem(
+  writeUiStateValue(
     ASR_EXECUTION_PREFERENCES_KEY,
     serializeVersionedSnapshot(
       ASR_EXECUTION_PREFERENCES_VERSION,
@@ -45,7 +46,7 @@ export function persistStoredAsrExecutionPreferences(
 
 export function restoreStoredAsrExecutionPreferences(): AsrExecutionPreferences {
   const snapshot = parseVersionedSnapshot<AsrExecutionPreferences>(
-    localStorage.getItem(ASR_EXECUTION_PREFERENCES_KEY),
+    readUiStateValue<string>(ASR_EXECUTION_PREFERENCES_KEY),
     ASR_EXECUTION_PREFERENCES_VERSION,
   );
 

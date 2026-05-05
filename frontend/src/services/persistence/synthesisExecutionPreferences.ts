@@ -1,5 +1,6 @@
 import { DEFAULT_SUBTITLE_POSITION } from "../domain/synthesis/types";
 import type { PersistedSubtitleStyleValues } from "../domain/synthesis/styleTypes";
+import { readUiStateValue, writeUiStateValue } from "./uiStateSettings";
 import { parseVersionedSnapshot, serializeVersionedSnapshot } from "./versionedSnapshot";
 
 export type SynthesisQuality = "high" | "balanced" | "small";
@@ -146,7 +147,7 @@ function normalizeSynthesisExecutionPreferences(
 export function persistStoredSynthesisExecutionPreferences(
   preferences: SynthesisExecutionPreferences,
 ) {
-  localStorage.setItem(
+  writeUiStateValue(
     SYNTHESIS_EXECUTION_PREFERENCES_KEY,
     serializeVersionedSnapshot(
       SYNTHESIS_EXECUTION_PREFERENCES_VERSION,
@@ -158,7 +159,7 @@ export function persistStoredSynthesisExecutionPreferences(
 export function restoreStoredSynthesisExecutionPreferences(): SynthesisExecutionPreferences {
   return normalizeSynthesisExecutionPreferences(
     parseVersionedSnapshot<SynthesisExecutionPreferences>(
-      localStorage.getItem(SYNTHESIS_EXECUTION_PREFERENCES_KEY),
+      readUiStateValue<string>(SYNTHESIS_EXECUTION_PREFERENCES_KEY),
       SYNTHESIS_EXECUTION_PREFERENCES_VERSION,
     ),
   );

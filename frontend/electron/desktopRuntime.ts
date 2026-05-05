@@ -3,7 +3,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
 
-const DESKTOP_DEV_SERVER_URL = "http://127.0.0.1:5173";
+const MEDIAFLOW_RENDERER_DEV_URL_ENV = "MEDIAFLOW_RENDERER_DEV_URL";
 const DESKTOP_RUNTIME_DIRNAME = "runtime";
 const MEDIAFLOW_RUNTIME_DIR_ENV = "MEDIAFLOW_RUNTIME_DIR";
 const MEDIAFLOW_PYTHON_ENV = "MEDIAFLOW_PYTHON";
@@ -87,9 +87,14 @@ function tryBuildDesktopRendererBundle(target: string) {
 
 export function resolveDesktopRendererTarget() {
   if (isDesktopDevMode()) {
+    const devServerUrl = process.env[MEDIAFLOW_RENDERER_DEV_URL_ENV]?.trim();
+    if (!devServerUrl) {
+      throw new Error(`${MEDIAFLOW_RENDERER_DEV_URL_ENV} is required in desktop dev mode.`);
+    }
+
     return {
       kind: "url" as const,
-      target: DESKTOP_DEV_SERVER_URL,
+      target: devServerUrl,
     };
   }
 

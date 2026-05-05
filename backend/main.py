@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 import contextlib
+import os
+from urllib.parse import urlparse
 
 from backend.config import settings
 from backend.core.app_runtime import ApplicationRuntime
@@ -12,6 +14,37 @@ from backend.api.v1 import (
     translate, settings as settings_api, audio, glossary,
     editor, ocr,
 )
+
+RENDERER_DEV_ORIGIN_ENV = "MEDIAFLOW_RENDERER_DEV_ORIGIN"
+
+
+def _resolve_renderer_dev_origin() -> str | None:
+    raw_origin = os.environ.get(RENDERER_DEV_ORIGIN_ENV, "").strip().rstrip("/")
+    if not raw_origin:
+        return None
+
+    parsed = urlparse(raw_origin)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        logger.warning(f"Ignoring invalid {RENDERER_DEV_ORIGIN_ENV}: {raw_origin}")
+        return None
+
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _build_cors_origins() -> list[str]:
+    origins = [
+        f"http://127.0.0.1:{settings.PORT}",   # FastAPI (self)
+        f"http://localhost:{settings.PORT}",
+        "file://",                  # Electron Production
+        "app://.",                  # Electron custom protocol
+    ]
+
+    renderer_dev_origin = _resolve_renderer_dev_origin()
+    if renderer_dev_origin:
+        origins.insert(0, renderer_dev_origin)
+
+    return origins
+
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -86,17 +119,10 @@ if settings.ENABLE_EXPERIMENTAL_PREPROCESSING:
 
     app.include_router(preprocessing.router, prefix="/api/v1/preprocessing")
 
-# CORS (Restricted to local Electron and Vite dev server)
+# CORS (Restricted to local Electron and the active Vite dev server)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:5173",   # Vite Dev Server
-        "http://localhost:5173",
-        f"http://127.0.0.1:{settings.PORT}",   # FastAPI (self)
-        f"http://localhost:{settings.PORT}",
-        "file://",                  # Electron Production
-        "app://.",                  # Electron custom protocol
-    ],
+    allow_origins=_build_cors_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

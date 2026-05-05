@@ -232,6 +232,7 @@ export interface UserSettings {
   language?: string;
   auto_execute_flow?: boolean;
   smart_split_text_limit?: number;
+  ui_state?: Record<string, unknown>;
 }
 export interface ActiveProviderRequest {
   provider_id: string;

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useTranslatorStore } from "../stores/translatorStore";
+import { readUiStateValue } from "../services/persistence/uiStateSettings";
 
 describe("translatorStore persistence", () => {
   beforeEach(() => {
@@ -37,32 +38,29 @@ describe("translatorStore persistence", () => {
       activeMode: "intelligent",
     });
 
-    const persistedRaw = localStorage.getItem("translator-storage");
-    expect(persistedRaw).toBeTruthy();
-    const persisted = JSON.parse(persistedRaw as string) as {
-      state: Record<string, unknown>;
-    };
+    const persisted = readUiStateValue<Record<string, unknown>>("translator-storage");
+    expect(persisted).toBeTruthy();
 
-    expect(persisted.state).toMatchObject({
+    expect(persisted).toMatchObject({
       sourceFilePath: "E:/subs/demo.srt",
       sourceFileRef: { path: "E:/subs/demo.srt", name: "demo.srt" },
       targetSegments: [{ id: "1", start: 0, end: 1, text: "nihao" }],
       resultMode: "standard",
     });
-    expect(persisted.state.targetLang).toBeUndefined();
-    expect(persisted.state.taskId).toBeUndefined();
-    expect(persisted.state.taskStatus).toBeUndefined();
-    expect(persisted.state.progress).toBeUndefined();
-    expect(persisted.state.taskError).toBeUndefined();
-    expect(persisted.state.executionMode).toBeUndefined();
-    expect(persisted.state.activeMode).toBeUndefined();
+    expect(persisted?.targetLang).toBeUndefined();
+    expect(persisted?.taskId).toBeUndefined();
+    expect(persisted?.taskStatus).toBeUndefined();
+    expect(persisted?.progress).toBeUndefined();
+    expect(persisted?.taskError).toBeUndefined();
+    expect(persisted?.executionMode).toBeUndefined();
+    expect(persisted?.activeMode).toBeUndefined();
   });
 
   it("persists target language through the shared translation preferences", () => {
     useTranslatorStore.getState().setTargetLang("Japanese");
 
     expect(useTranslatorStore.getState().targetLang).toBe("Japanese");
-    expect(localStorage.getItem("translation_preferences")).toContain(
+    expect(readUiStateValue<string>("translation_preferences")).toContain(
       "\"targetLanguage\":\"Japanese\"",
     );
   });
@@ -71,7 +69,7 @@ describe("translatorStore persistence", () => {
     useTranslatorStore.getState().setMode("intelligent");
 
     expect(useTranslatorStore.getState().mode).toBe("intelligent");
-    expect(localStorage.getItem("translation_preferences")).toContain(
+    expect(readUiStateValue<string>("translation_preferences")).toContain(
       "\"mode\":\"intelligent\"",
     );
   });

@@ -63,7 +63,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         setCurrentTime(0);
     }, [isOpen, videoPath, mediaUrl]);
 
-    // --- Toggle switches with localStorage persistence ---
+    // --- Toggle switches with shared settings persistence ---
     const [subtitleEnabled, setSubtitleEnabled] = useState(() => {
         return persistedPreferences.subtitleEnabled;
     });

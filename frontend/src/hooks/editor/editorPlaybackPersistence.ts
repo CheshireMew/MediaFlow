@@ -3,6 +3,7 @@ import {
   serializeVersionedSnapshot,
 } from "../../services/persistence/versionedSnapshot";
 import { TASK_LIFECYCLE } from "../../contracts/runtimeContracts";
+import { readUiStateValue, writeUiStateValue } from "../../services/persistence/uiStateSettings";
 
 const EDITOR_PLAYBACK_SNAPSHOT_VERSION = 1;
 const EDITOR_PLAYBACK_SNAPSHOT_LIFECYCLE = {
@@ -31,7 +32,7 @@ function getEditorPlaybackRateKey() {
 
 export function restoreEditorPlaybackTime(currentFilePath: string) {
   const snapshot = parseVersionedSnapshot<EditorPlaybackSnapshot>(
-    localStorage.getItem(getEditorPlaybackSnapshotKey(currentFilePath)),
+    readUiStateValue<string>(getEditorPlaybackSnapshotKey(currentFilePath)),
     EDITOR_PLAYBACK_SNAPSHOT_VERSION,
   );
   return snapshot?.currentTime ?? 0;
@@ -39,7 +40,7 @@ export function restoreEditorPlaybackTime(currentFilePath: string) {
 
 export function restoreEditorPlaybackRate() {
   const snapshot = parseVersionedSnapshot<EditorPlaybackRateSnapshot>(
-    localStorage.getItem(getEditorPlaybackRateKey()),
+    readUiStateValue<string>(getEditorPlaybackRateKey()),
     EDITOR_PLAYBACK_RATE_VERSION,
   );
   return snapshot?.playbackRate ?? 1;
@@ -53,7 +54,7 @@ export function persistEditorPlaybackTime(
     return;
   }
 
-  localStorage.setItem(
+  writeUiStateValue(
     getEditorPlaybackSnapshotKey(currentFilePath),
     serializeVersionedSnapshot(
       EDITOR_PLAYBACK_SNAPSHOT_VERSION,
@@ -70,7 +71,7 @@ export function persistEditorPlaybackRate(playbackRate: number) {
     return;
   }
 
-  localStorage.setItem(
+  writeUiStateValue(
     getEditorPlaybackRateKey(),
     serializeVersionedSnapshot(
       EDITOR_PLAYBACK_RATE_VERSION,

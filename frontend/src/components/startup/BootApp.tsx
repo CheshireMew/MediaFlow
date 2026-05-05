@@ -9,6 +9,7 @@ import i18n, { ensureI18nNamespaces } from "../../i18n";
 import { resolveCurrentPresentationRoute } from "../../services/ui/pagePresentation";
 import { probeBackendHealth } from "../../startup/backendHealthProbe";
 import { ROUTE_PAGE_MODULES } from "../../startup/routePageDefinitions";
+import { initializeUiStateSettings } from "../../services/persistence/uiStateSettings";
 
 type StartupState = {
   appReady: boolean;
@@ -126,11 +127,15 @@ export function BootApp() {
       const loadUserSettings = async () => {
         try {
           const settings = await settingsService.getSettings();
+          initializeUiStateSettings(settings);
           if (settings?.language) {
             await i18n.changeLanguage(settings.language);
           }
+          return settings;
         } catch (error) {
           console.warn("[Init] Failed to load user settings during startup.", error);
+          initializeUiStateSettings(null);
+          return null;
         }
       };
 
@@ -141,6 +146,7 @@ export function BootApp() {
         }
 
         if (!desktopRuntime) {
+          await loadUserSettings();
           await waitForStartupRoutePreload(startupRoutePreload);
           updateState({
             appReady: true,
@@ -180,14 +186,12 @@ export function BootApp() {
           createDesktopRuntimeDiagnostic(runtimeInfo),
         );
 
+        await loadUserSettings();
         await waitForStartupRoutePreload(startupRoutePreload);
         updateState({
           appReady: true,
           remoteBackendReady: true,
           message: getStartupText("ready"),
-        });
-        window.requestAnimationFrame(() => {
-          void loadUserSettings();
         });
       } catch (error) {
         console.error("Failed to bootstrap desktop worker", error);

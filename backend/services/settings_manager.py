@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -29,6 +29,7 @@ class UserSettings(BaseModel):
         default=SMART_SPLIT_TEXT_LIMIT_DEFAULT,
         ge=1,
     )
+    ui_state: dict[str, Any] = Field(default_factory=dict)
 
 
 class SettingsManager:

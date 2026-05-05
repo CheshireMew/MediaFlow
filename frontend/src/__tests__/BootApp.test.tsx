@@ -95,7 +95,7 @@ describe("BootApp", () => {
     vi.restoreAllMocks();
   });
 
-  it("marks app ready before user settings finish loading", async () => {
+  it("loads user settings before marking app ready", async () => {
     vi.useFakeTimers();
     getSettingsMock.mockResolvedValue({ language: "zh" });
 
@@ -105,8 +105,6 @@ describe("BootApp", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-
-    expect(getSettingsMock).not.toHaveBeenCalled();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(20);

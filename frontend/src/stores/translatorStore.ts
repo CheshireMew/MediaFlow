@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type { SubtitleSegment } from "../types/task";
 import type { GlossaryTerm } from "../services/domain";
 import type { MediaReference } from "../services/ui/mediaReference";
@@ -9,6 +8,7 @@ import {
   restoreStoredTranslationPreferences,
   type TranslationExecutionMode,
 } from "../services/persistence/translationPreferences";
+import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
 
 export type TranslatorMode = TranslationExecutionMode;
 export type TranslatorResultMode = TranslatorMode | null;
@@ -57,20 +57,79 @@ interface TranslatorState {
   resetTask: () => void;
 }
 
-export const useTranslatorStore = create<TranslatorState>()(
-  persist(
-    (set, get) => ({
+const TRANSLATOR_STORE_KEY = "translator-storage";
+
+type TranslatorSnapshot = Pick<
+  TranslatorState,
+  | "sourceSegments"
+  | "targetSegments"
+  | "sourceFilePath"
+  | "sourceFileRef"
+  | "targetSubtitleRef"
+  | "resultMode"
+>;
+
+function normalizeTranslatorSnapshot(
+  payload: Partial<TranslatorSnapshot> | null | undefined,
+): TranslatorSnapshot {
+  return {
+    sourceSegments: Array.isArray(payload?.sourceSegments)
+      ? payload.sourceSegments
+      : [],
+    targetSegments: Array.isArray(payload?.targetSegments)
+      ? payload.targetSegments
+      : [],
+    sourceFilePath:
+      typeof payload?.sourceFilePath === "string" ? payload.sourceFilePath : null,
+    sourceFileRef:
+      payload?.sourceFileRef && typeof payload.sourceFileRef === "object"
+        ? (payload.sourceFileRef as MediaReference)
+        : null,
+    targetSubtitleRef:
+      payload?.targetSubtitleRef && typeof payload.targetSubtitleRef === "object"
+        ? (payload.targetSubtitleRef as MediaReference)
+        : null,
+    resultMode:
+      payload?.resultMode === "standard" ||
+      payload?.resultMode === "intelligent" ||
+      payload?.resultMode === "proofread"
+        ? payload.resultMode
+        : null,
+  };
+}
+
+function readTranslatorSnapshot() {
+  return normalizeTranslatorSnapshot(
+    readUiStateValue<Partial<TranslatorSnapshot>>(TRANSLATOR_STORE_KEY),
+  );
+}
+
+function persistTranslatorSnapshot(state: TranslatorState) {
+  writeUiStateValue(TRANSLATOR_STORE_KEY, {
+    sourceSegments: state.sourceSegments,
+    targetSegments: state.targetSegments,
+    sourceFilePath: state.sourceFilePath,
+    sourceFileRef: state.sourceFileRef,
+    targetSubtitleRef: state.targetSubtitleRef,
+    resultMode: state.resultMode,
+  } satisfies TranslatorSnapshot);
+}
+
+const initialTranslationPreferences = restoreStoredTranslationPreferences();
+const initialTranslatorSnapshot = readTranslatorSnapshot();
+
+export const useTranslatorStore = create<TranslatorState>()((set, get) => ({
       // Initial State
-      sourceSegments: [],
-      targetSegments: [],
+      sourceSegments: initialTranslatorSnapshot.sourceSegments,
+      targetSegments: initialTranslatorSnapshot.targetSegments,
       glossary: [],
-      sourceFilePath: null,
-      sourceFileRef: null,
-      targetSubtitleRef: null,
-      targetLang: restoreStoredTranslationPreferences().targetLanguage,
-      mode: restoreStoredTranslationPreferences().mode,
+      sourceFilePath: initialTranslatorSnapshot.sourceFilePath,
+      sourceFileRef: initialTranslatorSnapshot.sourceFileRef,
+      targetSubtitleRef: initialTranslatorSnapshot.targetSubtitleRef,
+      targetLang: initialTranslationPreferences.targetLanguage,
+      mode: initialTranslationPreferences.mode,
       activeMode: null,
-      resultMode: null,
+      resultMode: initialTranslatorSnapshot.resultMode,
       taskId: null,
       taskStatus: "",
       progress: 0,
@@ -133,44 +192,6 @@ export const useTranslatorStore = create<TranslatorState>()(
           resultMode: null,
           targetSubtitleRef: null,
         }),
-    }),
-    {
-      name: "translator-storage",
-      version: 2,
-      migrate: (persistedState) => {
-        const state = (persistedState ?? {}) as Partial<TranslatorState>;
-        return {
-          sourceSegments: Array.isArray(state.sourceSegments) ? state.sourceSegments : [],
-          targetSegments: Array.isArray(state.targetSegments) ? state.targetSegments : [],
-          sourceFilePath:
-            typeof state.sourceFilePath === "string" ? state.sourceFilePath : null,
-          sourceFileRef:
-            state.sourceFileRef && typeof state.sourceFileRef === "object"
-              ? (state.sourceFileRef as MediaReference)
-              : null,
-          targetSubtitleRef:
-            state.targetSubtitleRef && typeof state.targetSubtitleRef === "object"
-              ? (state.targetSubtitleRef as MediaReference)
-              : null,
-          targetLang: restoreStoredTranslationPreferences().targetLanguage,
-          mode: restoreStoredTranslationPreferences().mode,
-          resultMode:
-            state.resultMode === "standard" ||
-            state.resultMode === "intelligent" ||
-            state.resultMode === "proofread"
-              ? state.resultMode
-              : null,
-        };
-      },
-      partialize: (state) => ({
-        // Snapshot only durable document/preference state. Runtime task state stays ephemeral.
-        sourceSegments: state.sourceSegments,
-        targetSegments: state.targetSegments,
-        sourceFilePath: state.sourceFilePath,
-        sourceFileRef: state.sourceFileRef,
-        targetSubtitleRef: state.targetSubtitleRef,
-        resultMode: state.resultMode,
-      }),
-    },
-  ),
-);
+}));
+
+useTranslatorStore.subscribe(persistTranslatorSnapshot);

@@ -10,7 +10,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "electron:build": "tsc -p tsconfig.electron.json",
-    "electron:dev": "concurrently -k \"node ./scripts/electron-dev-build.mjs --watch\" \"vite --host 127.0.0.1\" \"wait-on dist-electron/.dev-build-ready http://127.0.0.1:5173/index.html && cross-env IS_DEV=true electron .\"",
+    "electron:dev": "node ./scripts/electron-dev.mjs",
     "test": "vitest run"
   },
   "dependencies": {
@@ -37,8 +37,6 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.23",
-    "concurrently": "^9.2.1",
-    "cross-env": "^10.1.0",
     "electron": "^40.0.0",
     "electron-builder": "^26.4.0",
     "eslint": "^9.39.1",
@@ -51,7 +49,6 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
-    "vitest": "^3.0.0",
-    "wait-on": "^9.0.3"
+    "vitest": "^3.0.0"
   }
 }

@@ -1,4 +1,6 @@
 import "@testing-library/jest-dom";
+import { beforeEach } from "vitest";
+import { resetUiStateSettingsForTests } from "../services/persistence/uiStateSettings";
 
 // jsdom opaque-origin guard: localStorage/sessionStorage require a valid URL origin.
 // In vitest's vmThreads pool the jsdom instance starts with about:blank which makes
@@ -11,3 +13,7 @@ if (typeof window !== "undefined" && window.location.origin === "null") {
     value: new URL("http://localhost/"),
   });
 }
+
+beforeEach(() => {
+  resetUiStateSettingsForTests();
+});

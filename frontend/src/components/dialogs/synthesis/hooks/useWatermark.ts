@@ -37,7 +37,7 @@ export function useWatermark(
   const [wmPos, setWmPos] = useState({ x: 0.5, y: 0.5 });
   const [watermarkSize, setWatermarkSize] = useState({ w: 0, h: 0 });
 
-  // --- Restore from localStorage ---
+  // --- Restore from shared settings ---
   useEffect(() => {
     if (!isOpen) return;
     const timer = setTimeout(() => {

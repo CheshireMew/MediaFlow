@@ -1,6 +1,7 @@
 import { useEditorStore } from "../stores/editorStore";
 import { usePreprocessingStore } from "../stores/preprocessingStore";
 import { TASK_CONTRACT_VERSION, TASK_LIFECYCLE } from "../contracts/runtimeContracts";
+import { writeUiStateValue } from "../services/persistence/uiStateSettings";
 import type { Task, TaskRequestParams } from "../types/task";
 import type { TranscribeResult } from "../types/transcriber";
 
@@ -49,7 +50,7 @@ export function seedJapaneseCudaExecutionPreferences(
     device: string;
   }> = {},
 ) {
-  localStorage.setItem(
+  writeUiStateValue(
     "asr_execution_preferences",
     JSON.stringify({
       schema_version: 1,
@@ -61,7 +62,7 @@ export function seedJapaneseCudaExecutionPreferences(
       },
     }),
   );
-  localStorage.setItem(
+  writeUiStateValue(
     "translation_preferences",
     JSON.stringify({
       schema_version: 2,

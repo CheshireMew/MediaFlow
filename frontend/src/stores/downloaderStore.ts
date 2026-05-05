@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
 
 export interface DownloadHistoryItem {
   id: string;
@@ -27,36 +27,58 @@ interface DownloaderState {
   clearHistory: () => void;
 }
 
-export const useDownloaderStore = create<DownloaderState>()(
-  persist(
-    (set) => ({
-      url: "",
-      resolution: "best",
-      codec: "avc",
-      downloadSubs: false,
-      history: [],
+const DOWNLOADER_STORE_KEY = "downloader-storage";
 
-      setUrl: (url) => set({ url }),
-      setResolution: (resolution) => set({ resolution }),
-      setCodec: (codec) => set({ codec }),
-      setDownloadSubs: (downloadSubs) => set({ downloadSubs }),
+type DownloaderSnapshot = Pick<
+  DownloaderState,
+  "url" | "resolution" | "codec" | "downloadSubs" | "history"
+>;
 
-      addToHistory: (item) =>
-        set((state) => ({
-          history: [item, ...state.history].slice(0, 50), // Keep last 50
-        })),
+function normalizeDownloaderSnapshot(
+  payload: Partial<DownloaderSnapshot> | null | undefined,
+): DownloaderSnapshot {
+  return {
+    url: typeof payload?.url === "string" ? payload.url : "",
+    resolution: typeof payload?.resolution === "string" ? payload.resolution : "best",
+    codec: typeof payload?.codec === "string" ? payload.codec : "avc",
+    downloadSubs:
+      typeof payload?.downloadSubs === "boolean" ? payload.downloadSubs : false,
+    history: Array.isArray(payload?.history) ? payload.history.slice(0, 50) : [],
+  };
+}
 
-      clearHistory: () => set({ history: [] }),
-    }),
-    {
-      name: "downloader-storage", // unique name for localStorage key
-      partialize: (state) => ({
-        url: state.url,
-        resolution: state.resolution,
-        codec: state.codec,
-        downloadSubs: state.downloadSubs,
-        history: state.history,
-      }),
-    },
-  ),
-);
+function readDownloaderSnapshot() {
+  return normalizeDownloaderSnapshot(
+    readUiStateValue<Partial<DownloaderSnapshot>>(DOWNLOADER_STORE_KEY),
+  );
+}
+
+function persistDownloaderSnapshot(state: DownloaderState) {
+  writeUiStateValue(DOWNLOADER_STORE_KEY, {
+    url: state.url,
+    resolution: state.resolution,
+    codec: state.codec,
+    downloadSubs: state.downloadSubs,
+    history: state.history,
+  } satisfies DownloaderSnapshot);
+}
+
+const initialDownloaderSnapshot = readDownloaderSnapshot();
+
+export const useDownloaderStore = create<DownloaderState>()((set) => ({
+  ...initialDownloaderSnapshot,
+
+  setUrl: (url) => set({ url }),
+  setResolution: (resolution) => set({ resolution }),
+  setCodec: (codec) => set({ codec }),
+  setDownloadSubs: (downloadSubs) => set({ downloadSubs }),
+
+  addToHistory: (item) =>
+    set((state) => ({
+      history: [item, ...state.history].slice(0, 50), // Keep last 50
+    })),
+
+  clearHistory: () => set({ history: [] }),
+}));
+
+useDownloaderStore.subscribe(persistDownloaderSnapshot);

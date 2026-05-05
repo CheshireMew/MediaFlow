@@ -156,7 +156,7 @@ export function useSubtitleStyle(
     videoHeightRef.current = videoHeight;
   }, [videoHeight]);
 
-  // --- Restore from localStorage ---
+  // --- Restore from shared settings ---
   useEffect(() => {
     if (!isOpen) {
       isInitialized.current = false;

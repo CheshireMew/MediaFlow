@@ -1,4 +1,5 @@
 import type { NavigationDestination } from "./navigation";
+import { readUiStateValue, writeUiStateValue } from "../persistence/uiStateSettings";
 
 const LAST_ROUTE_KEY = "mediaflow:last-route";
 
@@ -27,7 +28,7 @@ export function normalizeRestorableDestination(
 }
 
 export function readLastNavigationDestination(): NavigationDestination | null {
-  return normalizeRestorableDestination(localStorage.getItem(LAST_ROUTE_KEY));
+  return normalizeRestorableDestination(readUiStateValue<string>(LAST_ROUTE_KEY));
 }
 
 export function resolveLaunchDestination(): NavigationDestination {
@@ -74,5 +75,5 @@ export function persistNavigationDestination(pathname: string) {
     return;
   }
 
-  localStorage.setItem(LAST_ROUTE_KEY, destination);
+  writeUiStateValue(LAST_ROUTE_KEY, destination);
 }

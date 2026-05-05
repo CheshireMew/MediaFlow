@@ -1,4 +1,5 @@
 import { parseVersionedSnapshot, serializeVersionedSnapshot } from "./versionedSnapshot";
+import { readUiStateValue, writeUiStateValue } from "./uiStateSettings";
 
 export type TranslationExecutionMode = "standard" | "intelligent" | "proofread";
 
@@ -35,7 +36,7 @@ function normalizeTranslationPreferences(
 export function persistStoredTranslationPreferences(
   preferences: TranslationPreferences,
 ) {
-  localStorage.setItem(
+  writeUiStateValue(
     TRANSLATION_PREFERENCES_KEY,
     serializeVersionedSnapshot(
       TRANSLATION_PREFERENCES_VERSION,
@@ -46,7 +47,7 @@ export function persistStoredTranslationPreferences(
 
 export function restoreStoredTranslationPreferences(): TranslationPreferences {
   const snapshot = parseVersionedSnapshot<TranslationPreferences>(
-    localStorage.getItem(TRANSLATION_PREFERENCES_KEY),
+    readUiStateValue<string>(TRANSLATION_PREFERENCES_KEY),
     TRANSLATION_PREFERENCES_VERSION,
   );
 
