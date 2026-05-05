@@ -1,5 +1,9 @@
 import { create } from "zustand";
-import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
+import {
+  readUiStateValue,
+  subscribeUiStateSettingsInitialized,
+  writeUiStateValue,
+} from "../services/persistence/uiStateSettings";
 
 export interface DownloadHistoryItem {
   id: string;
@@ -53,7 +57,13 @@ function readDownloaderSnapshot() {
   );
 }
 
+let isHydratingDownloaderSnapshot = false;
+
 function persistDownloaderSnapshot(state: DownloaderState) {
+  if (isHydratingDownloaderSnapshot) {
+    return;
+  }
+
   writeUiStateValue(DOWNLOADER_STORE_KEY, {
     url: state.url,
     resolution: state.resolution,
@@ -82,3 +92,9 @@ export const useDownloaderStore = create<DownloaderState>()((set) => ({
 }));
 
 useDownloaderStore.subscribe(persistDownloaderSnapshot);
+
+subscribeUiStateSettingsInitialized(() => {
+  isHydratingDownloaderSnapshot = true;
+  useDownloaderStore.setState(readDownloaderSnapshot());
+  isHydratingDownloaderSnapshot = false;
+});

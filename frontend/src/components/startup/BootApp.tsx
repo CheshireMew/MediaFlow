@@ -10,6 +10,7 @@ import { resolveCurrentPresentationRoute } from "../../services/ui/pagePresentat
 import { probeBackendHealth } from "../../startup/backendHealthProbe";
 import { ROUTE_PAGE_MODULES } from "../../startup/routePageDefinitions";
 import { initializeUiStateSettings } from "../../services/persistence/uiStateSettings";
+import { restoreLaunchHashFromUiState } from "../../services/ui/navigationPersistence";
 
 type StartupState = {
   appReady: boolean;
@@ -72,7 +73,7 @@ export function BootApp() {
     };
 
     const preloadStartupRoute = async () => {
-      const routeModule = ROUTE_PAGE_MODULES[startupVariant];
+      const routeModule = ROUTE_PAGE_MODULES[resolveCurrentPresentationRoute()];
       await Promise.all([
         routeModule.load(),
         ensureI18nNamespaces(routeModule.namespaces),
@@ -115,7 +116,6 @@ export function BootApp() {
     };
 
     const bootstrap = async () => {
-      const startupRoutePreload = startStartupRoutePreload();
       const desktopRuntime = isDesktopRuntime();
       const runtimeInfoPromise = desktopRuntime
         ? getDesktopRuntimeInfo().then(
@@ -128,6 +128,7 @@ export function BootApp() {
         try {
           const settings = await settingsService.getSettings();
           initializeUiStateSettings(settings);
+          restoreLaunchHashFromUiState();
           if (settings?.language) {
             await i18n.changeLanguage(settings.language);
           }
@@ -147,6 +148,7 @@ export function BootApp() {
 
         if (!desktopRuntime) {
           await loadUserSettings();
+          const startupRoutePreload = startStartupRoutePreload();
           await waitForStartupRoutePreload(startupRoutePreload);
           updateState({
             appReady: true,
@@ -187,6 +189,7 @@ export function BootApp() {
         );
 
         await loadUserSettings();
+        const startupRoutePreload = startStartupRoutePreload();
         await waitForStartupRoutePreload(startupRoutePreload);
         updateState({
           appReady: true,

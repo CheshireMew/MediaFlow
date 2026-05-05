@@ -15,6 +15,8 @@ const RESTORABLE_DESTINATIONS = new Set<NavigationDestination>([
 
 export const DEFAULT_LAUNCH_DESTINATION: NavigationDestination = "downloader";
 
+let launchNavigationWasExplicit = false;
+
 export function normalizeRestorableDestination(
   value: string | null | undefined,
 ): NavigationDestination | null {
@@ -56,6 +58,7 @@ export function resolveCurrentNavigationPath(
 
 export function ensureLaunchHash() {
   if (readHashNavigationDestination()) {
+    launchNavigationWasExplicit = true;
     return;
   }
 
@@ -64,6 +67,35 @@ export function ensureLaunchHash() {
     window.history.state,
     document.title,
     `${window.location.pathname}${window.location.search}${targetHash}`,
+  );
+}
+
+export function restoreLaunchHashFromUiState() {
+  if (launchNavigationWasExplicit) {
+    return;
+  }
+
+  const destination = readLastNavigationDestination();
+  if (!destination) {
+    return;
+  }
+
+  const previousUrl = window.location.href;
+  const targetHash = `#/${destination}`;
+  if (window.location.hash === targetHash) {
+    return;
+  }
+
+  window.history.replaceState(
+    window.history.state,
+    document.title,
+    `${window.location.pathname}${window.location.search}${targetHash}`,
+  );
+  window.dispatchEvent(
+    new HashChangeEvent("hashchange", {
+      oldURL: previousUrl,
+      newURL: window.location.href,
+    }),
   );
 }
 

@@ -7,6 +7,7 @@ let initialized = false;
 let cachedSettings: UserSettings | null = null;
 let cachedUiState: UiState = {};
 let pendingWrite: Promise<void> = Promise.resolve();
+const initializedListeners = new Set<() => void>();
 
 function isRecord(value: unknown): value is UiState {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -27,6 +28,9 @@ export function initializeUiStateSettings(settings: UserSettings | null) {
   initialized = true;
   cachedSettings = settings ? normalizeSettings(settings) : null;
   cachedUiState = normalizeUiState(settings?.ui_state);
+  for (const listener of initializedListeners) {
+    listener();
+  }
 }
 
 export function resetUiStateSettingsForTests() {
@@ -34,6 +38,17 @@ export function resetUiStateSettingsForTests() {
   cachedSettings = null;
   cachedUiState = {};
   pendingWrite = Promise.resolve();
+}
+
+export function subscribeUiStateSettingsInitialized(listener: () => void) {
+  initializedListeners.add(listener);
+  if (initialized) {
+    listener();
+  }
+
+  return () => {
+    initializedListeners.delete(listener);
+  };
 }
 
 export async function loadUiStateSettings(): Promise<UserSettings | null> {

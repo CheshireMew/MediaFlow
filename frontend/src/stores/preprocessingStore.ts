@@ -1,7 +1,11 @@
 import { create } from "zustand";
 import type { OCRTextEvent } from "../types/api";
 import type { MediaReference } from "../services/ui/mediaReference";
-import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
+import {
+  readUiStateValue,
+  subscribeUiStateSettingsInitialized,
+  writeUiStateValue,
+} from "../services/persistence/uiStateSettings";
 
 export interface ProjectFile {
   path: string;
@@ -117,7 +121,13 @@ function readPreprocessingSnapshot() {
   );
 }
 
+let isHydratingPreprocessingSnapshot = false;
+
 function persistPreprocessingSnapshot(state: PreprocessingState) {
+  if (isHydratingPreprocessingSnapshot) {
+    return;
+  }
+
   writeUiStateValue(PREPROCESSING_STORE_KEY, {
     preprocessingActiveTool: state.preprocessingActiveTool,
     enhanceModel: state.enhanceModel,
@@ -217,3 +227,9 @@ export const usePreprocessingStore = create<PreprocessingState>()((set) => ({
 }));
 
 usePreprocessingStore.subscribe(persistPreprocessingSnapshot);
+
+subscribeUiStateSettingsInitialized(() => {
+  isHydratingPreprocessingSnapshot = true;
+  usePreprocessingStore.setState(readPreprocessingSnapshot());
+  isHydratingPreprocessingSnapshot = false;
+});

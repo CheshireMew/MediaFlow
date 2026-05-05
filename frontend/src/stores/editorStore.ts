@@ -3,7 +3,11 @@ import { createDataSlice, type DataSlice } from "./slices/dataSlice";
 import { createUISlice, type UISlice } from "./slices/uiSlice";
 import { createHistorySlice, type HistorySlice } from "./slices/historySlice";
 import type { MediaReference } from "../services/ui/mediaReference";
-import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
+import {
+  readUiStateValue,
+  subscribeUiStateSettingsInitialized,
+  writeUiStateValue,
+} from "../services/persistence/uiStateSettings";
 
 export type EditorState = DataSlice & UISlice & HistorySlice;
 
@@ -53,7 +57,13 @@ function readEditorSnapshot() {
   );
 }
 
+let isHydratingEditorSnapshot = false;
+
 function persistEditorSnapshot(state: EditorState) {
+  if (isHydratingEditorSnapshot) {
+    return;
+  }
+
   writeUiStateValue(EDITOR_STORE_KEY, {
     regions: state.regions,
     activeSegmentId: state.activeSegmentId,
@@ -76,3 +86,9 @@ export const useEditorStore = create<EditorState>()((...a) => ({
 }));
 
 useEditorStore.subscribe(persistEditorSnapshot);
+
+subscribeUiStateSettingsInitialized(() => {
+  isHydratingEditorSnapshot = true;
+  useEditorStore.setState(readEditorSnapshot());
+  isHydratingEditorSnapshot = false;
+});

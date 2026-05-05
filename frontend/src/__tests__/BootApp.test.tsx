@@ -152,7 +152,7 @@ describe("BootApp", () => {
     expect(screen.getByTestId("remote-backend-ready").textContent).toBe("true");
   });
 
-  it("polls backend health quickly without restarting route preload", async () => {
+  it("polls backend health before preloading the startup route once", async () => {
     vi.useFakeTimers();
     probeBackendHealthMock
       .mockResolvedValueOnce({ ok: false, error: new Error("offline") })
@@ -171,7 +171,7 @@ describe("BootApp", () => {
       "后端正在启动中，正在重试健康检查...",
     );
     expect(probeBackendHealthMock).toHaveBeenCalledTimes(1);
-    expect(routePreloadMock).toHaveBeenCalledTimes(1);
+    expect(routePreloadMock).not.toHaveBeenCalled();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(149);

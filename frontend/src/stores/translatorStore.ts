@@ -8,7 +8,11 @@ import {
   restoreStoredTranslationPreferences,
   type TranslationExecutionMode,
 } from "../services/persistence/translationPreferences";
-import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
+import {
+  readUiStateValue,
+  subscribeUiStateSettingsInitialized,
+  writeUiStateValue,
+} from "../services/persistence/uiStateSettings";
 
 export type TranslatorMode = TranslationExecutionMode;
 export type TranslatorResultMode = TranslatorMode | null;
@@ -104,7 +108,13 @@ function readTranslatorSnapshot() {
   );
 }
 
+let isHydratingTranslatorSnapshot = false;
+
 function persistTranslatorSnapshot(state: TranslatorState) {
+  if (isHydratingTranslatorSnapshot) {
+    return;
+  }
+
   writeUiStateValue(TRANSLATOR_STORE_KEY, {
     sourceSegments: state.sourceSegments,
     targetSegments: state.targetSegments,
@@ -195,3 +205,21 @@ export const useTranslatorStore = create<TranslatorState>()((set, get) => ({
 }));
 
 useTranslatorStore.subscribe(persistTranslatorSnapshot);
+
+subscribeUiStateSettingsInitialized(() => {
+  const snapshot = readTranslatorSnapshot();
+  const preferences = restoreStoredTranslationPreferences();
+
+  isHydratingTranslatorSnapshot = true;
+  useTranslatorStore.setState({
+    sourceSegments: snapshot.sourceSegments,
+    targetSegments: snapshot.targetSegments,
+    sourceFilePath: snapshot.sourceFilePath,
+    sourceFileRef: snapshot.sourceFileRef,
+    targetSubtitleRef: snapshot.targetSubtitleRef,
+    resultMode: snapshot.resultMode,
+    targetLang: preferences.targetLanguage,
+    mode: preferences.mode,
+  });
+  isHydratingTranslatorSnapshot = false;
+});
