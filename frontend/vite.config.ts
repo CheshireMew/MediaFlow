@@ -26,15 +26,26 @@ export default defineConfig({
     strictPort: devServerPort !== undefined,
     watch: {
       ignored: [
-        '**/build-desktop-worker/**',
-        '**/dist-desktop-worker/**',
+        '**/build-desktop-backend/**',
+        '**/dist-desktop-backend/**',
         '**/dist/**',
         '**/node_modules/**',
       ],
     },
   },
   optimizeDeps: {
-    include: ["react-window", "react-virtualized-auto-sizer"],
+    include: [
+      "lucide-react",
+      "react-i18next",
+      "react-router-dom",
+      "react-virtualized-auto-sizer",
+      "react-window",
+      "wavesurfer.js",
+      "wavesurfer.js/dist/plugins/hover.esm.js",
+      "wavesurfer.js/dist/plugins/regions.esm.js",
+      "wavesurfer.js/dist/plugins/timeline.esm.js",
+      "zustand",
+    ],
   },
   test: {
     globals: true,

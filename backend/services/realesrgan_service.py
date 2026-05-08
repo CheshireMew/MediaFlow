@@ -14,11 +14,11 @@ class RealESRGANService:
 
     def _find_binary(self) -> Optional[str]:
         """Locate the realesrgan-ncnn-vulkan executable."""
+        from backend.config import settings
+
         possible_paths = [
-            Path("bin/realesrgan-ncnn-vulkan.exe"),
-            Path("tools/realesrgan-ncnn-vulkan.exe"),
-            Path("realesrgan-ncnn-vulkan.exe"),
-            Path("bin/realesrgan-ncnn-vulkan"), # Linux/Mac
+            *settings.tool_file_candidates("realesrgan-ncnn-vulkan.exe"),
+            *settings.tool_file_candidates("realesrgan-ncnn-vulkan"),
         ]
         
         for p in possible_paths:
@@ -38,9 +38,11 @@ class RealESRGANService:
         progress_callback: Optional[Callable[[float, str], None]] = None
     ):
         # Check for .pth model (User provided / PyTorch backend)
-        pth_path = os.path.join("bin", "models", f"{model}.pth")
-        if os.path.exists(pth_path):
-            return self._run_pytorch_worker(input_path, output_path, pth_path, progress_callback)
+        from backend.config import settings
+
+        pth_path = settings.first_existing_tool_file("models", f"{model}.pth")
+        if pth_path is not None:
+            return self._run_pytorch_worker(input_path, output_path, str(pth_path), progress_callback)
 
         if str(model).startswith("basicvsr"):
             from .basicvsr_service import BasicVSRService
@@ -56,8 +58,6 @@ class RealESRGANService:
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"Input file not found: {input_path}")
             
-        # Import settings for ffmpeg path
-        from backend.config import settings
         import shutil
         import tempfile
         
@@ -237,14 +237,16 @@ class RealESRGANService:
         """Run the PyTorch worker (sidecar env) for .pth models."""
         logger.info(f"Running PyTorch worker for {model_path}")
         
-        PYTHON_EXE = os.path.join("bin", "python_env", "python.exe")
-        WORKER_SCRIPT = os.path.join("src", "services", "realesrgan_pytorch_worker.py")
+        from backend.config import settings
+
+        python_exe = settings.first_existing_tool_file("python_env", "python.exe")
+        worker_script = Path(__file__).resolve().parent / "realesrgan_pytorch_worker.py"
         
-        if not os.path.exists(PYTHON_EXE):
-             raise FileNotFoundError(f"Sidecar Python not found at {PYTHON_EXE}")
+        if python_exe is None:
+             raise FileNotFoundError("Sidecar Python not found in runtime tools or bundled bin.")
 
         cmd = [
-            PYTHON_EXE, WORKER_SCRIPT,
+            str(python_exe), str(worker_script),
             "--input", input_path,
             "--output", output_path,
             "--model_path", model_path,

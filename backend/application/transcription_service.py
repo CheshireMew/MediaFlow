@@ -36,48 +36,6 @@ async def _transcription_background(task_id: str, req: TranscribeRequest):
     )
 
 
-def _transcription_desktop(
-    req: TranscribeRequest,
-    *,
-    progress_callback=None,
-    task_id: str | None = None,
-):
-    asr_service = runtime_service(Services.ASR)
-    audio_path = req.audio_ref.path
-    worker_kwargs = supported_kwargs(
-        asr_service.transcribe,
-        {
-            "audio_path": audio_path,
-            "model_name": req.model,
-            "device": req.device,
-            "engine": req.engine,
-            "language": req.language,
-            "task_id": task_id,
-            "initial_prompt": req.initial_prompt,
-            "progress_callback": progress_callback,
-        },
-    )
-    result = asr_service.transcribe(**worker_kwargs)
-    if not result.success:
-        raise RuntimeError(result.error or "Transcription failed")
-
-    input_kind = (req.audio_ref.media_kind or "").lower()
-    input_type = (req.audio_ref.type or "").lower()
-    video_ref = (
-        req.audio_ref
-        if input_kind == "video" or input_type.startswith("video/")
-        else None
-    )
-    subtitle_ref = result.meta.get("subtitle_ref")
-    return {
-        "segments": result.meta.get("segments", []),
-        "text": result.meta.get("text", ""),
-        "language": result.meta.get("language", req.language or "auto"),
-        "video_ref": video_ref,
-        "subtitle_ref": subtitle_ref,
-    }
-
-
 async def _transcription_segment_background(task_id: str, req) -> None:
     asr_service = runtime_service(Services.ASR)
     audio_path = req.audio_ref.path

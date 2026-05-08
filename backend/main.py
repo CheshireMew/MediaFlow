@@ -1,19 +1,16 @@
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from loguru import logger
 import contextlib
 import os
 from urllib.parse import urlparse
 
+from loguru import logger
+from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
+from starlette.routing import Mount, Route
+
 from backend.config import settings
-from backend.core.app_runtime import ApplicationRuntime
+from backend.core.backend_bootstrap import backend_bootstrap
 from backend.core.container import container
-from backend.api.v1 import (
-    transcribe, pipeline, analyze, ws, tasks, cookies,
-    translate, settings as settings_api, audio, glossary,
-    editor, ocr,
-)
 
 RENDERER_DEV_ORIGIN_ENV = "MEDIAFLOW_RENDERER_DEV_ORIGIN"
 
@@ -47,9 +44,7 @@ def _build_cors_origins() -> list[str]:
 
 
 @contextlib.asynccontextmanager
-async def lifespan(app: FastAPI):
-    runtime = ApplicationRuntime(container)
-    
+async def lifespan(app: Starlette):
     # === Startup Logic ===
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     settings.init_dirs()
@@ -82,42 +77,37 @@ async def lifespan(app: FastAPI):
     
     logger.info(f"Runtime directories initialized at {settings.RUNTIME_DIR}")
     logger.info(f"Log file configured at {log_file}")
-    registered_count = await runtime.start()
-    logger.info(f"Registered {registered_count} services")
+    backend_bootstrap.configure(container)
+    backend_bootstrap.start_background()
 
     yield
     
     # === Shutdown Logic ===
     logger.info("Shutting down...")
-    await runtime.stop()
+    await backend_bootstrap.stop()
 
 
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
+backend_bootstrap.configure(container)
+
+
+async def health_check(_request):
+    """Heartbeat endpoint to check if core is running."""
+    return JSONResponse(
+        {
+            "status": "online",
+            "service": settings.APP_NAME,
+            "version": settings.APP_VERSION,
+        }
+    )
+
+
+app = Starlette(
+    routes=[
+        Route("/health", health_check, methods=["GET"]),
+        Mount("/", app=backend_bootstrap),
+    ],
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
 )
-
-
-app.include_router(transcribe.router, prefix="/api/v1")
-app.include_router(translate.router, prefix="/api/v1")
-app.include_router(pipeline.router, prefix="/api/v1")
-app.include_router(analyze.router, prefix="/api/v1")
-app.include_router(ws.router, prefix="/api/v1")
-app.include_router(tasks.router, prefix="/api/v1")
-app.include_router(settings_api.router, prefix="/api/v1")
-app.include_router(audio.router, prefix="/api/v1")
-app.include_router(glossary.router, prefix="/api/v1")
-
-app.include_router(editor.router, prefix="/api/v1")
-app.include_router(ocr.router, prefix="/api/v1/ocr")
-
-if settings.ENABLE_EXPERIMENTAL_PREPROCESSING:
-    from backend.api.v1 import preprocessing
-
-    app.include_router(preprocessing.router, prefix="/api/v1/preprocessing")
 
 # CORS (Restricted to local Electron and the active Vite dev server)
 app.add_middleware(
@@ -127,34 +117,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
-
-# ─── Global Error Handlers ────────────────────────────────────────
-@app.exception_handler(ValueError)
-async def value_error_handler(request: Request, exc: ValueError):
-    """Return 400 for business logic / input validation errors."""
-    logger.warning(f"ValueError on {request.method} {request.url}: {exc}")
-    return JSONResponse(
-        status_code=400,
-        content={"error": str(exc), "detail": "Bad request"},
-    )
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """Catch-all: return 500 with consistent JSON shape."""
-    logger.error(f"Unhandled exception on {request.method} {request.url}: {exc}")
-    return JSONResponse(
-        status_code=500,
-        content={"error": str(exc), "detail": "Internal server error"},
-    )
-
-@app.get("/health")
-async def health_check():
-    """Heartbeat endpoint to check if core is running."""
-    return {
-        "status": "online",
-        "service": settings.APP_NAME,
-        "version": settings.APP_VERSION
-    }
 
 if __name__ == "__main__":
     import uvicorn

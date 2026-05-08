@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactElement } from "react";
 import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import "./App.css";
@@ -8,6 +8,7 @@ import { ToastContainer } from "./components/ui/ToastContainer";
 import { StartupPlaceholderPage } from "./components/startup/StartupPlaceholderPage";
 import { ENABLE_EXPERIMENTAL_PREPROCESSING } from "./config/features";
 import {
+  consumeDeferredLaunchDestination,
   persistNavigationDestination,
   resolveCurrentNavigationPath,
 } from "./services/ui/navigationPersistence";
@@ -114,6 +115,31 @@ function NavigationStateSync() {
   return null;
 }
 
+function DeferredLaunchNavigation({ enabled }: { enabled: boolean }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const consumed = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!enabled || consumed.current || location.pathname === "/") {
+      return;
+    }
+
+    consumed.current = true;
+    const destination = consumeDeferredLaunchDestination();
+    if (!destination) {
+      return;
+    }
+
+    const targetPath = `/${destination}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath, { replace: true });
+    }
+  }, [enabled, location.pathname, navigate]);
+
+  return null;
+}
+
 function routeElement(
   appReady: boolean,
   remoteBackendReady: boolean,
@@ -154,6 +180,7 @@ function App({
         <HashRouter>
           <ExternalNavListener />
           <ToastContainer />
+          <DeferredLaunchNavigation enabled={appReady && remoteBackendReady} />
           <Layout>
             <ErrorBoundary>
               <Routes>

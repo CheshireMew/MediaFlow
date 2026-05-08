@@ -8,14 +8,16 @@ from .model_asset_downloader import ensure_basicvsr_assets
 
 class BasicVSRService:
     def __init__(self):
+        from backend.config import settings
+
         self.logger = logging.getLogger(__name__)
-        # Ensure we point to the sidecar python environment
-        self.python_env_path = Path("bin/python_env/python.exe").resolve()
-        self.script_path = Path("src/services/basicvsr_worker.py").resolve()
+        python_env_path = settings.first_existing_tool_file("python_env", "python.exe")
+        self.python_env_path = python_env_path.resolve() if python_env_path else None
+        self.script_path = (Path(__file__).resolve().parent / "basicvsr_worker.py").resolve()
         
     def is_available(self) -> bool:
         """Check if the sidecar environment is ready."""
-        return self.python_env_path.exists()
+        return self.python_env_path is not None and self.python_env_path.exists()
 
     def upscale(
         self, 

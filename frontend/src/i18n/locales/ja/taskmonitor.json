@@ -3,12 +3,9 @@
   "status": {
     "ready": "準備完了",
     "waiting": "待機中",
-    "localTasks": "ローカルタスク",
-    "backendTasks": "バックエンドタスク"
+    "tasks": "タスク"
   },
   "buttons": {
-    "pauseLocal": { "tooltip": "すべてのローカル実行中タスクを一時停止", "label": "ローカル停止" },
-    "pauseBackend": { "tooltip": "すべてのバックエンド実行中タスクを一時停止", "label": "バックエンド停止" },
     "pauseAll": { "tooltip": "すべてのタスクを一時停止", "label": "全て一時停止" },
     "clearAll": { "tooltip": "すべてのタスクを削除", "label": "全てクリア" }
   },

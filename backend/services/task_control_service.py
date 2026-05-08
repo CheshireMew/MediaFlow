@@ -43,16 +43,14 @@ class TaskControlService:
         if not task:
             return False
 
-        if task_id in task_manager._running_ids or task.status == "running":
-            task_manager._stop_requests[task_id] = "pause"
+        if task_manager.is_task_running(task_id) or task.status == "running":
+            task_manager.set_stop_request(task_id, "pause")
             await task_manager.update_task(task_id, message="Pause requested...")
             return True
 
         if task.status == "pending":
-            task_manager._stop_requests[task_id] = "pause"
-            task_manager._queued_ids.discard(task_id)
-            if task_id in task_manager._queued_order:
-                task_manager._queued_order.remove(task_id)
+            task_manager.set_stop_request(task_id, "pause")
+            task_manager.unqueue_task(task_id)
             await task_manager.update_task(
                 task_id,
                 status="paused",
@@ -68,16 +66,14 @@ class TaskControlService:
         if not task:
             return False
 
-        if task_id in task_manager._running_ids or task.status == "running":
-            task_manager._stop_requests[task_id] = "cancel"
+        if task_manager.is_task_running(task_id) or task.status == "running":
+            task_manager.set_stop_request(task_id, "cancel")
             await task_manager.update_task(task_id, message="Cancellation requested...")
             return True
 
         if task.status == "pending":
-            task_manager._stop_requests[task_id] = "cancel"
-            task_manager._queued_ids.discard(task_id)
-            if task_id in task_manager._queued_order:
-                task_manager._queued_order.remove(task_id)
+            task_manager.set_stop_request(task_id, "cancel")
+            task_manager.unqueue_task(task_id)
             await task_manager.update_task(
                 task_id,
                 status="cancelled",
@@ -87,7 +83,7 @@ class TaskControlService:
             return True
 
         if task.status == "paused":
-            self.clear_stop_request(task_manager._stop_requests, task_id)
+            task_manager.clear_stop_request(task_id)
             await task_manager.update_task(
                 task_id,
                 status="cancelled",

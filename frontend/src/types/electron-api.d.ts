@@ -3,21 +3,24 @@ import type {
   SaveFileDialogResult,
   SelectDirectoryRequest,
 } from "../contracts/desktopFileSystemContract";
-import type { DesktopWorkerBridgeApi } from "../contracts/generatedDesktopWorkerApi";
 
 export interface DesktopRuntimeInfo {
   status: "pong";
   contract_version: number;
   bridge_version: string;
-  task_owner_mode: import("../contracts/runtimeContracts").TaskOwnerMode;
   capabilities: Array<keyof ElectronAPI>;
-  worker: {
-    protocol_version: number;
-    app_version?: string | null;
+  backend: {
+    status: "external" | "managed" | "failed";
+    host: string;
+    port: number | null;
+    api_base_url: string;
+    ws_base_url: string;
+    health_url: string;
+    error?: string;
   };
 }
 
-export interface ElectronAPI extends Partial<DesktopWorkerBridgeApi> {
+export interface ElectronAPI {
   openFile: (
     request: import("../contracts/openFileContract").OpenFileDialogRequest,
   ) => Promise<{ path: string; name: string; size: number } | null>;

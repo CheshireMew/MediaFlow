@@ -6,6 +6,7 @@ from backend.services.asr import ASRService
 from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils.audio_processor import AudioProcessor
 from backend.utils.segment_refiner import SegmentRefiner
+from backend.utils.subtitle_text_splitter import HARD_WORD_LIMIT_ENGLISH, count_text_units
 from backend.models.schemas import FileRef, TaskResult
 from backend.models.schemas import SubtitleSegment
 from backend.core.task_control import TaskPauseRequested
@@ -194,7 +195,7 @@ def test_normalize_segments_rebalances_overlong_english_cue():
     assert len(normalized) == 2
     assert normalized[0].text.endswith(",")
     assert normalized[1].text.startswith("and ")
-    assert all(SegmentRefiner._count_words(seg.text) <= SegmentRefiner.HARD_WORD_LIMIT_ENGLISH for seg in normalized)
+    assert all(count_text_units(seg.text) <= HARD_WORD_LIMIT_ENGLISH for seg in normalized)
 
 
 def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, monkeypatch, tmp_path):

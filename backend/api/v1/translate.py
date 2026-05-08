@@ -27,7 +27,6 @@ async def translate_segment_sync(req: TranslateRequest):
             "translate",
             req,
             progress_callback=None,
-            execution="immediate",
         )
 
         return TranslateResponse(

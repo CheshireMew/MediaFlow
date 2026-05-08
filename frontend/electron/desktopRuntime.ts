@@ -6,7 +6,7 @@ import { spawnSync } from "child_process";
 const MEDIAFLOW_RENDERER_DEV_URL_ENV = "MEDIAFLOW_RENDERER_DEV_URL";
 const DESKTOP_RUNTIME_DIRNAME = "runtime";
 const MEDIAFLOW_RUNTIME_DIR_ENV = "MEDIAFLOW_RUNTIME_DIR";
-const MEDIAFLOW_PYTHON_ENV = "MEDIAFLOW_PYTHON";
+const MEDIAFLOW_BACKEND_PORT_ENV = "PORT";
 
 export function isDesktopDevMode() {
   return process.env.IS_DEV === "true";
@@ -14,24 +14,6 @@ export function isDesktopDevMode() {
 
 export function resolveDesktopDevProjectRoot() {
   return path.resolve(app.getAppPath(), "..");
-}
-
-function resolveDesktopDevPythonCommand() {
-  const configuredPython = process.env[MEDIAFLOW_PYTHON_ENV]?.trim();
-  if (configuredPython) {
-    return configuredPython;
-  }
-
-  const projectRoot = resolveDesktopDevProjectRoot();
-  const venvPython =
-    process.platform === "win32"
-      ? path.join(projectRoot, ".venv", "Scripts", "python.exe")
-      : path.join(projectRoot, ".venv", "bin", "python");
-  if (existsSync(venvPython)) {
-    return venvPython;
-  }
-
-  return process.platform === "win32" ? "python" : "python3";
 }
 
 export function resolveDesktopPreloadScript() {
@@ -131,20 +113,18 @@ export function resolveDesktopWorkspaceDir() {
   return path.join(resolveDesktopRuntimeDataRoot(), "workspace");
 }
 
-export function buildDesktopRuntimeEnv() {
+export function resolveBundledBackendExecutable() {
+  return path.join(process.resourcesPath, "backend", "mediaflow-backend.exe");
+}
+
+export function resolvePreferredDesktopBackendPort() {
+  return process.env[MEDIAFLOW_BACKEND_PORT_ENV]?.trim() || "8800";
+}
+
+export function buildDesktopBackendEnv(port: string) {
   return {
     [MEDIAFLOW_RUNTIME_DIR_ENV]: resolveDesktopRuntimeDataRoot(),
-  };
-}
-
-export function resolveBundledDesktopWorkerExecutable() {
-  return path.join(process.resourcesPath, "desktop-worker", "mediaflow-desktop-worker.exe");
-}
-
-export function resolveDesktopDevWorkerLaunch() {
-  return {
-    command: resolveDesktopDevPythonCommand(),
-    args: ["-m", "backend.desktop_worker"],
-    cwd: resolveDesktopDevProjectRoot(),
+    [MEDIAFLOW_BACKEND_PORT_ENV]: port,
+    HOST: "127.0.0.1",
   };
 }

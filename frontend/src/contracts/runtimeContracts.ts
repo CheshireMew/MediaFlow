@@ -1,6 +1,5 @@
 import runtimeContract from "../../../contracts/runtime-contract.json";
 
-export type TaskOwnerMode = "backend";
 export type TaskLifecycle = "runtime-only" | "history-only" | "resumable" | "ephemeral-ui";
 export type TaskSource = "backend";
 export type TaskPersistenceScope = "runtime" | "history";
@@ -24,7 +23,6 @@ export type TaskStatus =
 type RuntimeContractShape = {
   task_contract_version: number;
   desktop_bridge_contract_version: number;
-  task_owner_mode: TaskOwnerMode;
   task_statuses: TaskStatus[];
   task_sources: TaskSource[];
   task_persistence_scopes: TaskPersistenceScope[];
@@ -54,7 +52,6 @@ const contract = runtimeContract as RuntimeContractShape;
 
 export const TASK_CONTRACT_VERSION = contract.task_contract_version;
 export const DESKTOP_BRIDGE_CONTRACT_VERSION = contract.desktop_bridge_contract_version;
-export const TASK_OWNER_MODE = contract.task_owner_mode;
 export const TASK_STATUSES = contract.task_statuses;
 export const TASK_SOURCES = contract.task_sources;
 export const TASK_PERSISTENCE_SCOPES = contract.task_persistence_scopes;

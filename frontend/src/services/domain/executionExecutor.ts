@@ -1,14 +1,8 @@
-import type { TaskResponse } from "../../types/api";
-import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop";
 import {
   createTaskExecutionOutcome,
   type ExecutionOutcome,
 } from "./taskSubmission";
-
-type ElectronApi = import("../../types/electron-api").ElectronAPI;
-type DesktopMethodKey = keyof ElectronApi;
-
-type DesktopMethodArgs<K extends DesktopMethodKey> = Parameters<NonNullable<ElectronApi[K]>>;
+import type { TaskResponse } from "../../types/api";
 
 export async function executeTaskSubmission<TInput, TPayload = TInput>(args: {
   payload: TInput;
@@ -24,29 +18,9 @@ export async function executeTaskSubmission<TInput, TPayload = TInput>(args: {
   );
 }
 
-export async function executeBackendTaskSubmission<TInput, TPayload = TInput>(args: {
+export async function executeBackendDirectCall<TInput, TResult, TPayload = TInput>(args: {
   payload: TInput;
   normalizePayload?: (payload: TInput) => TPayload;
-  submit: (payload: TPayload) => Promise<TaskResponse>;
-}): Promise<ExecutionOutcome> {
-  const normalizedPayload = args.normalizePayload
-    ? args.normalizePayload(args.payload)
-    : (args.payload as unknown as TPayload);
-
-  return createTaskExecutionOutcome(await args.submit(normalizedPayload));
-}
-
-export async function executeBackendDirectCall<
-  TInput,
-  TResult,
-  K extends DesktopMethodKey,
-  TPayload = TInput,
->(args: {
-  payload: TInput;
-  normalizePayload?: (payload: TInput) => TPayload;
-  desktopMethod: K;
-  desktopUnavailableMessage: string;
-  mapDesktopArgs?: (payload: TPayload) => DesktopMethodArgs<K>;
   backendCall: (payload: TPayload) => Promise<TResult>;
   normalizeResult?: (result: TResult, payload: TPayload) => TResult;
 }): Promise<TResult> {
@@ -54,18 +28,7 @@ export async function executeBackendDirectCall<
     ? args.normalizePayload(args.payload)
     : (args.payload as unknown as TPayload);
 
-  let result: TResult;
-  if (isDesktopRuntime()) {
-    const desktopMethod = requireDesktopApiMethod(
-      args.desktopMethod,
-      args.desktopUnavailableMessage,
-    ) as (...desktopArgs: DesktopMethodArgs<K>) => Promise<TResult>;
-    result = await desktopMethod(
-      ...(args.mapDesktopArgs ? args.mapDesktopArgs(normalizedPayload) : ([normalizedPayload] as unknown as DesktopMethodArgs<K>)),
-    );
-  } else {
-    result = await args.backendCall(normalizedPayload);
-  }
+  const result = await args.backendCall(normalizedPayload);
 
   return args.normalizeResult ? args.normalizeResult(result, normalizedPayload) : result;
 }

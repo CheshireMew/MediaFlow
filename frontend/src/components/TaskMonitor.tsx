@@ -19,14 +19,12 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const {
     connected,
-    desktopRuntime,
     executionBadges,
     executionSummary,
     filteredTasks,
     remoteTasksReady,
     summary,
     taskFeedDiagnostics,
-    taskOwnerMode,
   } = useTaskMonitorOverview(filterTypes);
 
   const toggleExpand = (taskId: string) => {
@@ -54,9 +52,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
       <TaskMonitorHeader
         showHeaderOverview={showHeaderOverview}
         connected={connected}
-        desktopRuntime={desktopRuntime}
         remoteTasksReady={remoteTasksReady}
-        taskOwnerMode={taskOwnerMode}
         summary={summary}
         executionBadges={executionBadges}
       />

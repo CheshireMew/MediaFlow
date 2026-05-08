@@ -1,4 +1,4 @@
-import { ActivitySquare, HardDrive, ServerCog } from 'lucide-react';
+import { ActivitySquare, HardDrive } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useTaskMonitorOverview } from './useTaskMonitorOverview';
 import {
@@ -30,33 +30,17 @@ export const TaskMonitorOverviewCards = () => {
     const { t } = useTranslation(['dashboard', 'taskmonitor']);
     const {
         connected,
-        desktopRuntime,
         executionBadges,
         remoteTasksReady,
         summary,
-        taskOwnerMode,
     } = useTaskMonitorOverview();
+    const taskFeedReady = connected && remoteTasksReady;
 
     const taskStats = [
         { key: 'pending', label: t('dashboard:taskOverview.queue'), value: summary.pending },
         { key: 'running', label: t('dashboard:taskOverview.running'), value: summary.running },
         { key: 'paused', label: t('dashboard:taskOverview.paused'), value: summary.paused },
     ] as const;
-
-    const sources = [
-        {
-            key: 'local',
-            label: t('taskmonitor:status.localTasks'),
-            ready: connected,
-        },
-        ...(!desktopRuntime
-            ? [{
-                key: 'backend',
-                label: t('taskmonitor:status.backendTasks'),
-                ready: remoteTasksReady,
-            }]
-            : []),
-    ];
 
     return (
         <>
@@ -94,34 +78,26 @@ export const TaskMonitorOverviewCards = () => {
 
             <section className={overviewCardClassName}>
                 <OverviewCardHeader
-                    icon={ServerCog}
+                    icon={HardDrive}
                     title={t('dashboard:runtimeOverview.title')}
                     subtitle={t('dashboard:runtimeOverview.subtitle')}
                     iconAccentClassName="bg-cyan-500/10 group-hover:bg-cyan-500/20"
                     iconClassName="text-cyan-300"
                 />
                 <div className="space-y-2">
-                    <div className={`${overviewInnerPanelClassName} flex items-center justify-between min-h-[60px]`}>
-                        <span className="text-xs text-slate-400">{t('dashboard:runtimeOverview.owner')}</span>
-                        <span className="px-2 py-1 rounded-md bg-cyan-400/10 text-cyan-300 border border-cyan-400/20 text-[10px] font-mono">
-                            owner {taskOwnerMode}
-                        </span>
-                    </div>
                     <div className={`${overviewInnerPanelClassName} min-h-[60px]`}>
                         <div className="flex items-center gap-2 mb-2 text-xs text-slate-400">
                             <HardDrive className="w-3.5 h-3.5" />
                             {t('dashboard:runtimeOverview.sources')}
                         </div>
                         <div className="flex flex-wrap gap-3">
-                            {sources.map((source) => (
-                                <span key={source.key} className={`text-[10px] font-medium flex items-center gap-1.5 ${source.ready ? statusClassNames.ready.text : statusClassNames.waiting.text}`}>
-                                    <span className="relative flex h-2 w-2">
-                                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${source.ready ? statusClassNames.ready.ping : statusClassNames.waiting.ping}`}></span>
-                                        <span className={`relative inline-flex rounded-full h-2 w-2 ${source.ready ? statusClassNames.ready.dot : statusClassNames.waiting.dot}`}></span>
-                                    </span>
-                                    {source.label}: {source.ready ? t('taskmonitor:status.ready') : t('taskmonitor:status.waiting')}
+                            <span className={`text-[10px] font-medium flex items-center gap-1.5 ${taskFeedReady ? statusClassNames.ready.text : statusClassNames.waiting.text}`}>
+                                <span className="relative flex h-2 w-2">
+                                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${taskFeedReady ? statusClassNames.ready.ping : statusClassNames.waiting.ping}`}></span>
+                                    <span className={`relative inline-flex rounded-full h-2 w-2 ${taskFeedReady ? statusClassNames.ready.dot : statusClassNames.waiting.dot}`}></span>
                                 </span>
-                            ))}
+                                {t('taskmonitor:status.tasks')}: {taskFeedReady ? t('taskmonitor:status.ready') : t('taskmonitor:status.waiting')}
+                            </span>
                         </div>
                     </div>
                 </div>

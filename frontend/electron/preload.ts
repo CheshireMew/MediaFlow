@@ -1,28 +1,12 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import {
-  DESKTOP_WORKER_INVOCATIONS,
-} from "./desktop/bridgeContract";
-import type {
-  DesktopWorkerBridgeApi,
-  DesktopWorkerInvocationName,
-} from "../src/contracts/generatedDesktopWorkerApi";
-import {
   DESKTOP_FILE_SYSTEM_CHANNELS,
   type SaveFileDialogRequest,
   type SelectDirectoryRequest,
 } from "../src/contracts/desktopFileSystemContract";
 import type { OpenFileDialogRequest } from "../src/contracts/openFileContract";
 
-const desktopWorkerApi = Object.fromEntries(
-  (Object.keys(DESKTOP_WORKER_INVOCATIONS) as DesktopWorkerInvocationName[]).map((name) => [
-    name,
-    (payload?: unknown) =>
-      ipcRenderer.invoke(DESKTOP_WORKER_INVOCATIONS[name].ipcChannel, payload),
-  ]),
-) as DesktopWorkerBridgeApi;
-
 contextBridge.exposeInMainWorld("electronAPI", {
-  ...desktopWorkerApi,
   openFile: (request: OpenFileDialogRequest) =>
     ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.openFile, request),
   openSubtitleFile: () => ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.openSubtitleFile),

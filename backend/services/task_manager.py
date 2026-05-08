@@ -5,17 +5,16 @@ from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from loguru import logger
 
-from backend.config import settings
 from backend.core.database import get_session_context, init_db
 from backend.core.task_control import (
     TaskCancelRequested,
-    TaskControlRequested,
     TaskPauseRequested,
 )
 from backend.models.schemas import TaskView
 from backend.models.task_model import Task
 from backend.services.task_control_service import TaskControlService
 from backend.services.task_event_publisher import TaskEventPublisher
+from backend.services.task_queue_runner import TaskQueueRunner
 from backend.services.task_queue_view import TaskQueueView
 from backend.services.task_repository import TaskRepository
 from backend.services.task_runtime_state import TaskRuntimeState
@@ -45,27 +44,24 @@ class TaskManager:
         self._queue_view = queue_view
         self._control_service = control_service
         self._runtime_state = runtime_state
-        self._queue: asyncio.Queue[str] = asyncio.Queue()
-        self._queued_ids = self._runtime_state.queued_ids
-        self._queued_order = self._runtime_state.queued_order
-        self._running_ids = self._runtime_state.running_ids
         self._stop_requests: Dict[str, str] = self._runtime_state.stop_requests
-        self._execution_specs: Dict[str, Callable[[], Awaitable[None]]] = {}
-        self._delete_after_stop = self._runtime_state.delete_after_stop
-        self._workers: list[asyncio.Task] = []
+        self._queue_runner = TaskQueueRunner(self._runtime_state)
         self._threadsafe_update_futures: set[concurrent.futures.Future] = set()
         self._accept_threadsafe_updates = True
-        self._max_concurrent = max(1, settings.TASK_MAX_CONCURRENT)
         self._startup_load_task: asyncio.Task | None = None
         self._tasks_loaded = asyncio.Event()
         self._hydration_started = False
+        self._startup_lock = asyncio.Lock()
 
     async def init_async(self):
         """Initialize DB, load tasks, and start queue workers."""
-        await init_db()
-        self._start_workers()
-        self._hydration_started = True
-        await self.load_tasks()
+        async with self._startup_lock:
+            if self._hydration_started and self._tasks_loaded.is_set():
+                return
+            await init_db()
+            self._start_workers()
+            self._hydration_started = True
+            await self.load_tasks()
 
     async def warm_start_async(self):
         """
@@ -74,6 +70,18 @@ class TaskManager:
         tasks in the background so health checks can pass without waiting for a
         potentially large task table to be hydrated.
         """
+        async with self._startup_lock:
+            await self._warm_start_unlocked()
+
+    async def ensure_started_async(self):
+        if self._hydration_started:
+            return
+        await self.warm_start_async()
+
+    async def _warm_start_unlocked(self):
+        if self._hydration_started:
+            return
+
         await init_db()
         self._start_workers()
         self._hydration_started = True
@@ -92,13 +100,8 @@ class TaskManager:
             await asyncio.gather(self._startup_load_task, return_exceptions=True)
             self._startup_load_task = None
         await self.drain_threadsafe_updates()
-        for worker in self._workers:
-            worker.cancel()
-        if self._workers:
-            await asyncio.gather(*self._workers, return_exceptions=True)
-        self._workers.clear()
-        self._runtime_state.clear()
-        self._execution_specs.clear()
+        await self._queue_runner.shutdown()
+        self._queue_runner.clear()
         self._threadsafe_update_futures.clear()
         self._accept_threadsafe_updates = True
         self._tasks_loaded.clear()
@@ -131,72 +134,22 @@ class TaskManager:
                 continue
 
     def _start_workers(self):
-        if self._workers:
-            return
-        for index in range(self._max_concurrent):
-            self._workers.append(asyncio.create_task(self._worker_loop(index)))
-        logger.info(f"Started {len(self._workers)} task queue workers.")
-
-    async def _worker_loop(self, worker_index: int):
-        while True:
-            task_id = await self._queue.get()
-            self._runtime_state.unmark_queued(task_id)
-            try:
-                task = self.get_task(task_id)
-                if not task:
-                    self.clear_stop_request(task_id)
-                    continue
-                request = self.get_stop_request(task_id)
-                if request and task.status != "running":
-                    message = "Paused in queue" if request == "pause" else "Cancelled in queue"
-                    await self.mark_controlled_stop(task_id, request, message)
-                    continue
-                if task.status != "pending":
-                    continue
-
-                runner = self._execution_specs.get(task_id)
-                if not runner:
-                    logger.warning(f"Skipping task {task_id}: no execution spec registered.")
-                    await self.update_task(
-                        task_id,
-                        status="failed",
-                        message="Task execution spec is missing",
-                        error="Task execution spec is missing",
-                    )
-                    continue
-
-                self._runtime_state.mark_running(task_id)
-                logger.info(f"[Queue:{worker_index}] Starting task {task_id}")
-                await runner()
-            except TaskControlRequested as e:
-                logger.info(f"[Queue:{worker_index}] Task {task_id} stopped cooperatively: {e}")
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                logger.exception(f"[Queue:{worker_index}] Task {task_id} crashed: {e}")
-                if task_id in self.tasks:
-                    await self.update_task(
-                        task_id,
-                        status="failed",
-                        message=str(e),
-                        error=str(e),
-                    )
-            finally:
-                self._runtime_state.unmark_running(task_id)
-                if task_id in self._delete_after_stop:
-                    await self._finalize_delete(task_id)
-                self._queue.task_done()
+        self._queue_runner.start(self)
 
     async def load_tasks(self):
         """Load tasks from DB on startup."""
+        loaded_successfully = False
         try:
             persisted_tasks = await self._repository.load_all()
             self.tasks = {**persisted_tasks, **self.tasks}
             logger.info(f"Loaded {len(self.tasks)} tasks from SQLite.")
+            loaded_successfully = True
         except Exception as e:
             logger.error(f"Failed to load tasks from DB: {e}")
         finally:
             self._tasks_loaded.set()
+        if loaded_successfully:
+            await self._event_publisher.publish_snapshot(self.get_tasks_snapshot())
 
     async def _load_tasks_background(self):
         try:
@@ -210,16 +163,16 @@ class TaskManager:
     def serialize_task(self, task: Task) -> TaskView:
         return self._queue_view.serialize_task(
             task,
-            running_ids=self._running_ids,
-            queued_ids=self._queued_ids,
-            queued_order=self._queued_order,
+            running_ids=self._runtime_state.running_ids,
+            queued_ids=self._runtime_state.queued_ids,
+            queued_order=self._runtime_state.queued_order,
         )
 
     def get_queue_summary(self) -> dict:
         return self._queue_view.get_queue_summary(
-            self._max_concurrent,
-            self._running_ids,
-            self._queued_ids,
+            self._queue_runner.max_concurrent,
+            self._runtime_state.running_ids,
+            self._runtime_state.queued_ids,
         )
 
     def get_tasks_snapshot(self) -> list[TaskView]:
@@ -227,11 +180,11 @@ class TaskManager:
         return [self.serialize_task(task) for task in self.tasks.values()]
 
     async def wait_until_tasks_loaded(self) -> None:
+        await self.ensure_started_async()
         await self._tasks_loaded.wait()
 
     async def _wait_for_mutation_boundary(self) -> None:
-        if self._hydration_started:
-            await self.wait_until_tasks_loaded()
+        await self.wait_until_tasks_loaded()
 
     async def create_task(
         self,
@@ -258,22 +211,29 @@ class TaskManager:
         queued_message: Optional[str] = None,
     ) -> None:
         await self._wait_for_mutation_boundary()
-        self._execution_specs[task_id] = runner
         task = self.get_task(task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
-        if task_id in self._running_ids or task_id in self._queued_ids:
+        if self._queue_runner.is_running(task_id) or self._queue_runner.is_queued(task_id):
             return
 
         self.clear_stop_request(task_id)
-        self._runtime_state.mark_queued(task_id)
         updates = {"status": "pending", "cancelled": False}
         if queued_message is not None:
             updates["message"] = queued_message
-        await self.update_task(task_id, **updates)
-        await self._queue.put(task_id)
-        logger.info(f"Queued task {task_id}. pending={len(self._queued_ids)} running={len(self._running_ids)}")
+        self._queue_runner.prepare_enqueue(task_id, runner)
+        try:
+            await self.update_task(task_id, **updates)
+        except Exception:
+            self._queue_runner.discard_task(task_id)
+            raise
+        await self._queue_runner.dispatch(task_id)
+        logger.info(
+            f"Queued task {task_id}. "
+            f"pending={self._queue_runner.queued_count()} "
+            f"running={self._queue_runner.running_count()}"
+        )
 
     def has_stop_request(self, task_id: str) -> bool:
         return self._control_service.has_stop_request(self._stop_requests, task_id)
@@ -283,6 +243,15 @@ class TaskManager:
 
     def clear_stop_request(self, task_id: str) -> None:
         self._control_service.clear_stop_request(self._stop_requests, task_id)
+
+    def set_stop_request(self, task_id: str, request: str) -> None:
+        self._stop_requests[task_id] = request
+
+    def is_task_running(self, task_id: str) -> bool:
+        return self._queue_runner.is_running(task_id)
+
+    def unqueue_task(self, task_id: str) -> None:
+        self._queue_runner.unqueue(task_id)
 
     def raise_if_control_requested(self, task_id: Optional[str]) -> None:
         if not task_id:
@@ -303,6 +272,7 @@ class TaskManager:
         )
 
     async def update_task(self, task_id: str, **kwargs):
+        await self.ensure_started_async()
         updated_task = await self._repository.update_task(
             task_id,
             cached_task=self.tasks.get(task_id),
@@ -324,32 +294,23 @@ class TaskManager:
         await self._wait_for_mutation_boundary()
         task = self.get_task(task_id)
         if task and task.status == "running":
-            self._delete_after_stop.add(task_id)
+            self._queue_runner.request_delete_after_stop(task_id)
             await self.cancel_task(task_id)
             logger.info(f"Task {task_id} scheduled for deletion after stop")
             return True
 
         if task and task.status in {"pending", "paused"}:
-            self._queued_ids.discard(task_id)
-            if task_id in self._queued_order:
-                self._queued_order.remove(task_id)
-            self._delete_after_stop.discard(task_id)
+            self._queue_runner.discard_task(task_id)
             self.clear_stop_request(task_id)
-            self._execution_specs.pop(task_id, None)
-            return await self._finalize_delete(task_id)
+            return await self.finalize_task_delete(task_id)
 
-        return await self._finalize_delete(task_id)
+        return await self.finalize_task_delete(task_id)
 
-    async def _finalize_delete(self, task_id: str) -> bool:
+    async def finalize_task_delete(self, task_id: str) -> bool:
         task_exists = await self._repository.delete_task(task_id)
         if task_exists:
-            self._queued_ids.discard(task_id)
-            if task_id in self._queued_order:
-                self._queued_order.remove(task_id)
-            self._running_ids.discard(task_id)
+            self._queue_runner.discard_task(task_id)
             self.clear_stop_request(task_id)
-            self._execution_specs.pop(task_id, None)
-            self._delete_after_stop.discard(task_id)
             self.tasks.pop(task_id, None)
 
             await self._event_publisher.publish_delete(task_id)
@@ -361,8 +322,7 @@ class TaskManager:
         await self._wait_for_mutation_boundary()
         count = await self._repository.delete_all_tasks()
         self.tasks.clear()
-        self._runtime_state.clear()
-        self._execution_specs.clear()
+        self._queue_runner.clear()
 
         await self._event_publisher.publish_snapshot([])
         logger.info(f"Deleted all {count} tasks")

@@ -308,23 +308,28 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
         // 1. Prepare "Geometry & Style" map from Props (The Truth)
         const geometryMap = new Map<string, { start: number, end: number, color: string }>();
         const overlappingIds = new Set<string>();
+        const selectedIdSet = new Set(selectedIds);
+        const tolerance = 0.01;
+        const activeRegions: SubtitleSegment[] = [];
 
-        // Overlap Detection (O(n^2) but n < 2000 usually ok)
-        for (let i = 0; i < regions.length; i++) {
-            for (let j = i + 1; j < regions.length; j++) {
-                const r1 = regions[i];
-                const r2 = regions[j];
-                const tolerance = 0.01;
-                if (r1.start < r2.end - tolerance && r2.start < r1.end - tolerance) {
-                    overlappingIds.add(String(r1.id));
-                    overlappingIds.add(String(r2.id));
+        for (const region of [...regions].sort((a, b) => a.start - b.start)) {
+            for (let index = activeRegions.length - 1; index >= 0; index--) {
+                if (activeRegions[index].end <= region.start + tolerance) {
+                    activeRegions.splice(index, 1);
+                    continue;
+                }
+
+                if (region.start < activeRegions[index].end - tolerance) {
+                    overlappingIds.add(String(activeRegions[index].id));
+                    overlappingIds.add(String(region.id));
                 }
             }
+            activeRegions.push(region);
         }
 
         regions.forEach(seg => {
             const strId = String(seg.id);
-            const isSelected = selectedIds.includes(strId);
+            const isSelected = selectedIdSet.has(strId);
             const isOverlapping = overlappingIds.has(strId);
             
             let color = 'rgba(79, 70, 229, 0.2)'; 

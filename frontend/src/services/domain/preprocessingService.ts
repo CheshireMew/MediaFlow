@@ -27,9 +27,6 @@ export const preprocessingService = {
 
     return await executeBackendDirectCall({
       payload: videoRef,
-      desktopMethod: "getDesktopOcrResults",
-      desktopUnavailableMessage: "Desktop preprocessing worker is unavailable.",
-      mapDesktopArgs: (resolvedVideoRef) => [{ video_ref: resolvedVideoRef }] as [{ video_ref: MediaReference }],
       backendCall: (resolvedVideoRef) =>
         import("../../api/client").then(({ apiClient }) => apiClient.getOcrResults(resolvedVideoRef)),
     });

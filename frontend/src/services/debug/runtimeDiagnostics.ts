@@ -9,9 +9,8 @@ export function createDesktopRuntimeDiagnostic(runtimeInfo: DesktopRuntimeInfo) 
   return {
     contract_version: runtimeInfo.contract_version,
     bridge_version: runtimeInfo.bridge_version,
-    task_owner_mode: runtimeInfo.task_owner_mode,
-    worker_protocol_version: runtimeInfo.worker.protocol_version,
     capabilities: runtimeInfo.capabilities,
+    backend: runtimeInfo.backend,
   };
 }
 

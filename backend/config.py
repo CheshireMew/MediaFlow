@@ -102,6 +102,9 @@ class Settings:
         self.MODEL_DIR = self.RUNTIME_DIR / "models"
         self.OUTPUT_DIR = self.RUNTIME_DIR / "output"
         self.USER_DATA_DIR = self.RUNTIME_DIR / "user_data"
+        self.TOOL_DIR = self.RUNTIME_DIR / "tools"
+        self.TOOL_DOWNLOAD_DIR = self.TOOL_DIR / "downloads"
+        self.PYTHON_TOOL_PACKAGES_DIR = self.TOOL_DIR / "python-packages"
         self.BIN_DIR = self.RESOURCE_DIR / "bin"
 
         self.FFMPEG_PATH = "ffmpeg"
@@ -120,8 +123,14 @@ class Settings:
         self.DOWNLOADER_FORMATS = DEFAULT_DOWNLOADER_FORMATS.copy()
 
         self._apply_env()
+        self._configure_mutable_python_packages()
         self._auto_detect_binaries()
         self.init_dirs()
+
+    def _configure_mutable_python_packages(self):
+        package_path = str(self.PYTHON_TOOL_PACKAGES_DIR)
+        if package_path not in sys.path:
+            sys.path.insert(0, package_path)
 
     def _apply_env(self):
         env_file = self.RESOURCE_DIR / ".env"
@@ -170,13 +179,33 @@ class Settings:
         if local_ffprobe.exists():
             self.FFPROBE_PATH = str(local_ffprobe)
 
-        local_faster_whisper_cli = self.BIN_DIR / "Faster-Whisper-XXL" / "faster-whisper-xxl.exe"
-        if not self.FASTER_WHISPER_CLI_PATH and local_faster_whisper_cli.exists():
-            self.FASTER_WHISPER_CLI_PATH = str(local_faster_whisper_cli)
+        for local_faster_whisper_cli in self.tool_file_candidates(
+            "Faster-Whisper-XXL",
+            "faster-whisper-xxl.exe",
+        ):
+            if not self.FASTER_WHISPER_CLI_PATH and local_faster_whisper_cli.exists():
+                self.FASTER_WHISPER_CLI_PATH = str(local_faster_whisper_cli)
+                break
 
-        bundled_faster_whisper_ffmpeg = self.BIN_DIR / "Faster-Whisper-XXL" / "ffmpeg.exe"
-        if self.FFMPEG_PATH == "ffmpeg" and bundled_faster_whisper_ffmpeg.exists():
-            self.FFMPEG_PATH = str(bundled_faster_whisper_ffmpeg)
+        for faster_whisper_ffmpeg in self.tool_file_candidates(
+            "Faster-Whisper-XXL",
+            "ffmpeg.exe",
+        ):
+            if self.FFMPEG_PATH == "ffmpeg" and faster_whisper_ffmpeg.exists():
+                self.FFMPEG_PATH = str(faster_whisper_ffmpeg)
+                break
+
+    def tool_file_candidates(self, *parts: str) -> list[Path]:
+        return [
+            self.TOOL_DIR.joinpath(*parts),
+            self.BIN_DIR.joinpath(*parts),
+        ]
+
+    def first_existing_tool_file(self, *parts: str) -> Path | None:
+        for candidate in self.tool_file_candidates(*parts):
+            if candidate.exists():
+                return candidate
+        return None
 
     @staticmethod
     def _resolve_resource_dir() -> Path:
@@ -205,7 +234,9 @@ class Settings:
             self.MODEL_DIR,
             self.OUTPUT_DIR,
             self.USER_DATA_DIR,
-            self.BIN_DIR,
+            self.TOOL_DIR,
+            self.TOOL_DOWNLOAD_DIR,
+            self.PYTHON_TOOL_PACKAGES_DIR,
             self.OCR_MODEL_DIR,
         ]:
             path.mkdir(parents=True, exist_ok=True)

@@ -4,13 +4,12 @@ import { isDesktopRuntime, settingsService } from "../../services/domain";
 import { getDesktopRuntimeInfo, hasDesktopCapability } from "../../services/desktop";
 import { windowService } from "../../services/desktop";
 import { createDesktopRuntimeDiagnostic } from "../../services/debug/runtimeDiagnostics";
-import { DESKTOP_BRIDGE_CONTRACT_VERSION, TASK_OWNER_MODE } from "../../contracts/runtimeContracts";
-import i18n, { ensureI18nNamespaces } from "../../i18n";
+import { DESKTOP_BRIDGE_CONTRACT_VERSION } from "../../contracts/runtimeContracts";
+import i18n from "../../i18n";
 import { resolveCurrentPresentationRoute } from "../../services/ui/pagePresentation";
 import { probeBackendHealth } from "../../startup/backendHealthProbe";
-import { ROUTE_PAGE_MODULES } from "../../startup/routePageDefinitions";
 import { initializeUiStateSettings } from "../../services/persistence/uiStateSettings";
-import { restoreLaunchHashFromUiState } from "../../services/ui/navigationPersistence";
+import { configureApiRuntime } from "../../api/runtime";
 
 type StartupState = {
   appReady: boolean;
@@ -23,6 +22,7 @@ const REQUIRED_DESKTOP_CAPABILITIES = [
 ] as const;
 
 const STARTUP_HEALTH_RETRY_DELAY_MS = 150;
+const STARTUP_HEALTH_TIMEOUT_MS = 60_000;
 
 const STARTUP_TEXT_FALLBACKS = {
   retryingHealth: "后端正在启动中，正在重试健康检查...",
@@ -32,13 +32,139 @@ const STARTUP_TEXT_FALLBACKS = {
   webMode: "当前以无 Electron 后端引导的模式运行。",
 } as const;
 
-export function BootApp() {
-  const getStartupText = (key: keyof typeof STARTUP_TEXT_FALLBACKS) => {
-    const translated = i18n.t(`startup.status.${key}`);
-    return translated === `startup.status.${key}`
-      ? STARTUP_TEXT_FALLBACKS[key]
-      : translated;
+let startupBootstrapPromise: Promise<Partial<StartupState>> | null = null;
+let rendererReadyNotificationSent = false;
+const startupProgressListeners = new Set<(next: Partial<StartupState>) => void>();
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getStartupText = (key: keyof typeof STARTUP_TEXT_FALLBACKS) => {
+  const translated = i18n.t(`startup.status.${key}`);
+  return translated === `startup.status.${key}`
+    ? STARTUP_TEXT_FALLBACKS[key]
+    : translated;
+};
+
+function publishStartupProgress(next: Partial<StartupState>) {
+  for (const listener of startupProgressListeners) {
+    listener(next);
+  }
+}
+
+function subscribeStartupProgress(listener: (next: Partial<StartupState>) => void) {
+  startupProgressListeners.add(listener);
+  return () => {
+    startupProgressListeners.delete(listener);
   };
+}
+
+async function waitForBackendHealth() {
+  let retryMessageShown = false;
+  const deadline = Date.now() + STARTUP_HEALTH_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const health = await probeBackendHealth();
+    if (health.ok) {
+      return true;
+    }
+
+    if (!retryMessageShown) {
+      retryMessageShown = true;
+      publishStartupProgress({ message: getStartupText("retryingHealth") });
+    }
+
+    await sleep(STARTUP_HEALTH_RETRY_DELAY_MS);
+  }
+
+  throw new Error("Backend did not become healthy within 60000ms.");
+}
+
+async function loadUserSettings() {
+  try {
+    const settings = await settingsService.getSettings();
+    initializeUiStateSettings(settings);
+    if (settings?.language) {
+      await i18n.changeLanguage(settings.language);
+    }
+    return settings;
+  } catch (error) {
+    console.warn("[Init] Failed to load user settings during startup.", error);
+    initializeUiStateSettings(null);
+    return null;
+  }
+}
+
+async function bootstrapStartup(): Promise<Partial<StartupState>> {
+  const desktopRuntime = isDesktopRuntime();
+
+  try {
+    if (desktopRuntime) {
+      const runtimeInfo = await getDesktopRuntimeInfo();
+      if (runtimeInfo.contract_version < DESKTOP_BRIDGE_CONTRACT_VERSION) {
+        throw new Error(
+          `Desktop bridge contract mismatch. Required >= ${DESKTOP_BRIDGE_CONTRACT_VERSION}, received ${runtimeInfo.contract_version}.`,
+        );
+      }
+
+      const missingCapabilities = REQUIRED_DESKTOP_CAPABILITIES.filter(
+        (capability) => !hasDesktopCapability(runtimeInfo, capability),
+      );
+      if (missingCapabilities.length > 0) {
+        throw new Error(
+          `Desktop bridge capability mismatch. Missing: ${missingCapabilities.join(", ")}.`,
+        );
+      }
+
+      if (runtimeInfo.backend.status === "failed") {
+        throw new Error(runtimeInfo.backend.error || "Desktop backend failed to start.");
+      }
+
+      configureApiRuntime({
+        apiBaseUrl: runtimeInfo.backend.api_base_url,
+        wsBaseUrl: runtimeInfo.backend.ws_base_url,
+      });
+
+      console.log(
+        "[Init] Desktop runtime contract ready",
+        createDesktopRuntimeDiagnostic(runtimeInfo),
+      );
+    }
+
+    await waitForBackendHealth();
+
+    if (!desktopRuntime) {
+      await loadUserSettings();
+      return {
+        appReady: true,
+        remoteBackendReady: true,
+        message: getStartupText("webMode"),
+      };
+    }
+
+    await loadUserSettings();
+    return {
+      appReady: true,
+      remoteBackendReady: true,
+      message: getStartupText("ready"),
+    };
+  } catch (error) {
+    console.error("Failed to bootstrap desktop runtime", error);
+    return {
+      message:
+        error instanceof Error && /mismatch/i.test(error.message)
+          ? error.message
+          : getStartupText("retryingGeneric"),
+    };
+  }
+}
+
+export function resetBootAppStartupForTests() {
+  startupBootstrapPromise = null;
+  rendererReadyNotificationSent = false;
+  startupProgressListeners.clear();
+}
+
+export function BootApp() {
   const [startupState, setStartupState] = useState<StartupState>({
     appReady: false,
     remoteBackendReady: false,
@@ -65,158 +191,29 @@ export function BootApp() {
   useEffect(() => {
     let cancelled = false;
 
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
     const updateState = (next: Partial<StartupState>) => {
       if (cancelled) return;
       setStartupState((prev) => ({ ...prev, ...next }));
     };
 
-    const preloadStartupRoute = async () => {
-      const routeModule = ROUTE_PAGE_MODULES[resolveCurrentPresentationRoute()];
-      await Promise.all([
-        routeModule.load(),
-        ensureI18nNamespaces(routeModule.namespaces),
-      ]);
-    };
-
-    const startStartupRoutePreload = () =>
-      preloadStartupRoute().then(
-        () => ({ ok: true as const }),
-        (error: unknown) => ({ ok: false as const, error }),
-      );
-
-    const waitForStartupRoutePreload = async (
-      preload: ReturnType<typeof startStartupRoutePreload>,
-    ) => {
-      const result = await preload;
-      if (!result.ok) {
-        throw result.error;
-      }
-    };
-
-    const waitForBackendHealth = async () => {
-      let retryMessageShown = false;
-
-      while (!cancelled) {
-        const health = await probeBackendHealth();
-        if (health.ok) {
-          return true;
-        }
-
-        if (!retryMessageShown) {
-          retryMessageShown = true;
-          updateState({ message: getStartupText("retryingHealth") });
-        }
-
-        await sleep(STARTUP_HEALTH_RETRY_DELAY_MS);
-      }
-
-      return false;
-    };
-
-    const bootstrap = async () => {
-      const desktopRuntime = isDesktopRuntime();
-      const runtimeInfoPromise = desktopRuntime
-        ? getDesktopRuntimeInfo().then(
-            (runtimeInfo) => ({ runtimeInfo, error: null }),
-            (error: unknown) => ({ runtimeInfo: null, error }),
-          )
-        : null;
-
-      const loadUserSettings = async () => {
-        try {
-          const settings = await settingsService.getSettings();
-          initializeUiStateSettings(settings);
-          restoreLaunchHashFromUiState();
-          if (settings?.language) {
-            await i18n.changeLanguage(settings.language);
-          }
-          return settings;
-        } catch (error) {
-          console.warn("[Init] Failed to load user settings during startup.", error);
-          initializeUiStateSettings(null);
-          return null;
-        }
-      };
-
-      try {
-        const backendReady = await waitForBackendHealth();
-        if (!backendReady) {
-          return;
-        }
-
-        if (!desktopRuntime) {
-          await loadUserSettings();
-          const startupRoutePreload = startStartupRoutePreload();
-          await waitForStartupRoutePreload(startupRoutePreload);
-          updateState({
-            appReady: true,
-            remoteBackendReady: true,
-            message: getStartupText("webMode"),
-          });
-          return;
-        }
-
-        const runtimeInfoResult = await runtimeInfoPromise;
-        if (!runtimeInfoResult || runtimeInfoResult.error || !runtimeInfoResult.runtimeInfo) {
-          throw runtimeInfoResult?.error ?? new Error("Desktop runtime handshake is unavailable.");
-        }
-        const { runtimeInfo } = runtimeInfoResult;
-        if (runtimeInfo.contract_version < DESKTOP_BRIDGE_CONTRACT_VERSION) {
-          throw new Error(
-            `Desktop bridge contract mismatch. Required >= ${DESKTOP_BRIDGE_CONTRACT_VERSION}, received ${runtimeInfo.contract_version}.`,
-          );
-        }
-        if (runtimeInfo.task_owner_mode !== TASK_OWNER_MODE) {
-          throw new Error(
-            `Task owner mismatch. Required ${TASK_OWNER_MODE}, received ${runtimeInfo.task_owner_mode}.`,
-          );
-        }
-
-        const missingCapabilities = REQUIRED_DESKTOP_CAPABILITIES.filter(
-          (capability) => !hasDesktopCapability(runtimeInfo, capability),
-        );
-        if (missingCapabilities.length > 0) {
-          throw new Error(
-            `Desktop bridge capability mismatch. Missing: ${missingCapabilities.join(", ")}.`,
-          );
-        }
-
-        console.log(
-          "[Init] Desktop runtime contract ready",
-          createDesktopRuntimeDiagnostic(runtimeInfo),
-        );
-
-        await loadUserSettings();
-        const startupRoutePreload = startStartupRoutePreload();
-        await waitForStartupRoutePreload(startupRoutePreload);
-        updateState({
-          appReady: true,
-          remoteBackendReady: true,
-          message: getStartupText("ready"),
-        });
-      } catch (error) {
-        console.error("Failed to bootstrap desktop worker", error);
-        updateState({
-          message:
-            error instanceof Error && /mismatch/i.test(error.message)
-              ? error.message
-              : getStartupText("retryingGeneric"),
-        });
-      }
-    };
-
-    void bootstrap();
+    const unsubscribe = subscribeStartupProgress(updateState);
+    startupBootstrapPromise ??= bootstrapStartup();
+    void startupBootstrapPromise.then(updateState);
 
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [startupVariant]);
 
   useEffect(() => {
+    if (rendererReadyNotificationSent) {
+      return;
+    }
+
     let frameId = 0;
     frameId = window.requestAnimationFrame(() => {
+      rendererReadyNotificationSent = true;
       windowService.notifyRendererReady();
     });
     return () => {

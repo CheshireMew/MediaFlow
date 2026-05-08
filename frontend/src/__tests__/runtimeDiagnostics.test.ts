@@ -13,19 +13,28 @@ describe("runtimeDiagnostics", () => {
         status: "pong",
         contract_version: 1,
         bridge_version: "1.2.3",
-        task_owner_mode: "backend",
-        capabilities: ["getDesktopRuntimeInfo", "desktopPing"],
-        worker: {
-          protocol_version: 1,
-          app_version: "0.1.0",
+        capabilities: ["getDesktopRuntimeInfo"],
+        backend: {
+          status: "external",
+          host: "127.0.0.1",
+          port: 8800,
+          api_base_url: "http://127.0.0.1:8800/api/v1",
+          ws_base_url: "ws://127.0.0.1:8800/api/v1",
+          health_url: "http://127.0.0.1:8800/health",
         },
       }),
     ).toEqual({
       contract_version: 1,
       bridge_version: "1.2.3",
-      task_owner_mode: "backend",
-      worker_protocol_version: 1,
-      capabilities: ["getDesktopRuntimeInfo", "desktopPing"],
+      capabilities: ["getDesktopRuntimeInfo"],
+      backend: {
+        status: "external",
+        host: "127.0.0.1",
+        port: 8800,
+        api_base_url: "http://127.0.0.1:8800/api/v1",
+        ws_base_url: "ws://127.0.0.1:8800/api/v1",
+        health_url: "http://127.0.0.1:8800/health",
+      },
     });
   });
 

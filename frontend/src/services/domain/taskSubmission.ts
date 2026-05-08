@@ -158,23 +158,6 @@ export function createTaskFromExecutionOutcome(args: {
   });
 }
 
-export function isTaskExecutionSubmission(
-  value: unknown,
-): value is TaskExecutionSubmission {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      "execution_mode" in value &&
-      (value as { execution_mode?: unknown }).execution_mode === "task_submission",
-  );
-}
-
-export function hasExecutionSubmission(
-  value: ExecutionOutcome,
-): value is ExecutionOutcome {
-  return Boolean(value.submission);
-}
-
 export function getRequiredExecutionSubmission(
   value: ExecutionOutcome,
 ): TaskExecutionSubmission {

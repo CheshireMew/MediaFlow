@@ -56,6 +56,7 @@ def build_task_runner(task: Task) -> TaskRunner:
 
 def registered_task_types() -> set[str]:
     register_all_task_runners()
+    validate_required_task_runners()
     return set(_TASK_RUNNER_FACTORIES)
 
 

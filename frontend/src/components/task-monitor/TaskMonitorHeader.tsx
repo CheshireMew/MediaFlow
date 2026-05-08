@@ -5,9 +5,7 @@ import { useTaskContext } from "../../context/taskContext";
 type TaskMonitorHeaderProps = {
   showHeaderOverview: boolean;
   connected: boolean;
-  desktopRuntime: boolean;
   remoteTasksReady: boolean;
-  taskOwnerMode: string;
   summary: {
     pending: number;
     running: number;
@@ -24,19 +22,16 @@ type TaskMonitorHeaderProps = {
 export function TaskMonitorHeader({
   showHeaderOverview,
   connected,
-  desktopRuntime,
   remoteTasksReady,
-  taskOwnerMode,
   summary,
   executionBadges,
 }: TaskMonitorHeaderProps) {
   const { t } = useTranslation("taskmonitor");
   const {
-    pauseLocalTasks,
-    pauseRemoteTasks,
     pauseAllTasks,
     clearTasks,
   } = useTaskContext();
+  const taskFeedReady = connected && remoteTasksReady;
 
   return (
     <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02] flex-none">
@@ -59,25 +54,13 @@ export function TaskMonitorHeader({
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="px-2 py-1 rounded-md bg-cyan-400/10 text-cyan-300 border border-cyan-400/20 text-[10px] font-mono">
-                owner {taskOwnerMode}
-              </span>
-              <span className={`text-[10px] font-medium flex items-center gap-1.5 ${connected ? "text-emerald-400" : "text-rose-400"}`}>
+              <span className={`text-[10px] font-medium flex items-center gap-1.5 ${taskFeedReady ? "text-emerald-400" : "text-rose-400"}`}>
                 <span className="relative flex h-2 w-2">
-                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${connected ? "bg-emerald-400" : "bg-rose-400"}`} />
-                  <span className={`relative inline-flex rounded-full h-2 w-2 ${connected ? "bg-emerald-500" : "bg-rose-500"}`} />
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${taskFeedReady ? "bg-emerald-400" : "bg-rose-400"}`} />
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${taskFeedReady ? "bg-emerald-500" : "bg-rose-500"}`} />
                 </span>
-                {t("status.localTasks")}: {connected ? t("status.ready") : t("status.waiting")}
+                {t("status.tasks")}: {taskFeedReady ? t("status.ready") : t("status.waiting")}
               </span>
-              {!desktopRuntime && (
-                <span className={`text-[10px] font-medium flex items-center gap-1.5 ${remoteTasksReady ? "text-emerald-400" : "text-rose-400"}`}>
-                  <span className="relative flex h-2 w-2">
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${remoteTasksReady ? "bg-emerald-400" : "bg-rose-400"}`} />
-                    <span className={`relative inline-flex rounded-full h-2 w-2 ${remoteTasksReady ? "bg-emerald-500" : "bg-rose-500"}`} />
-                  </span>
-                  {t("status.backendTasks")}: {remoteTasksReady ? t("status.ready") : t("status.waiting")}
-                </span>
-              )}
             </div>
             {executionBadges.length > 0 && (
               <div className="hidden lg:flex items-center gap-2 text-[10px]">
@@ -94,41 +77,11 @@ export function TaskMonitorHeader({
         <div className="flex gap-2">
           <button
             onClick={() => {
-              if (confirm(t("buttons.pauseLocal.tooltip"))) {
-                pauseLocalTasks().catch((err) => console.error(err));
-              }
-            }}
-            disabled={!connected}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-[10px] transition-all hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
-            title={t("buttons.pauseLocal.tooltip")}
-          >
-            <Pause size={12} />
-            {t("buttons.pauseLocal.label")}
-          </button>
-
-          {!desktopRuntime && (
-            <button
-              onClick={() => {
-                if (confirm(t("buttons.pauseBackend.tooltip"))) {
-                  pauseRemoteTasks().catch((err) => console.error(err));
-                }
-              }}
-              disabled={!remoteTasksReady}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-[10px] transition-all hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
-              title={t("buttons.pauseBackend.tooltip")}
-            >
-              <Pause size={12} />
-              {t("buttons.pauseBackend.label")}
-            </button>
-          )}
-
-          <button
-            onClick={() => {
               if (confirm(t("buttons.pauseAll.tooltip"))) {
                 pauseAllTasks().catch((err) => console.error(err));
               }
             }}
-            disabled={desktopRuntime ? !connected : (!connected && !remoteTasksReady)}
+            disabled={!taskFeedReady}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-[10px] transition-all hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
             title={t("buttons.pauseAll.tooltip")}
           >

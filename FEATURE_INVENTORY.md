@@ -6,4 +6,4 @@
 
 | 功能模块             | 状态 | 关键类/代码                      | 描述                                               |
 | :------------------- | :--- | :------------------------------- | :------------------------------------------------- |
-| **Download Worker**  | ✅   | `backend/desktop_worker.py`      | 修复了在 Windows 平台下 Electron 传参时的 Unicode/GBK 乱码问题，确保 `sys.stdin.reconfigure(encoding="utf-8")` 被调用。 |
+| **Backend Runtime**  | ✅   | `backend/main.py` / `run.py`     | Python 业务运行时统一由 FastAPI backend 承载，Electron 不再启动第二套 Python 命令进程。 |

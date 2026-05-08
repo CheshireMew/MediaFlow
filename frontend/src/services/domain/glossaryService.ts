@@ -1,14 +1,7 @@
-import { isDesktopRuntime, requireDesktopApiMethod } from "../desktop";
 import type { GlossaryTerm } from "../../types/api";
 
 export const glossaryService = {
   async listTerms(): Promise<GlossaryTerm[]> {
-    if (isDesktopRuntime()) {
-      return await requireDesktopApiMethod(
-        "listDesktopGlossary",
-        "Desktop glossary worker is unavailable.",
-      )();
-    }
     return await import("../../api/client").then(({ apiClient }) => apiClient.listGlossaryTerms());
   },
 
@@ -18,23 +11,10 @@ export const glossaryService = {
     note?: string;
     category?: string;
   }): Promise<GlossaryTerm> {
-    if (isDesktopRuntime()) {
-      return await requireDesktopApiMethod(
-        "addDesktopGlossaryTerm",
-        "Desktop glossary worker is unavailable.",
-      )(term);
-    }
     return await import("../../api/client").then(({ apiClient }) => apiClient.addGlossaryTerm(term));
   },
 
   async deleteTerm(termId: string): Promise<void> {
-    if (isDesktopRuntime()) {
-      await requireDesktopApiMethod(
-        "deleteDesktopGlossaryTerm",
-        "Desktop glossary worker is unavailable.",
-      )({ term_id: termId });
-      return;
-    }
     await import("../../api/client").then(({ apiClient }) => apiClient.deleteGlossaryTerm(termId));
   },
 };

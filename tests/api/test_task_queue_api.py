@@ -125,10 +125,11 @@ def test_queue_summary_limits_concurrency_to_two(isolated_api_client):
     assert queue_summary.status_code == 200
     assert queue_summary.json() == {"max_concurrent": 2, "running": 2, "queued": 1}
 
-    tasks_response = client.get("/api/v1/tasks/")
-    assert tasks_response.status_code == 200
-    tasks = [task for task in tasks_response.json() if task["id"] in task_ids]
-    tasks_by_id = {task["id"]: task for task in tasks}
+    tasks_by_id = {}
+    for task_id in task_ids:
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        assert task_response.status_code == 200
+        tasks_by_id[task_id] = task_response.json()
 
     third_task = tasks_by_id[task_ids[2]]
     assert third_task["status"] == "pending"
@@ -147,11 +148,11 @@ def test_queue_summary_limits_concurrency_to_two(isolated_api_client):
     assert later_payload["queued"] == 0
     assert later_payload["running"] in {0, 1}
 
-    later_tasks = {
-        task["id"]: task
-        for task in client.get("/api/v1/tasks/").json()
-        if task["id"] in task_ids
-    }
+    later_tasks = {}
+    for task_id in task_ids:
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        assert task_response.status_code == 200
+        later_tasks[task_id] = task_response.json()
     assert later_tasks[task_ids[0]]["status"] == "completed"
     assert later_tasks[task_ids[1]]["status"] == "completed"
     assert later_tasks[task_ids[2]]["queue_state"] in {"running", "completed"}

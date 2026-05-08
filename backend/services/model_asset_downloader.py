@@ -66,7 +66,7 @@ def _download_file(
 
 
 def ensure_basicvsr_assets(progress_callback: ProgressCallback = None) -> None:
-    model_dir = settings.BIN_DIR / "models"
+    model_dir = settings.TOOL_DIR / "models"
     files = [
         (
             "basicvsr_plusplus_c64n7_8x1_600k_reds4.pth",

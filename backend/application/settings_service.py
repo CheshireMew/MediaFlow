@@ -1,7 +1,8 @@
 import subprocess
-import sys
 import threading
 import shutil
+import json
+import zipfile
 from importlib import import_module
 from pathlib import Path
 from typing import Callable, Optional
@@ -23,6 +24,7 @@ FASTER_WHISPER_CLI_URL = (
     f"Faster-Whisper-XXL/{FASTER_WHISPER_CLI_ARCHIVE}"
 )
 FASTER_WHISPER_CLI_SIZE = 1_424_256_246
+PYPI_YT_DLP_JSON_URL = "https://pypi.org/pypi/yt-dlp/json"
 _faster_whisper_cli_install_lock = threading.Lock()
 
 
@@ -87,31 +89,29 @@ class SettingsApplicationService:
 
     def update_yt_dlp(self) -> dict[str, str | None]:
         previous_version = self.get_yt_dlp_version()
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
-            capture_output=True,
-            text=True,
-            timeout=300,
-            check=False,
+        release = self._fetch_latest_yt_dlp_wheel()
+        wheel_path = settings.TOOL_DOWNLOAD_DIR / release["filename"]
+        self._download_with_resume(
+            release["url"],
+            wheel_path,
+            expected_size=release["size"],
         )
-        if result.returncode != 0:
-            detail = (result.stderr or result.stdout or "Unknown pip error").strip()
-            raise RuntimeError(detail)
+        self._install_yt_dlp_wheel(wheel_path)
 
         return {
             "status": "success",
-            "message": "yt-dlp update completed. Restart the backend if the new version is not picked up immediately.",
+            "message": "yt-dlp update installed into the writable runtime tools directory. Restart the backend if the new version is not picked up immediately.",
             "previous_version": previous_version,
-            "current_version": self.get_yt_dlp_version(),
+            "current_version": release["version"],
         }
 
     def install_faster_whisper_cli(
         self,
         progress_callback: Callable[[float, str], None] | None = None,
     ) -> dict[str, str | None]:
-        target_dir = settings.BIN_DIR / "Faster-Whisper-XXL"
+        target_dir = settings.TOOL_DIR / "Faster-Whisper-XXL"
         cli_path = target_dir / "faster-whisper-xxl.exe"
-        archive_path = settings.BIN_DIR / "downloads" / FASTER_WHISPER_CLI_ARCHIVE
+        archive_path = settings.TOOL_DOWNLOAD_DIR / FASTER_WHISPER_CLI_ARCHIVE
 
         with _faster_whisper_cli_install_lock:
             if cli_path.exists():
@@ -195,6 +195,46 @@ class SettingsApplicationService:
             )
 
     @staticmethod
+    def _fetch_latest_yt_dlp_wheel() -> dict[str, str | int]:
+        request = Request(PYPI_YT_DLP_JSON_URL, headers={"User-Agent": "MediaFlow setup"})
+        try:
+            with urlopen(request, timeout=60) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            raise RuntimeError(f"Failed to fetch yt-dlp release metadata: {exc}") from exc
+
+        version = str(payload.get("info", {}).get("version") or "")
+        candidates = payload.get("urls", [])
+        for item in candidates:
+            filename = str(item.get("filename") or "")
+            if filename.endswith(".whl") and item.get("packagetype") == "bdist_wheel":
+                return {
+                    "version": version,
+                    "filename": filename,
+                    "url": str(item["url"]),
+                    "size": int(item.get("size") or 0),
+                }
+        raise RuntimeError("No yt-dlp wheel found in PyPI release metadata")
+
+    @staticmethod
+    def _install_yt_dlp_wheel(wheel_path: Path) -> None:
+        target = settings.PYTHON_TOOL_PACKAGES_DIR
+        target.mkdir(parents=True, exist_ok=True)
+        for stale in [*target.glob("yt_dlp"), *target.glob("yt_dlp-*.dist-info")]:
+            if stale.is_dir():
+                shutil.rmtree(stale)
+            else:
+                stale.unlink(missing_ok=True)
+
+        with zipfile.ZipFile(wheel_path) as wheel:
+            for member in wheel.infolist():
+                if member.filename.startswith("yt_dlp/") or (
+                    member.filename.startswith("yt_dlp-")
+                    and ".dist-info/" in member.filename
+                ):
+                    wheel.extract(member, target)
+
+    @staticmethod
     def _download_with_resume(
         url: str,
         destination: Path,
@@ -203,11 +243,11 @@ class SettingsApplicationService:
     ) -> None:
         for attempt in range(1, 8):
             current_size = destination.stat().st_size if destination.exists() else 0
-            if current_size == expected_size:
+            if expected_size > 0 and current_size == expected_size:
                 if progress_callback:
                     progress_callback(90, "Faster-Whisper CLI archive already downloaded.")
                 return
-            if current_size > expected_size:
+            if expected_size > 0 and current_size > expected_size:
                 destination.unlink()
                 current_size = 0
 
@@ -245,7 +285,7 @@ class SettingsApplicationService:
                 continue
 
         final_size = destination.stat().st_size if destination.exists() else 0
-        if final_size != expected_size:
+        if expected_size > 0 and final_size != expected_size:
             raise RuntimeError(
                 f"Downloaded Faster-Whisper CLI archive is incomplete: {final_size} / {expected_size}"
             )

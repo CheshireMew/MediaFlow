@@ -111,7 +111,7 @@ async def _translation_background(task_id: str, req: TranslationRequest) -> None
     )
 
 
-def _translation_desktop(
+def _translation_immediate(
     req: TranslationRequest,
     *,
     progress_callback=None,

@@ -331,7 +331,7 @@ describe("useTranslationTask", () => {
     expect(useTranslatorStore.getState().taskId).toBeNull();
   });
 
-  test("uses backend translation task owner in desktop runtime", async () => {
+  test("submits translation as a backend task in desktop runtime", async () => {
     translationServiceMock.startTranslation.mockResolvedValue({
       task_id: "backend-translate-task",
       status: "pending",

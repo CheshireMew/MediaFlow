@@ -3,12 +3,9 @@
   "status": {
     "ready": "Ready",
     "waiting": "Waiting",
-    "localTasks": "Local tasks",
-    "backendTasks": "Backend tasks"
+    "tasks": "Tasks"
   },
   "buttons": {
-    "pauseLocal": { "tooltip": "Pause all active local tasks", "label": "Pause Local" },
-    "pauseBackend": { "tooltip": "Pause all active backend tasks", "label": "Pause Backend" },
     "pauseAll": { "tooltip": "Pause all active tasks", "label": "Pause All" },
     "clearAll": { "tooltip": "Delete all tasks", "label": "Clear All" }
   },

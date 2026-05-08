@@ -5,14 +5,11 @@ import { TaskMonitor } from "../components/TaskMonitor";
 import { useRuntimeExecutionStore } from "../stores/runtimeExecutionStore";
 
 const useTaskContextMock = vi.fn();
-const pauseLocalTasksMock = vi.fn();
-const pauseRemoteTasksMock = vi.fn();
 const pauseAllTasksMock = vi.fn();
 const clearTasksMock = vi.fn();
 const deleteTaskMock = vi.fn();
 const pauseTaskMock = vi.fn();
 const resumeTaskMock = vi.fn();
-const isDesktopRuntimeMock = vi.fn();
 const addTaskMock = vi.fn();
 const canRetryTaskMock = vi.fn();
 const retryFailedTaskMock = vi.fn();
@@ -25,10 +22,6 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("../context/taskContext", () => ({
   useTaskContext: () => useTaskContextMock(),
-}));
-
-vi.mock("../services/desktop", () => ({
-  isDesktopRuntime: () => isDesktopRuntimeMock(),
 }));
 
 vi.mock("../services/tasks/retry", () => ({
@@ -48,7 +41,6 @@ describe("TaskMonitor integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useRuntimeExecutionStore.setState({ scopes: {} });
-    isDesktopRuntimeMock.mockReturnValue(false);
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
@@ -88,9 +80,6 @@ describe("TaskMonitor integration", () => {
       connected: true,
       remoteTasksReady: true,
       tasksSettled: true,
-      taskOwnerMode: "backend",
-      pauseLocalTasks: pauseLocalTasksMock,
-      pauseRemoteTasks: pauseRemoteTasksMock,
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
@@ -99,8 +88,6 @@ describe("TaskMonitor integration", () => {
       clearTasks: clearTasksMock,
     });
 
-    pauseLocalTasksMock.mockResolvedValue(undefined);
-    pauseRemoteTasksMock.mockResolvedValue(undefined);
     pauseAllTasksMock.mockResolvedValue({ count: 3 });
     clearTasksMock.mockResolvedValue(undefined);
     deleteTaskMock.mockResolvedValue(undefined);
@@ -153,9 +140,6 @@ describe("TaskMonitor integration", () => {
       connected: true,
       remoteTasksReady: true,
       tasksSettled: true,
-      taskOwnerMode: "backend",
-      pauseLocalTasks: pauseLocalTasksMock,
-      pauseRemoteTasks: pauseRemoteTasksMock,
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
@@ -174,33 +158,10 @@ describe("TaskMonitor integration", () => {
     expect(pauseTaskMock).toHaveBeenCalledWith("running-task");
   });
 
-  it("calls pauseLocalTasks after confirming local bulk pause", async () => {
+  it("renders a single backend task source", () => {
     render(<TaskMonitor />);
 
-    fireEvent.click(screen.getAllByTitle("buttons.pauseLocal.tooltip")[0]);
-
-    await waitFor(() => {
-      expect(pauseLocalTasksMock).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it("calls pauseRemoteTasks after confirming backend bulk pause", async () => {
-    render(<TaskMonitor />);
-
-    fireEvent.click(screen.getAllByTitle("buttons.pauseBackend.tooltip")[0]);
-
-    await waitFor(() => {
-      expect(pauseRemoteTasksMock).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it("hides remote-task-only controls in desktop presentation mode", () => {
-    isDesktopRuntimeMock.mockReturnValue(true);
-
-    render(<TaskMonitor />);
-
-    expect(screen.queryByTitle("buttons.pauseBackend.tooltip")).toBeNull();
-    expect(screen.queryByText(/status\.backendTasks/)).toBeNull();
+    expect(screen.queryByText(/status\.tasks/)).toBeTruthy();
   });
 
   it("shows active execution mode summary in the monitor header", () => {
@@ -253,9 +214,6 @@ describe("TaskMonitor integration", () => {
       connected: false,
       remoteTasksReady: false,
       tasksSettled: false,
-      taskOwnerMode: "backend",
-      pauseLocalTasks: pauseLocalTasksMock,
-      pauseRemoteTasks: pauseRemoteTasksMock,
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
@@ -294,9 +252,6 @@ describe("TaskMonitor integration", () => {
       connected: false,
       remoteTasksReady: false,
       tasksSettled: false,
-      taskOwnerMode: "backend",
-      pauseLocalTasks: pauseLocalTasksMock,
-      pauseRemoteTasks: pauseRemoteTasksMock,
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
@@ -341,9 +296,6 @@ describe("TaskMonitor integration", () => {
       connected: true,
       remoteTasksReady: true,
       tasksSettled: true,
-      taskOwnerMode: "backend",
-      pauseLocalTasks: pauseLocalTasksMock,
-      pauseRemoteTasks: pauseRemoteTasksMock,
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
@@ -402,9 +354,6 @@ describe("TaskMonitor integration", () => {
       connected: true,
       remoteTasksReady: true,
       tasksSettled: true,
-      taskOwnerMode: "backend",
-      pauseLocalTasks: pauseLocalTasksMock,
-      pauseRemoteTasks: pauseRemoteTasksMock,
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,

@@ -24,17 +24,12 @@ extraResources:
     to: fontCatalog.json
 
   # ── bin/ ──────────────────────────────────────────────────
-  # Stable desktop build only ships the core runtime.
-  # Experimental preprocessing binaries stay in source/dev only.
+  # Runtime feature availability is defined by contracts/runtime-contract.json.
+  # Bundled tools are read-only fallbacks; updates and downloads go under runtime/tools.
   - from: ../bin
     to: bin
     filter:
       - "**/*"
-      - "!python_env/**"
-      - "!realesrgan/**"
-      - "!realesrgan-ncnn-vulkan*"
-      - "!realcugan/**"
-      - "!realcugan*"
       - "!**/__pycache__/**"
       - "!**/tests/**"
       - "!**/test/**"
@@ -59,10 +54,10 @@ extraResources:
       - "!realcugan/README.md"
       - "!realcugan/LICENSE"
 
-  # ── dist-desktop-worker/ ──────────────────────────────────
-  # PyInstaller-compiled Python desktop worker
-  - from: ../dist-desktop-worker/mediaflow-desktop-worker
-    to: desktop-worker
+  # ── dist-desktop-backend/ ─────────────────────────────────
+  # PyInstaller-compiled Python backend runtime
+  - from: ../dist-desktop-backend/mediaflow-backend
+    to: backend
     filter:
       - "**/*"
       - "!**/__pycache__/**"
@@ -73,8 +68,6 @@ extraResources:
       - "!**/testing/**"
       - "!**/Pythonwin/**"
       - "!**/pythonwin/**"
-      - "!**/fastapi/**"
-      - "!**/uvicorn/**"
       - "!**/torch/**"
       - "!**/torchaudio/**"
       - "!**/torchvision/**"
@@ -92,4 +85,3 @@ win:
     - portable
   icon: resources/icon.ico
   artifactName: ${productName}-Portable-${version}.${ext}
-

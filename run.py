@@ -29,12 +29,6 @@ def _ensure_project_venv():
 def main():
     _ensure_project_venv()
 
-    if "--desktop-worker" in sys.argv:
-        from backend.desktop_worker import main as worker_main
-
-        worker_main()
-        return
-
     try:
         import uvicorn
     except ModuleNotFoundError as exc:

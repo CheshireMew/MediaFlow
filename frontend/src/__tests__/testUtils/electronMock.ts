@@ -1,6 +1,5 @@
 import { vi } from "vitest";
 import type { ElectronAPI } from "../../types/electron-api";
-import { createMockUserSettings } from "./mockUserSettings";
 
 type MockFn = ReturnType<typeof vi.fn>;
 
@@ -26,32 +25,18 @@ function createBaseElectronMock(): MockedElectronAPI {
       status: "pong",
       contract_version: 1,
       bridge_version: "test-bridge",
-      task_owner_mode: "backend",
       capabilities: [
         "getDesktopRuntimeInfo",
-        "desktopPing",
       ],
-      worker: {
-        protocol_version: 1,
-        app_version: "test-worker",
+      backend: {
+        status: "external",
+        host: "127.0.0.1",
+        port: 8800,
+        api_base_url: "http://127.0.0.1:8800/api/v1",
+        ws_base_url: "ws://127.0.0.1:8800/api/v1",
+        health_url: "http://127.0.0.1:8800/health",
       },
     }),
-    desktopPing: vi.fn().mockResolvedValue({ status: "pong" }),
-    getDesktopSettings: vi.fn().mockResolvedValue(createMockUserSettings()),
-    updateDesktopSettings: vi.fn(),
-    setDesktopActiveProvider: vi.fn(),
-    testDesktopProvider: vi.fn(),
-    listDesktopGlossary: vi.fn(),
-    addDesktopGlossaryTerm: vi.fn(),
-    deleteDesktopGlossaryTerm: vi.fn(),
-    updateDesktopYtDlp: vi.fn(),
-    analyzeDesktopUrl: vi.fn(),
-    saveDesktopCookies: vi.fn(),
-    getDesktopOcrResults: vi.fn(),
-    desktopTranscribeSegment: vi.fn(),
-    desktopTranslateSegment: vi.fn(),
-    uploadDesktopWatermark: vi.fn(),
-    getDesktopLatestWatermark: vi.fn(),
     minimize: vi.fn(),
     maximize: vi.fn(),
     close: vi.fn(),

@@ -4,29 +4,26 @@ import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel
 
-from backend.application.ocr_service import _ocr_background, _ocr_desktop
+from backend.application.ocr_service import _ocr_background
 from backend.application.preprocessing_service import (
     _cleanup_background,
-    _cleanup_desktop,
     _enhancement_background,
-    _enhancement_desktop,
     _ensure_enhancement_available,
 )
-from backend.application.synthesis_service import _synthesis_background, _synthesis_desktop
+from backend.application.synthesis_service import _synthesis_background
 from backend.application.transcription_service import (
     _transcription_background,
-    _transcription_desktop,
     _transcription_segment_background,
     _transcription_segment_immediate,
 )
 from backend.application.translation_service import (
     TranslationRequest,
     _translation_background,
-    _translation_desktop,
+    _translation_immediate,
 )
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
@@ -51,7 +48,6 @@ class TaskOperation:
     request_model: type[BaseModel]
     task_name: Callable[[Any], str]
     background: TaskHandler
-    desktop: TaskExecutor | None = None
     immediate: TaskExecutor | None = None
     before_queue: Callable[[Any], None] | None = None
     initial_message: Callable[[Any], str] | str = "Queued"
@@ -98,7 +94,6 @@ OPERATIONS: dict[str, TaskOperation] = {
         request_model=TranscribeRequest,
         task_name=_transcription_name,
         background=_transcription_background,
-        desktop=_transcription_desktop,
     ),
     "transcribe_segment": TaskOperation(
         task_type="transcribe_segment",
@@ -114,29 +109,25 @@ OPERATIONS: dict[str, TaskOperation] = {
         request_model=TranslationRequest,
         task_name=_translation_name,
         background=_translation_background,
-        desktop=_translation_desktop,
-        immediate=_translation_desktop,
+        immediate=_translation_immediate,
     ),
     "synthesis": TaskOperation(
         task_type="synthesis",
         request_model=SynthesisRequest,
         task_name=_synthesis_name,
         background=_synthesis_background,
-        desktop=_synthesis_desktop,
     ),
     "extract": TaskOperation(
         task_type="extract",
         request_model=OCRExtractRequest,
         task_name=lambda _request: "OCR Extraction",
         background=_ocr_background,
-        desktop=_ocr_desktop,
     ),
     "enhancement": TaskOperation(
         task_type="enhancement",
         request_model=EnhanceRequest,
         task_name=_enhancement_name,
         background=_enhancement_background,
-        desktop=_enhancement_desktop,
         before_queue=_ensure_enhancement_available,
         initial_message=lambda request: f"Initializing {request.method}...",
         queued_message=lambda request: f"Initializing {request.method}...",
@@ -146,7 +137,6 @@ OPERATIONS: dict[str, TaskOperation] = {
         request_model=CleanRequest,
         task_name=_cleanup_name,
         background=_cleanup_background,
-        desktop=_cleanup_desktop,
         initial_message="Queued for Cleanup",
         queued_message="Queued for Cleanup",
     ),
@@ -194,12 +184,11 @@ async def run_task_operation(
     *,
     progress_callback=None,
     task_id: str | None = None,
-    execution: Literal["desktop", "immediate"] = "desktop",
 ) -> Any:
     operation = task_operation(task_type)
-    executor = operation.immediate if execution == "immediate" else operation.desktop
+    executor = operation.immediate
     if executor is None:
-        raise ValueError(f"Task operation has no {execution} executor: {task_type}")
+        raise ValueError(f"Task operation has no immediate executor: {task_type}")
     typed_request = operation.request_model.model_validate(request)
     result = _call_with_supported_kwargs(
         executor,

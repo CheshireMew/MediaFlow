@@ -6,9 +6,7 @@
   "scripts": {
     "setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup/setup_windows.ps1",
     "setup:cn": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup/setup_windows.ps1 -UseChinaMirror",
-    "backend:dev": ".\\.venv\\Scripts\\python.exe run.py",
-    "frontend:dev": "npm run electron:dev --prefix frontend",
-    "dev": "npm run frontend:dev",
+    "dev": "node scripts/dev.mjs",
     "build": "npm run build --prefix frontend",
     "preview": "npm run preview --prefix frontend",
     "install:frontend": "npm install --prefix frontend",

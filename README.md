@@ -88,23 +88,15 @@ setup.bat
 - 安装 `pyproject.toml` 中声明的 Python 依赖
 - 安装 `frontend/package-lock.json` 对应的前端依赖
 
-### 2. 后端启动 (Dev)
+### 2. 开发模式启动
 
 ```powershell
-# 推荐使用 Python 3.10+
-# Windows 下优先使用该入口，以确保事件循环策略与 Playwright 兼容
-npm run backend:dev
+npm run dev
 ```
 
-### 3. 前端启动 (Dev)
+开发模式由根目录 `scripts/dev.mjs` 统一托管后端、Vite renderer 和 Electron。不要分别启动后端和前端；dev supervisor 会选择可用端口、注入前端 API / WebSocket 地址、注入后端 CORS origin，并在 Electron 退出时关闭子进程。
 
-```powershell
-npm run frontend:dev
-# 或者:
-# npm run dev
-```
-
-### 4. Windows 一键启动
+### 3. Windows 一键启动
 
 ```powershell
 start.bat

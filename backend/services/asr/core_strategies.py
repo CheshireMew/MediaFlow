@@ -28,7 +28,7 @@ class CoreStrategies:
         )
         
         segments_list = list(segments_gen)
-        return SegmentRefiner.refine_segments(segments_list, max_chars=50)
+        return SegmentRefiner.refine_segments(segments_list)
 
     def transcribe_smart_split(self, audio_path: str, duration: float, model: Any, language: str, initial_prompt: str, progress_callback) -> List[SubtitleSegment]:
         """Handle long audio files by splitting them based on silence."""
@@ -95,7 +95,7 @@ class CoreStrategies:
         segs_list = list(segs)
         
         # Refine relative to chunk
-        refined_local = SegmentRefiner.refine_segments(segs_list, max_chars=50)
+        refined_local = SegmentRefiner.refine_segments(segs_list)
         
         # Apply Offset
         chunk_segments = []

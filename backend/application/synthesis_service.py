@@ -38,27 +38,3 @@ async def _synthesis_background(task_id: str, req: SynthesisRequest):
             },
         },
     )
-
-
-def _synthesis_desktop(
-    req: SynthesisRequest,
-    *,
-    progress_callback=None,
-):
-    video_path = req.video_ref.path
-    srt_path = req.srt_ref.path
-    output_path = req.output_ref.path if req.output_ref else None
-    final_path = runtime_service(Services.VIDEO_SYNTHESIS).synthesize(
-        video_path=video_path,
-        srt_path=srt_path,
-        output_path=output_path,
-        watermark_path=req.watermark_path,
-        options=req.options or {},
-        progress_callback=progress_callback,
-    )
-    return {
-        "video_ref": create_media_ref(final_path, "video/mp4", role="output"),
-        "output_ref": create_media_ref(final_path, "video/mp4", role="output"),
-        "context_ref": req.srt_ref,
-        "subtitle_ref": req.srt_ref,
-    }

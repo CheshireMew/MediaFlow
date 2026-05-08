@@ -1,7 +1,6 @@
 import React from 'react';
 import { useSyncExternalStore } from 'react';
 import { useTaskContext } from '../../context/taskContext';
-import { isDesktopRuntime } from '../../services/desktop';
 import { getExecutionModeDisplay } from '../../services/ui/executionModeDisplay';
 import type { ExecutionMode } from '../../services/domain';
 import { useRuntimeExecutionStore } from '../../stores/runtimeExecutionStore';
@@ -28,7 +27,6 @@ export const useTaskMonitorOverview = (filterTypes?: string[]) => {
         tasks,
         connected,
         remoteTasksReady,
-        taskOwnerMode,
     } = useTaskContext();
     const runtimeExecutionScopes = useRuntimeExecutionStore((state) => state.scopes);
     const taskFeedDiagnostics = useSyncExternalStore(
@@ -36,7 +34,6 @@ export const useTaskMonitorOverview = (filterTypes?: string[]) => {
         getTaskSourceDiagnosticState,
         getTaskSourceDiagnosticState,
     );
-    const desktopRuntime = isDesktopRuntime();
 
     const filteredTasks = React.useMemo(
         () => tasks.filter((task) => matchesFilterType(task, filterTypes)),
@@ -83,13 +80,11 @@ export const useTaskMonitorOverview = (filterTypes?: string[]) => {
 
     return {
         connected,
-        desktopRuntime,
         executionBadges,
         executionSummary,
         filteredTasks,
         summary,
         taskFeedDiagnostics,
-        taskOwnerMode,
         remoteTasksReady,
     };
 };

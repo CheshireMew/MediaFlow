@@ -8,14 +8,6 @@ from loguru import logger
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 
-@router.get("/", response_model=list[TaskView])
-async def list_tasks():
-    """Get all tasks."""
-    tm = runtime_service(Services.TASK_MANAGER)
-    await tm.wait_until_tasks_loaded()
-    return [tm.serialize_task(task) for task in tm.tasks.values()]
-
-
 @router.get("/queue/summary", response_model=dict)
 async def get_queue_summary():
     """Get task queue runtime summary."""

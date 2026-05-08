@@ -62,6 +62,13 @@ export type {
   TranslationTaskStatus,
 } from "../../types/api";
 export { downloaderService } from "./downloaderService";
+export {
+  queueDownloadItems,
+} from "./downloadSubmission";
+export type {
+  DownloadExtraInfo,
+  DownloadQueueItem,
+} from "./downloadSubmission";
 export { preprocessingService } from "./preprocessingService";
 export { editorService } from "./editorService";
 export type {
@@ -78,7 +85,5 @@ export {
   createTaskFromSubmissionReceipt,
   getExecutionSubmission,
   getRequiredExecutionSubmission,
-  hasExecutionSubmission,
-  isTaskExecutionSubmission,
 } from "./taskSubmission";
 export { applyExecutionOutcome, enqueueExecutionTask } from "./executionFlow";

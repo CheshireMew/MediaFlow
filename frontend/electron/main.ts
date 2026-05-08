@@ -5,20 +5,18 @@ import { registerDialogHandlers } from "./ipc/dialog-handlers";
 import { bindRendererReadyCallback, registerWindowHandlers } from "./ipc/window-handlers";
 import { registerCookieHandlers } from "./ipc/cookie-handlers";
 import { registerDesktopHandlers } from "./ipc/desktop-handlers";
-import { DesktopWorkerSupervisor } from "./desktop/workerSupervisor";
+import { startBundledBackend, stopBundledBackend } from "./backend/backendProcess";
 import {
   isDesktopDevMode,
   resolveDesktopPreloadScript,
   resolveDesktopRendererTarget,
 } from "./desktopRuntime";
 
-const desktopWorkerSupervisor = new DesktopWorkerSupervisor();
-
 function registerIpcHandlers() {
   registerDialogHandlers();
   registerWindowHandlers();
   registerCookieHandlers();
-  registerDesktopHandlers(desktopWorkerSupervisor);
+  registerDesktopHandlers();
 }
 
 function createWindow() {
@@ -50,7 +48,6 @@ function createWindow() {
   const revealFallbackTimer = setTimeout(revealWindow, 4000);
   mainWindow.once("show", () => {
     clearTimeout(revealFallbackTimer);
-    desktopWorkerSupervisor.prewarm();
   });
   mainWindow.once("ready-to-show", () => {
     revealWindow();
@@ -171,11 +168,12 @@ Error: ${safeDescription}</code>
 
 app.on("ready", () => {
   registerIpcHandlers();
+  startBundledBackend();
   createWindow();
 });
 
 app.on("before-quit", () => {
-  desktopWorkerSupervisor.stop();
+  stopBundledBackend();
 });
 
 app.on("window-all-closed", () => {

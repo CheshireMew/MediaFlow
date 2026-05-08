@@ -1,6 +1,5 @@
 import { lazy, Suspense, useState, useRef, useEffect } from "react";
 import { useTranslation } from 'react-i18next';
-import { WaveformPlayer } from "../components/editor/WaveformPlayer";
 import { SubtitleList } from "../components/editor/SubtitleList";
 import { FindReplaceDialog } from "../components/dialogs/FindReplaceDialog";
 import { ContextMenu, type ContextMenuItem } from "../components/ui/ContextMenu";
@@ -32,6 +31,11 @@ const SynthesisDialog = lazy(async () => {
   return { default: mod.SynthesisDialog };
 });
 
+const WaveformPlayer = lazy(async () => {
+  const mod = await import("../components/editor/WaveformPlayer");
+  return { default: mod.WaveformPlayer };
+});
+
 export function EditorPage() {
   const { t } = useTranslation('editor');
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -40,6 +44,7 @@ export function EditorPage() {
   // ── UI State ────────────────────────────────────────────────
   const autoScroll = true;
   const [showSynthesis, setShowSynthesis] = useState(false);
+  const [waveformReady, setWaveformReady] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
       position: { x: number; y: number };
       items: ContextMenuItem[];
@@ -139,6 +144,15 @@ export function EditorPage() {
     videoRef,
   });
 
+  useEffect(() => {
+    setWaveformReady(false);
+  }, [mediaUrl]);
+
+  const handleVideoMetadataReady = () => {
+    handleLoadedMetadata();
+    setWaveformReady(true);
+  };
+
   // ── Render ──────────────────────────────────────────────────
   return (
     <div className="h-screen w-full flex flex-col text-slate-100 overflow-hidden">
@@ -213,14 +227,15 @@ export function EditorPage() {
                     mediaUrl={mediaUrl}
                     videoRef={videoRef}
                     regions={regions}
-                    onLoadedMetadata={handleLoadedMetadata}
+                    onLoadedMetadata={handleVideoMetadataReady}
                 />
              </div>
         </div>
 
         {/* Bottom: Waveform Timeline */}
         <div className="h-40 bg-[#1a1a1a] border-t border-white/5 relative z-30 shrink-0">
-             {mediaUrl && (
+             {mediaUrl && waveformReady && (
+               <Suspense fallback={null}>
                  <WaveformPlayer
                     mediaUrl={mediaUrl}
                     videoRef={videoRef}
@@ -232,6 +247,7 @@ export function EditorPage() {
                      autoScroll={autoScroll}
                      onInteractStart={snapshot}
                  />
+               </Suspense>
              )}
         </div>
 

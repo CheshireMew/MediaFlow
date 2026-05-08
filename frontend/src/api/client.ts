@@ -67,7 +67,6 @@ import type {
   EnhanceVideoRequest,
   CleanVideoRequest,
 } from "../types/api";
-import type { Task } from "../types/task";
 
 // ─── Internal Generic Request Wrapper ────────────────────────────
 
@@ -229,10 +228,6 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(req),
     });
-  },
-
-  listTasks: () => {
-    return request<Task[]>("/tasks/");
   },
 
   pauseAllTasks: () => {

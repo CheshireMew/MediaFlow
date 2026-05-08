@@ -46,7 +46,7 @@ vi.mock("../components/preprocessing/PreprocessingToolsPanel", () => ({
   PreprocessingToolsPanel: () => <div data-testid="preprocessing-tools-panel" />,
 }));
 
-describe("PreprocessingPage task ownership", () => {
+describe("PreprocessingPage backend task state", () => {
   afterEach(() => {
     cleanup();
   });

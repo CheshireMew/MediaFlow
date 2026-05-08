@@ -32,7 +32,7 @@ const buildContext = await context({
   logLevel: "silent",
   plugins: [
     {
-      name: "mediaflow-dev-ready",
+      name: "mediaflow-electron-main-ready",
       setup(build) {
         build.onStart(async () => {
           await clearBuildReady();
@@ -40,7 +40,7 @@ const buildContext = await context({
         build.onEnd(async (result) => {
           if (result.errors.length > 0) {
             for (const error of result.errors) {
-              console.error("[electron-dev-build]", error.text);
+              console.error("[electron-main-watch]", error.text);
             }
             return;
           }
@@ -62,14 +62,14 @@ async function runBuild() {
     return;
   }
 
-  console.log(`[electron-dev-build] ready in ${durationMs} ms`);
+  console.log(`[electron-main-watch] ready in ${durationMs} ms`);
 }
 
 await runBuild();
 
 if (watchMode) {
   await buildContext.watch();
-  console.log("[electron-dev-build] watching for changes...");
+  console.log("[electron-main-watch] watching for changes...");
 } else {
   await buildContext.dispose();
 }

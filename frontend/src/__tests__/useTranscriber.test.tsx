@@ -232,7 +232,7 @@ describe("useTranscriber", () => {
     );
   });
 
-  it("uses backend task owner for transcription in desktop runtime", async () => {
+  it("submits transcription as a backend task in desktop runtime", async () => {
     vi.mocked(apiClient.runPipeline).mockResolvedValue({
       task_id: "backend-transcribe-task",
       status: "pending",

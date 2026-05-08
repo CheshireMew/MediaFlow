@@ -1,7 +1,6 @@
 {
   "task_contract_version": 2,
   "desktop_bridge_contract_version": 1,
-  "task_owner_mode": "backend",
   "task_statuses": [
     "pending",
     "running",

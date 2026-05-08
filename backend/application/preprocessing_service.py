@@ -46,26 +46,6 @@ async def _enhancement_background(task_id: str, request: EnhanceRequest) -> None
     )
 
 
-def _enhancement_desktop(
-    request: EnhanceRequest,
-    *,
-    progress_callback,
-):
-    _ensure_enhancement_available(request)
-    enhancer = runtime_service(Services.ENHANCER)
-    scale_value = resolve_enhancement_scale(request)
-    output_path = str(resolve_enhancement_output_path(request))
-    final_path = enhancer.upscale(
-        input_path=request.video_ref.path,
-        output_path=output_path,
-        model=request.model,
-        scale=scale_value,
-        method=request.method,
-        progress_callback=progress_callback,
-    )
-    return build_enhancement_result(request, final_path)
-
-
 async def _cleanup_background(task_id: str, request: CleanRequest) -> None:
     method = resolve_cleanup_method(request)
     output_path = resolve_cleanup_output_path(request)
@@ -82,20 +62,3 @@ async def _cleanup_background(task_id: str, request: CleanRequest) -> None:
         success_message="Cleanup complete",
         result_transformer=lambda path: build_cleanup_result(request, path),
     )
-
-
-def _cleanup_desktop(
-    request: CleanRequest,
-    *,
-    progress_callback,
-):
-    method = resolve_cleanup_method(request)
-    output_path = str(resolve_cleanup_output_path(request))
-    final_path = runtime_service(Services.CLEANER).clean_video(
-        input_path=request.video_ref.path,
-        output_path=output_path,
-        roi=request.roi,
-        method=method,
-        progress_callback=progress_callback,
-    )
-    return build_cleanup_result(request, final_path)

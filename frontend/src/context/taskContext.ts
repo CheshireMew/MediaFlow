@@ -7,9 +7,6 @@ export interface TaskContextType {
   connected: boolean;
   remoteTasksReady: boolean;
   tasksSettled: boolean;
-  taskOwnerMode: import("../contracts/runtimeContracts").TaskOwnerMode;
-  pauseLocalTasks: () => Promise<void>;
-  pauseRemoteTasks: () => Promise<void>;
   pauseAllTasks: () => Promise<void>;
   pauseTask: (taskId: string) => Promise<void> | void;
   resumeTask: (taskId: string) => Promise<void>;

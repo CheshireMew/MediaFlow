@@ -60,7 +60,7 @@ async def transcribe_segment(req: TranscribeSegmentRequest):
 
     else:
         try:
-            return await run_task_operation("transcribe_segment", req, execution="immediate")
+            return await run_task_operation("transcribe_segment", req)
         except HTTPException:
             raise
         except Exception as e:

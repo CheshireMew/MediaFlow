@@ -1,24 +1,13 @@
 import { act, render, screen } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BootApp } from "../components/startup/BootApp";
+import { BootApp, resetBootAppStartupForTests } from "../components/startup/BootApp";
 import { resetDesktopRuntimeInfoCache } from "../services/desktop";
 import { installElectronMock, type MockedElectronAPI } from "./testUtils/electronMock";
 
 const getSettingsMock = vi.fn();
 const changeLanguageMock = vi.fn();
 const probeBackendHealthMock = vi.fn();
-const ensureI18nNamespacesMock = vi.fn();
-const routePreloadMock = vi.fn();
-
-function createDeferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return { promise, resolve, reject };
-}
 
 vi.mock("../App", () => ({
   default: ({
@@ -54,39 +43,19 @@ vi.mock("../i18n", () => ({
     t: (key: string) => key,
     changeLanguage: (...args: unknown[]) => changeLanguageMock(...args),
   },
-  ensureI18nNamespaces: (...args: unknown[]) => ensureI18nNamespacesMock(...args),
 }));
-
-vi.mock("../startup/routePageDefinitions", () => {
-  const routeModule = {
-    namespaces: ["downloader", "taskmonitor"],
-    load: (...args: unknown[]) => routePreloadMock(...args),
-  };
-  return {
-    ROUTE_PAGE_MODULES: {
-      dashboard: routeModule,
-      editor: routeModule,
-      downloader: routeModule,
-      transcriber: routeModule,
-      translator: routeModule,
-      preprocessing: routeModule,
-      settings: routeModule,
-    },
-  };
-});
 
 describe("BootApp", () => {
   let electronMock: MockedElectronAPI;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetBootAppStartupForTests();
     resetDesktopRuntimeInfoCache();
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     probeBackendHealthMock.mockResolvedValue({ ok: true, health: { status: "ok" } });
-    ensureI18nNamespacesMock.mockResolvedValue(undefined);
-    routePreloadMock.mockResolvedValue({});
     electronMock = installElectronMock();
   });
 
@@ -120,10 +89,49 @@ describe("BootApp", () => {
     expect(electronMock.getDesktopRuntimeInfo).toHaveBeenCalledTimes(1);
   });
 
-  it("waits for the startup route module before marking the app ready", async () => {
+  it("keeps the shared startup bootstrap alive across StrictMode remounts", async () => {
+    let resolveRuntimeInfo: (value: unknown) => void = () => undefined;
+    const runtimeInfoPromise = new Promise((resolve) => {
+      resolveRuntimeInfo = resolve;
+    });
+    electronMock.getDesktopRuntimeInfo = vi.fn().mockReturnValue(runtimeInfoPromise);
+    getSettingsMock.mockResolvedValue({ language: "zh" });
+
+    render(
+      <StrictMode>
+        <BootApp />
+      </StrictMode>,
+    );
+
+    await act(async () => {
+      resolveRuntimeInfo({
+        status: "pong",
+        contract_version: 1,
+        bridge_version: "test-bridge",
+        capabilities: ["getDesktopRuntimeInfo"],
+        backend: {
+          status: "external",
+          host: "127.0.0.1",
+          port: 8800,
+          api_base_url: "http://127.0.0.1:8800/api/v1",
+          ws_base_url: "ws://127.0.0.1:8800/api/v1",
+          health_url: "http://127.0.0.1:8800/health",
+        },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("app-ready").textContent).toBe("true");
+    expect(screen.getByTestId("remote-backend-ready").textContent).toBe("true");
+    expect(screen.getByTestId("startup-message").textContent).toBe("后端已就绪。");
+    expect(electronMock.getDesktopRuntimeInfo).toHaveBeenCalledTimes(1);
+    expect(probeBackendHealthMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks app ready without loading the startup route module", async () => {
     vi.useFakeTimers();
-    const routePreload = createDeferred<Record<string, never>>();
-    routePreloadMock.mockReturnValue(routePreload.promise);
     getSettingsMock.mockResolvedValue({ language: "zh" });
 
     render(<BootApp />);
@@ -134,25 +142,12 @@ describe("BootApp", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByTestId("app-ready").textContent).toBe("false");
-    expect(screen.getByTestId("remote-backend-ready").textContent).toBe("false");
-    expect(routePreloadMock).toHaveBeenCalledTimes(1);
-    expect(ensureI18nNamespacesMock).toHaveBeenCalledWith([
-      "downloader",
-      "taskmonitor",
-    ]);
-
-    await act(async () => {
-      routePreload.resolve({});
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
     expect(screen.getByTestId("app-ready").textContent).toBe("true");
     expect(screen.getByTestId("remote-backend-ready").textContent).toBe("true");
+    expect(getSettingsMock).toHaveBeenCalledTimes(1);
   });
 
-  it("polls backend health before preloading the startup route once", async () => {
+  it("polls backend health before marking the app ready", async () => {
     vi.useFakeTimers();
     probeBackendHealthMock
       .mockResolvedValueOnce({ ok: false, error: new Error("offline") })
@@ -171,7 +166,6 @@ describe("BootApp", () => {
       "后端正在启动中，正在重试健康检查...",
     );
     expect(probeBackendHealthMock).toHaveBeenCalledTimes(1);
-    expect(routePreloadMock).not.toHaveBeenCalled();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(149);
@@ -189,7 +183,6 @@ describe("BootApp", () => {
     expect(screen.getByTestId("app-ready").textContent).toBe("true");
     expect(screen.getByTestId("remote-backend-ready").textContent).toBe("true");
     expect(probeBackendHealthMock).toHaveBeenCalledTimes(2);
-    expect(routePreloadMock).toHaveBeenCalledTimes(1);
   });
 
   it("stays in bootstrap retry when desktop runtime handshake is incompatible", async () => {
@@ -198,11 +191,14 @@ describe("BootApp", () => {
       status: "pong",
       contract_version: 0,
       bridge_version: "old-bridge",
-      task_owner_mode: "backend",
-      capabilities: ["desktopPing"],
-      worker: {
-        protocol_version: 1,
-        app_version: "old-worker",
+      capabilities: [],
+      backend: {
+        status: "external",
+        host: "127.0.0.1",
+        port: 8800,
+        api_base_url: "http://127.0.0.1:8800/api/v1",
+        ws_base_url: "ws://127.0.0.1:8800/api/v1",
+        health_url: "http://127.0.0.1:8800/health",
       },
     });
 

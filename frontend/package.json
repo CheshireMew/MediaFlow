@@ -4,13 +4,10 @@
   "version": "0.1.0",
   "main": "dist-electron/frontend/electron/main.js",
   "scripts": {
-    "dev": "vite",
     "build": "npm run electron:build && tsc -b && vite build && electron-builder",
-    "electron:dev:build": "node ./scripts/electron-dev-build.mjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "electron:build": "tsc -p tsconfig.electron.json",
-    "electron:dev": "node ./scripts/electron-dev.mjs",
     "test": "vitest run"
   },
   "dependencies": {

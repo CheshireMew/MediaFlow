@@ -3,8 +3,9 @@ import { afterEach, expect, test, vi } from 'vitest'
 import type { ReactElement, ReactNode } from 'react'
 import App from '../App'
 import { installElectronMock } from './testUtils/electronMock'
-import { initializeUiStateSettings } from '../services/persistence/uiStateSettings'
+import { initializeUiStateSettings, resetUiStateSettingsForTests } from '../services/persistence/uiStateSettings'
 import { createMockUserSettings } from './testUtils/mockUserSettings'
+import { resetNavigationPersistenceForTests } from '../services/ui/navigationPersistence'
 
 type MockIconComponent = (props: Record<string, unknown>) => ReactElement
 
@@ -13,6 +14,8 @@ installElectronMock()
 afterEach(() => {
   window.location.hash = '#/'
   localStorage.clear()
+  resetUiStateSettingsForTests()
+  resetNavigationPersistenceForTests()
 })
 
 vi.mock('react-i18next', () => ({
@@ -50,9 +53,6 @@ vi.mock('../context/taskContext', () => ({
     connected: false,
     remoteTasksReady: false,
     tasksSettled: false,
-      taskOwnerMode: "backend",
-    pauseLocalTasks: vi.fn(),
-    pauseRemoteTasks: vi.fn(),
     pauseAllTasks: vi.fn(),
     pauseTask: vi.fn(),
     resumeTask: vi.fn(),

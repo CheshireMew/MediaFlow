@@ -1,14 +1,11 @@
-import type { TaskOwnerMode } from "../../contracts/runtimeContracts";
-
 export type TaskSourceDiagnostic = {
   ignoredTaskCount: number;
   lastIssue: {
-    reason: "contract_version" | "owner_mode";
+    reason: "contract_version" | "task_source";
     source: string;
     taskId: string;
     expected: string;
     received: string;
-    ownerMode?: TaskOwnerMode;
   } | null;
 };
 

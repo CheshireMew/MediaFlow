@@ -1,26 +1,15 @@
 import { useState, useCallback } from "react";
-import { downloaderService, executionService, isDesktopRuntime, settingsService } from "../services/domain";
+import { downloaderService, isDesktopRuntime } from "../services/domain";
 import { desktopBrowserService } from "../services/desktop";
 import type { AnalyzeResult } from "../api/client";
 import { useTaskContext } from "../context/taskContext";
 import {
-  createTaskFromExecutionOutcome,
-  getExecutionSubmission,
-} from "../services/domain";
+  queueDownloadItems,
+  type DownloadExtraInfo,
+  type DownloadQueueItem,
+} from "../services/domain/downloadSubmission";
 import { useDownloaderStore } from "../stores/downloaderStore";
-import type { PipelineRequest } from "../types/api";
 import { useDownloaderTasks } from "./downloader/useDownloaderTasks";
-
-type DownloadQueueItem = {
-  url: string;
-  title?: string;
-  index?: number;
-};
-
-type DownloadExtraInfo = Record<string, unknown> & {
-  title?: string;
-  direct_src?: string;
-};
 
 export function useDownloaderController() {
   const { addTask, remoteTasksReady } = useTaskContext();
@@ -88,102 +77,20 @@ export function useDownloaderController() {
       setShowPlaylistDialog(false);
       setError(null);
 
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const currentUrl = item.url;
-
+      for (const item of items) {
         try {
-          let directUrl: string | null = null;
-          const finalExtraInfo: DownloadExtraInfo = { ...extraInfo };
-          let customFilename: string | undefined = item.title;
-
-          // Determine filename fallback
-          if (!customFilename) {
-            if (items.length === 1) {
-              if (finalExtraInfo.title) {
-                customFilename = finalExtraInfo.title;
-              } else if (lastAnalysis?.title) {
-                customFilename = lastAnalysis.title;
-              }
-            }
-          }
-
-          if (!customFilename && currentUrl.includes("douyin.com")) {
-            customFilename = `Douyin_Video_${Date.now()}`;
-          }
-
-          if (finalExtraInfo && finalExtraInfo.direct_src) {
-            directUrl = finalExtraInfo.direct_src;
-          }
-
-          // Construct base pipeline
-          const basePipeline: PipelineRequest = {
-            pipeline_id: "downloader_tool",
-            task_name: customFilename,
-            steps: [
-              {
-                step_name: "download",
-                params: {
-                  url: directUrl || currentUrl,
-                  playlist_title: playlistTitle,
-                  playlist_items: item.index ? item.index.toString() : undefined,
-                  download_subs: downloadSubs,
-                  resolution: resolution,
-                  codec: codec,
-                  ...finalExtraInfo,
-                  filename: customFilename,
-                },
-              },
-            ],
-          };
-
-          if (isDesktopRuntime()) {
-            const settings = await settingsService.getSettings();
-            const executionResult = await executionService.download(basePipeline, settings);
-            const submission = getExecutionSubmission(executionResult);
-            addTask(
-              createTaskFromExecutionOutcome({
-                outcome: executionResult,
-                type: "download",
-                name: customFilename,
-                request_params: {
-                  steps: basePipeline.steps,
-                  ...(basePipeline.steps[0]?.params ?? {}),
-                },
-              }),
-            );
-            addToHistory({
-              id: submission.task_id,
-              url: currentUrl,
-              title: customFilename || "Unknown Video",
-              timestamp: Date.now(),
-            });
-            continue;
-          }
-
-          if (!remoteTasksReady) {
-            setError("下载后端尚未就绪，且本地下载 worker 不可用。");
-            break;
-          }
-
-          const executionResult = await executionService.download(basePipeline);
-          const submission = getExecutionSubmission(executionResult);
-          addTask(
-            createTaskFromExecutionOutcome({
-              outcome: executionResult,
-              type: "download",
-              name: customFilename,
-              request_params: {
-                steps: basePipeline.steps,
-                ...(basePipeline.steps[0]?.params ?? {}),
-              },
-              }),
-            );
-          addToHistory({
-            id: submission.task_id,
-            url: currentUrl,
-            title: customFilename || "Unknown Video",
-            timestamp: Date.now(),
+          await queueDownloadItems({
+            items: [item],
+            totalItemCount: items.length,
+            playlistTitle,
+            extraInfo,
+            downloadSubs,
+            resolution,
+            codec,
+            lastAnalysis,
+            remoteTasksReady,
+            addTask,
+            addToHistory,
           });
         } catch (error: unknown) {
           console.error("[Downloader] Failed to queue download:", error);
@@ -191,7 +98,7 @@ export function useDownloaderController() {
             continue;
           }
           setError(
-            `Failed to queue ${currentUrl}: ${
+            `Failed to queue ${item.url}: ${
               error instanceof Error ? error.message : String(error)
             }`,
           );

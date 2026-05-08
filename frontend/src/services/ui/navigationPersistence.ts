@@ -16,6 +16,8 @@ const RESTORABLE_DESTINATIONS = new Set<NavigationDestination>([
 export const DEFAULT_LAUNCH_DESTINATION: NavigationDestination = "downloader";
 
 let launchNavigationWasExplicit = false;
+let deferredLaunchNavigationConsumed = false;
+let deferredLaunchNavigationTarget: NavigationDestination | null = null;
 
 export function normalizeRestorableDestination(
   value: string | null | undefined,
@@ -33,10 +35,6 @@ export function readLastNavigationDestination(): NavigationDestination | null {
   return normalizeRestorableDestination(readUiStateValue<string>(LAST_ROUTE_KEY));
 }
 
-export function resolveLaunchDestination(): NavigationDestination {
-  return readLastNavigationDestination() ?? DEFAULT_LAUNCH_DESTINATION;
-}
-
 export function readHashNavigationDestination(
   hash: string = window.location.hash,
 ): NavigationDestination | null {
@@ -47,7 +45,7 @@ export function readHashNavigationDestination(
 export function resolveCurrentNavigationDestination(
   hash: string = window.location.hash,
 ): NavigationDestination {
-  return readHashNavigationDestination(hash) ?? resolveLaunchDestination();
+  return readHashNavigationDestination(hash) ?? DEFAULT_LAUNCH_DESTINATION;
 }
 
 export function resolveCurrentNavigationPath(
@@ -70,33 +68,25 @@ export function ensureLaunchHash() {
   );
 }
 
-export function restoreLaunchHashFromUiState() {
-  if (launchNavigationWasExplicit) {
-    return;
+export function resolveDeferredLaunchDestination(): NavigationDestination | null {
+  if (launchNavigationWasExplicit || deferredLaunchNavigationConsumed) {
+    return null;
   }
 
-  const destination = readLastNavigationDestination();
-  if (!destination) {
-    return;
-  }
+  return readLastNavigationDestination();
+}
 
-  const previousUrl = window.location.href;
-  const targetHash = `#/${destination}`;
-  if (window.location.hash === targetHash) {
-    return;
-  }
+export function consumeDeferredLaunchDestination(): NavigationDestination | null {
+  const destination = resolveDeferredLaunchDestination();
+  deferredLaunchNavigationConsumed = true;
+  deferredLaunchNavigationTarget = destination;
+  return destination;
+}
 
-  window.history.replaceState(
-    window.history.state,
-    document.title,
-    `${window.location.pathname}${window.location.search}${targetHash}`,
-  );
-  window.dispatchEvent(
-    new HashChangeEvent("hashchange", {
-      oldURL: previousUrl,
-      newURL: window.location.href,
-    }),
-  );
+export function resetNavigationPersistenceForTests() {
+  launchNavigationWasExplicit = false;
+  deferredLaunchNavigationConsumed = false;
+  deferredLaunchNavigationTarget = null;
 }
 
 export function persistNavigationDestination(pathname: string) {
@@ -104,6 +94,17 @@ export function persistNavigationDestination(pathname: string) {
   const destination = normalizeRestorableDestination(normalizedPath);
 
   if (!destination) {
+    return;
+  }
+
+  if (deferredLaunchNavigationTarget) {
+    if (destination !== deferredLaunchNavigationTarget) {
+      return;
+    }
+    deferredLaunchNavigationTarget = null;
+  }
+
+  if (readLastNavigationDestination() === destination) {
     return;
   }
 
