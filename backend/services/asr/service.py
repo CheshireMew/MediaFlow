@@ -25,6 +25,8 @@ class ASRService:
     _cli_prewarm_lock = threading.Lock()
     _cli_prewarmed_profiles: set[tuple[str, str, str]] = set()
     _cli_prewarm_threads: dict[tuple[str, str, str], threading.Thread] = {}
+    _cli_prewarm_processes: dict[tuple[str, str, str], subprocess.Popen] = {}
+    _cli_prewarm_cancelled_profiles: set[tuple[str, str, str]] = set()
 
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=settings.ASR_MAX_WORKERS)
@@ -33,15 +35,10 @@ class ASRService:
         self.core_strategies = CoreStrategies(self.executor)
 
     def start_cli_prewarm(self, model_name: str = "base", device: str = "cpu") -> bool:
-        cli_path = getattr(settings, "FASTER_WHISPER_CLI_PATH", "") or ""
-        if not cli_path or not Path(cli_path).exists():
+        profile_key = self._cli_prewarm_profile_key(model_name, device)
+        if profile_key is None:
             logger.info("Faster-Whisper CLI prewarm skipped: executable is not configured.")
             return False
-
-        resolved_path = str(Path(cli_path).resolve())
-        normalized_model = model_name or "base"
-        normalized_device = device or "cpu"
-        profile_key = (resolved_path, normalized_model, normalized_device)
 
         with ASRService._cli_prewarm_lock:
             if profile_key in ASRService._cli_prewarmed_profiles:
@@ -62,6 +59,45 @@ class ASRService:
             ASRService._cli_prewarm_threads[profile_key] = thread
             thread.start()
             return True
+
+    def _cancel_running_cli_prewarm(self, model_name: str, device: str, reason: str) -> None:
+        profile_key = self._cli_prewarm_profile_key(model_name, device)
+        if profile_key is None:
+            return
+
+        with ASRService._cli_prewarm_lock:
+            thread = ASRService._cli_prewarm_threads.get(profile_key)
+            process = ASRService._cli_prewarm_processes.get(profile_key)
+            if not thread or not thread.is_alive():
+                return
+            ASRService._cli_prewarm_cancelled_profiles.add(profile_key)
+
+        logger.info("Faster-Whisper CLI prewarm cancelled for {}: {}", profile_key, reason)
+
+        if process and process.poll() is None:
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                logger.warning("Faster-Whisper CLI prewarm did not terminate promptly; killing process.")
+                process.kill()
+                process.wait(timeout=5)
+            except Exception as exc:
+                logger.warning("Failed to stop Faster-Whisper CLI prewarm process: {}", exc)
+
+        thread.join(timeout=5)
+
+    @staticmethod
+    def _cli_prewarm_profile_key(model_name: str, device: str) -> tuple[str, str, str] | None:
+        cli_path = getattr(settings, "FASTER_WHISPER_CLI_PATH", "") or ""
+        if not cli_path or not Path(cli_path).exists():
+            return None
+
+        return (
+            str(Path(cli_path).resolve()),
+            model_name or "base",
+            device or "cpu",
+        )
 
     def _run_cli_prewarm(self, cli_path: str, model_name: str, device: str) -> None:
         profile_key = (cli_path, model_name, device)
@@ -105,16 +141,33 @@ class ASRService:
             cmd = self.adapter.build_command(config)
             cmd[0] = cli_path
 
-            result = subprocess.run(
+            with ASRService._cli_prewarm_lock:
+                if profile_key in ASRService._cli_prewarm_cancelled_profiles:
+                    logger.info("Faster-Whisper CLI prewarm aborted before process spawn for {}", profile_key)
+                    return
+
+            process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.STDOUT,
-                timeout=300,
-                check=False,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             )
+            with ASRService._cli_prewarm_lock:
+                ASRService._cli_prewarm_processes[profile_key] = process
+
+            returncode = process.wait(timeout=300)
             elapsed = time.perf_counter() - started_at
-            if result.returncode == 0:
+            with ASRService._cli_prewarm_lock:
+                was_cancelled = profile_key in ASRService._cli_prewarm_cancelled_profiles
+
+            if was_cancelled:
+                logger.info(
+                    "Faster-Whisper CLI prewarm stopped after {:.3f}s: model={} device={}",
+                    elapsed,
+                    model_name,
+                    device,
+                )
+            elif returncode == 0:
                 with ASRService._cli_prewarm_lock:
                     ASRService._cli_prewarmed_profiles.add(profile_key)
                 logger.info(
@@ -126,7 +179,7 @@ class ASRService:
             else:
                 logger.warning(
                     "Faster-Whisper CLI prewarm exited with code {} after {:.3f}s",
-                    result.returncode,
+                    returncode,
                     elapsed,
                 )
         except subprocess.TimeoutExpired:
@@ -139,6 +192,8 @@ class ASRService:
         finally:
             with ASRService._cli_prewarm_lock:
                 ASRService._cli_prewarm_threads.pop(profile_key, None)
+                ASRService._cli_prewarm_processes.pop(profile_key, None)
+                ASRService._cli_prewarm_cancelled_profiles.discard(profile_key)
 
     @staticmethod
     def _ensure_cli_prewarm_audio() -> Path:
@@ -194,6 +249,11 @@ class ASRService:
                 # 1. Ensure model is available locally
                 # ModelManager returns path to model dir (or model name if fallback)
                 local_model_path_str = self.model_manager.ensure_model_downloaded(model_name, progress_callback)
+                self._cancel_running_cli_prewarm(
+                    model_name=model_name,
+                    device=device,
+                    reason="real transcription is starting",
+                )
                 
                 # 2. Configure Adapter
                 config = FasterWhisperConfig(

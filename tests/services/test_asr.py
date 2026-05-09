@@ -49,19 +49,30 @@ def test_cli_prewarm_runs_real_profile_once(asr_service, monkeypatch, tmp_path):
     resolved_key = (str(cli_path.resolve()), "base", "cuda")
     calls = []
 
-    def fake_run(cmd, **kwargs):
+    class FakeProcess:
+        returncode = 0
+
+        def wait(self, timeout=None):
+            return self.returncode
+
+        def poll(self):
+            return self.returncode
+
+    def fake_popen(cmd, **kwargs):
         calls.append((cmd, kwargs))
-        return MagicMock(returncode=0)
+        return FakeProcess()
 
     monkeypatch.setattr("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path))
     monkeypatch.setattr("backend.services.asr.service.settings.TEMP_DIR", temp_dir)
     monkeypatch.setattr("backend.services.asr.service.settings.ASR_MODEL_DIR", model_dir)
-    monkeypatch.setattr("backend.services.asr.service.subprocess.run", fake_run)
+    monkeypatch.setattr("backend.services.asr.service.subprocess.Popen", fake_popen)
     cached_model_path = model_dir / "faster-whisper-base"
     cached_model_path.mkdir(parents=True)
     (cached_model_path / "model.bin").write_bytes(b"ok")
     ASRService._cli_prewarmed_profiles.discard(resolved_key)
     ASRService._cli_prewarm_threads.pop(resolved_key, None)
+    ASRService._cli_prewarm_processes.pop(resolved_key, None)
+    ASRService._cli_prewarm_cancelled_profiles.discard(resolved_key)
 
     assert asr_service.start_cli_prewarm(model_name="base", device="cuda") is True
     deadline = time.time() + 5
@@ -96,10 +107,12 @@ def test_cli_prewarm_does_not_download_missing_model(asr_service, monkeypatch, t
 
     monkeypatch.setattr("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path))
     monkeypatch.setattr("backend.services.asr.service.settings.ASR_MODEL_DIR", model_dir)
-    monkeypatch.setattr("backend.services.asr.service.subprocess.run", run_mock)
+    monkeypatch.setattr("backend.services.asr.service.subprocess.Popen", run_mock)
     monkeypatch.setattr(asr_service.model_manager, "ensure_model_downloaded", download_mock)
     ASRService._cli_prewarmed_profiles.discard(resolved_key)
     ASRService._cli_prewarm_threads.pop(resolved_key, None)
+    ASRService._cli_prewarm_processes.pop(resolved_key, None)
+    ASRService._cli_prewarm_cancelled_profiles.discard(resolved_key)
 
     assert asr_service.start_cli_prewarm(model_name="large-v3", device="cuda") is True
     deadline = time.time() + 5
@@ -108,6 +121,53 @@ def test_cli_prewarm_does_not_download_missing_model(asr_service, monkeypatch, t
 
     download_mock.assert_not_called()
     run_mock.assert_not_called()
+
+
+def test_cli_transcribe_cancels_running_prewarm_for_same_profile(asr_service, monkeypatch, tmp_path):
+    audio_path = tmp_path / "sample.mp4"
+    audio_path.write_bytes(b"fake-audio")
+    cli_path = tmp_path / "faster-whisper-xxl.exe"
+    cli_path.write_bytes(b"fake")
+    resolved_key = (str(cli_path.resolve()), "base", "cuda")
+    prewarm_thread = MagicMock()
+    prewarm_thread.is_alive.return_value = True
+    prewarm_thread.join = MagicMock()
+    prewarm_process = MagicMock()
+    prewarm_process.poll.return_value = None
+
+    ASRService._cli_prewarmed_profiles.discard(resolved_key)
+    ASRService._cli_prewarm_threads[resolved_key] = prewarm_thread
+    ASRService._cli_prewarm_processes[resolved_key] = prewarm_process
+    ASRService._cli_prewarm_cancelled_profiles.discard(resolved_key)
+
+    monkeypatch.setattr("backend.services.asr.service.os.path.exists", lambda path: True)
+    monkeypatch.setattr("backend.services.asr.service.AudioProcessor.get_audio_duration", lambda path: 3.0)
+    monkeypatch.setattr("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path))
+    monkeypatch.setattr(
+        "backend.services.asr.service.SubtitleWriter.save_srt",
+        lambda segments, path: tmp_path / "sample.srt",
+    )
+    monkeypatch.setattr(asr_service.model_manager, "ensure_model_downloaded", lambda *args, **kwargs: "base")
+    monkeypatch.setattr(asr_service.adapter, "execute", lambda *args, **kwargs: [])
+
+    try:
+        result = asr_service.transcribe(
+            audio_path=str(audio_path),
+            model_name="base",
+            device="cuda",
+            language="en",
+            engine="cli",
+            generate_peaks=False,
+        )
+    finally:
+        ASRService._cli_prewarm_threads.pop(resolved_key, None)
+        ASRService._cli_prewarm_processes.pop(resolved_key, None)
+        ASRService._cli_prewarm_cancelled_profiles.discard(resolved_key)
+
+    assert result.success is True
+    prewarm_process.terminate.assert_called_once()
+    prewarm_process.wait.assert_called_once_with(timeout=5)
+    prewarm_thread.join.assert_called_once_with(timeout=5)
 
 
 def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypatch, tmp_path):
