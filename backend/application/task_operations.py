@@ -4,27 +4,10 @@ import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from backend.application.ocr_service import _ocr_background
-from backend.application.preprocessing_service import (
-    _cleanup_background,
-    _enhancement_background,
-    _ensure_enhancement_available,
-)
-from backend.application.synthesis_service import _synthesis_background
-from backend.application.transcription_service import (
-    _transcription_background,
-    _transcription_segment_background,
-    _transcription_segment_immediate,
-)
-from backend.application.translation_service import (
-    TranslationRequest,
-    _translation_background,
-    _translation_immediate,
-)
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
 from backend.models.schemas import (
@@ -34,12 +17,85 @@ from backend.models.schemas import (
     SynthesisRequest,
     TranscribeRequest,
     TranscribeSegmentRequest,
+    TranslationRequest,
 )
-from backend.models.task_model import Task
+
+if TYPE_CHECKING:
+    from backend.models.task_model import Task
 
 
 TaskHandler = Callable[[str, Any], Awaitable[None]]
 TaskExecutor = Callable[..., Any]
+
+
+async def _run_transcription_background(task_id: str, request: TranscribeRequest) -> None:
+    from backend.application.transcription_service import _transcription_background
+
+    await _transcription_background(task_id, request)
+
+
+async def _run_transcription_segment_background(
+    task_id: str,
+    request: TranscribeSegmentRequest,
+) -> None:
+    from backend.application.transcription_service import _transcription_segment_background
+
+    await _transcription_segment_background(task_id, request)
+
+
+async def _run_transcription_segment_immediate(
+    request: TranscribeSegmentRequest,
+    **kwargs,
+):
+    from backend.application.transcription_service import _transcription_segment_immediate
+
+    return await _call_with_supported_kwargs(
+        _transcription_segment_immediate,
+        request,
+        kwargs,
+    )
+
+
+async def _run_translation_background(task_id: str, request: TranslationRequest) -> None:
+    from backend.application.translation_service import _translation_background
+
+    await _translation_background(task_id, request)
+
+
+def _run_translation_immediate(request: TranslationRequest, **kwargs):
+    from backend.application.translation_service import _translation_immediate
+
+    return _call_with_supported_kwargs(_translation_immediate, request, kwargs)
+
+
+async def _run_synthesis_background(task_id: str, request: SynthesisRequest) -> None:
+    from backend.application.synthesis_service import _synthesis_background
+
+    await _synthesis_background(task_id, request)
+
+
+async def _run_ocr_background(task_id: str, request: OCRExtractRequest) -> None:
+    from backend.application.ocr_service import _ocr_background
+
+    await _ocr_background(task_id, request)
+
+
+def _ensure_enhancement_request_available(request: EnhanceRequest) -> None:
+    from backend.application.preprocessing_service import _ensure_enhancement_available
+
+    _ensure_enhancement_available(request)
+
+
+async def _run_enhancement_background(task_id: str, request: EnhanceRequest) -> None:
+    from backend.application.preprocessing_service import _enhancement_background
+
+    await _enhancement_background(task_id, request)
+
+
+async def _run_cleanup_background(task_id: str, request: CleanRequest) -> None:
+    from backend.application.preprocessing_service import _cleanup_background
+
+    await _cleanup_background(task_id, request)
 
 
 @dataclass(frozen=True)
@@ -93,14 +149,14 @@ OPERATIONS: dict[str, TaskOperation] = {
         task_type="transcribe",
         request_model=TranscribeRequest,
         task_name=_transcription_name,
-        background=_transcription_background,
+        background=_run_transcription_background,
     ),
     "transcribe_segment": TaskOperation(
         task_type="transcribe_segment",
         request_model=TranscribeSegmentRequest,
         task_name=lambda request: f"Segment {request.start}-{request.end}",
-        background=_transcription_segment_background,
-        immediate=_transcription_segment_immediate,
+        background=_run_transcription_segment_background,
+        immediate=_run_transcription_segment_immediate,
         initial_message="Queued (Long Segment)",
         queued_message="Queued (Long Segment)",
     ),
@@ -108,27 +164,27 @@ OPERATIONS: dict[str, TaskOperation] = {
         task_type="translate",
         request_model=TranslationRequest,
         task_name=_translation_name,
-        background=_translation_background,
-        immediate=_translation_immediate,
+        background=_run_translation_background,
+        immediate=_run_translation_immediate,
     ),
     "synthesis": TaskOperation(
         task_type="synthesis",
         request_model=SynthesisRequest,
         task_name=_synthesis_name,
-        background=_synthesis_background,
+        background=_run_synthesis_background,
     ),
     "extract": TaskOperation(
         task_type="extract",
         request_model=OCRExtractRequest,
         task_name=lambda _request: "OCR Extraction",
-        background=_ocr_background,
+        background=_run_ocr_background,
     ),
     "enhancement": TaskOperation(
         task_type="enhancement",
         request_model=EnhanceRequest,
         task_name=_enhancement_name,
-        background=_enhancement_background,
-        before_queue=_ensure_enhancement_available,
+        background=_run_enhancement_background,
+        before_queue=_ensure_enhancement_request_available,
         initial_message=lambda request: f"Initializing {request.method}...",
         queued_message=lambda request: f"Initializing {request.method}...",
     ),
@@ -136,7 +192,7 @@ OPERATIONS: dict[str, TaskOperation] = {
         task_type="cleanup",
         request_model=CleanRequest,
         task_name=_cleanup_name,
-        background=_cleanup_background,
+        background=_run_cleanup_background,
         initial_message="Queued for Cleanup",
         queued_message="Queued for Cleanup",
     ),
@@ -150,15 +206,7 @@ def task_operation(task_type: str) -> TaskOperation:
     return operation
 
 
-def validate_task_operations(task_types: set[str]) -> None:
-    unknown = set(OPERATIONS) - task_types
-    if unknown:
-        raise RuntimeError(
-            f"Task operation definitions outside task catalog: {', '.join(sorted(unknown))}"
-        )
-
-
-def build_operation_runner(task: Task):
+def build_operation_runner(task: "Task"):
     operation = task_operation(task.type)
     request = operation.request_model.model_validate(task.request_params)
     return lambda: operation.background(task.id, request)

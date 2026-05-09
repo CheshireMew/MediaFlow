@@ -1,22 +1,8 @@
-from pydantic import BaseModel
-
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service
-from backend.models.schemas import GlossaryTerm
-
-
-class CreateGlossaryTermRequest(BaseModel):
-    source: str
-    target: str
-    note: str | None = None
-    category: str = "general"
-
-
-class UpdateGlossaryTermRequest(BaseModel):
-    source: str | None = None
-    target: str | None = None
-    note: str | None = None
-    category: str | None = None
+from backend.models.schemas import (
+    CreateGlossaryTermRequest,
+    GlossaryTerm,
+    UpdateGlossaryTermRequest,
+)
 
 
 class GlossaryApplicationService:

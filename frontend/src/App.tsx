@@ -19,6 +19,7 @@ import {
 } from "./services/ui/navigation";
 import { ensureI18nNamespaces } from "./i18n";
 import { ROUTE_PAGE_MODULES } from "./startup/routePageDefinitions";
+import { prewarmFasterWhisperCliFromStoredPreferences } from "./services/asrCliPrewarm";
 
 import { TaskProvider } from "./context/taskContext";
 import { TaskSummaryProvider } from "./context/taskSummaryContext";
@@ -115,6 +116,32 @@ function NavigationStateSync() {
   return null;
 }
 
+function RouteContentReady({ children }: { children: ReactElement }) {
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) {
+      return;
+    }
+
+    started.current = true;
+    const frameId = window.requestAnimationFrame(() => {
+      const idleCallback =
+        window.requestIdleCallback ??
+        ((callback: IdleRequestCallback) =>
+          window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 250));
+      idleCallback(() => {
+        prewarmFasterWhisperCliFromStoredPreferences();
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  return children;
+}
+
 function DeferredLaunchNavigation({ enabled }: { enabled: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -159,7 +186,7 @@ function routeElement(
   if (appReady && (!requiresBackend || remoteBackendReady)) {
     return (
       <Suspense fallback={<StartupPlaceholderPage variant={variant} message={startupMessage} />}>
-        {page}
+        <RouteContentReady>{page}</RouteContentReady>
       </Suspense>
     );
   }

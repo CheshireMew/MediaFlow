@@ -6,7 +6,7 @@ echo ==========================================
 
 :: Start the single dev supervisor. It owns backend, Vite, and Electron.
 echo Launching MediaFlow dev supervisor...
-npm run dev
+node scripts/dev.mjs
 
 echo.
 echo ==========================================

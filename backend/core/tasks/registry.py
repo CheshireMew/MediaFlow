@@ -1,12 +1,15 @@
 from collections.abc import Awaitable, Callable
 from importlib import import_module
+from typing import TYPE_CHECKING
 
 from backend.core.task_catalog import required_task_types, task_types
-from backend.models.task_model import Task
+
+if TYPE_CHECKING:
+    from backend.models.task_model import Task
 
 
 TaskRunner = Callable[[], Awaitable[None]]
-TaskRunnerFactory = Callable[[Task], TaskRunner]
+TaskRunnerFactory = Callable[["Task"], TaskRunner]
 
 
 REQUIRED_TASK_TYPES = required_task_types()
@@ -46,7 +49,7 @@ def validate_required_task_runners() -> None:
         )
 
 
-def build_task_runner(task: Task) -> TaskRunner:
+def build_task_runner(task: "Task") -> TaskRunner:
     register_all_task_runners()
     factory = _TASK_RUNNER_FACTORIES.get(task.type)
     if factory is None:

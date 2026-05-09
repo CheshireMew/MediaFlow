@@ -1,4 +1,5 @@
 import subprocess
+import time
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -40,10 +41,12 @@ def test_asr_service_initializes_processing_dependencies(asr_service):
     assert asr_service.core_strategies is not None
 
 
-def test_cli_prewarm_runs_help_once(asr_service, monkeypatch, tmp_path):
+def test_cli_prewarm_runs_real_profile_once(asr_service, monkeypatch, tmp_path):
     cli_path = tmp_path / "faster-whisper-xxl.exe"
     cli_path.write_bytes(b"fake")
-    resolved_path = str(cli_path.resolve())
+    temp_dir = tmp_path / "temp"
+    model_dir = tmp_path / "models"
+    resolved_key = (str(cli_path.resolve()), "base", "cuda")
     calls = []
 
     def fake_run(cmd, **kwargs):
@@ -51,19 +54,60 @@ def test_cli_prewarm_runs_help_once(asr_service, monkeypatch, tmp_path):
         return MagicMock(returncode=0)
 
     monkeypatch.setattr("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path))
+    monkeypatch.setattr("backend.services.asr.service.settings.TEMP_DIR", temp_dir)
+    monkeypatch.setattr("backend.services.asr.service.settings.ASR_MODEL_DIR", model_dir)
     monkeypatch.setattr("backend.services.asr.service.subprocess.run", fake_run)
-    ASRService._cli_prewarmed_paths.discard(resolved_path)
-    ASRService._cli_prewarm_threads.pop(resolved_path, None)
+    cached_model_path = model_dir / "faster-whisper-base"
+    cached_model_path.mkdir(parents=True)
+    (cached_model_path / "model.bin").write_bytes(b"ok")
+    ASRService._cli_prewarmed_profiles.discard(resolved_key)
+    ASRService._cli_prewarm_threads.pop(resolved_key, None)
 
-    assert asr_service.start_cli_prewarm() is True
-    prewarm_thread = ASRService._cli_prewarm_threads[resolved_path]
-    prewarm_thread.join(timeout=5)
+    assert asr_service.start_cli_prewarm(model_name="base", device="cuda") is True
+    deadline = time.time() + 5
+    while resolved_key not in ASRService._cli_prewarmed_profiles and time.time() < deadline:
+        thread = ASRService._cli_prewarm_threads.get(resolved_key)
+        if thread:
+            thread.join(timeout=0.1)
+        else:
+            time.sleep(0.01)
 
     assert len(calls) == 1
-    assert calls[0][0] == [resolved_path, "--help"]
-    assert calls[0][1]["stdout"] is subprocess.DEVNULL
-    assert calls[0][1]["stderr"] is subprocess.STDOUT
-    assert asr_service.start_cli_prewarm() is False
+    cmd, kwargs = calls[0]
+    assert cmd[0] == str(cli_path.resolve())
+    assert "--model" in cmd
+    assert cmd[cmd.index("--model") + 1] == "base"
+    assert "--device" in cmd
+    assert cmd[cmd.index("--device") + 1] == "cuda"
+    assert "--vad_filter" in cmd
+    assert cmd[cmd.index("--vad_filter") + 1] == "False"
+    assert kwargs["stdout"] is subprocess.DEVNULL
+    assert kwargs["stderr"] is subprocess.STDOUT
+    assert asr_service.start_cli_prewarm(model_name="base", device="cuda") is False
+
+
+def test_cli_prewarm_does_not_download_missing_model(asr_service, monkeypatch, tmp_path):
+    cli_path = tmp_path / "faster-whisper-xxl.exe"
+    cli_path.write_bytes(b"fake")
+    model_dir = tmp_path / "models"
+    resolved_key = (str(cli_path.resolve()), "large-v3", "cuda")
+    run_mock = MagicMock()
+    download_mock = MagicMock()
+
+    monkeypatch.setattr("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path))
+    monkeypatch.setattr("backend.services.asr.service.settings.ASR_MODEL_DIR", model_dir)
+    monkeypatch.setattr("backend.services.asr.service.subprocess.run", run_mock)
+    monkeypatch.setattr(asr_service.model_manager, "ensure_model_downloaded", download_mock)
+    ASRService._cli_prewarmed_profiles.discard(resolved_key)
+    ASRService._cli_prewarm_threads.pop(resolved_key, None)
+
+    assert asr_service.start_cli_prewarm(model_name="large-v3", device="cuda") is True
+    deadline = time.time() + 5
+    while ASRService._cli_prewarm_threads.get(resolved_key) and time.time() < deadline:
+        ASRService._cli_prewarm_threads[resolved_key].join(timeout=0.1)
+
+    download_mock.assert_not_called()
+    run_mock.assert_not_called()
 
 
 def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypatch, tmp_path):

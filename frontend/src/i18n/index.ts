@@ -24,6 +24,10 @@ const KNOWN_NAMESPACES = [
 
 const DEFAULT_BOOTSTRAP_NAMESPACES = ["common", "sidebar"] as const;
 const localeModules = import.meta.glob<{ default: Record<string, unknown> }>("./locales/*/*.json");
+const eagerZhResources = import.meta.glob<Record<string, unknown>>(
+  "./locales/zh/*.json",
+  { eager: true, import: "default" },
+);
 const resourceCache = new Map<string, Record<string, unknown>>();
 
 type SupportedLanguageCode = (typeof SUPPORTED_LANGUAGES)[number]["code"];
@@ -58,6 +62,10 @@ function resolveLocaleLoader(language: string, namespace: string) {
   return localeModules[`./locales/${language}/${namespace}.json`];
 }
 
+function resolveEagerLocaleResource(language: string, namespace: string) {
+  return eagerZhResources[`./locales/${language}/${namespace}.json`];
+}
+
 async function ensureResourceBundle(language: string, namespace: string) {
   const cacheKey = createCacheKey(language, namespace);
   const cached = resourceCache.get(cacheKey);
@@ -69,11 +77,12 @@ async function ensureResourceBundle(language: string, namespace: string) {
   }
 
   const loader = resolveLocaleLoader(language, namespace);
-  if (!loader) {
+  const eagerResource = resolveEagerLocaleResource(language, namespace);
+  if (!loader && !eagerResource) {
     throw new Error(`Missing i18n resource for ${language}/${namespace}`);
   }
 
-  const resource = (await loader()).default;
+  const resource = eagerResource ?? (await loader()).default;
   resourceCache.set(cacheKey, resource);
   if (i18n.isInitialized && !i18n.hasResourceBundle(language, namespace)) {
     i18n.addResourceBundle(language, namespace, resource, true, true);
@@ -108,6 +117,28 @@ function collectCachedResources(languages: readonly string[], namespaces: readon
   }
 
   return resources;
+}
+
+function scheduleFallbackLanguagePreload(
+  language: SupportedLanguageCode,
+  namespaces: readonly I18nNamespace[],
+) {
+  if (language === "en") {
+    return;
+  }
+
+  const loadFallback = () => {
+    void preloadNamespaces("en", namespaces).then(() => {
+      i18n.options.fallbackLng = "en";
+    });
+  };
+
+  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+    window.requestIdleCallback(loadFallback, { timeout: 5000 });
+    return;
+  }
+
+  setTimeout(loadFallback, 2000);
 }
 
 const lazyLocaleBackend: BackendModule = {
@@ -146,32 +177,32 @@ export function initI18nWithNamespaces(
   const resolvedLanguage = normalizeLanguage(language);
   const bootstrapNamespaces = resolveNamespaces(namespaces);
 
-  return Promise.all([
-    preloadNamespaces(resolvedLanguage, bootstrapNamespaces),
-    resolvedLanguage === "en"
-      ? Promise.resolve()
-      : preloadNamespaces("en", bootstrapNamespaces),
-  ]).then(async () => {
+  return preloadNamespaces(resolvedLanguage, bootstrapNamespaces).then(async () => {
     if (!i18n.isInitialized) {
       return await i18n
         .use(lazyLocaleBackend)
         .use(initReactI18next)
         .init({
           resources: collectCachedResources(
-            resolvedLanguage === "en" ? ["en"] : [resolvedLanguage, "en"],
+            [resolvedLanguage],
             bootstrapNamespaces,
           ),
           lng: resolvedLanguage,
-          fallbackLng: "en",
+          fallbackLng: false,
           defaultNS: "common",
           ns: bootstrapNamespaces,
           partialBundledLanguages: true,
           interpolation: { escapeValue: false },
           react: { useSuspense: false },
+        })
+        .then((instance) => {
+          scheduleFallbackLanguagePreload(resolvedLanguage, bootstrapNamespaces);
+          return instance;
         });
     }
 
     await i18n.changeLanguage(resolvedLanguage);
+    scheduleFallbackLanguagePreload(resolvedLanguage, bootstrapNamespaces);
     return i18n;
   });
 }

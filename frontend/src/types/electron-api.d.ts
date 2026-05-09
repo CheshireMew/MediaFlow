@@ -16,6 +16,7 @@ export interface DesktopRuntimeInfo {
     api_base_url: string;
     ws_base_url: string;
     health_url: string;
+    health_status?: "starting" | "ready" | "failed";
     error?: string;
   };
 }

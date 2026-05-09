@@ -27,8 +27,7 @@ vi.mock("../App", () => ({
   ),
 }));
 
-vi.mock("../services/domain", () => ({
-  isDesktopRuntime: () => true,
+vi.mock("../services/domain/settingsService", () => ({
   settingsService: {
     getSettings: (...args: unknown[]) => getSettingsMock(...args),
   },
@@ -183,6 +182,37 @@ describe("BootApp", () => {
     expect(screen.getByTestId("app-ready").textContent).toBe("true");
     expect(screen.getByTestId("remote-backend-ready").textContent).toBe("true");
     expect(probeBackendHealthMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses desktop backend health cache when it is already ready", async () => {
+    vi.useFakeTimers();
+    electronMock.getDesktopRuntimeInfo = vi.fn().mockResolvedValue({
+      status: "pong",
+      contract_version: 1,
+      bridge_version: "test-bridge",
+      capabilities: ["getDesktopRuntimeInfo"],
+      backend: {
+        status: "managed",
+        host: "127.0.0.1",
+        port: 8800,
+        api_base_url: "http://127.0.0.1:8800/api/v1",
+        ws_base_url: "ws://127.0.0.1:8800/api/v1",
+        health_url: "http://127.0.0.1:8800/health",
+        health_status: "ready",
+      },
+    });
+    getSettingsMock.mockResolvedValue({ language: "zh" });
+
+    render(<BootApp />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("app-ready").textContent).toBe("true");
+    expect(probeBackendHealthMock).not.toHaveBeenCalled();
   });
 
   it("stays in bootstrap retry when desktop runtime handshake is incompatible", async () => {

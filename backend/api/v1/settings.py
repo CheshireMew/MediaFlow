@@ -5,13 +5,14 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.application.settings_service import SettingsApplicationService
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
 from backend.services.runtime_diagnostics import CudaReadinessResponse
 from backend.services.settings_manager import UserSettings
 
 def _settings_application():
+    from backend.application.settings_service import SettingsApplicationService
+
     return SettingsApplicationService(runtime_service(Services.SETTINGS_MANAGER))
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -39,6 +40,16 @@ class FasterWhisperCliInstallResponse(BaseModel):
     message: str
     cli_path: str
     version: Optional[str] = None
+
+
+class FasterWhisperCliPrewarmRequest(BaseModel):
+    model: str = "base"
+    device: str = "cpu"
+
+
+class FasterWhisperCliPrewarmResponse(BaseModel):
+    status: str
+    message: str
 
 
 @router.get("/", response_model=UserSettings)
@@ -111,3 +122,25 @@ async def install_faster_whisper_cli():
         raise HTTPException(status_code=504, detail=f"Faster-Whisper CLI install timed out: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to install Faster-Whisper CLI: {e}")
+
+
+@router.post("/prewarm-faster-whisper-cli", response_model=FasterWhisperCliPrewarmResponse)
+async def prewarm_faster_whisper_cli(req: FasterWhisperCliPrewarmRequest):
+    try:
+        settings_manager = runtime_service(Services.SETTINGS_MANAGER)
+        settings_manager.get_settings()
+        started = runtime_service(Services.ASR).start_cli_prewarm(
+            model_name=req.model,
+            device=req.device,
+        )
+        if started:
+            return FasterWhisperCliPrewarmResponse(
+                status="started",
+                message="Faster-Whisper CLI prewarm started.",
+            )
+        return FasterWhisperCliPrewarmResponse(
+            status="skipped",
+            message="Faster-Whisper CLI prewarm was already complete, running, or unavailable.",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to prewarm Faster-Whisper CLI: {e}")

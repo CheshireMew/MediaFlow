@@ -15,7 +15,7 @@
 
 ## Import Rules
 
-- Prefer `services/domain` over deep imports like `services/domain/settingsService`.
+- Startup-shell code must import only the concrete service modules it needs; page and feature code can use `services/domain`.
 - Prefer `services/desktop` over deep imports like `services/desktop/eventsService`.
 - Page and hook code should not access `window.electronAPI` directly.
 

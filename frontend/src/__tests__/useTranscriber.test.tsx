@@ -10,6 +10,7 @@ import {
 import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
 import type { MockedElectronAPI } from "./testUtils/electronMock";
 import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
+import { ASR_EXECUTION_PREFERENCES } from "../contracts/runtimeContracts";
 
 const useTaskContextMock = vi.fn();
 const addTaskMock = vi.fn();
@@ -28,6 +29,7 @@ vi.mock("../api/client", () => ({
   apiClient: {
     runPipeline: vi.fn(),
     getSettings: vi.fn(),
+    prewarmFasterWhisperCli: vi.fn(),
   },
 }));
 
@@ -338,8 +340,8 @@ describe("useTranscriber", () => {
     expect(result.current.state.device).toBe("cpu");
     expect(result.current.state.currentTranscriptionTaskId).toBeNull();
     expect(result.current.state.result?.text).toBe("snapshot");
-    expect(readUiStateValue<string>("asr_execution_preferences")).toContain("\"model\":\"base\"");
-    expect(readUiStateValue<string>("asr_execution_preferences")).toContain("\"device\":\"cpu\"");
+    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"model\":\"base\"");
+    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"device\":\"cpu\"");
   });
 
   it("persists transcriber document state separately from shared ASR preferences", async () => {
@@ -363,8 +365,8 @@ describe("useTranscriber", () => {
     expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"currentTranscriptionTaskId\"");
     expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"model\"");
     expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"device\"");
-    expect(readUiStateValue<string>("asr_execution_preferences")).toContain("\"model\":\"base\"");
-    expect(readUiStateValue<string>("asr_execution_preferences")).toContain("\"device\":\"cpu\"");
+    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"model\":\"base\"");
+    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"device\":\"cpu\"");
   });
 
 

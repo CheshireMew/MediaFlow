@@ -1,5 +1,6 @@
 import { parseVersionedSnapshot, serializeVersionedSnapshot } from "./versionedSnapshot";
 import { readUiStateValue, writeUiStateValue } from "./uiStateSettings";
+import { ASR_EXECUTION_PREFERENCES } from "../../contracts/runtimeContracts";
 
 export type AsrExecutionPreferences = {
   engine: "builtin" | "cli";
@@ -7,13 +8,10 @@ export type AsrExecutionPreferences = {
   device: string;
 };
 
-const ASR_EXECUTION_PREFERENCES_KEY = "asr_execution_preferences";
-const ASR_EXECUTION_PREFERENCES_VERSION = 1;
-
 const DEFAULT_ASR_EXECUTION_PREFERENCES: AsrExecutionPreferences = {
-  engine: "builtin",
-  model: "base",
-  device: "cpu",
+  engine: ASR_EXECUTION_PREFERENCES.defaults.engine,
+  model: ASR_EXECUTION_PREFERENCES.defaults.model,
+  device: ASR_EXECUTION_PREFERENCES.defaults.device,
 };
 
 function normalizeAsrExecutionPreferences(
@@ -36,9 +34,9 @@ export function persistStoredAsrExecutionPreferences(
   preferences: AsrExecutionPreferences,
 ) {
   writeUiStateValue(
-    ASR_EXECUTION_PREFERENCES_KEY,
+    ASR_EXECUTION_PREFERENCES.key,
     serializeVersionedSnapshot(
-      ASR_EXECUTION_PREFERENCES_VERSION,
+      ASR_EXECUTION_PREFERENCES.schema_version,
       normalizeAsrExecutionPreferences(preferences),
     ),
   );
@@ -46,8 +44,8 @@ export function persistStoredAsrExecutionPreferences(
 
 export function restoreStoredAsrExecutionPreferences(): AsrExecutionPreferences {
   const snapshot = parseVersionedSnapshot<AsrExecutionPreferences>(
-    readUiStateValue<string>(ASR_EXECUTION_PREFERENCES_KEY),
-    ASR_EXECUTION_PREFERENCES_VERSION,
+    readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key),
+    ASR_EXECUTION_PREFERENCES.schema_version,
   );
 
   if (snapshot) {

@@ -1,10 +1,5 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 import os
-from backend.application.watermark_preview_service import (
-    get_latest_watermark_preview,
-    save_watermark_preview,
-)
-from backend.application.task_operations import submit_task_operation
 from backend.models.schemas import MediaReference, SynthesisRequest, TaskResponse
 from backend.utils.path_validator import validate_input_file, validate_output_file
 
@@ -16,6 +11,8 @@ async def upload_watermark_for_preview(file: UploadFile):
     Upload a watermark file and return the generated preview.
     """
     try:
+        from backend.application.watermark_preview_service import save_watermark_preview
+
         return save_watermark_preview(file.filename, file.file)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -27,6 +24,8 @@ async def get_current_watermark():
     Retrieve the last uploaded watermark (if exists).
     Returns: { png_path, data_url, width, height } or 404
     """
+    from backend.application.watermark_preview_service import get_latest_watermark_preview
+
     return get_latest_watermark_preview()
 
 @router.post("/synthesize", response_model=TaskResponse)
@@ -58,6 +57,8 @@ async def start_synthesis_task(req: SynthesisRequest):
         validate_output_file(req.output_ref.path, label="output_ref.path")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    from backend.application.task_operations import submit_task_operation
 
     response = await submit_task_operation("synthesis", req)
     return TaskResponse(**response)

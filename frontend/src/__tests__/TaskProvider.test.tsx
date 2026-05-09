@@ -12,6 +12,7 @@ const pauseAllTasksMock = vi.fn();
 const resumeTaskMock = vi.fn();
 const deleteTaskMock = vi.fn();
 const deleteAllTasksMock = vi.fn();
+const listTasksMock = vi.fn();
 const sendPauseMock = vi.fn();
 
 vi.mock("../hooks/tasks/useTaskSocket", () => ({
@@ -24,6 +25,7 @@ vi.mock("../api/client", () => ({
     resumeTask: (...args: unknown[]) => resumeTaskMock(...args),
     deleteTask: (...args: unknown[]) => deleteTaskMock(...args),
     deleteAllTasks: (...args: unknown[]) => deleteAllTasksMock(...args),
+    listTasks: (...args: unknown[]) => listTasksMock(...args),
   },
 }));
 
@@ -66,6 +68,20 @@ describe("TaskProvider", () => {
     resumeTaskMock.mockResolvedValue(undefined);
     deleteTaskMock.mockResolvedValue(undefined);
     deleteAllTasksMock.mockResolvedValue(undefined);
+    listTasksMock.mockResolvedValue([
+      {
+        id: "remote-task",
+        type: "pipeline",
+        primary_operation: "download",
+        status: "pending",
+        ...backendContractFields(),
+        progress: 0,
+        created_at: 1,
+        request_params: {
+          steps: [{ step_name: "download", params: { url: "https://example.com" } }],
+        },
+      },
+    ]);
   });
 
   function sendSocketMessage(message: TaskSocketMessage) {

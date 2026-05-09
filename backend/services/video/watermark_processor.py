@@ -1,7 +1,6 @@
 import os
 from loguru import logger
 from PIL import Image
-from psd_tools import PSDImage
 
 class WatermarkProcessor:
     @staticmethod
@@ -26,6 +25,8 @@ class WatermarkProcessor:
             # 1. Load Image
             if input_path.lower().endswith('.psd'):
                 logger.debug("Opening PSD...")
+                from psd_tools import PSDImage
+
                 psd = PSDImage.open(input_path)
                 img = psd.composite()
             else:

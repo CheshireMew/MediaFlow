@@ -368,7 +368,7 @@ class ModelManager:
         Returns the local path to the model.
         """
         settings.ASR_MODEL_DIR.mkdir(parents=True, exist_ok=True)
-        target_dir = settings.ASR_MODEL_DIR / f"faster-whisper-{model_name}"
+        target_dir = self.get_cached_model_path(model_name)
 
         if target_dir.exists() and any(target_dir.iterdir()):
             return str(target_dir)
@@ -400,6 +400,9 @@ class ModelManager:
                 target_dir,
                 progress_callback=progress_callback,
             )
+
+    def get_cached_model_path(self, model_name: str) -> Path:
+        return settings.ASR_MODEL_DIR / f"faster-whisper-{model_name}"
 
     def load_model(self, model_name: str, device: str, progress_callback=None) -> Any:
         """

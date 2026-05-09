@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from backend.application.download_service import submit_download_pipeline
 from backend.models.schemas import PipelineRequest
 router = APIRouter(prefix="/pipeline", tags=["Pipeline"])
 
@@ -13,6 +12,8 @@ async def run_pipeline(req: PipelineRequest):
     Returns a Task ID immediately. Progress can be tracked via WebSocket.
     """
     try:
+        from backend.application.download_service import submit_download_pipeline
+
         return await submit_download_pipeline(req)
     except Exception as e:
         logger.error(f"Pipeline submission failed: {e}")

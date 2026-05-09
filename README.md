@@ -91,7 +91,7 @@ setup.bat
 ### 2. 开发模式启动
 
 ```powershell
-npm run dev
+node scripts/dev.mjs
 ```
 
 开发模式由根目录 `scripts/dev.mjs` 统一托管后端、Vite renderer 和 Electron。不要分别启动后端和前端；dev supervisor 会选择可用端口、注入前端 API / WebSocket 地址、注入后端 CORS origin，并在 Electron 退出时关闭子进程。

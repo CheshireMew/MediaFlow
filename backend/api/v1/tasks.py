@@ -14,6 +14,12 @@ async def get_queue_summary():
     return runtime_service(Services.TASK_MANAGER).get_queue_summary()
 
 
+@router.get("/", response_model=list[TaskView])
+async def list_tasks():
+    """Get the persisted task history after the runtime startup path is ready."""
+    return await runtime_service(Services.TASK_MANAGER).get_history_snapshot()
+
+
 @router.get("/{task_id}", response_model=TaskView)
 async def get_task(task_id: str):
     """Get task status."""

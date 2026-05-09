@@ -220,7 +220,7 @@ def test_pause_and_resume_transition_task_state(isolated_api_client):
     _wait_for_queue_idle(client)
 
 
-def test_load_tasks_marks_interrupted_work_as_paused_and_snapshot_reflects_it(monkeypatch):
+def test_load_runtime_tasks_marks_interrupted_work_as_paused_and_snapshot_reflects_it(monkeypatch):
     running_task = Task(
         id=str(uuid.uuid4())[:8],
         name="running-task",
@@ -250,7 +250,7 @@ def test_load_tasks_marks_interrupted_work_as_paused_and_snapshot_reflects_it(mo
     )
     fake_tasks = [running_task, pending_task, paused_task]
 
-    async def fake_load_all(self):
+    async def fake_load_runtime_tasks(self):
         tasks_by_id = {}
         for task in fake_tasks:
             if task.status in ["running", "pending"]:
@@ -261,15 +261,15 @@ def test_load_tasks_marks_interrupted_work_as_paused_and_snapshot_reflects_it(mo
         return tasks_by_id
 
     monkeypatch.setattr(
-        "backend.services.task_repository.TaskRepository.load_all",
-        fake_load_all,
+        "backend.services.task_repository.TaskRepository.load_runtime_tasks",
+        fake_load_runtime_tasks,
     )
 
     tm = create_task_manager()
 
     import asyncio
 
-    asyncio.run(tm.load_tasks())
+    asyncio.run(tm.load_runtime_tasks())
 
     assert tm.get_task(running_task.id).status == "paused"
     assert tm.get_task(running_task.id).message == "Interrupted by restart"

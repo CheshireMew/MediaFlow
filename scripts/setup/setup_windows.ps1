@@ -95,4 +95,4 @@ Invoke-Step "Installing frontend dependencies" {
 
 Write-Host ""
 Write-Host "Setup complete."
-Write-Host "Run dev app: npm run dev"
+Write-Host "Run dev app: node scripts/dev.mjs"

@@ -130,6 +130,13 @@ class TranslateParams(BaseModel):
     mode: str = "standard"  # "standard" | "intelligent" | "proofread"
     batch_size: int = 50
 
+
+class TranslationRequest(BaseModel):
+    segments: List[SubtitleSegment]
+    target_language: str = "Chinese"
+    mode: str = "standard"
+    context_ref: Optional[MediaReference] = None
+
 class SynthesizeParams(BaseModel):
     """Parameters for the synthesize pipeline step."""
     video_ref: Optional[MediaReference] = None
@@ -244,6 +251,20 @@ class GlossaryTerm(BaseModel):
     target: str = Field(..., description="Target translation")
     note: Optional[str] = None
     category: Optional[str] = "general"
+
+
+class CreateGlossaryTermRequest(BaseModel):
+    source: str
+    target: str
+    note: Optional[str] = None
+    category: str = "general"
+
+
+class UpdateGlossaryTermRequest(BaseModel):
+    source: Optional[str] = None
+    target: Optional[str] = None
+    note: Optional[str] = None
+    category: Optional[str] = None
 
 class FileRef(BaseModel):
     """Reference to a file generated or used by a task."""

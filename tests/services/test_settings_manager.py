@@ -1,3 +1,6 @@
+import json
+
+from backend.contracts import ASR_EXECUTION_PREFERENCES
 from backend.services.settings_manager import (
     LLMProvider,
     SMART_SPLIT_TEXT_LIMIT_DEFAULT,
@@ -58,6 +61,30 @@ def test_settings_manager_reads_current_file_on_each_get(tmp_path, monkeypatch):
 
     second = manager.get_settings()
     assert second.language == "ja"
+
+
+def test_settings_manager_reads_asr_execution_preferences():
+    manager = object.__new__(SettingsManager)
+    settings = UserSettings(
+        ui_state={
+            ASR_EXECUTION_PREFERENCES["key"]: json.dumps(
+                {
+                    "schema_version": ASR_EXECUTION_PREFERENCES["schema_version"],
+                    "payload": {
+                        "engine": "cli",
+                        "model": "large-v3",
+                        "device": "cuda",
+                    },
+                }
+            )
+        }
+    )
+
+    preferences = manager.get_asr_execution_preferences(settings)
+
+    assert preferences.engine == "cli"
+    assert preferences.model == "large-v3"
+    assert preferences.device == "cuda"
 
 
 def test_settings_manager_marks_encrypted_api_keys(monkeypatch):

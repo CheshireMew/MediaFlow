@@ -10,6 +10,9 @@ import { clearElectronMock } from "./testUtils/electronMock";
 
 const useTaskContextMock = vi.fn();
 const addTaskMock = vi.fn();
+const { prewarmFasterWhisperCliFromStoredPreferencesMock } = vi.hoisted(() => ({
+  prewarmFasterWhisperCliFromStoredPreferencesMock: vi.fn(),
+}));
 
 vi.mock("../context/taskContext", () => ({
   useTaskContext: () => useTaskContextMock(),
@@ -27,6 +30,11 @@ vi.mock("../services/domain/executionService", () => ({
     download: vi.fn(),
   },
   isDesktopRuntime: vi.fn(() => false),
+}));
+
+vi.mock("../services/asrCliPrewarm", () => ({
+  prewarmFasterWhisperCliFromStoredPreferences:
+    prewarmFasterWhisperCliFromStoredPreferencesMock,
 }));
 
 describe("useDownloaderController", () => {
@@ -96,6 +104,8 @@ describe("useDownloaderController", () => {
     await act(async () => {
       await result.current.analyzeAndDownload();
     });
+
+    expect(prewarmFasterWhisperCliFromStoredPreferencesMock).toHaveBeenCalled();
 
     await waitFor(() => {
       expect(executionService.download).toHaveBeenCalledTimes(1);

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useContextMenuBuilder } from "../hooks/editor/useContextMenuBuilder";
 import { seedJapaneseCudaExecutionPreferences } from "./testFixtures";
 import { writeUiStateValue } from "../services/persistence/uiStateSettings";
+import { ASR_EXECUTION_PREFERENCES } from "../contracts/runtimeContracts";
 
 const {
   transcribeSegmentMock,
@@ -43,9 +44,9 @@ describe("useContextMenuBuilder", () => {
 
   it("uses shared ASR preferences for selected-region transcription", async () => {
     writeUiStateValue(
-      "asr_execution_preferences",
+      ASR_EXECUTION_PREFERENCES.key,
       JSON.stringify({
-        schema_version: 1,
+        schema_version: ASR_EXECUTION_PREFERENCES.schema_version,
         payload: {
           engine: "cli",
           model: "small",

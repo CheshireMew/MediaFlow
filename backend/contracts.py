@@ -27,6 +27,7 @@ TASK_SOURCES = set(RUNTIME_CONTRACT["task_sources"])
 TASK_PERSISTENCE_SCOPES = set(RUNTIME_CONTRACT["task_persistence_scopes"])
 TASK_QUEUE_STATES = set(RUNTIME_CONTRACT["task_queue_states"])
 TASK_STATUS_PROJECTION = RUNTIME_CONTRACT["task_status_projection"]
+ASR_EXECUTION_PREFERENCES = RUNTIME_CONTRACT["asr_execution_preferences"]
 
 
 def task_status_projection(status: str) -> dict[str, Any]:

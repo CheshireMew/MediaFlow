@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import App from "../../App";
-import { isDesktopRuntime, settingsService } from "../../services/domain";
-import { getDesktopRuntimeInfo, hasDesktopCapability } from "../../services/desktop";
+import {
+  getDesktopRuntimeInfo,
+  hasDesktopCapability,
+  isDesktopRuntime,
+} from "../../services/desktop";
+import { settingsService } from "../../services/domain/settingsService";
 import { windowService } from "../../services/desktop";
 import { createDesktopRuntimeDiagnostic } from "../../services/debug/runtimeDiagnostics";
 import { DESKTOP_BRIDGE_CONTRACT_VERSION } from "../../contracts/runtimeContracts";
@@ -96,18 +100,20 @@ async function loadUserSettings() {
 
 async function bootstrapStartup(): Promise<Partial<StartupState>> {
   const desktopRuntime = isDesktopRuntime();
+  let runtimeInfo: Awaited<ReturnType<typeof getDesktopRuntimeInfo>> | null = null;
 
   try {
     if (desktopRuntime) {
-      const runtimeInfo = await getDesktopRuntimeInfo();
-      if (runtimeInfo.contract_version < DESKTOP_BRIDGE_CONTRACT_VERSION) {
+      runtimeInfo = await getDesktopRuntimeInfo();
+      const resolvedRuntimeInfo = runtimeInfo;
+      if (resolvedRuntimeInfo.contract_version < DESKTOP_BRIDGE_CONTRACT_VERSION) {
         throw new Error(
-          `Desktop bridge contract mismatch. Required >= ${DESKTOP_BRIDGE_CONTRACT_VERSION}, received ${runtimeInfo.contract_version}.`,
+          `Desktop bridge contract mismatch. Required >= ${DESKTOP_BRIDGE_CONTRACT_VERSION}, received ${resolvedRuntimeInfo.contract_version}.`,
         );
       }
 
       const missingCapabilities = REQUIRED_DESKTOP_CAPABILITIES.filter(
-        (capability) => !hasDesktopCapability(runtimeInfo, capability),
+        (capability) => !hasDesktopCapability(resolvedRuntimeInfo, capability),
       );
       if (missingCapabilities.length > 0) {
         throw new Error(
@@ -115,22 +121,25 @@ async function bootstrapStartup(): Promise<Partial<StartupState>> {
         );
       }
 
-      if (runtimeInfo.backend.status === "failed") {
-        throw new Error(runtimeInfo.backend.error || "Desktop backend failed to start.");
+      if (resolvedRuntimeInfo.backend.status === "failed") {
+        throw new Error(resolvedRuntimeInfo.backend.error || "Desktop backend failed to start.");
       }
 
       configureApiRuntime({
-        apiBaseUrl: runtimeInfo.backend.api_base_url,
-        wsBaseUrl: runtimeInfo.backend.ws_base_url,
+        apiBaseUrl: resolvedRuntimeInfo.backend.api_base_url,
+        wsBaseUrl: resolvedRuntimeInfo.backend.ws_base_url,
       });
 
       console.log(
         "[Init] Desktop runtime contract ready",
-        createDesktopRuntimeDiagnostic(runtimeInfo),
+        createDesktopRuntimeDiagnostic(resolvedRuntimeInfo),
       );
     }
 
-    await waitForBackendHealth();
+    const backendHealthReady = desktopRuntime && runtimeInfo?.backend.health_status === "ready";
+    if (!backendHealthReady) {
+      await waitForBackendHealth();
+    }
 
     if (!desktopRuntime) {
       await loadUserSettings();

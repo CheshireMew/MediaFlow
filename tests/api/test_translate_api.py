@@ -30,7 +30,7 @@ def test_translate_endpoint_returns_400_for_client_value_errors(monkeypatch):
         raise ValueError("bad translation request")
 
     monkeypatch.setattr(
-        "backend.api.v1.translate.submit_task_operation",
+        "backend.application.task_operations.submit_task_operation",
         fake_submit_task_operation,
     )
 

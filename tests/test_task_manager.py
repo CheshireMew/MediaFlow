@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, select
 
 import backend.core.database as db_module
 from backend.models.task_model import Task
@@ -12,7 +12,7 @@ from backend.services.task_control_service import TaskControlService
 from backend.services.task_event_publisher import TaskEventPublisher
 from backend.services.task_manager import TaskManager
 from backend.services.task_queue_view import TaskQueueView
-from backend.services.task_repository import TaskRepository
+from backend.services.task_repository import TASK_HISTORY_LIMIT, TaskRepository
 from backend.services.task_runtime_state import TaskRuntimeState
 
 # Test DB URL
@@ -117,6 +117,35 @@ async def test_delete_task(task_manager):
 
 
 @pytest.mark.asyncio
+async def test_completed_task_history_is_trimmed_in_memory_and_database(task_manager, monkeypatch):
+    next_timestamp = iter(range(TASK_HISTORY_LIMIT + 3))
+    monkeypatch.setattr(
+        "backend.services.task_repository.task_timestamp_ms",
+        lambda: next(next_timestamp),
+    )
+
+    task_ids = []
+    for _ in range(TASK_HISTORY_LIMIT + 3):
+        task_id = await task_manager.create_task("transcribe")
+        task_ids.append(task_id)
+        await task_manager.update_task(task_id, status="completed", progress=100.0)
+
+    history_task_ids = {
+        task.id for task in task_manager.tasks.values() if task.persistence_scope == "history"
+    }
+    assert len(history_task_ids) == TASK_HISTORY_LIMIT
+    assert task_ids[0] not in history_task_ids
+    assert task_ids[1] not in history_task_ids
+    assert task_ids[2] not in history_task_ids
+    assert task_ids[-1] in history_task_ids
+
+    async with db_module.get_session_context() as session:
+        result = await session.execute(select(Task).where(Task.persistence_scope == "history"))
+        persisted_history_tasks = result.scalars().all()
+        assert len(persisted_history_tasks) == TASK_HISTORY_LIMIT
+
+
+@pytest.mark.asyncio
 async def test_warm_start_returns_before_background_task_hydration_finishes(
     test_engine,
     monkeypatch,
@@ -134,12 +163,12 @@ async def test_warm_start_returns_before_background_task_hydration_finishes(
     load_started = asyncio.Event()
     release_load = asyncio.Event()
 
-    async def slow_load_tasks():
+    async def slow_load_runtime_tasks():
         load_started.set()
         await release_load.wait()
         tm.tasks = {}
 
-    monkeypatch.setattr(tm, "load_tasks", slow_load_tasks)
+    monkeypatch.setattr(tm, "load_runtime_tasks", slow_load_runtime_tasks)
 
     await tm.warm_start_async()
     await asyncio.wait_for(load_started.wait(), timeout=1.0)
@@ -170,13 +199,13 @@ async def test_warm_start_blocks_task_creation_until_hydration_finishes(
     load_started = asyncio.Event()
     release_load = asyncio.Event()
 
-    async def slow_load_tasks():
+    async def slow_load_runtime_tasks():
         load_started.set()
         await release_load.wait()
         tm.tasks = {}
         tm._tasks_loaded.set()
 
-    monkeypatch.setattr(tm, "load_tasks", slow_load_tasks)
+    monkeypatch.setattr(tm, "load_runtime_tasks", slow_load_runtime_tasks)
 
     await tm.warm_start_async()
     await asyncio.wait_for(load_started.wait(), timeout=1.0)

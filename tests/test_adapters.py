@@ -4,11 +4,11 @@ from pathlib import Path
 from backend.core.adapters.faster_whisper import FasterWhisperAdapter, FasterWhisperConfig
 from backend.config import settings
 
-# Mock settings for test
-settings.FASTER_WHISPER_CLI_PATH = "mock_cli.exe"
-settings.ASR_MODEL_DIR = Path("/mock/models")
-
 class TestFasterWhisperAdapter:
+    def setup_method(self):
+        settings.FASTER_WHISPER_CLI_PATH = "mock_cli.exe"
+        settings.ASR_MODEL_DIR = Path("/mock/models")
+
     
     def test_validation_fails_if_audio_missing(self):
         with pytest.raises(ValueError, match="Audio file not found"):

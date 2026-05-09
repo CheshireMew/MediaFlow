@@ -128,6 +128,16 @@ export interface ProviderConnectionResponse {
   message: string;
 }
 
+export interface FasterWhisperCliPrewarmRequest {
+  model: string;
+  device: string;
+}
+
+export interface FasterWhisperCliPrewarmResponse {
+  status: "started" | "skipped";
+  message: string;
+}
+
 export interface ImagePreviewResponse {
   png_path: string;
   data_url: string;

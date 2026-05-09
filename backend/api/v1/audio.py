@@ -3,7 +3,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Tuple
 from loguru import logger
-from backend.utils.audio_processor import AudioProcessor
 from backend.utils.path_validator import validate_input_file
 
 router = APIRouter(tags=["Audio"])
@@ -29,6 +28,8 @@ async def detect_silence(req: DetectSilenceRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
+        from backend.utils.audio_processor import AudioProcessor
+
         intervals = AudioProcessor.detect_silence(
             req.file_path, 
             silence_thresh=req.threshold, 

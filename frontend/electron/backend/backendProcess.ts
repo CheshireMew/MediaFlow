@@ -20,6 +20,7 @@ export type DesktopBackendRuntimeInfo = {
   api_base_url: string;
   ws_base_url: string;
   health_url: string;
+  health_status?: "starting" | "ready" | "failed";
   error?: string;
 };
 
@@ -34,8 +35,58 @@ function endpointInfo(status: DesktopBackendRuntimeInfo["status"], port: number 
     api_base_url: `http://${BACKEND_HOST}:${resolvedPort}/api/v1`,
     ws_base_url: `ws://${BACKEND_HOST}:${resolvedPort}/api/v1`,
     health_url: `http://${BACKEND_HOST}:${resolvedPort}/health`,
+    health_status: status === "failed" ? "failed" : "starting",
     ...(error ? { error } : {}),
   };
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function probeHealth(url: string, timeoutMs = 500) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function monitorBackendHealth(info: DesktopBackendRuntimeInfo) {
+  if (info.status === "failed") {
+    info.health_status = "failed";
+    return;
+  }
+
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    if (await probeHealth(info.health_url)) {
+      info.health_status = "ready";
+      return;
+    }
+    await wait(150);
+  }
+
+  info.health_status = "failed";
+}
+
+function startBackendHealthMonitor(info: DesktopBackendRuntimeInfo) {
+  if (info.status === "failed" || info.health_status === "ready") {
+    return;
+  }
+
+  void monitorBackendHealth(info).catch((error) => {
+    console.error("[Backend] health monitor failed:", error);
+    info.health_status = "failed";
+  });
 }
 
 function parsePort(value: string) {
@@ -104,6 +155,7 @@ function resolveExternalBackendInfo(): DesktopBackendRuntimeInfo {
     api_base_url: apiBase.replace(/\/$/, ""),
     ws_base_url: wsBase.replace(/\/$/, ""),
     health_url: `${apiUrl.origin}/health`,
+    health_status: "starting",
   };
 }
 
@@ -157,6 +209,10 @@ export function startBundledBackend() {
   if (!backendRuntimeInfoPromise) {
     backendRuntimeInfoPromise = Promise.resolve()
       .then(() => (isDesktopDevMode() ? resolveExternalBackendInfo() : startManagedBackend()))
+      .then((info) => {
+        startBackendHealthMonitor(info);
+        return info;
+      })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
         console.error("[Backend] failed to initialize runtime:", error);

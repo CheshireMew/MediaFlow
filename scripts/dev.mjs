@@ -197,6 +197,7 @@ async function main() {
 
   const backendApiBase = `http://${backendHost}:${backendPort}/api/v1`;
   const backendWsBase = `ws://${backendHost}:${backendPort}/api/v1`;
+  const rendererOrigin = `http://${rendererHost}:${rendererPort}`;
   process.env.VITE_API_URL = backendApiBase;
   process.env.VITE_WS_URL = backendWsBase;
 
@@ -222,7 +223,6 @@ async function main() {
       throw new Error(`Electron dev build exited before becoming ready with code ${buildExitCode}.`);
     }
   });
-  const rendererOrigin = await startViteServer(rendererPort);
   const python = resolveBackendPython();
   backendProcess = spawn(python, ["run.py"], {
     cwd: projectRoot,
@@ -251,6 +251,7 @@ async function main() {
       void stopProcesses(1);
     });
 
+  await startViteServer(rendererPort);
   await electronMainReady;
   electronProcess = spawn(electron, ["."], {
     cwd: frontendRoot,

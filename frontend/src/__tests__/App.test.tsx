@@ -9,6 +9,10 @@ import { resetNavigationPersistenceForTests } from '../services/ui/navigationPer
 
 type MockIconComponent = (props: Record<string, unknown>) => ReactElement
 
+const { prewarmFasterWhisperCliFromStoredPreferencesMock } = vi.hoisted(() => ({
+  prewarmFasterWhisperCliFromStoredPreferencesMock: vi.fn(),
+}))
+
 installElectronMock()
 
 afterEach(() => {
@@ -22,6 +26,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
+}))
+
+vi.mock('../services/asrCliPrewarm', () => ({
+  prewarmFasterWhisperCliFromStoredPreferences: prewarmFasterWhisperCliFromStoredPreferencesMock,
 }))
 
 // Mock Lucide icons and other complex components
@@ -88,6 +96,9 @@ test('opens downloader on first launch', async () => {
   render(<App />)
   await waitFor(() => {
     expect(screen.getByTestId('page-downloader')).toBeInTheDocument()
+  })
+  await waitFor(() => {
+    expect(prewarmFasterWhisperCliFromStoredPreferencesMock).toHaveBeenCalled()
   })
 })
 

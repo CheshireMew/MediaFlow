@@ -23,6 +23,7 @@ import {
 } from "../services/ui/mediaReference";
 import { normalizeTranscribeResult } from "../services/ui/transcribeResult";
 import { useExecutionModeState } from "./execution/useExecutionModeState";
+import { prewarmFasterWhisperCliFromStoredPreferences } from "../services/asrCliPrewarm";
 
 export function useTranscriber() {
   const { tasks, tasksSettled } = useTaskContext();
@@ -62,6 +63,19 @@ export function useTranscriber() {
       model,
       device,
     });
+  }, [device, engine, model]);
+
+  useEffect(() => {
+    if (engine !== "cli") {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      prewarmFasterWhisperCliFromStoredPreferences();
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [device, engine, model]);
 
   useTranscriberNavigation({ setFile, setResult, setCurrentTranscriptionTaskId });

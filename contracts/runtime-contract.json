@@ -80,6 +80,15 @@
   "features": {
     "preprocessing": true
   },
+  "asr_execution_preferences": {
+    "key": "asr_execution_preferences",
+    "schema_version": 1,
+    "defaults": {
+      "engine": "builtin",
+      "model": "base",
+      "device": "cpu"
+    }
+  },
   "task_lifecycle": {
     "runtime_only": "runtime-only",
     "history_only": "history-only",

@@ -2,12 +2,17 @@ from pathlib import Path
 from typing import List, Optional
 
 from loguru import logger
-from pydantic import BaseModel
 
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 from backend.core.task_runner import BackgroundTaskRunner
-from backend.models.schemas import FileRef, MediaReference, SubtitleSegment, TaskResult
+from backend.models.schemas import (
+    FileRef,
+    MediaReference,
+    SubtitleSegment,
+    TaskResult,
+    TranslationRequest,
+)
 from backend.services.media_refs import create_media_ref
 
 
@@ -30,13 +35,6 @@ def get_translation_output_suffix(target_language: str, mode: str) -> str:
     if mode == "proofread":
         return "_PR"
     return get_language_suffix(target_language)
-
-
-class TranslationRequest(BaseModel):
-    segments: List[SubtitleSegment]
-    target_language: str = "Chinese"
-    mode: str = "standard"
-    context_ref: Optional[MediaReference] = None
 
 
 def build_translation_task_result(

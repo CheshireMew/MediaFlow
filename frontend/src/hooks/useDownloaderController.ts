@@ -10,6 +10,7 @@ import {
 } from "../services/domain/downloadSubmission";
 import { useDownloaderStore } from "../stores/downloaderStore";
 import { useDownloaderTasks } from "./downloader/useDownloaderTasks";
+import { prewarmFasterWhisperCliFromStoredPreferences } from "../services/asrCliPrewarm";
 
 export function useDownloaderController() {
   const { addTask, remoteTasksReady } = useTaskContext();
@@ -111,6 +112,7 @@ export function useDownloaderController() {
 
   const handleAnalyzeAndDownload = async () => {
     if (!url) return;
+    prewarmFasterWhisperCliFromStoredPreferences();
     setAnalyzing(true);
     setError(null);
     setPlaylistInfo(null);
@@ -197,6 +199,7 @@ export function useDownloaderController() {
 
   const handlePlaylistDownload = (mode: "current" | "all" | "selected") => {
     if (!playlistInfo?.items) return;
+    prewarmFasterWhisperCliFromStoredPreferences();
 
     let itemsToDownload: DownloadQueueItem[] = [];
     const playlistTitle = playlistInfo.id

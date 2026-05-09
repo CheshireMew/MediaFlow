@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException
 import logging
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
-from backend.application.task_operations import submit_task_operation
 from backend.models.schemas import (
     CleanRequest,
     EnhanceRequest,
@@ -32,6 +31,8 @@ async def enhance_video(request: EnhanceRequest):
         detail = "Real-ESRGAN binary not found." if request.method == "realesrgan" else "BasicVSR++ dependencies (mmmagic, cuda) not found."
         raise HTTPException(status_code=503, detail=detail)
 
+    from backend.application.task_operations import submit_task_operation
+
     response = await submit_task_operation("enhancement", request)
 
     return PreprocessingResponse.model_validate(
@@ -51,6 +52,8 @@ async def clean_video(
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    from backend.application.task_operations import submit_task_operation
 
     response = await submit_task_operation("cleanup", request)
 

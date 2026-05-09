@@ -5,6 +5,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from backend.config import settings
+from backend.contracts import ASR_EXECUTION_PREFERENCES
 
 
 class LLMProvider(BaseModel):
@@ -30,6 +31,12 @@ class UserSettings(BaseModel):
         ge=1,
     )
     ui_state: dict[str, Any] = Field(default_factory=dict)
+
+
+class AsrExecutionPreferences(BaseModel):
+    engine: str = ASR_EXECUTION_PREFERENCES["defaults"]["engine"]
+    model: str = ASR_EXECUTION_PREFERENCES["defaults"]["model"]
+    device: str = ASR_EXECUTION_PREFERENCES["defaults"]["device"]
 
 
 class SettingsManager:
@@ -141,6 +148,42 @@ class SettingsManager:
 
     def get_settings(self) -> UserSettings:
         return self._load()
+
+    def get_asr_execution_preferences(
+        self,
+        user_settings: UserSettings | None = None,
+    ) -> AsrExecutionPreferences:
+        settings_source = user_settings or self.get_settings()
+        raw_preferences = settings_source.ui_state.get(ASR_EXECUTION_PREFERENCES["key"])
+        if not isinstance(raw_preferences, str):
+            return AsrExecutionPreferences()
+
+        try:
+            envelope = json.loads(raw_preferences)
+        except json.JSONDecodeError:
+            return AsrExecutionPreferences()
+
+        if (
+            not isinstance(envelope, dict)
+            or envelope.get("schema_version") != ASR_EXECUTION_PREFERENCES["schema_version"]
+        ):
+            return AsrExecutionPreferences()
+
+        payload = envelope.get("payload")
+        if not isinstance(payload, dict):
+            return AsrExecutionPreferences()
+
+        return AsrExecutionPreferences(
+            engine="cli"
+            if payload.get("engine") == "cli"
+            else ASR_EXECUTION_PREFERENCES["defaults"]["engine"],
+            model=payload.get("model")
+            if isinstance(payload.get("model"), str) and payload.get("model")
+            else ASR_EXECUTION_PREFERENCES["defaults"]["model"],
+            device=payload.get("device")
+            if isinstance(payload.get("device"), str) and payload.get("device")
+            else ASR_EXECUTION_PREFERENCES["defaults"]["device"],
+        )
 
     def update_settings(self, new_settings: UserSettings):
         normalized_settings = self._normalize_settings(new_settings)

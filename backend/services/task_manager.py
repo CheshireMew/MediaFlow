@@ -61,7 +61,7 @@ class TaskManager:
             await init_db()
             self._start_workers()
             self._hydration_started = True
-            await self.load_tasks()
+            await self.load_runtime_tasks()
 
     async def warm_start_async(self):
         """
@@ -90,7 +90,7 @@ class TaskManager:
         if self._startup_load_task and not self._startup_load_task.done():
             return
 
-        self._startup_load_task = asyncio.create_task(self._load_tasks_background())
+        self._startup_load_task = asyncio.create_task(self._load_runtime_tasks_background())
 
     async def shutdown_async(self):
         """Stop queue workers cleanly."""
@@ -136,29 +136,43 @@ class TaskManager:
     def _start_workers(self):
         self._queue_runner.start(self)
 
-    async def load_tasks(self):
-        """Load tasks from DB on startup."""
+    async def load_runtime_tasks(self):
+        """Load restart-relevant tasks without hydrating historical task records."""
         loaded_successfully = False
         try:
-            persisted_tasks = await self._repository.load_all()
+            persisted_tasks = await self._repository.load_runtime_tasks()
             self.tasks = {**persisted_tasks, **self.tasks}
-            logger.info(f"Loaded {len(self.tasks)} tasks from SQLite.")
+            logger.info(f"Loaded {len(persisted_tasks)} runtime tasks from SQLite.")
             loaded_successfully = True
         except Exception as e:
-            logger.error(f"Failed to load tasks from DB: {e}")
+            logger.error(f"Failed to load runtime tasks from DB: {e}")
         finally:
             self._tasks_loaded.set()
         if loaded_successfully:
             await self._event_publisher.publish_snapshot(self.get_tasks_snapshot())
 
-    async def _load_tasks_background(self):
+    async def _load_runtime_tasks_background(self):
         try:
-            await self.load_tasks()
-            logger.info("Background task hydration completed.")
+            await self.load_runtime_tasks()
+            logger.info("Background runtime task hydration completed.")
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            logger.error(f"Background task hydration failed: {e}")
+            logger.error(f"Background runtime task hydration failed: {e}")
+
+    async def get_history_snapshot(self) -> list[TaskView]:
+        await self.wait_until_tasks_loaded()
+        persisted_tasks = await self._repository.load_history()
+        merged_tasks = {**persisted_tasks, **self.tasks}
+        return [
+            self._queue_view.serialize_task(
+                task,
+                running_ids=self._runtime_state.running_ids,
+                queued_ids=self._runtime_state.queued_ids,
+                queued_order=self._runtime_state.queued_order,
+            )
+            for task in merged_tasks.values()
+        ]
 
     def serialize_task(self, task: Task) -> TaskView:
         return self._queue_view.serialize_task(
@@ -280,7 +294,16 @@ class TaskManager:
         )
         if updated_task:
             self.tasks[task_id] = updated_task
-            await self._event_publisher.publish_update(self.serialize_task(updated_task))
+            pruned_task_ids: list[str] = []
+            if updated_task.persistence_scope == "history":
+                pruned_task_ids = await self._repository.trim_history()
+                for pruned_task_id in pruned_task_ids:
+                    self.tasks.pop(pruned_task_id, None)
+
+            if task_id not in pruned_task_ids:
+                await self._event_publisher.publish_update(self.serialize_task(updated_task))
+            for pruned_task_id in pruned_task_ids:
+                await self._event_publisher.publish_delete(pruned_task_id)
 
     async def pause_task(self, task_id: str) -> bool:
         await self._wait_for_mutation_boundary()

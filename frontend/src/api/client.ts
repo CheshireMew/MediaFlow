@@ -21,6 +21,8 @@ export type {
   ProviderConnectionResponse,
   ToolUpdateResponse,
   FasterWhisperCliInstallResponse,
+  FasterWhisperCliPrewarmRequest,
+  FasterWhisperCliPrewarmResponse,
   CudaReadinessResponse,
   ImagePreviewResponse,
   SynthesizeOptions,
@@ -53,6 +55,8 @@ import type {
   ProviderConnectionResponse,
   ToolUpdateResponse,
   FasterWhisperCliInstallResponse,
+  FasterWhisperCliPrewarmRequest,
+  FasterWhisperCliPrewarmResponse,
   CudaReadinessResponse,
   ImagePreviewResponse,
   SynthesizeRequest,
@@ -67,6 +71,7 @@ import type {
   EnhanceVideoRequest,
   CleanVideoRequest,
 } from "../types/api";
+import type { Task } from "../types/task";
 
 // ─── Internal Generic Request Wrapper ────────────────────────────
 
@@ -223,6 +228,10 @@ export const apiClient = {
     return request<TranslationTaskStatus>(`/tasks/${taskId}`);
   },
 
+  listTasks: () => {
+    return request<Task[]>("/tasks/");
+  },
+
   runPipeline: (req: PipelineRequest) => {
     return request<TaskResponse>("/pipeline/run", {
       method: "POST",
@@ -314,6 +323,13 @@ export const apiClient = {
     return request<FasterWhisperCliInstallResponse>("/settings/install-faster-whisper-cli", {
       method: "POST",
     }, 1_800_000);
+  },
+
+  prewarmFasterWhisperCli: (payload: FasterWhisperCliPrewarmRequest) => {
+    return request<FasterWhisperCliPrewarmResponse>("/settings/prewarm-faster-whisper-cli", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
   getCudaReadiness: () => {

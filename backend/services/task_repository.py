@@ -7,9 +7,14 @@ from loguru import logger
 from pydantic import BaseModel
 from sqlmodel import delete, select
 
-from backend.contracts import TASK_CONTRACT_VERSION, task_lifecycle, task_persistence_scope
+from backend.contracts import TASK_CONTRACT_VERSION, TASK_STATUSES, task_lifecycle, task_persistence_scope
 from backend.core.database import get_session_context
 from backend.models.task_model import Task, task_timestamp_ms
+
+TASK_HISTORY_LIMIT = 20
+TASK_HISTORY_STATUSES = tuple(
+    status for status in TASK_STATUSES if task_persistence_scope(status) == "history"
+)
 
 
 def _clamp_progress(value):
@@ -46,10 +51,30 @@ def _json_payload(value: Any) -> Dict | None:
 
 
 class TaskRepository:
-    async def load_all(self) -> dict[str, Task]:
+    async def trim_history(self) -> list[str]:
+        async with get_session_context() as session:
+            pruned_task_ids = await self._trim_history(session)
+            if pruned_task_ids:
+                await session.commit()
+        return pruned_task_ids
+
+    async def _trim_history(self, session) -> list[str]:
+        statement = (
+            select(Task.id)
+            .where(Task.status.in_(TASK_HISTORY_STATUSES))
+            .order_by(Task.created_at.desc(), Task.id.desc())
+            .offset(TASK_HISTORY_LIMIT)
+        )
+        result = await session.execute(statement)
+        pruned_task_ids = list(result.scalars().all())
+        if pruned_task_ids:
+            await session.execute(delete(Task).where(Task.id.in_(pruned_task_ids)))
+        return pruned_task_ids
+
+    async def load_runtime_tasks(self) -> dict[str, Task]:
         tasks_by_id: dict[str, Task] = {}
         async with get_session_context() as session:
-            statement = select(Task)
+            statement = select(Task).where(Task.status.in_(["running", "pending", "paused"]))
             result = await session.execute(statement)
             tasks = result.scalars().all()
 
@@ -66,6 +91,25 @@ class TaskRepository:
             if tasks:
                 await session.commit()
 
+        return tasks_by_id
+
+    async def load_history(self) -> dict[str, Task]:
+        tasks_by_id: dict[str, Task] = {}
+        async with get_session_context() as session:
+            pruned_task_ids = await self._trim_history(session)
+            if pruned_task_ids:
+                await session.commit()
+
+            statement = (
+                select(Task)
+                .where(Task.status.in_(TASK_HISTORY_STATUSES))
+                .order_by(Task.created_at.desc(), Task.id.desc())
+                .limit(TASK_HISTORY_LIMIT)
+            )
+            result = await session.execute(statement)
+            tasks = result.scalars().all()
+            for task in tasks:
+                tasks_by_id[task.id] = task
         return tasks_by_id
 
     async def create_task(

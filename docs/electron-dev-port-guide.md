@@ -13,7 +13,7 @@
 运行：
 
 ```powershell
-npm run dev
+node scripts/dev.mjs
 ```
 
 `scripts/dev.mjs` 负责：
@@ -59,14 +59,14 @@ npm run dev
 
 ```powershell
 $env:MEDIAFLOW_BACKEND_DEV_PORT = "8800"
-npm run dev
+node scripts/dev.mjs
 ```
 
 固定 renderer 端口：
 
 ```powershell
 $env:MEDIAFLOW_RENDERER_DEV_PORT = "3000"
-npm run dev
+node scripts/dev.mjs
 ```
 
 显式端口是严格配置。端口不可用时应失败，而不是静默换端口。
@@ -81,7 +81,7 @@ npm run dev
 
 - 检查启动日志中 `[dev] backend ready at ...`。
 - 检查 Vite 是否由 `scripts/dev.mjs` 启动，而不是单独运行 `vite`。
-- 检查 Electron 是否由 `npm run dev` 启动，而不是直接运行 frontend 包脚本。
+- 检查 Electron 是否由 `node scripts/dev.mjs` 启动，而不是直接运行 frontend 包脚本。
 
 ## 回归
 
@@ -91,5 +91,5 @@ npm run dev
 npm run build --prefix frontend
 npm run test:frontend
 .\.venv\Scripts\python.exe -m py_compile backend\main.py
-npm run dev
+node scripts/dev.mjs
 ```

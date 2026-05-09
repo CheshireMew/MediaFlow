@@ -40,6 +40,15 @@ type RuntimeContractShape = {
   features: {
     preprocessing: boolean;
   };
+  asr_execution_preferences: {
+    key: string;
+    schema_version: number;
+    defaults: {
+      engine: "builtin" | "cli";
+      model: string;
+      device: string;
+    };
+  };
   task_lifecycle: {
     runtime_only: TaskLifecycle;
     history_only: TaskLifecycle;
@@ -58,6 +67,7 @@ export const TASK_PERSISTENCE_SCOPES = contract.task_persistence_scopes;
 export const TASK_QUEUE_STATES = contract.task_queue_states;
 export const TASK_STATUS_PROJECTION = contract.task_status_projection;
 export const RUNTIME_FEATURES = contract.features;
+export const ASR_EXECUTION_PREFERENCES = contract.asr_execution_preferences;
 export const TASK_LIFECYCLE = contract.task_lifecycle;
 
 export function getTaskLifecycle(args: { status: TaskStatus }): TaskLifecycle {

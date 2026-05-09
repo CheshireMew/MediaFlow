@@ -1,16 +1,17 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 
-from backend.application.glossary_service import (
+from backend.models.schemas import (
     CreateGlossaryTermRequest,
-    GlossaryApplicationService,
+    GlossaryTerm,
     UpdateGlossaryTermRequest,
 )
-from backend.models.schemas import GlossaryTerm
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
 
 def _glossary_application():
+    from backend.application.glossary_service import GlossaryApplicationService
+
     return GlossaryApplicationService(runtime_service(Services.GLOSSARY))
 
 router = APIRouter(prefix="/glossary", tags=["Glossary"])
