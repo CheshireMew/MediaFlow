@@ -4,6 +4,10 @@ const inFlightProfiles = new Set<string>();
 
 export function prewarmFasterWhisperCliFromStoredPreferences() {
   const preferences = restoreStoredAsrExecutionPreferences();
+  if (preferences.engine !== "cli") {
+    return;
+  }
+
   const profileKey = `${preferences.model}:${preferences.device}`;
   if (inFlightProfiles.has(profileKey)) {
     return;
