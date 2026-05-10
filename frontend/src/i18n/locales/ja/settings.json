@@ -4,7 +4,8 @@
   "addProvider": "プロバイダー追加",
   "tabs": {
     "llm": "LLM プロバイダー",
-    "general": "一般設定"
+    "general": "一般設定",
+    "cuda": "CUDA Readiness"
   },
   "llm": {
     "status": "ステータス",

@@ -6,8 +6,7 @@ import {
   DEFAULT_SMART_SPLIT_TEXT_LIMIT,
   normalizeSmartSplitTextLimit,
 } from "../../utils/subtitleSmartSplit";
-
-export type SettingsTab = "llm" | "general";
+import { isSettingsTab, type SettingsTab } from "./settingsTabModel";
 
 export interface Notification {
   message: string;
@@ -21,7 +20,7 @@ export type ShowSettingsNotification = (
 
 export function resolveSettingsTab(search: string): SettingsTab {
   const tab = new URLSearchParams(search).get("tab");
-  return tab === "general" ? "general" : "llm";
+  return isSettingsTab(tab) ? tab : "llm";
 }
 
 export function useSettingsData(search: string, t: TFunction<"settings">) {

@@ -4,7 +4,8 @@
   "addProvider": "添加供应商",
   "tabs": {
     "llm": "LLM 供应商",
-    "general": "通用设置"
+    "general": "通用设置",
+    "cuda": "CUDA 就绪检查"
   },
   "llm": {
     "status": "状态",

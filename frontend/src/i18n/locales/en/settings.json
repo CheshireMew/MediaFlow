@@ -4,7 +4,8 @@
   "addProvider": "Add Provider",
   "tabs": {
     "llm": "LLM Providers",
-    "general": "General & Storage"
+    "general": "General & Storage",
+    "cuda": "CUDA Readiness"
   },
   "llm": {
     "status": "Status",

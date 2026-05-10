@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
+import { CudaReadinessPanel } from "./settings/CudaReadinessPanel";
 import { GeneralSettingsPanel } from "./settings/GeneralSettingsPanel";
 import { LlmProvidersPanel } from "./settings/LlmProvidersPanel";
 import { ProviderModal } from "./settings/ProviderModal";
@@ -24,10 +25,12 @@ const SettingsPage: React.FC = () => {
         <SettingsTabs activeTab={activeTab} onChange={setActiveTab} t={t} />
 
         <div className="p-0 min-h-[400px]">
-          {activeTab === "llm" ? (
+          {activeTab === "general" ? (
+            <GeneralSettingsPanel controller={controller} t={t} />
+          ) : activeTab === "llm" ? (
             <LlmProvidersPanel controller={controller} t={t} tc={tc} />
           ) : (
-            <GeneralSettingsPanel controller={controller} t={t} />
+            <CudaReadinessPanel controller={controller} t={t} />
           )}
         </div>
       </div>

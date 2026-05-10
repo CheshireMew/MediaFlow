@@ -1,8 +1,9 @@
 import { Plus, Settings } from "lucide-react";
 import type { SettingsT } from "./settingsTypes";
+import type { SettingsTab } from "./settingsTabModel";
 
 type SettingsHeaderProps = {
-  activeTab: "llm" | "general";
+  activeTab: SettingsTab;
   onAddProvider: () => void;
   t: SettingsT;
 };
