@@ -136,7 +136,7 @@ npm run test
 
 Faster-Whisper-XXL 是独立 CLI 包，每次 CLI 转录都会启动一个新的 `faster-whisper-xxl.exe` 进程。该包目录包含大量 Torch/CUDA/ONNX DLL，冷启动时 Windows 需要加载这些依赖，可能在进程第一行输出前出现几十秒等待。Windows Defender 实时防护可能放大这个等待，但排除 Defender 后仍可能受冷文件缓存、DLL 动态加载、CUDA/Torch 初始化影响。这个等待不属于 MediaFlow 的 CUDA 就绪检查；CLI 自带 CUDA 运行库，内置 `faster-whisper` 的 CUDA DLL 检查不适用于它。
 
-后端启动后会后台执行一次 `faster-whisper-xxl.exe --help` 来预热 CLI 依赖加载；如果应用刚启动就立即转录，第一次转录仍可能和预热竞争同一段冷启动成本。
+应用会按当前 ASR 配置后台运行一次短音频预热，预热状态只在短时间内有效。超过有效期后再次进入转写相关页面会重新预热；如果正式转写启动时同一模型和设备的预热还在运行，后端会先等待预热完成，避免同时启动两个 XXL 进程争抢同一段冷启动成本。
 
 如果确认本机 XXL 包来源可信，可以用管理员 PowerShell 只对 XXL 目录加 Defender 排除：
 

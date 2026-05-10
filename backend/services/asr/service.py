@@ -22,8 +22,11 @@ from .model_manager import ModelManager
 from .core_strategies import CoreStrategies
 
 class ASRService:
+    CLI_PREWARM_FRESH_SECONDS = 20 * 60
+    CLI_PREWARM_JOIN_TIMEOUT_SECONDS = 180
+
     _cli_prewarm_lock = threading.Lock()
-    _cli_prewarmed_profiles: set[tuple[str, str, str]] = set()
+    _cli_prewarmed_profiles: dict[tuple[str, str, str], float] = {}
     _cli_prewarm_threads: dict[tuple[str, str, str], threading.Thread] = {}
     _cli_prewarm_processes: dict[tuple[str, str, str], subprocess.Popen] = {}
     _cli_prewarm_cancelled_profiles: set[tuple[str, str, str]] = set()
@@ -41,8 +44,8 @@ class ASRService:
             return False
 
         with ASRService._cli_prewarm_lock:
-            if profile_key in ASRService._cli_prewarmed_profiles:
-                logger.debug("Faster-Whisper CLI prewarm already completed for {}", profile_key)
+            if self._is_cli_prewarm_fresh_locked(profile_key):
+                logger.debug("Faster-Whisper CLI prewarm still fresh for {}", profile_key)
                 return False
 
             existing_thread = ASRService._cli_prewarm_threads.get(profile_key)
@@ -60,7 +63,13 @@ class ASRService:
             thread.start()
             return True
 
-    def _cancel_running_cli_prewarm(self, model_name: str, device: str, reason: str) -> None:
+    def _join_running_cli_prewarm(
+        self,
+        model_name: str,
+        device: str,
+        reason: str,
+        progress_callback=None,
+    ) -> None:
         profile_key = self._cli_prewarm_profile_key(model_name, device)
         if profile_key is None:
             return
@@ -70,9 +79,24 @@ class ASRService:
             process = ASRService._cli_prewarm_processes.get(profile_key)
             if not thread or not thread.is_alive():
                 return
+
+        logger.info("Waiting for Faster-Whisper CLI prewarm for {}: {}", profile_key, reason)
+        if progress_callback:
+            progress_callback(0, "Waiting for Faster-Whisper CLI warmup to finish...")
+
+        thread.join(timeout=self.CLI_PREWARM_JOIN_TIMEOUT_SECONDS)
+        if not thread.is_alive():
+            logger.info("Faster-Whisper CLI prewarm finished before real transcription for {}", profile_key)
+            return
+
+        with ASRService._cli_prewarm_lock:
             ASRService._cli_prewarm_cancelled_profiles.add(profile_key)
 
-        logger.info("Faster-Whisper CLI prewarm cancelled for {}: {}", profile_key, reason)
+        logger.warning(
+            "Faster-Whisper CLI prewarm exceeded {}s while {}; stopping it and continuing.",
+            self.CLI_PREWARM_JOIN_TIMEOUT_SECONDS,
+            reason,
+        )
 
         if process and process.poll() is None:
             try:
@@ -86,6 +110,24 @@ class ASRService:
                 logger.warning("Failed to stop Faster-Whisper CLI prewarm process: {}", exc)
 
         thread.join(timeout=5)
+
+    @classmethod
+    def _is_cli_prewarm_fresh_locked(cls, profile_key: tuple[str, str, str]) -> bool:
+        completed_at = cls._cli_prewarmed_profiles.get(profile_key)
+        if completed_at is None:
+            return False
+
+        age = time.monotonic() - completed_at
+        if age <= cls.CLI_PREWARM_FRESH_SECONDS:
+            return True
+
+        cls._cli_prewarmed_profiles.pop(profile_key, None)
+        logger.debug(
+            "Faster-Whisper CLI prewarm expired for {} after {:.1f}s",
+            profile_key,
+            age,
+        )
+        return False
 
     @staticmethod
     def _cli_prewarm_profile_key(model_name: str, device: str) -> tuple[str, str, str] | None:
@@ -169,7 +211,7 @@ class ASRService:
                 )
             elif returncode == 0:
                 with ASRService._cli_prewarm_lock:
-                    ASRService._cli_prewarmed_profiles.add(profile_key)
+                    ASRService._cli_prewarmed_profiles[profile_key] = time.monotonic()
                 logger.info(
                     "Faster-Whisper CLI prewarm completed in {:.3f}s: model={} device={}",
                     elapsed,
@@ -249,10 +291,11 @@ class ASRService:
                 # 1. Ensure model is available locally
                 # ModelManager returns path to model dir (or model name if fallback)
                 local_model_path_str = self.model_manager.ensure_model_downloaded(model_name, progress_callback)
-                self._cancel_running_cli_prewarm(
+                self._join_running_cli_prewarm(
                     model_name=model_name,
                     device=device,
                     reason="real transcription is starting",
+                    progress_callback=progress_callback,
                 )
                 
                 # 2. Configure Adapter

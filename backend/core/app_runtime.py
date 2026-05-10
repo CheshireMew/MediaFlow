@@ -1,5 +1,6 @@
 from backend.core.container import Services
 from backend.core.runtime_access import configure_runtime_services, reset_runtime_services
+from loguru import logger
 
 
 class ApplicationRuntime:
@@ -34,7 +35,28 @@ class ApplicationRuntime:
         registered_count = self.register_services()
         self.register_task_runners()
         configure_runtime_services(self._container)
+        self._start_asr_cli_prewarm()
         return registered_count
+
+    def _start_asr_cli_prewarm(self) -> None:
+        if not self._container.has(Services.SETTINGS_MANAGER) or not self._container.has(Services.ASR):
+            return
+
+        settings_manager = self._container.get(Services.SETTINGS_MANAGER)
+        preferences = settings_manager.get_asr_execution_preferences()
+        if preferences.engine != "cli":
+            return
+
+        started = self._container.get(Services.ASR).start_cli_prewarm(
+            model_name=preferences.model,
+            device=preferences.device,
+        )
+        if started:
+            logger.info(
+                "Faster-Whisper CLI prewarm scheduled from ASR preferences: model={} device={}",
+                preferences.model,
+                preferences.device,
+            )
 
     async def stop(self) -> None:
         if self._container.is_instantiated(Services.TASK_MANAGER):
