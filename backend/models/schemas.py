@@ -153,6 +153,15 @@ class SynthesisRequest(BaseModel):
     options: Optional[dict] = None
 
 
+class MediaVisibleStartRequest(BaseModel):
+    video_ref: MediaReference
+
+
+class MediaVisibleStartResponse(BaseModel):
+    visible_start: float
+    has_leading_black: bool
+
+
 class TextEvent(BaseModel):
     start: float
     end: float

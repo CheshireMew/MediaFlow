@@ -1,6 +1,11 @@
 // ── Watermark State + Upload + Load + Position Presets ──
-import { useState, useEffect } from "react";
-import { editorService } from "../../../../services/domain";
+import { useRef, useState, useEffect } from "react";
+import {
+  editorService,
+  resolveDefaultWatermarkLayout,
+  resolveWatermarkPosition,
+  type WatermarkPositionPreset,
+} from "../../../../services/domain";
 import {
   updateStoredSynthesisExecutionPreferences,
   type SynthesisExecutionPreferences,
@@ -17,9 +22,7 @@ export interface WatermarkState {
   setWmOpacity: (v: number) => void;
   setWmPos: (v: { x: number; y: number }) => void;
   handleWatermarkSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  applyWmPositionPreset: (
-    pos: "TL" | "TC" | "TR" | "BL" | "BC" | "BR" | "C" | "LC" | "RC",
-  ) => void;
+  applyWmPositionPreset: (pos: WatermarkPositionPreset) => void;
 }
 
 export function useWatermark(
@@ -36,18 +39,25 @@ export function useWatermark(
   const [wmOpacity, setWmOpacity] = useState(0.8);
   const [wmPos, setWmPos] = useState({ x: 0.5, y: 0.5 });
   const [watermarkSize, setWatermarkSize] = useState({ w: 0, h: 0 });
+  const layoutInitializedKey = useRef<string | null>(null);
+  const hasManualLayout = useRef(false);
 
   // --- Restore from shared settings ---
   useEffect(() => {
     if (!isOpen) return;
     const timer = setTimeout(() => {
-      setWmScale(persistedPreferences.watermark.wmScale);
       setWmOpacity(persistedPreferences.watermark.wmOpacity);
-      setWmPos(persistedPreferences.watermark.wmPos);
     }, 0);
 
     return () => clearTimeout(timer);
   }, [isOpen, persistedPreferences.watermark]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      layoutInitializedKey.current = null;
+      hasManualLayout.current = false;
+    }
+  }, [isOpen]);
 
   // --- Load persisted watermark image ---
   useEffect(() => {
@@ -67,6 +77,48 @@ export function useWatermark(
         /* ignore */
       });
   }, [isOpen, watermarkPreviewUrl]);
+
+  useEffect(() => {
+    if (!isOpen || hasManualLayout.current) {
+      return;
+    }
+    if (
+      outputSize.w <= 0 ||
+      outputSize.h <= 0 ||
+      watermarkSize.w <= 0 ||
+      watermarkSize.h <= 0
+    ) {
+      return;
+    }
+
+    const nextKey = [
+      outputSize.w,
+      outputSize.h,
+      watermarkSize.w,
+      watermarkSize.h,
+      watermarkPath ?? "__watermark__",
+    ].join(":");
+    if (layoutInitializedKey.current === nextKey) {
+      return;
+    }
+
+    const layout = resolveDefaultWatermarkLayout({
+      outputWidth: outputSize.w,
+      outputHeight: outputSize.h,
+      watermarkWidth: watermarkSize.w,
+      watermarkHeight: watermarkSize.h,
+    });
+    setWmScale(layout.wmScale);
+    setWmPos(layout.wmPos);
+    layoutInitializedKey.current = nextKey;
+  }, [
+    isOpen,
+    outputSize.h,
+    outputSize.w,
+    watermarkPath,
+    watermarkSize.h,
+    watermarkSize.w,
+  ]);
 
   // --- Persist scale/opacity/pos ---
   useEffect(() => {
@@ -110,29 +162,8 @@ export function useWatermark(
         const h = res.height;
         setWatermarkSize({ w, h });
 
-        // --- Smart Default Position (Top-Right) ---
-        const vidW = outputSize.w || 1920;
-        const vidH = outputSize.h || 1080;
-
-        // Target Scale: 20% width
-        const scale = 0.2;
-        setWmScale(scale);
-
-        // Calculate Target Dimensions in Pixels
-        const targetW = vidW * scale;
-        const targetH = targetW * (h / w);
-
-        // Normalized Dimensions (0-1)
-        const normW = targetW / vidW;
-        const normH = targetH / vidH;
-
-        const margin = 0.05;
-
-        // Top Right Position (Center coordinates)
-        const x = 1 - margin - normW / 2;
-        const y = margin + normH / 2;
-
-        setWmPos({ x, y });
+        hasManualLayout.current = false;
+        layoutInitializedKey.current = null;
       } catch (err) {
         console.error("[Synthesis] Watermark Upload Failed", err);
         alert("Failed to process watermark. Check console.");
@@ -143,55 +174,28 @@ export function useWatermark(
   // --- Position presets (9-grid) ---
   // Dimension-aware: accounts for watermark size relative to video
   // so that edge-aligned presets don't clip outside the frame.
-  const applyWmPositionPreset = (
-    pos: "TL" | "TC" | "TR" | "BL" | "BC" | "BR" | "C" | "LC" | "RC",
-  ) => {
-    if (!outputSize.w || !watermarkSize.w) {
-      // Fallback for missing metadata
-      const map: Record<string, { x: number; y: number }> = {
-        TL: { x: 0.1, y: 0.1 },
-        TC: { x: 0.5, y: 0.1 },
-        TR: { x: 0.9, y: 0.1 },
-        LC: { x: 0.1, y: 0.5 },
-        C: { x: 0.5, y: 0.5 },
-        RC: { x: 0.9, y: 0.5 },
-        BL: { x: 0.1, y: 0.9 },
-        BC: { x: 0.5, y: 0.9 },
-        BR: { x: 0.9, y: 0.9 },
-      };
-      if (map[pos]) setWmPos(map[pos]);
-      return;
-    }
+  const applyWmPositionPreset = (pos: WatermarkPositionPreset) => {
+    hasManualLayout.current = true;
+    setWmPos(
+      resolveWatermarkPosition({
+        preset: pos,
+        outputWidth: outputSize.w,
+        outputHeight: outputSize.h,
+        watermarkWidth: watermarkSize.w,
+        watermarkHeight: watermarkSize.h,
+        wmScale,
+      }),
+    );
+  };
 
-    // 1. Calculate Watermark Target Dimensions (in pixels)
-    // wmScale is "Target Width as % of Video Width"
-    const targetW = outputSize.w * wmScale;
-    const targetH = targetW * (watermarkSize.h / watermarkSize.w);
+  const updateWmScale = (value: number) => {
+    hasManualLayout.current = true;
+    setWmScale(value);
+  };
 
-    // 2. Normalized Dimensions
-    const normW = targetW / outputSize.w;
-    const normH = targetH / outputSize.h;
-
-    // 3. Margin
-    const marginX = 0.03;
-    const marginY = 0.05;
-
-    let x = 0.5;
-    let y = 0.5;
-
-    // Note: wmPos is the CENTER of the watermark
-
-    // Horizontal
-    if (pos.includes("L")) x = marginX + normW / 2;
-    else if (pos.includes("R")) x = 1 - marginX - normW / 2;
-    else x = 0.5;
-
-    // Vertical
-    if (pos.includes("T")) y = marginY + normH / 2;
-    else if (pos.includes("B")) y = 1 - marginY - normH / 2;
-    else y = 0.5;
-
-    setWmPos({ x, y });
+  const updateWmPos = (value: { x: number; y: number }) => {
+    hasManualLayout.current = true;
+    setWmPos(value);
   };
 
   return {
@@ -201,9 +205,9 @@ export function useWatermark(
     wmOpacity,
     wmPos,
     watermarkSize,
-    setWmScale,
+    setWmScale: updateWmScale,
     setWmOpacity,
-    setWmPos,
+    setWmPos: updateWmPos,
     handleWatermarkSelect,
     applyWmPositionPreset,
   };

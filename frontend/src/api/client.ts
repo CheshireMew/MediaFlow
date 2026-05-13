@@ -25,6 +25,8 @@ export type {
   FasterWhisperCliPrewarmResponse,
   CudaReadinessResponse,
   ImagePreviewResponse,
+  MediaVisibleStartRequest,
+  MediaVisibleStartResponse,
   SynthesizeOptions,
   SynthesizeRequest,
   TranscribeSegmentRequest,
@@ -59,6 +61,8 @@ import type {
   FasterWhisperCliPrewarmResponse,
   CudaReadinessResponse,
   ImagePreviewResponse,
+  MediaVisibleStartRequest,
+  MediaVisibleStartResponse,
   SynthesizeRequest,
   TranscribeSegmentRequest,
   TranscribeSegmentResponse,
@@ -356,6 +360,13 @@ export const apiClient = {
     return request<ImagePreviewResponse | null>(
       "/editor/preview/watermark/latest",
     );
+  },
+
+  getMediaVisibleStart: (payload: MediaVisibleStartRequest) => {
+    return request<MediaVisibleStartResponse>("/editor/preview/media/visible-start", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
   // ─── Preprocessing ───────────────────────────────────────────────

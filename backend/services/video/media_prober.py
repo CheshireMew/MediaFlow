@@ -7,6 +7,11 @@ from backend.config import settings
 
 class MediaProber:
     _nvenc_available: bool | None = None  # Cached detection result
+    _leading_black_pattern = re.compile(
+        r"black_start:(?P<start>\d+(?:\.\d+)?)\s+"
+        r"black_end:(?P<end>\d+(?:\.\d+)?)\s+"
+        r"black_duration:(?P<duration>\d+(?:\.\d+)?)"
+    )
 
     @staticmethod
     def _ffmpeg_probe_output(video_path: str) -> str:
@@ -54,6 +59,49 @@ class MediaProber:
                     return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
             except Exception as fallback_error:
                 logger.warning(f"Duration fallback probe failed: {fallback_error}")
+            return 0.0
+
+    @staticmethod
+    def parse_leading_black_end(ffmpeg_output: str, max_auto_trim: float = 0.15) -> float:
+        """Return the end time of a short black run that starts at the media origin."""
+        for match in MediaProber._leading_black_pattern.finditer(ffmpeg_output):
+            start = float(match.group("start"))
+            end = float(match.group("end"))
+            if start <= 0.01 and 0 < end <= max_auto_trim:
+                return end
+        return 0.0
+
+    @staticmethod
+    def detect_leading_black_end(video_path: str, max_auto_trim: float = 0.15) -> float:
+        """Detect short encoder-origin black frames at the start of a video."""
+        try:
+            result = subprocess.run(
+                [
+                    settings.FFMPEG_PATH,
+                    "-hide_banner",
+                    "-v",
+                    "info",
+                    "-t",
+                    "2",
+                    "-i",
+                    video_path,
+                    "-vf",
+                    "blackdetect=d=0.01:pix_th=0.10",
+                    "-an",
+                    "-f",
+                    "null",
+                    "-",
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+            )
+            output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+            return MediaProber.parse_leading_black_end(output, max_auto_trim=max_auto_trim)
+        except Exception as exc:
+            logger.debug(f"Leading black probe failed: {exc}")
             return 0.0
 
     @staticmethod

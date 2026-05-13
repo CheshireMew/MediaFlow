@@ -11,6 +11,11 @@ export type PreviewViewportMetrics = {
   contentOffsetYPercent: number;
 };
 
+export type ContainedViewportFrame = {
+  width: number;
+  height: number;
+};
+
 function normalizeCropRegion(
   crop?: SubtitleCropRegion | null,
 ): SubtitleCropRegion {
@@ -61,5 +66,35 @@ export function resolvePreviewViewportMetrics(input: {
     contentHeightPercent: 100 / cropRegion.h,
     contentOffsetXPercent: -(cropRegion.x * 100) / cropRegion.w,
     contentOffsetYPercent: -(cropRegion.y * 100) / cropRegion.h,
+  };
+}
+
+export function resolveContainedViewportFrame(input: {
+  containerWidth: number;
+  containerHeight: number;
+  aspectRatio: number;
+}): ContainedViewportFrame {
+  const containerWidth = Math.max(0, Math.floor(input.containerWidth));
+  const containerHeight = Math.max(0, Math.floor(input.containerHeight));
+  const aspectRatio =
+    Number.isFinite(input.aspectRatio) && input.aspectRatio > 0
+      ? input.aspectRatio
+      : 16 / 9;
+
+  if (containerWidth <= 0 || containerHeight <= 0) {
+    return { width: 0, height: 0 };
+  }
+
+  const heightBoundWidth = containerHeight * aspectRatio;
+  if (heightBoundWidth <= containerWidth) {
+    return {
+      width: Math.round(heightBoundWidth),
+      height: containerHeight,
+    };
+  }
+
+  return {
+    width: containerWidth,
+    height: Math.round(containerWidth / aspectRatio),
   };
 }

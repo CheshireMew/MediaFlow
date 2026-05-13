@@ -53,7 +53,7 @@ export function useSubtitleStyle(
   isOpen: boolean,
   regions: SubtitleSegment[],
   currentTime: number,
-  videoHeight: number,
+  outputSize: { w: number; h: number },
   videoPath: string | null,
   persistedPreferences: SynthesisExecutionPreferences,
 ): SubtitleStyleState {
@@ -80,7 +80,7 @@ export function useSubtitleStyle(
   const [subPos, setSubPos] = useState({ ...DEFAULT_SUBTITLE_POSITION });
 
   const isInitialized = useRef(false);
-  const videoHeightRef = useRef(videoHeight);
+  const outputSizeRef = useRef(outputSize);
   const lastRecommendedVideoKey = useRef<string | null>(null);
   const lastManualFontSizeVideoKey = useRef<string | null>(null);
 
@@ -153,8 +153,8 @@ export function useSubtitleStyle(
   );
 
   useEffect(() => {
-    videoHeightRef.current = videoHeight;
-  }, [videoHeight]);
+    outputSizeRef.current = outputSize;
+  }, [outputSize]);
 
   // --- Restore from shared settings ---
   useEffect(() => {
@@ -174,7 +174,10 @@ export function useSubtitleStyle(
 
       try {
         const subtitleStyle = persistedPreferences.subtitleStyle;
-        const recommendedFontSize = computeDefaultSubtitleFontSize(videoHeightRef.current);
+        const recommendedFontSize = computeDefaultSubtitleFontSize({
+          width: outputSizeRef.current.w,
+          height: outputSizeRef.current.h,
+        });
 
         setCustomPresets(subtitleStyle.customPresets);
         lastRecommendedVideoKey.current = null;
@@ -213,7 +216,7 @@ export function useSubtitleStyle(
       return;
     }
 
-    if (videoHeight <= 0) {
+    if (outputSize.w <= 0 && outputSize.h <= 0) {
       return;
     }
 
@@ -236,13 +239,16 @@ export function useSubtitleStyle(
       if (cancelled) {
         return;
       }
-      setFontSizeState(computeDefaultSubtitleFontSize(videoHeight));
+      setFontSizeState(computeDefaultSubtitleFontSize({
+        width: outputSize.w,
+        height: outputSize.h,
+      }));
       lastRecommendedVideoKey.current = currentVideoKey;
     });
     return () => {
       cancelled = true;
     };
-  }, [isOpen, videoHeight, videoPath]);
+  }, [isOpen, outputSize.h, outputSize.w, videoPath]);
 
   // --- Save position ---
   useEffect(() => {

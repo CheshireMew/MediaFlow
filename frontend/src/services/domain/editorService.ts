@@ -2,6 +2,7 @@ import { requireExecutionMediaReference } from "./executionPayload";
 import type { MediaReference } from "../ui/mediaReference";
 import type {
   ImagePreviewResponse,
+  MediaVisibleStartResponse,
   TranscribeSegmentResponse,
   TranslateRequest,
   TranslateResponse,
@@ -57,6 +58,22 @@ export const editorService = {
       payload: undefined,
       backendCall: () =>
         import("../../api/client").then(({ apiClient }) => apiClient.getLatestWatermark()),
+    });
+  },
+
+  async getMediaVisibleStart(payload: {
+    video_ref: MediaReference;
+  }): Promise<MediaVisibleStartResponse> {
+    return await executeBackendDirectCall({
+      payload,
+      normalizePayload: (nextPayload) => ({
+        ...nextPayload,
+        video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
+      }),
+      backendCall: (normalizedPayload) =>
+        import("../../api/client").then(({ apiClient }) =>
+          apiClient.getMediaVisibleStart(normalizedPayload),
+        ),
     });
   },
 };

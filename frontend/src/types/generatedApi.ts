@@ -140,6 +140,13 @@ export interface SynthesisRequest {
   output_ref?: MediaReference | null;
   options?: Record<string, unknown> | null;
 }
+export interface MediaVisibleStartRequest {
+  video_ref: MediaReference;
+}
+export interface MediaVisibleStartResponse {
+  visible_start: number;
+  has_leading_black: boolean;
+}
 export interface OCRExtractRequest {
   video_ref: MediaReference;
   roi?: number[] | null;

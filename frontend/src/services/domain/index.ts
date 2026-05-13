@@ -15,9 +15,13 @@ export {
 } from "./synthesis/types";
 export type { SubtitlePreset } from "./synthesis/types";
 export {
+  resolveContainedViewportFrame,
   resolvePreviewViewportMetrics,
 } from "./synthesis/previewViewport";
-export type { PreviewViewportMetrics } from "./synthesis/previewViewport";
+export type {
+  ContainedViewportFrame,
+  PreviewViewportMetrics,
+} from "./synthesis/previewViewport";
 export {
   buildEmptySubtitlePreviewRenderSpec,
   buildSubtitleSynthesisOptions,
@@ -39,6 +43,15 @@ export {
   clampNormalizedPosition,
 } from "./synthesis/subtitlePlacement";
 export type { SubtitleCropRegion } from "./synthesis/subtitlePlacement";
+export {
+  resolveDefaultWatermarkLayout,
+  resolveDefaultWatermarkScale,
+  resolveWatermarkPosition,
+} from "./synthesis/watermarkLayout";
+export type {
+  WatermarkLayout,
+  WatermarkPositionPreset,
+} from "./synthesis/watermarkLayout";
 export type {
   PersistedSubtitleStyleValues,
   SubtitleMultilineAlign,

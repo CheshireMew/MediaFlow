@@ -17,6 +17,7 @@ import { OutputSettingsPanel } from './synthesis/components/OutputSettingsPanel'
 import { VideoPreview } from './synthesis/components/VideoPreview';
 import {
     buildSynthesisOptionsFromPreferences,
+    editorService,
     resolvePreviewViewportMetrics,
 } from '../../services/domain';
 import { normalizeMediaReference, type MediaReference } from '../../services/ui/mediaReference';
@@ -25,6 +26,16 @@ import {
     type SynthesisExecutionPreferences,
     updateStoredSynthesisExecutionPreferences,
 } from '../../services/persistence/synthesisExecutionPreferences';
+
+const PREVIEW_VISIBLE_FRAME_OFFSET_SECONDS = 1 / 30;
+const PROBE_FAILURE_FALLBACK_VISIBLE_START_SECONDS = 2 / 30;
+
+function resolvePreviewVisibleStart(visibleStart: number) {
+    if (visibleStart <= 0) {
+        return 0;
+    }
+    return visibleStart + PREVIEW_VISIBLE_FRAME_OFFSET_SECONDS;
+}
 
 interface SynthesisDialogProps {
     isOpen: boolean;
@@ -51,16 +62,94 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     const [isSynthesizing, setIsSynthesizing] = useState(false);
     const [synthesisProgress, setSynthesisProgress] = useState(0);
     const [synthesisMessage, setSynthesisMessage] = useState('');
+    const [mediaVisibleStart, setMediaVisibleStart] = useState(0);
+
+    useEffect(() => {
+        if (!isOpen || mediaVisibleStart <= 0 || !videoRef.current) {
+            return;
+        }
+
+        const target = videoRef.current;
+        const nextPreviewStart = resolvePreviewVisibleStart(mediaVisibleStart);
+        let cancelled = false;
+
+        const seekToVisibleFrame = () => {
+            if (cancelled) {
+                return;
+            }
+            target.currentTime = nextPreviewStart;
+            setCurrentTime(nextPreviewStart);
+        };
+
+        if (target.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            seekToVisibleFrame();
+        } else {
+            target.addEventListener("loadedmetadata", seekToVisibleFrame, { once: true });
+            target.addEventListener("canplay", seekToVisibleFrame, { once: true });
+        }
+
+        return () => {
+            cancelled = true;
+            target.removeEventListener("loadedmetadata", seekToVisibleFrame);
+            target.removeEventListener("canplay", seekToVisibleFrame);
+        };
+    }, [isOpen, mediaUrl, mediaVisibleStart]);
 
     useEffect(() => {
         if (!isOpen) {
             setVideoSize({ w: 0, h: 0 });
             setCurrentTime(0);
+            setMediaVisibleStart(0);
             return;
         }
 
         setVideoSize({ w: 0, h: 0 });
         setCurrentTime(0);
+        setMediaVisibleStart(0);
+    }, [isOpen, videoPath, mediaUrl]);
+
+    useEffect(() => {
+        if (!isOpen || !videoPath) {
+            return;
+        }
+
+        const videoRefForProbe = normalizeMediaReference(videoPath, {
+            type: "video/mp4",
+            media_kind: "video",
+            role: "source",
+        });
+        if (!videoRefForProbe) {
+            return;
+        }
+
+        let cancelled = false;
+        void editorService
+            .getMediaVisibleStart({ video_ref: videoRefForProbe })
+            .then((result) => {
+                if (cancelled) {
+                    return;
+                }
+                const nextVisibleStart = result.has_leading_black
+                    ? Math.max(0, result.visible_start)
+                    : 0;
+                setMediaVisibleStart(nextVisibleStart);
+                if (nextVisibleStart > 0) {
+                    const nextPreviewStart = resolvePreviewVisibleStart(nextVisibleStart);
+                    setCurrentTime(nextPreviewStart);
+                    if (videoRef.current) {
+                        videoRef.current.currentTime = nextPreviewStart;
+                    }
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setMediaVisibleStart(PROBE_FAILURE_FALLBACK_VISIBLE_START_SECONDS);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
     }, [isOpen, videoPath, mediaUrl]);
 
     // --- Toggle switches with shared settings persistence ---
@@ -90,7 +179,10 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         isOpen,
         regions,
         currentTime,
-        videoSize.h,
+        {
+            w: outputViewportMetrics.outputSourceWidth,
+            h: outputViewportMetrics.outputSourceHeight,
+        },
         videoPath,
         persistedPreferences,
     );
@@ -156,7 +248,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                 effectivePreferences,
                 {
                     targetResolution: output.targetResolution,
-                    trimStart: output.trimStart,
+                    trimStart: Math.max(output.trimStart, mediaVisibleStart),
                     trimEnd: output.trimEnd,
                     crop: crop.isEnabled ? crop.crop : null,
                     videoSize,

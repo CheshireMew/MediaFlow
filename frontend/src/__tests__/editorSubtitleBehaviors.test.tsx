@@ -19,9 +19,12 @@ import {
   DEFAULT_SUBTITLE_POSITION,
   hexToAss,
   hexWithOpacity,
+  resolveContainedViewportFrame,
+  resolveDefaultWatermarkLayout,
   resolvePreviewViewportMetrics,
   resolveSubtitlePreviewRenderSpec,
   resolveSubtitleRenderSourceSpec,
+  resolveWatermarkPosition,
 } from "../services/domain";
 import {
   resolveSubtitleReferenceForTranslation,
@@ -476,6 +479,25 @@ describe("editor subtitle behaviors", () => {
     });
   });
 
+  test("contained preview frame keeps portrait videos inside the editor stage", () => {
+    const viewport = resolvePreviewViewportMetrics({
+      sourceWidth: 1080,
+      sourceHeight: 1920,
+    });
+
+    expect(viewport.aspectRatio).toBe(1080 / 1920);
+    expect(
+      resolveContainedViewportFrame({
+        containerWidth: 1200,
+        containerHeight: 800,
+        aspectRatio: viewport.aspectRatio,
+      }),
+    ).toEqual({
+      width: 450,
+      height: 800,
+    });
+  });
+
   test("source render spec anchors subtitles against the cropped output height", () => {
     const viewport = resolvePreviewViewportMetrics({
       sourceWidth: 1920,
@@ -498,13 +520,43 @@ describe("editor subtitle behaviors", () => {
     expect(computeSubtitleExportFontSize(40)).toBe(50);
   });
 
-  test("default subtitle font size adapts to the video height", () => {
-    expect(computeDefaultSubtitleFontSize(0)).toBe(24);
-    expect(computeDefaultSubtitleFontSize(240)).toBe(12);
-    expect(computeDefaultSubtitleFontSize(320)).toBe(16);
-    expect(computeDefaultSubtitleFontSize(720)).toBe(40);
-    expect(computeDefaultSubtitleFontSize(1080)).toBe(60);
-    expect(computeDefaultSubtitleFontSize(2160)).toBe(120);
+  test("default subtitle font size adapts to the constrained output edge", () => {
+    expect(computeDefaultSubtitleFontSize({ width: 0, height: 0 })).toBe(24);
+    expect(computeDefaultSubtitleFontSize({ width: 426, height: 240 })).toBe(12);
+    expect(computeDefaultSubtitleFontSize({ width: 568, height: 320 })).toBe(16);
+    expect(computeDefaultSubtitleFontSize({ width: 1280, height: 720 })).toBe(40);
+    expect(computeDefaultSubtitleFontSize({ width: 1920, height: 1080 })).toBe(60);
+    expect(computeDefaultSubtitleFontSize({ width: 3840, height: 2160 })).toBe(120);
+    expect(computeDefaultSubtitleFontSize({ width: 1080, height: 1920 })).toBe(60);
+    expect(computeDefaultSubtitleFontSize({ width: 1440, height: 1080 })).toBe(56);
+    expect(computeDefaultSubtitleFontSize({ width: 628, height: 480 })).toBe(24);
+  });
+
+  test("portrait watermark defaults use portrait scale and edge-safe top-right position", () => {
+    const layout = resolveDefaultWatermarkLayout({
+      outputWidth: 1080,
+      outputHeight: 1920,
+      watermarkWidth: 400,
+      watermarkHeight: 120,
+    });
+
+    expect(layout.wmScale).toBe(0.16);
+    expect(layout.wmPos.x).toBeCloseTo(0.875);
+    expect(layout.wmPos.y).toBeCloseTo(0.0485);
+  });
+
+  test("watermark presets resolve against the current output aspect", () => {
+    const position = resolveWatermarkPosition({
+      preset: "BR",
+      outputWidth: 1080,
+      outputHeight: 1920,
+      watermarkWidth: 400,
+      watermarkHeight: 120,
+      wmScale: 0.16,
+    });
+
+    expect(position.x).toBeCloseTo(0.875);
+    expect(position.y).toBeCloseTo(0.9515);
   });
 
   test("subtitle style recommends a new font size when switching videos before manual override", async () => {
@@ -520,17 +572,17 @@ describe("editor subtitle behaviors", () => {
 
     try {
       const { result, rerender } = renderHook(
-        ({ videoHeight, videoPath }) =>
+        ({ outputSize, videoPath }) =>
           useSubtitleStyle(
             true,
             [],
             0,
-            videoHeight,
+            outputSize,
             videoPath,
             persistedPreferences,
           ),
         {
-          initialProps: { videoHeight: 1080, videoPath: "E:/video-a.mp4" },
+          initialProps: { outputSize: { w: 1920, h: 1080 }, videoPath: "E:/video-a.mp4" },
         },
       );
 
@@ -539,7 +591,7 @@ describe("editor subtitle behaviors", () => {
       });
       expect(result.current.fontSize).toBe(60);
 
-      rerender({ videoHeight: 720, videoPath: "E:/video-b.mp4" });
+      rerender({ outputSize: { w: 1280, h: 720 }, videoPath: "E:/video-b.mp4" });
       await act(async () => {
         await Promise.resolve();
       });
@@ -577,7 +629,7 @@ describe("editor subtitle behaviors", () => {
           true,
           [],
           0,
-          720,
+          { w: 1280, h: 720 },
           "E:/video-a.mp4",
           persistedPreferences,
         ),
@@ -606,17 +658,17 @@ describe("editor subtitle behaviors", () => {
 
     try {
       const { result, rerender } = renderHook(
-        ({ videoHeight, videoPath }) =>
+        ({ outputSize, videoPath }) =>
           useSubtitleStyle(
             true,
             [],
             0,
-            videoHeight,
+            outputSize,
             videoPath,
             persistedPreferences,
           ),
         {
-          initialProps: { videoHeight: 1080, videoPath: "E:/video-a.mp4" },
+          initialProps: { outputSize: { w: 1920, h: 1080 }, videoPath: "E:/video-a.mp4" },
         },
       );
 
@@ -627,7 +679,7 @@ describe("editor subtitle behaviors", () => {
       act(() => {
         result.current.setFontSize(30);
       });
-      rerender({ videoHeight: 720, videoPath: "E:/video-b.mp4" });
+      rerender({ outputSize: { w: 1280, h: 720 }, videoPath: "E:/video-b.mp4" });
       await act(async () => {
         await Promise.resolve();
       });
@@ -650,17 +702,17 @@ describe("editor subtitle behaviors", () => {
 
     try {
       const { result, rerender } = renderHook(
-        ({ videoHeight }) =>
+        ({ outputSize }) =>
           useSubtitleStyle(
             true,
             [],
             0,
-            videoHeight,
+            outputSize,
             "E:/video-a.mp4",
             persistedPreferences,
           ),
         {
-          initialProps: { videoHeight: 0 },
+          initialProps: { outputSize: { w: 0, h: 0 } },
         },
       );
 
@@ -672,7 +724,7 @@ describe("editor subtitle behaviors", () => {
         result.current.setFontSize(32);
       });
 
-      rerender({ videoHeight: 1080 });
+      rerender({ outputSize: { w: 1920, h: 1080 } });
       await act(async () => {
         await Promise.resolve();
       });

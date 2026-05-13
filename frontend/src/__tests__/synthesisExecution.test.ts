@@ -65,4 +65,13 @@ describe("buildSynthesisOptionsFromPreferences", () => {
     expect(options.margin_r).toBe(10);
     expect("margin_v" in options).toBe(false);
   });
+
+  it("preserves the effective trim start passed by the synthesis boundary", () => {
+    const options = buildSynthesisOptionsFromPreferences(preferences, {
+      videoSize: { w: 1280, h: 720 },
+      trimStart: 0.0349609,
+    });
+
+    expect(options.trim_start).toBe(0.0349609);
+  });
 });

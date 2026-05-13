@@ -2,10 +2,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Image as ImageIcon } from 'lucide-react';
+import type { WatermarkPositionPreset } from '../../../../services/domain';
 import type { WatermarkState } from '../hooks/useWatermark';
 import { PanelToggle } from './PanelToggle';
-
-type WatermarkPositionPreset = "TL" | "TC" | "TR" | "BL" | "BC" | "BR" | "C" | "LC" | "RC";
 
 interface Props {
     watermark: WatermarkState;

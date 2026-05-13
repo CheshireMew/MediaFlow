@@ -145,6 +145,15 @@ export interface ImagePreviewResponse {
   height: number;
 }
 
+export interface MediaVisibleStartRequest {
+  video_ref: MediaReference;
+}
+
+export interface MediaVisibleStartResponse {
+  visible_start: number;
+  has_leading_black: boolean;
+}
+
 export interface SynthesizeOptions {
   font_name?: string;
   font_size?: number;

@@ -1,6 +1,13 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 import os
-from backend.models.schemas import MediaReference, SynthesisRequest, TaskResponse
+from backend.models.schemas import (
+    MediaReference,
+    MediaVisibleStartRequest,
+    MediaVisibleStartResponse,
+    SynthesisRequest,
+    TaskResponse,
+)
+from backend.services.video.media_prober import MediaProber
 from backend.utils.path_validator import validate_input_file, validate_output_file
 
 router = APIRouter(prefix="/editor", tags=["Editor"])
@@ -27,6 +34,23 @@ async def get_current_watermark():
     from backend.application.watermark_preview_service import get_latest_watermark_preview
 
     return get_latest_watermark_preview()
+
+
+@router.post("/preview/media/visible-start", response_model=MediaVisibleStartResponse)
+async def get_media_visible_start(req: MediaVisibleStartRequest):
+    try:
+        validate_input_file(req.video_ref.path, label="video_ref.path")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    visible_start = MediaProber.detect_leading_black_end(req.video_ref.path)
+    return MediaVisibleStartResponse(
+        visible_start=visible_start,
+        has_leading_black=visible_start > 0,
+    )
+
 
 @router.post("/synthesize", response_model=TaskResponse)
 async def start_synthesis_task(req: SynthesisRequest):

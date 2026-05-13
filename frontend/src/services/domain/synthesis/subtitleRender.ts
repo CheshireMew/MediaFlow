@@ -6,6 +6,8 @@ const ASS_FONT_COMPENSATION = 1.25;
 const MIN_SIDE_MARGIN_PX = 10;
 const DEFAULT_SUBTITLE_REFERENCE_HEIGHT = 720;
 const DEFAULT_SUBTITLE_REFERENCE_FONT_SIZE = 40;
+const DEFAULT_SUBTITLE_REFERENCE_ASPECT_RATIO = 16 / 9;
+const DEFAULT_SUBTITLE_WIDTH_CONSTRAINT_BLEND = 0.25;
 const DEFAULT_SUBTITLE_FALLBACK_FONT_SIZE = 24;
 const DEFAULT_SUBTITLE_MIN_RECOMMENDED_FONT_SIZE = 12;
 const DEFAULT_SUBTITLE_MAX_FONT_SIZE = 120;
@@ -174,13 +176,31 @@ export function computeSubtitleExportFontSize(authoringFontSize: number): number
   return Math.max(1, Math.round(authoringFontSize * ASS_FONT_COMPENSATION));
 }
 
-export function computeDefaultSubtitleFontSize(videoHeight: number): number {
-  if (videoHeight <= 0) {
+export function computeDefaultSubtitleFontSize(input: {
+  width: number;
+  height: number;
+}): number {
+  const safeWidth = Math.max(0, Math.round(input.width));
+  const safeHeight = Math.max(0, Math.round(input.height));
+  let constrainedExtent =
+    safeWidth > 0 && safeHeight > 0
+      ? Math.min(safeWidth, safeHeight)
+      : Math.max(safeWidth, safeHeight);
+
+  if (constrainedExtent <= 0) {
     return DEFAULT_SUBTITLE_FALLBACK_FONT_SIZE;
   }
 
+  if (safeWidth > safeHeight && safeWidth / safeHeight < DEFAULT_SUBTITLE_REFERENCE_ASPECT_RATIO) {
+    const widthConstrainedExtent =
+      safeWidth / DEFAULT_SUBTITLE_REFERENCE_ASPECT_RATIO;
+    constrainedExtent =
+      constrainedExtent * (1 - DEFAULT_SUBTITLE_WIDTH_CONSTRAINT_BLEND) +
+      widthConstrainedExtent * DEFAULT_SUBTITLE_WIDTH_CONSTRAINT_BLEND;
+  }
+
   const suggested =
-    (videoHeight * DEFAULT_SUBTITLE_REFERENCE_FONT_SIZE) /
+    (constrainedExtent * DEFAULT_SUBTITLE_REFERENCE_FONT_SIZE) /
     DEFAULT_SUBTITLE_REFERENCE_HEIGHT;
   const rounded = Math.floor(suggested / 2) * 2;
   return Math.min(

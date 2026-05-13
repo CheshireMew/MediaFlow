@@ -39,6 +39,7 @@ class SynthesisOrchestrator:
         sr_result = self._super_resolution_stage.prepare(video_path, options, progress_callback)
         try:
             self._ensure_media_inputs_exist(sr_result.video_path, srt_path)
+            sr_result.options = self._resolve_timeline_options(sr_result.video_path, sr_result.options)
             duration = self._calculate_duration(sr_result.video_path, sr_result.options)
             input_video, audio = self._create_input_streams(sr_result.video_path, sr_result.options)
             video_stream, temp_ass, temp_fonts_dir = self._filter_graph_builder.build(
@@ -76,6 +77,20 @@ class SynthesisOrchestrator:
             raise FileNotFoundError(f"Video not found: {video_path}")
         if not os.path.exists(srt_path):
             raise FileNotFoundError(f"Subtitles not found: {srt_path}")
+
+    @staticmethod
+    def _resolve_timeline_options(video_path: str, options: dict) -> dict:
+        next_options = dict(options)
+        if float(next_options.get("trim_start", 0) or 0) > 0:
+            return next_options
+
+        leading_black_end = MediaProber.detect_leading_black_end(video_path)
+        if leading_black_end > 0:
+            next_options["trim_start"] = leading_black_end
+            logger.info(
+                f"Auto-trimmed leading black frames at synthesis start: {leading_black_end:.6f}s"
+            )
+        return next_options
 
     @staticmethod
     def _calculate_duration(video_path: str, options: dict) -> float:
