@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Play } from "lucide-react";
 import type { SubtitleStyleState } from "../hooks/useSubtitleStyle";
@@ -84,6 +84,49 @@ export const VideoPreview: React.FC<Props> = ({
     sourceHeight: effectiveVideoSize.h,
     crop: crop.isEnabled ? crop.crop : null,
   });
+  const togglePreviewPlayback = useCallback(() => {
+    if (dragging || mediaState.hasError || !frameReady) {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    if (video.paused) {
+      void video.play();
+      return;
+    }
+
+    video.pause();
+  }, [dragging, frameReady, mediaState.hasError, videoRef]);
+
+  const handlePreviewFrameClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (
+        event.target !== event.currentTarget &&
+        !(event.target instanceof HTMLVideoElement)
+      ) {
+        return;
+      }
+
+      togglePreviewPlayback();
+    },
+    [togglePreviewPlayback],
+  );
+
+  const handlePreviewFrameKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      togglePreviewPlayback();
+    },
+    [togglePreviewPlayback],
+  );
 
   return (
     <div className="flex-1 flex flex-col bg-[#050505] relative min-w-0">
@@ -107,7 +150,12 @@ export const VideoPreview: React.FC<Props> = ({
         {mediaUrl ? (
           <div
             ref={frameRef}
-            className="relative shadow-2xl shadow-black/50 border border-white/10 bg-black rounded-lg overflow-hidden ring-1 ring-white/5 max-w-full max-h-full"
+            role="button"
+            tabIndex={0}
+            aria-label="播放或暂停视频预览"
+            onClick={handlePreviewFrameClick}
+            onKeyDown={handlePreviewFrameKeyDown}
+            className="relative shadow-2xl shadow-black/50 border border-white/10 bg-black rounded-lg overflow-hidden ring-1 ring-white/5 max-w-full max-h-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/70"
             style={{
               aspectRatio: `${previewViewportMetrics.aspectRatio}`,
               width:
