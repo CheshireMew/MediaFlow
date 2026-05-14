@@ -8,10 +8,8 @@ type CudaReadinessPanelProps = {
 
 export function CudaReadinessPanel({ controller, t }: CudaReadinessPanelProps) {
   return (
-    <div className="p-8">
-      <div className="max-w-4xl">
-        <CudaReadinessSetting controller={controller} t={t} />
-      </div>
+    <div className="p-6">
+      <CudaReadinessSetting controller={controller} t={t} />
     </div>
   );
 }

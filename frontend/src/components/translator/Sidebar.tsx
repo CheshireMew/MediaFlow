@@ -1,6 +1,7 @@
-import { Book, Settings2, Plus, Trash2 } from 'lucide-react';
+import { Book, X, Plus, Trash2 } from 'lucide-react';
 import type { GlossaryTerm } from '../../services/domain';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -11,6 +12,7 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: SidebarProps) => {
+    const { t } = useTranslation('translator');
     const [newTermSource, setNewTermSource] = useState("");
     const [newTermTarget, setNewTermTarget] = useState("");
 
@@ -28,11 +30,11 @@ export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: 
             <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                 <h2 className="font-bold flex items-center gap-2 text-white">
                     <Book size={16} className="text-indigo-400"/> 
-                    <span>Glossary</span>
+                    <span>{t('glossary.panelTitle')}</span>
                     <span className="text-xs font-normal text-slate-500 px-2 py-0.5 bg-white/5 rounded-full">{glossary.length}</span>
                 </h2>
-                <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white/5 hover:text-white transition-colors">
-                    <Settings2 size={16} />
+                <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white/5 hover:text-white transition-colors" title={t('glossary.close')}>
+                    <X size={16} />
                 </button>
             </div>
             
@@ -40,14 +42,14 @@ export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: 
                 <div className="flex gap-2">
                     <input 
                         className="w-1/2 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all font-medium"
-                        placeholder="Source"
+                        placeholder={t('glossary.sourcePlaceholder')}
                         value={newTermSource}
                         onChange={e => setNewTermSource(e.target.value)}
                     />
-                    <div className="flex items-center text-slate-600">➜</div>
+                    <div className="flex items-center text-slate-600">→</div>
                     <input 
                         className="w-1/2 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all font-medium" 
-                        placeholder="Target"
+                        placeholder={t('glossary.targetPlaceholder')}
                         value={newTermTarget}
                         onChange={e => setNewTermTarget(e.target.value)}
                     />
@@ -56,7 +58,7 @@ export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: 
                     onClick={handleAdd}
                     className="w-full flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-xs font-bold text-white transition-colors shadow-lg shadow-indigo-900/20"
                 >
-                    <Plus size={12} /> Add Term
+                    <Plus size={12} /> {t('glossary.addTerm')}
                 </button>
             </div>
             
@@ -64,7 +66,7 @@ export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: 
                 {glossary.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-40 text-slate-600 gap-2">
                         <Book size={24} className="opacity-20" />
-                        <p className="text-xs font-medium">No terms yet.</p>
+                        <p className="text-xs font-medium">{t('glossary.empty')}</p>
                     </div>
                 ) : (
                     <div className="space-y-2">
@@ -72,7 +74,7 @@ export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: 
                             <div key={term.id} className="group flex justify-between items-start bg-white/[0.02] p-3 rounded-lg border border-white/5 hover:border-white/10 transition-colors">
                                 <div className="flex flex-col gap-1">
                                     <div className="text-xs font-bold text-indigo-300">{term.source}</div>
-                                    <div className="text-[10px] text-slate-500 font-mono">➜ {term.target}</div>
+                                    <div className="text-[10px] text-slate-500 font-mono">→ {term.target}</div>
                                 </div>
                                 <button 
                                     onClick={() => onDeleteTerm(term.id)}

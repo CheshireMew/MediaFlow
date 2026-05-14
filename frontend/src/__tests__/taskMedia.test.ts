@@ -4,6 +4,8 @@ import {
   getTaskMediaCandidates,
   hasTaskVideoMedia,
   resolveTaskMediaReferences,
+  resolveTaskMediaPaths,
+  resolveTaskOutputPath,
   resolveTaskNavigationPayload,
 } from "../services/ui/taskMedia";
 import type { Task, TaskArtifact } from "../types/task";
@@ -208,6 +210,29 @@ describe("taskMedia", () => {
     });
   });
 
+  it("resolves synthesis folder actions to the output video instead of the source video", async () => {
+    const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
+      id: "task-synthesis-output",
+      type: "synthesis",
+      status: "completed",
+      progress: 100,
+      created_at: Date.now(),
+      request_params: {},
+      artifacts: [
+        artifact("video", "input", "E:/source/source.mp4", "source.mp4"),
+        artifact("subtitle", "input", "E:/source/source.srt", "source.srt"),
+        artifact("video", "output", "E:/renders/source_synthesized.mp4", "source_synthesized.mp4"),
+      ],
+    };
+
+    await expect(resolveTaskOutputPath(task)).resolves.toBe("E:/renders/source_synthesized.mp4");
+    await expect(resolveTaskMediaPaths(task)).resolves.toMatchObject({
+      outputPath: "E:/renders/source_synthesized.mp4",
+      videoPath: "E:/renders/source_synthesized.mp4",
+    });
+  });
+
   it("does not prioritize stale path fields when structured subtitle refs exist", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
@@ -236,10 +261,11 @@ describe("taskMedia", () => {
       video: [],
       subtitle: [
         "E:/canonical/output.srt",
-        "E:/canonical/source.srt",
         "E:/canonical/output.srt",
+        "E:/canonical/source.srt",
       ],
       context: ["E:/canonical/source.srt"],
+      output: ["E:/canonical/output.srt", "E:/canonical/output.srt"],
     });
   });
 
@@ -289,6 +315,7 @@ describe("taskMedia", () => {
       video: ["E:/canonical/video.mp4"],
       subtitle: [],
       context: [],
+      output: ["E:/canonical/video.mp4"],
     });
   });
 
@@ -314,6 +341,7 @@ describe("taskMedia", () => {
       video: [],
       subtitle: [],
       context: [],
+      output: [],
     });
   });
 
@@ -340,6 +368,7 @@ describe("taskMedia", () => {
       video: [],
       subtitle: [],
       context: [],
+      output: [],
     });
   });
 
@@ -365,6 +394,7 @@ describe("taskMedia", () => {
       video: [],
       subtitle: [],
       context: [],
+      output: [],
     });
   });
 
@@ -392,6 +422,7 @@ describe("taskMedia", () => {
       video: [],
       subtitle: ["E:/canonical/output-from-files.srt"],
       context: [],
+      output: ["E:/canonical/output-from-files.srt"],
     });
   });
 
@@ -418,6 +449,7 @@ describe("taskMedia", () => {
       video: [],
       subtitle: [],
       context: [],
+      output: [],
     });
   });
 
@@ -445,6 +477,7 @@ describe("taskMedia", () => {
       video: ["E:/canonical/final-output.mp4"],
       subtitle: [],
       context: [],
+      output: ["E:/canonical/final-output.mp4"],
     });
   });
 });

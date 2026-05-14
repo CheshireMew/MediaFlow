@@ -13,10 +13,8 @@ type GeneralSettingsPanelProps = {
 
 export function GeneralSettingsPanel({ controller, t }: GeneralSettingsPanelProps) {
   return (
-    <div className="p-8">
-      <h3 className="text-lg font-medium text-slate-200 mb-6">{t("general.title")}</h3>
-
-      <div className="space-y-6 max-w-2xl">
+    <div className="p-6">
+      <div className="space-y-5">
         <LanguageSetting controller={controller} t={t} />
         <AutoExecuteSetting controller={controller} t={t} />
         <SmartSplitLimitSetting controller={controller} t={t} />

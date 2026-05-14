@@ -48,7 +48,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
   }, [addTask, resumeTask]);
 
   return (
-    <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl shadow-2xl overflow-hidden h-full flex flex-col">
+    <div className="bg-[#1a1a1a] border border-white/5 rounded-lg shadow-2xl overflow-hidden h-full flex flex-col">
       <TaskMonitorHeader
         showHeaderOverview={showHeaderOverview}
         connected={connected}
@@ -59,8 +59,12 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
 
       {taskFeedDiagnostics.lastIssue && (
         <div className="px-4 py-2 border-b border-amber-500/10 bg-amber-500/10 text-[11px] text-amber-200">
-          Ignored incompatible task feed item.
-          {` reason=${taskFeedDiagnostics.lastIssue.reason}, expected=${taskFeedDiagnostics.lastIssue.expected}, received=${taskFeedDiagnostics.lastIssue.received}, ignored=${taskFeedDiagnostics.ignoredTaskCount}`}
+          {t("diagnostics.ignoredFeedItem", {
+            reason: taskFeedDiagnostics.lastIssue.reason,
+            expected: taskFeedDiagnostics.lastIssue.expected,
+            received: taskFeedDiagnostics.lastIssue.received,
+            ignored: taskFeedDiagnostics.ignoredTaskCount,
+          })}
         </div>
       )}
 

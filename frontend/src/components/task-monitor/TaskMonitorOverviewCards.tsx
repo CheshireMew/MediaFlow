@@ -54,7 +54,7 @@ export const TaskMonitorOverviewCards = () => {
                 />
                 <div className="grid grid-cols-3 gap-2">
                     {taskStats.map((item) => (
-                        <div key={item.key} className={`rounded-xl border px-3 py-2 flex flex-col gap-1 ${statBadgeClassNames[item.key]}`}>
+                        <div key={item.key} className={`rounded-lg border px-3 py-2 flex flex-col gap-1 ${statBadgeClassNames[item.key]}`}>
                             <div className="text-[10px] uppercase tracking-[0.18em] opacity-80">{item.label}</div>
                             <div className="text-xl font-semibold text-white leading-none">{item.value}</div>
                         </div>

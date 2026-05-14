@@ -23,6 +23,17 @@
   "badges": {
     "history": "履歴"
   },
+  "queue": {
+    "pending": "キュー",
+    "running": "実行中",
+    "paused": "一時停止",
+    "queued": "キュー済み",
+    "position": "キュー #{{position}}"
+  },
+  "debugInfo": "デバッグ情報",
+  "diagnostics": {
+    "ignoredFeedItem": "互換性のないタスクフィード項目を無視しました。reason={{reason}}, expected={{expected}}, received={{received}}, ignored={{ignored}}"
+  },
   "taskTypes": {
     "transcribe": "文字起こし",
     "translate": "翻訳",

@@ -15,9 +15,9 @@
   "taskOverview": {
     "title": "任务概览",
     "subtitle": "排队与运行态势",
-    "queue": "Queue",
-    "running": "Running",
-    "paused": "Paused",
+    "queue": "排队",
+    "running": "运行中",
+    "paused": "暂停",
     "execution": "执行模式",
     "executionIdle": "当前无活跃执行模式"
   },

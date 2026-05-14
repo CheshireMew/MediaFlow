@@ -30,7 +30,7 @@ export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#1a1a1a] rounded-2xl border border-white/10 shadow-2xl w-full max-w-md overflow-hidden ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
+      <div className="bg-[#1a1a1a] rounded-lg border border-white/10 shadow-2xl w-full max-w-md overflow-hidden ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
           <h3 className="text-lg font-bold text-white">
             {editingProvider ? t("llm.editProvider") : t("addProvider")}

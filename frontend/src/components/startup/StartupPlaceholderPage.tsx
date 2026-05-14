@@ -10,6 +10,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { resolvePagePresentation } from "../../services/ui/pagePresentation";
+import { PageContent, PageHeader, PageShell } from "../ui/PageChrome";
 
 type StartupVariant =
   | "dashboard"
@@ -79,13 +80,13 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
   if (variant === "editor") {
     return (
       <div className="flex-1 min-h-0 flex flex-col">
-        <div className="h-14 rounded-2xl bg-[#1a1a1a] border border-white/5 mb-4 px-5 flex items-center gap-3">
+        <div className="h-14 rounded-lg bg-[#1a1a1a] border border-white/5 mb-4 px-5 flex items-center gap-3">
           <SkeletonBar width="w-24" />
           <SkeletonBar width="w-16" />
           <SkeletonBar width="w-20" />
         </div>
         <div className="flex-1 min-h-0 flex gap-4">
-          <div className="w-[34%] min-w-[320px] rounded-2xl bg-[#1a1a1a] border border-white/5 p-4 flex flex-col gap-3">
+          <div className="w-[34%] min-w-[320px] rounded-lg bg-[#1a1a1a] border border-white/5 p-4 flex flex-col gap-3">
             <SkeletonBar width="w-32" />
             <SkeletonBar width="w-full" height="h-16" />
             <SkeletonBar width="w-[92%]" height="h-16" />
@@ -95,13 +96,13 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
               <SkeletonBar width="w-full" height="h-10" />
             </div>
           </div>
-          <div className="flex-1 rounded-2xl bg-[#1a1a1a] border border-white/5 p-4">
+          <div className="flex-1 rounded-lg bg-[#1a1a1a] border border-white/5 p-4">
             <div className="h-full rounded-xl bg-[#0a0a0a] border border-white/5 flex items-center justify-center">
               <div className="w-[70%] aspect-video rounded-xl border border-dashed border-white/10 bg-white/[0.02]" />
             </div>
           </div>
         </div>
-        <div className="h-36 mt-4 rounded-2xl bg-[#1a1a1a] border border-white/5 p-4">
+        <div className="h-36 mt-4 rounded-lg bg-[#1a1a1a] border border-white/5 p-4">
           <SkeletonBar width="w-28" />
           <div className="mt-4 h-16 rounded-xl bg-white/[0.03] border border-white/5" />
         </div>
@@ -116,7 +117,7 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
           {[0, 1, 2].map((item) => (
             <div
               key={item}
-              className="rounded-2xl bg-[#1a1a1a] border border-white/5 p-4"
+              className="rounded-lg bg-[#1a1a1a] border border-white/5 p-4"
             >
               <SkeletonBar width="w-28" />
               <div className="mt-4 space-y-3">
@@ -127,7 +128,7 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
             </div>
           ))}
         </div>
-        <div className="flex-1 rounded-2xl bg-[#1a1a1a] border border-white/5 p-4">
+        <div className="flex-1 rounded-lg bg-[#1a1a1a] border border-white/5 p-4">
           <SkeletonBar width="w-40" />
           <div className="mt-4 space-y-3">
             {[0, 1, 2, 3].map((item) => (
@@ -148,13 +149,13 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
   if (variant === "downloader") {
     return (
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-6">
-        <div className="w-full lg:w-[480px] rounded-2xl bg-[#1a1a1a] border border-white/5 p-5 space-y-4">
+        <div className="w-full lg:w-[480px] rounded-lg bg-[#1a1a1a] border border-white/5 p-5 space-y-4">
           <SkeletonBar width="w-32" />
           <div className="h-28 rounded-xl bg-white/[0.03] border border-white/5" />
           <div className="h-40 rounded-xl bg-white/[0.03] border border-white/5" />
           <div className="h-48 rounded-xl bg-white/[0.03] border border-white/5" />
         </div>
-        <div className="flex-1 rounded-2xl bg-[#1a1a1a] border border-white/5 p-5">
+        <div className="flex-1 rounded-lg bg-[#1a1a1a] border border-white/5 p-5">
           <SkeletonBar width="w-40" />
           <div className="mt-4 space-y-3">
             {[0, 1, 2].map((item) => (
@@ -172,12 +173,12 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
   if (variant === "transcriber") {
     return (
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-6">
-        <div className="w-full lg:w-[420px] rounded-2xl bg-[#1a1a1a] border border-white/5 p-5 space-y-5">
+        <div className="w-full lg:w-[420px] rounded-lg bg-[#1a1a1a] border border-white/5 p-5 space-y-5">
           <div className="h-28 rounded-xl bg-white/[0.03] border border-white/5" />
           <div className="h-56 rounded-xl bg-white/[0.03] border border-white/5" />
           <div className="h-28 rounded-xl bg-white/[0.03] border border-white/5" />
         </div>
-        <div className="flex-1 rounded-2xl bg-[#1a1a1a] border border-white/5 p-5">
+        <div className="flex-1 rounded-lg bg-[#1a1a1a] border border-white/5 p-5">
           <SkeletonBar width="w-44" />
           <div className="mt-4 h-[70%] rounded-xl bg-white/[0.03] border border-white/5" />
         </div>
@@ -187,7 +188,7 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
 
   if (variant === "translator") {
     return (
-      <div className="flex-1 min-h-0 rounded-2xl bg-[#1a1a1a] border border-white/5 p-5 flex flex-col">
+      <div className="flex-1 min-h-0 rounded-lg bg-[#1a1a1a] border border-white/5 p-5 flex flex-col">
         <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/5">
           <div className="space-y-2">
             <SkeletonBar width="w-40" />
@@ -222,7 +223,7 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
             <SkeletonBar width="w-[88%]" height="h-14" />
           </div>
           <div className="flex-1 border-r border-b border-white/5 bg-[#0a0a0a] p-6">
-            <div className="h-full rounded-2xl bg-[#1a1a1a] border border-white/5 flex items-center justify-center">
+            <div className="h-full rounded-lg bg-[#1a1a1a] border border-white/5 flex items-center justify-center">
               <div className="w-[72%] aspect-video rounded-xl border border-dashed border-white/10 bg-white/[0.02]" />
             </div>
           </div>
@@ -237,7 +238,7 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
   }
 
   return (
-    <div className="flex-1 min-h-0 rounded-2xl bg-[#1a1a1a] border border-white/5 p-5 grid grid-cols-1 xl:grid-cols-[320px,1fr] gap-5">
+    <div className="flex-1 min-h-0 rounded-lg bg-[#1a1a1a] border border-white/5 p-5 grid grid-cols-1 xl:grid-cols-[320px,1fr] gap-5">
       <div className="space-y-4">
         <div className="h-32 rounded-xl bg-white/[0.03] border border-white/5" />
         <div className="h-56 rounded-xl bg-white/[0.03] border border-white/5" />
@@ -260,27 +261,21 @@ export function StartupPlaceholderPage({
   const { t } = useTranslation(presentation.namespace);
 
   return (
-    <div className="w-full h-full px-6 pb-6 pt-5 flex flex-col overflow-hidden">
-      <header className="flex-none mb-6 flex items-center gap-4">
-        <div
-          className={`p-2 rounded-2xl border border-white/5 shadow-lg shadow-black/20 bg-gradient-to-br ${config.accent}`}
-        >
-          {config.icon}
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            {t(presentation.titleKey)}
-          </h1>
-          <p className="text-slate-400 text-sm mt-0.5">{t(presentation.subtitleKey)}</p>
-        </div>
-      </header>
+    <PageShell padded={false} className="flex flex-col">
+      <PageHeader
+        iconNode={config.icon}
+        title={t(presentation.titleKey)}
+        subtitle={t(presentation.subtitleKey)}
+      />
 
-      <div className="flex items-center gap-3 mb-5 px-4 py-3 rounded-2xl border border-indigo-500/20 bg-indigo-500/8 text-sm text-slate-300">
+      <PageContent className="flex flex-col">
+      <div className="flex items-center gap-3 mb-5 px-4 py-3 rounded-lg border border-indigo-500/20 bg-indigo-500/8 text-sm text-slate-300">
         <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse shrink-0" />
         <span>{message}</span>
       </div>
 
       <StartupBody variant={variant} />
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

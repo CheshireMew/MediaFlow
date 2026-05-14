@@ -1,7 +1,16 @@
 {
   "title": "AI Translator",
   "subtitle": "Context-Aware • Glossary-Enforced",
-  "glossary": { "button": "Glossary", "tooltip": "Glossary Manager" },
+  "glossary": {
+    "button": "Glossary",
+    "tooltip": "Glossary Manager",
+    "panelTitle": "Glossary",
+    "close": "Close glossary",
+    "sourcePlaceholder": "Source",
+    "targetPlaceholder": "Target",
+    "addTerm": "Add Term",
+    "empty": "No terms yet."
+  },
   "buttons": {
     "import": { "tooltip": "Import Subtitle", "label": "Import" },
     "proofread": { "tooltip": "AI Grammar & Typos Correction (No Translation)", "label": "Proofread" },

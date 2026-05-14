@@ -1,7 +1,16 @@
 {
   "title": "AI翻訳",
   "subtitle": "コンテキスト対応 • 用語集強制",
-  "glossary": { "button": "用語集", "tooltip": "用語集マネージャー" },
+  "glossary": {
+    "button": "用語集",
+    "tooltip": "用語集マネージャー",
+    "panelTitle": "用語集",
+    "close": "用語集を閉じる",
+    "sourcePlaceholder": "原文",
+    "targetPlaceholder": "訳文",
+    "addTerm": "用語を追加",
+    "empty": "用語はまだありません"
+  },
   "buttons": {
     "import": { "tooltip": "字幕をインポート", "label": "インポート" },
     "proofread": { "tooltip": "AI文法・タイポ校正（翻訳なし）", "label": "校正" },

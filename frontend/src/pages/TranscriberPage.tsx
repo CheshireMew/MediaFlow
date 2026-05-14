@@ -6,6 +6,7 @@ import { TranscriptionConfig } from '../components/transcriber/TranscriptionConf
 import { TranscriptionResults } from '../components/transcriber/TranscriptionResults';
 import { getExecutionModeDisplay } from '../services/ui/executionModeDisplay';
 import { clampProgress } from '../utils/number';
+import { PageContent, PageHeader, PageShell, PanelHeader, WorkPanel } from '../components/ui/PageChrome';
 
 type ProgressCardState = {
   status: string;
@@ -88,29 +89,14 @@ export const TranscriberPage = () => {
   const progressPercent = Math.round(progressState.progress);
 
   return (
-    <div className="w-full h-full px-6 pb-6 pt-5 flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="flex-none mb-6 flex items-center gap-4">
-        <div className="p-2 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl border border-white/5 shadow-lg shadow-purple-500/10">
-          <FileAudio className="w-6 h-6 text-purple-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">{t('title')}</h1>
-          <p className="text-slate-400 text-sm mt-0.5">{t('subtitle')}</p>
-        </div>
-      </header>
+    <PageShell padded={false} className="flex flex-col">
+      <PageHeader icon={FileAudio} title={t('title')} subtitle={t('subtitle')} accent="purple" />
 
+      <PageContent className="flex flex-col">
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-6 overflow-hidden">
         {/* Left Column: Controls */}
-        <div className="w-full lg:w-[420px] flex-none flex flex-col h-full bg-[#1a1a1a] border border-white/5 rounded-2xl shadow-2xl overflow-hidden">
-           <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-              <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                 <div className="flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/20">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-                 </div>
-                 {t('taskPanel.title')}
-              </h3>
-           </div>
+        <WorkPanel className="w-full lg:w-[420px] flex-none flex flex-col h-full">
+           <PanelHeader title={t('taskPanel.title')} accent="purple" />
 
             <div className="p-5 flex-1 flex flex-col gap-5 min-h-0 overflow-y-auto custom-scrollbar">
                <AudioFileUploader 
@@ -170,7 +156,7 @@ export const TranscriberPage = () => {
                 </div>
               </div>
            </div>
-        </div>
+        </WorkPanel>
 
         {/* Right Panel: Results */}
         <div className="flex-1 min-w-0 h-full flex flex-col">
@@ -183,6 +169,7 @@ export const TranscriberPage = () => {
             />
         </div>
       </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 };

@@ -5,7 +5,7 @@ import { Scissors, Trash2, Wand2 } from 'lucide-react';
 import { validateSegment, fixOverlaps } from '../../utils/validation';
 import { highlightSubtitleText } from './subtitleTextHighlight';
 
-const ITEM_HEIGHT = 44;
+const ITEM_HEIGHT = 48;
 const OVERSCAN = 5;
 const FALLBACK_VISIBLE_ROWS = 12;
 
@@ -192,18 +192,18 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                 onDoubleClick={() => onSegmentDoubleClick(idStr)}
                 onContextMenu={(e) => onContextMenu(e, idStr)}
                 className={`
-                    group flex items-center border-b border-white/5 transition-colors cursor-pointer
-                    ${isActive ? 'bg-indigo-500/10' : 'hover:bg-white/[0.02]'}
-                    ${isSelected && !isActive ? 'bg-indigo-900/40 border-l-2 border-indigo-500/50' : ''}
+                    group flex items-center border-b border-white/[0.035] transition-colors cursor-pointer
+                    ${isActive ? 'bg-indigo-500/15 shadow-[inset_3px_0_0_rgba(129,140,248,0.95)]' : 'hover:bg-white/[0.025]'}
+                    ${isSelected && !isActive ? 'bg-indigo-500/[0.07] shadow-[inset_2px_0_0_rgba(129,140,248,0.45)]' : ''}
                     ${(hasError || hasWarning) && !isActive && !isSelected ? 'bg-yellow-500/5' : ''}
                 `}
             >
                 {/* Active Indicator Bar */}
-                {isActive && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />}
+                {isActive && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.55)]" />}
 
                 {/* Timestamp & Status */}
                 <div 
-                    className={`w-14 text-center py-2 font-mono text-[10px] select-none flex flex-col items-center justify-center shrink-0 border-r border-white/5 h-full min-h-[2rem]
+                    className={`w-[52px] text-center py-2 font-mono text-[10px] select-none flex flex-col items-center justify-center shrink-0 h-full min-h-[2rem]
                         ${isActive ? 'text-indigo-300' : 'text-slate-500'}
                         ${(hasError || hasWarning) ? 'bg-amber-500/10 text-amber-500' : ''}
                     `}
@@ -221,7 +221,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                 <div className="flex-1 py-1 px-3 select-none min-w-0 flex items-center h-full">
                     <div
                         title={seg.text || undefined}
-                        className={`text-sm w-full font-medium truncate whitespace-nowrap overflow-hidden ${!seg.text ? 'text-slate-600 italic' : isActive ? 'text-white' : 'text-slate-300'} leading-relaxed`}
+                        className={`w-full truncate whitespace-nowrap overflow-hidden text-[13px] font-medium leading-relaxed ${!seg.text ? 'text-slate-600 italic' : isActive ? 'text-white' : 'text-slate-300'}`}
                     >
                         {!seg.text ? t('subtitleList.emptySegmentLabel') : (
                             searchTerm ? highlightSubtitleText(seg.text, searchTerm, matchCase) : seg.text
@@ -258,24 +258,24 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
     }
 
     return (
-        <div className="flex flex-col h-full bg-[#1a1a1a] border-r border-white/5 relative">
+        <div className="flex flex-col h-full bg-[#141414] border-r border-white/5 relative">
              {/* Toolbar */}
-             <div className="p-2 border-b border-white/5 flex flex-wrap items-center gap-2 bg-[#1a1a1a] shrink-0 z-20">
+             <div className="px-3 py-2 border-b border-white/5 flex flex-wrap items-center gap-2 bg-[#181818] shrink-0 z-20">
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
                     <button 
                       disabled={selectedIds.length < 2 || !isContinuous}
                       title={!isContinuous && selectedIds.length >= 2 ? t('subtitleList.mergeAdjacentError') : t('subtitleList.mergeTooltip')}
                       onClick={handleMerge}
-                      className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-300 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap"
+                      className="px-2.5 py-1.5 bg-white/[0.035] hover:bg-indigo-500/10 border border-white/10 hover:border-indigo-500/20 disabled:opacity-40 disabled:cursor-not-allowed text-slate-300 hover:text-indigo-200 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap"
                     >
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
                         {t('subtitleList.mergeButton')} ({selectedIds.length})
                     </button>
                     
                     {onAutoFix && hasOverlaps && (
                         <button
                             onClick={handleAutoFix}
-                            className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 animate-pulse whitespace-nowrap"
+                            className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 animate-pulse whitespace-nowrap"
                             title={t('subtitleList.autoFixTooltip')}
                         >
                             <Wand2 size={12} /> {t('subtitleList.autoFixButton')}
@@ -288,7 +288,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                         onClick={onSmartSplit}
                         disabled={segments.length === 0 || isSmartSplitting}
                         title={t('subtitleList.smartSplitTooltip')}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 disabled:bg-white/5 text-amber-300 disabled:text-slate-500 border border-amber-500/20 disabled:border-white/5 text-xs font-medium transition-colors whitespace-nowrap"
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.035] hover:bg-amber-500/10 disabled:bg-white/5 text-slate-300 hover:text-amber-300 disabled:text-slate-500 border border-white/10 hover:border-amber-500/20 disabled:border-white/5 text-xs font-medium transition-colors whitespace-nowrap"
                     >
                         <Scissors className="w-3.5 h-3.5" />
                         {isSmartSplitting
@@ -299,14 +299,14 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
              </div>
 
              {/* Header */}
-             <div className="flex bg-[#161616] border-b border-white/5 text-[10px] uppercase tracking-wider text-slate-500 font-bold shadow-sm shrink-0 sticky top-0 z-10">
-                  <div className="w-14 text-center py-1.5 border-r border-white/5">{t('subtitleList.columnStart')}</div>
+             <div className="flex bg-[#111] border-b border-white/[0.04] text-[10px] uppercase tracking-wider text-slate-500 font-bold shadow-sm shrink-0 sticky top-0 z-10">
+                  <div className="w-[52px] text-center py-1.5">{t('subtitleList.columnStart')}</div>
                   <div className="flex-1 py-1.5 px-3">{t('subtitleList.columnText')}</div>
                   <div className="w-8 py-1.5"></div>
              </div>
 
             {/* Native List Container -> Virtualized */}
-            <div className="flex-1 min-h-0 w-full bg-[#0a0a0a]">
+            <div className="flex-1 min-h-0 w-full bg-[#090909]">
                 {segments.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-600/50 text-sm gap-2">
                          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">

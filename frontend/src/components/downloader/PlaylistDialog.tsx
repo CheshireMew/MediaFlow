@@ -34,7 +34,7 @@ export function PlaylistDialog({
         onClick={onClose}
       />
       
-      <div className="relative w-full max-w-2xl bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-2xl bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex-none p-5 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
           <h2 className="text-lg font-semibold text-white flex items-center gap-3">

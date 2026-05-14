@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 
 export const overviewCardClassName =
-  'bg-[#1a1a1a] p-4 rounded-xl border border-white/5 shadow-xl hover:bg-[#222] transition-colors group';
+  'bg-[#1a1a1a] p-4 rounded-lg border border-white/5 shadow-xl hover:bg-[#222] transition-colors group';
 
 export const overviewInnerPanelClassName =
   'rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2';

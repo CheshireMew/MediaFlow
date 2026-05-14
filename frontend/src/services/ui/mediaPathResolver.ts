@@ -56,16 +56,20 @@ export async function resolvePreferredMediaPaths(candidates: {
   video?: Array<unknown>;
   subtitle?: Array<unknown>;
   context?: Array<unknown>;
+  output?: Array<unknown>;
 }) {
+  const outputPath = await resolvePreferredMediaPath(candidates.output ?? []);
   const videoPath = await resolvePreferredMediaPath(candidates.video ?? []);
   const subtitlePath = await resolvePreferredMediaPath(candidates.subtitle ?? []);
   const contextPath = await resolvePreferredMediaPath([
     ...(candidates.context ?? []),
+    outputPath,
     videoPath,
     subtitlePath,
   ]);
 
   return {
+    outputPath,
     videoPath,
     subtitlePath,
     contextPath,

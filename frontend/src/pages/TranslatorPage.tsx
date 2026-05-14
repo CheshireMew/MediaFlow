@@ -10,6 +10,7 @@ import { fileService } from '../services/fileService';
 import { SegmentsTable } from '../components/translator/SegmentsTable';
 import { Sidebar } from '../components/translator/Sidebar';
 import type { TranslatorMode } from '../hooks/useTranslator';
+import { PageContent, PageHeader, PageShell, ToolbarButton, WorkPanel } from '../components/ui/PageChrome';
 
 type ElectronSubtitleFile = {
     path: string;
@@ -69,73 +70,61 @@ export const TranslatorPage = () => {
     };
 
     return (
-        <div className="w-full h-full px-6 pb-6 pt-5 flex flex-col overflow-hidden relative">
-             {/* Header */}
-             <header className="flex-none mb-6 flex items-center justify-between pr-36 drag-region">
-                 <div className="flex items-center gap-4 no-drag">
-                     <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shadow-lg shadow-indigo-500/10">
-                        <Globe className="w-5 h-5 text-indigo-400" />
-                     </div>
-                     <div>
-                        <h1 className="text-2xl font-bold text-white tracking-tight">{t('title')}</h1>
-                        <p className="text-xs font-medium text-slate-400 mt-0.5 flex items-center gap-2">
-                            {sourceFilePath ? (
-                                <>
-                                    <span className="text-indigo-400 truncate max-w-[300px]" title={sourceFilePath}>
-                                        {sourceFilePath.split(/[/\\]/).pop()}
-                                    </span>
-                                </>
-                            ) : (
-                                t('subtitle')
-                            )}
-                        </p>
-                     </div>
-                 </div>
-                 
-                 <div className="flex items-center gap-3 no-drag">
-                     <button 
+        <PageShell padded={false} className="flex flex-col relative">
+             <PageHeader
+                icon={Globe}
+                title={t('title')}
+                subtitle={sourceFilePath ? (
+                    <span className="text-indigo-400" title={sourceFilePath}>
+                        {sourceFilePath.split(/[/\\]/).pop()}
+                    </span>
+                ) : (
+                    t('subtitle')
+                )}
+                actions={(
+                 <>
+                     <ToolbarButton
                         onClick={() => setShowGlossary(!showGlossary)}
-                        className={`h-10 px-4 rounded-xl font-medium text-sm border transition-all flex items-center gap-2
-                            ${showGlossary 
-                                ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-500/20' 
-                                : 'bg-[#1a1a1a] text-slate-400 border-white/10 hover:text-white hover:border-white/20'
-                            }`}
+                        icon={Book}
+                        variant={showGlossary ? 'primary' : 'subtle'}
                         title={t('glossary.tooltip')}
                      >
-                         <Book size={16} />
                          <span className="hidden lg:inline">{t('glossary.button')}</span>
-                     </button>
+                     </ToolbarButton>
                      
                      <div className="h-6 w-[1px] bg-white/10 mx-2"></div>
 
                      {/* Input Group */}
                      <div className="flex items-center gap-2">
-                         <button 
+                         <ToolbarButton
                              onClick={handleOpenFile}
-                             className="h-10 px-4 bg-[#1a1a1a] hover:bg-white/5 border border-white/10 hover:border-white/20 rounded-xl text-slate-300 hover:text-white text-sm font-medium transition-all flex items-center gap-2"
+                             icon={FolderOpen}
+                             variant="subtle"
                              title={t('buttons.import.tooltip')}
                          >
-                             <FolderOpen size={16} /> <span className="hidden xl:inline">{t('buttons.import.label')}</span>
-                         </button>
+                             <span className="hidden xl:inline">{t('buttons.import.label')}</span>
+                         </ToolbarButton>
                          
-                         <button 
+                         <ToolbarButton
                              onClick={proofreadSubtitle}
                              disabled={isTranslating || sourceSegments.length === 0}
-                             className="h-10 px-5 bg-[#1a1a1a] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                             icon={isTranslating && activeMode === 'proofread' ? Loader2 : Sparkles}
+                             variant="success"
+                             className={isTranslating && activeMode === 'proofread' ? '[&>svg]:animate-spin' : ''}
                              title={t('buttons.proofread.tooltip')}
                          >
-                             {isTranslating && activeMode === 'proofread' ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
                              <span className="hidden lg:inline">{t('buttons.proofread.label')}</span>
-                         </button>
+                         </ToolbarButton>
 
-                         <button 
+                         <ToolbarButton
                              onClick={startTranslation}
                              disabled={isTranslating || sourceSegments.length === 0}
-                             className="h-10 px-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:shadow-lg hover:shadow-indigo-500/20 text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-indigo-500/10"
+                             icon={isTranslating && activeMode !== 'proofread' ? Loader2 : Wand2}
+                             variant="primary"
+                             className={isTranslating && activeMode !== 'proofread' ? '[&>svg]:animate-spin' : ''}
                          >
-                             {isTranslating && activeMode !== 'proofread' ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
                              <span className="hidden lg:inline">{t('buttons.translate.label')}</span>
-                         </button>
+                         </ToolbarButton>
                      </div>
                      
                      {/* Output Group */}
@@ -143,36 +132,40 @@ export const TranslatorPage = () => {
                          <>
                             <div className="h-6 w-[1px] bg-white/10 mx-2"></div>
                             <div className="flex items-center gap-2">
-                                <button 
+                                <ToolbarButton
                                     onClick={exportSRT}
-                                    className="h-10 px-4 bg-[#1a1a1a] hover:bg-green-500/10 border border-green-500/20 text-green-400 hover:text-green-300 rounded-xl text-sm font-medium transition-all flex items-center gap-2"
+                                    icon={Download}
+                                    variant="success"
                                     title={t('buttons.export.tooltip')}
                                 >
-                                    <Download size={16} /> <span className="hidden xl:inline">{t('buttons.export.label')}</span>
-                                </button>
+                                    <span className="hidden xl:inline">{t('buttons.export.label')}</span>
+                                </ToolbarButton>
 
-                                <button 
+                                <ToolbarButton
                                     onClick={handleOpenInEditor}
-                                    className="h-10 px-4 bg-[#1a1a1a] hover:bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:text-indigo-300 rounded-xl text-sm font-medium transition-all flex items-center gap-2"
+                                    icon={FileEdit}
+                                    variant="accent"
                                     title={t('buttons.editor.tooltip')}
                                 >
-                                    <FileEdit size={16} /> <span className="hidden xl:inline">{t('buttons.editor.label')}</span>
-                                </button>
+                                    <span className="hidden xl:inline">{t('buttons.editor.label')}</span>
+                                </ToolbarButton>
                             </div>
                          </>
                      )}
-                 </div>
-             </header>
+                 </>
+                )}
+             />
              
              {/* Progress Bar */}
              {progress > 0 && progress < 100 && (
-                 <div className="absolute top-0 left-0 w-full h-1 bg-slate-900 z-50">
+                 <div className="absolute left-0 top-[76px] z-50 h-1 w-full bg-slate-900">
                      <div className="h-full bg-indigo-500 transition-all duration-300 shadow-[0_0_10px_rgba(99,102,241,0.5)]" style={{ width: `${progress}%` }}></div>
                  </div>
              )}
 
+             <PageContent className="flex flex-col relative">
              {/* Main Card */}
-             <div className="flex-1 min-h-0 bg-[#1a1a1a] border border-white/5 rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+             <WorkPanel className="flex-1 min-h-0 flex flex-col relative">
                  {/* Table Header Controls */}
                  <div className="flex-none p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                      <div className="flex items-center gap-4">
@@ -238,7 +231,7 @@ export const TranslatorPage = () => {
                          </div>
                      </div>
                  )}
-            </div>
+            </WorkPanel>
              
              <Sidebar 
                 isOpen={showGlossary} 
@@ -247,6 +240,7 @@ export const TranslatorPage = () => {
                 onAddTerm={handleAddTerm}
                 onDeleteTerm={handleDeleteTerm}
              />
-        </div>
+             </PageContent>
+        </PageShell>
     );
 };

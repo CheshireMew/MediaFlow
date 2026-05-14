@@ -23,6 +23,17 @@
   "badges": {
     "history": "历史记录"
   },
+  "queue": {
+    "pending": "排队",
+    "running": "运行中",
+    "paused": "已暂停",
+    "queued": "已排队",
+    "position": "队列 #{{position}}"
+  },
+  "debugInfo": "调试信息",
+  "diagnostics": {
+    "ignoredFeedItem": "已忽略不兼容的任务推送项。原因={{reason}}，期望={{expected}}，收到={{received}}，已忽略={{ignored}}"
+  },
   "taskTypes": {
     "transcribe": "转录",
     "translate": "翻译",

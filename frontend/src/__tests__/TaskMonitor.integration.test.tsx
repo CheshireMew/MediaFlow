@@ -102,13 +102,13 @@ describe("TaskMonitor integration", () => {
   it("renders queue badges and header summary from task context", () => {
     render(<TaskMonitor />);
 
-    expect(screen.getByText("Queue 1")).toBeTruthy();
-    expect(screen.getByText("Running 1")).toBeTruthy();
-    expect(screen.getByText("Paused 1")).toBeTruthy();
+    expect(screen.getByText("queue.pending 1")).toBeTruthy();
+    expect(screen.getByText("queue.running 1")).toBeTruthy();
+    expect(screen.getByText("queue.paused 1")).toBeTruthy();
 
-    expect(screen.getByText("Queue #1")).toBeTruthy();
-    expect(screen.getAllByText("Running").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Paused").length).toBeGreaterThan(0);
+    expect(screen.getByText("queue.position")).toBeTruthy();
+    expect(screen.getAllByText("queue.running").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("queue.paused").length).toBeGreaterThan(0);
   });
 
   it("calls pauseTask when pausing a running task card", () => {

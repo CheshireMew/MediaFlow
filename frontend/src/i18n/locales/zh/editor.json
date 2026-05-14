@@ -39,6 +39,15 @@
     "emptyState": "暂无字幕",
     "validationOverlap": "与以下项重叠"
   },
+  "waveform": {
+    "title": "时间线",
+    "currentSegment": "当前 #{{id}}",
+    "noCurrentSegment": "无当前字幕",
+    "zoomIn": "放大时间线",
+    "zoomOut": "缩小时间线",
+    "decoding": "解码音频 {{progress}}%",
+    "rendering": "渲染波形..."
+  },
   "findReplace": {
     "title": "查找和替换",
     "findPlaceholder": "查找...",

@@ -39,6 +39,15 @@
     "emptyState": "No subtitles",
     "validationOverlap": "Overlap with"
   },
+  "waveform": {
+    "title": "Timeline",
+    "currentSegment": "Current #{{id}}",
+    "noCurrentSegment": "No current subtitle",
+    "zoomIn": "Zoom timeline in",
+    "zoomOut": "Zoom timeline out",
+    "decoding": "Decoding audio {{progress}}%",
+    "rendering": "Rendering waveform..."
+  },
   "findReplace": {
     "title": "Find & Replace",
     "findPlaceholder": "Find...",

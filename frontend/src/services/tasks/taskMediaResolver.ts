@@ -16,7 +16,24 @@ const firstArtifactRef = (
 const artifactPaths = (
   task: TaskWithDetails,
   predicate: (artifact: TaskArtifact) => boolean,
-) => artifactsOf(task).filter(predicate).map((artifact) => artifact.ref.path);
+) =>
+  artifactsOf(task)
+    .filter(predicate)
+    .sort((left, right) => rolePriority(left.role) - rolePriority(right.role))
+    .map((artifact) => artifact.ref.path);
+
+const rolePriority = (role: TaskArtifact["role"]) => {
+  switch (role) {
+    case "output":
+      return 0;
+    case "input":
+      return 1;
+    case "context":
+      return 2;
+    default:
+      return 3;
+  }
+};
 
 export function getTaskStructuredMediaRefs(task: TaskWithDetails) {
   return {
@@ -38,6 +55,7 @@ export function getTaskMediaCandidates(task: TaskWithDetails) {
     video: artifactPaths(task, (artifact) => artifact.kind === "video" || artifact.kind === "audio"),
     subtitle: artifactPaths(task, (artifact) => artifact.kind === "subtitle"),
     context: artifactPaths(task, (artifact) => artifact.role === "context"),
+    output: artifactPaths(task, (artifact) => artifact.role === "output"),
   };
 }
 

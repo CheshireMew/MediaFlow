@@ -46,7 +46,7 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
             onClick={handleClick}
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
-            className={`group relative border border-dashed rounded-2xl p-8 flex flex-col items-center justify-center gap-4 transition-all duration-300 cursor-pointer overflow-hidden
+            className={`group relative border border-dashed rounded-lg p-8 flex flex-col items-center justify-center gap-4 transition-all duration-300 cursor-pointer overflow-hidden
                 ${currentFile 
                 ? 'border-indigo-500/50 bg-indigo-500/5 shadow-[0_0_20px_-5px_rgba(99,102,241,0.15)]' 
                 : 'border-white/10 bg-black/20 hover:border-indigo-500/30 hover:bg-black/30'
@@ -68,7 +68,7 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
             
             {currentFile ? (
                 <>
-                    <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shadow-inner group-hover:scale-105 transition-transform duration-300">
+                    <div className="w-16 h-16 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shadow-inner group-hover:scale-105 transition-transform duration-300">
                         <FileText className="w-8 h-8 text-indigo-400" />
                     </div>
                     <div className="text-center z-10">
@@ -86,7 +86,7 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
                 </>
             ) : (
                 <>
-                    <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-indigo-500/10 group-hover:border-indigo-500/20 transition-colors duration-300">
+                    <div className="w-16 h-16 rounded-lg bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-indigo-500/10 group-hover:border-indigo-500/20 transition-colors duration-300">
                         <Upload className="w-8 h-8 text-slate-500 group-hover:text-indigo-400 transition-colors duration-300" />
                     </div>
                     <div className="text-center z-10">

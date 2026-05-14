@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { TaskMonitor } from '../components/TaskMonitor';
 import { Activity, Server } from 'lucide-react';
 import { TaskMonitorOverviewCards } from '../components/task-monitor/TaskMonitorOverviewCards';
+import { PageContent, PageHeader, PageShell } from '../components/ui/PageChrome';
 import {
     OverviewCardHeader,
     overviewCardClassName,
@@ -12,17 +13,14 @@ import {
 export const DashboardPage = () => {
     const { t } = useTranslation('dashboard');
     return (
-        <div className="w-full h-full px-6 pb-6 pt-5 flex flex-col overflow-hidden">
-            <header className="flex-none mb-6 flex items-center gap-4">
-                <div className="p-2 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-2xl border border-white/5 shadow-lg shadow-indigo-500/10">
-                    <Activity className="w-6 h-6 text-indigo-400" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">{t('title')}</h1>
-                    <p className="text-slate-400 text-sm mt-0.5">{t('subtitle')}</p>
-                </div>
-            </header>
+        <PageShell padded={false} className="flex flex-col">
+            <PageHeader
+                icon={Activity}
+                title={t('title')}
+                subtitle={t('subtitle')}
+            />
 
+            <PageContent className="flex flex-col">
             <div className="flex-none grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 {/* System Stats */}
                 <section className={overviewCardClassName}>
@@ -53,6 +51,7 @@ export const DashboardPage = () => {
                 {/* Global Monitor - Shows all tasks */}
                 <TaskMonitor showHeaderOverview={false} />
             </div>
-        </div>
+            </PageContent>
+        </PageShell>
     );
 };

@@ -95,6 +95,7 @@ describe("taskMediaResolver", () => {
       video: [],
       subtitle: [],
       context: [],
+      output: [],
     });
   });
 

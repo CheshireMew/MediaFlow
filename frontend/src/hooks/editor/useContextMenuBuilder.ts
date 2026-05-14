@@ -5,6 +5,7 @@ import {
 } from "../../services/domain";
 import { restoreStoredAsrExecutionPreferences } from "../../services/persistence/asrExecutionPreferences";
 import { restoreStoredTranslationPreferences } from "../../services/persistence/translationPreferences";
+import { fileService } from "../../services/fileService";
 import { normalizeMediaReference, type MediaReference } from "../../services/ui/mediaReference";
 import { formatSRTTime } from "../../utils/subtitleParser";
 import type { ContextMenuItem } from "../../components/ui/ContextMenu";
@@ -29,6 +30,8 @@ interface UseContextMenuBuilderArgs {
   selectedIds: string[];
   currentFilePath: string | null;
   currentFileRef: MediaReference | null;
+  currentSubtitlePath: string | null;
+  currentSubtitleRef: MediaReference | null;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   selectSegment: (id: string, multi?: boolean, range?: boolean) => void;
   addSegment: (seg: SubtitleSegment) => void;
@@ -48,6 +51,8 @@ export function useContextMenuBuilder({
   selectedIds,
   currentFilePath,
   currentFileRef,
+  currentSubtitlePath,
+  currentSubtitleRef,
   videoRef,
   selectSegment,
   addSegment,
@@ -67,6 +72,10 @@ export function useContextMenuBuilder({
   currentFilePathRef.current = currentFilePath;
   const currentFileRefRef = useRef(currentFileRef);
   currentFileRefRef.current = currentFileRef;
+  const currentSubtitlePathRef = useRef(currentSubtitlePath);
+  currentSubtitlePathRef.current = currentSubtitlePath;
+  const currentSubtitleRefRef = useRef(currentSubtitleRef);
+  currentSubtitleRefRef.current = currentSubtitleRef;
 
   const buildSegmentsFromTranscription = useCallback(
     (
@@ -355,6 +364,24 @@ export function useContextMenuBuilder({
             } catch (err) {
               console.error("Paste failed", err);
               toast.error("读取剪贴板失败: " + String(err));
+            }
+          },
+        },
+        {
+          label: "📂 打开字幕所在文件夹",
+          disabled: !(currentSubtitlePathRef.current ?? currentSubtitleRefRef.current?.path),
+          onClick: async () => {
+            const subtitlePath = currentSubtitlePathRef.current ?? currentSubtitleRefRef.current?.path;
+            if (!subtitlePath) {
+              return;
+            }
+
+            try {
+              await fileService.showInExplorer(subtitlePath);
+            } catch (err) {
+              console.error("Failed to show subtitle in explorer", err);
+              const { toast } = await import("../../utils/toast");
+              toast.error("无法打开字幕所在文件夹: " + String(err));
             }
           },
         },

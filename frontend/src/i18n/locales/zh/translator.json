@@ -1,7 +1,16 @@
 {
   "title": "AI 翻译",
   "subtitle": "上下文感知 • 术语表强制",
-  "glossary": { "button": "术语表", "tooltip": "术语表管理" },
+  "glossary": {
+    "button": "术语表",
+    "tooltip": "术语表管理",
+    "panelTitle": "术语表",
+    "close": "关闭术语表",
+    "sourcePlaceholder": "原文",
+    "targetPlaceholder": "译文",
+    "addTerm": "添加术语",
+    "empty": "暂无术语"
+  },
   "buttons": {
     "import": { "tooltip": "导入字幕", "label": "导入" },
     "proofread": { "tooltip": "AI 语法和拼写校正（不翻译）", "label": "校对" },

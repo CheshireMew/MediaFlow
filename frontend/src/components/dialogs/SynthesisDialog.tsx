@@ -292,7 +292,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <div 
-                className="bg-[#0a0a0a] w-[95vw] h-[90vh] rounded-2xl border border-white/10 shadow-2xl flex overflow-hidden ring-1 ring-white/5"
+                className="bg-[#0a0a0a] w-[95vw] h-[90vh] rounded-lg border border-white/10 shadow-2xl flex overflow-hidden ring-1 ring-white/5"
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties & { WebkitAppRegion: 'no-drag' }}
             >
                 {/* Left: Settings Panel */}

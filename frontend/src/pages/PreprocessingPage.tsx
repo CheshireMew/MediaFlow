@@ -19,6 +19,7 @@ import {
     Wand2,
     Upload, Film, Move, MousePointer2, Loader2,
 } from 'lucide-react';
+import { EmptyState, PageHeader, PageShell, ToolbarButton } from '../components/ui/PageChrome';
 
 import { PreprocessingToolsPanel } from '../components/preprocessing/PreprocessingToolsPanel';
 
@@ -242,24 +243,17 @@ export const PreprocessingPage = () => {
 
     // ── Render ───────────────────────────────────────────────────
     return (
-        <div className="w-full h-full flex flex-col bg-[#0f0f0f] text-slate-200 overflow-hidden">
-            {/* Header */}
-            <header className="flex-none h-14 border-b border-white/5 bg-[#1a1a1a] flex items-center justify-between pl-6 pr-36 drag-region relative z-50">
-                <div className="flex items-center gap-3 no-drag">
-                    <div className="p-2 bg-indigo-500/10 rounded-lg">
-                        <Wand2 size={18} className="text-indigo-400" />
-                    </div>
-                    <span className="font-bold tracking-tight">{t('title')}</span>
-                </div>
-                <div className="flex items-center gap-2 no-drag">
-                    <button
-                        onClick={handleImportMedia}
-                        className="px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 rounded-lg border border-white/5 flex items-center gap-2 transition-all"
-                    >
-                        <Upload size={14} /> {t('importButton')}
-                    </button>
-                </div>
-            </header>
+        <PageShell padded={false} className="flex flex-col">
+            <PageHeader
+                icon={Wand2}
+                title={t('title')}
+                subtitle={t('subtitle')}
+                actions={(
+                    <ToolbarButton onClick={handleImportMedia} icon={Upload} variant="subtle" className="text-xs">
+                        {t('importButton')}
+                    </ToolbarButton>
+                )}
+            />
 
             <div className="flex-1 flex min-h-0">
                 {/* Left: Project Files */}
@@ -274,11 +268,11 @@ export const PreprocessingPage = () => {
                 <div className="flex-1 bg-[#0a0a0a] flex flex-col relative">
                     {/* Toolbar Overlay */}
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-[#1a1a1a] border border-white/10 rounded-full px-2 py-1 flex items-center gap-1 shadow-xl">
-                        <button className="p-2 hover:bg-white/10 rounded-full text-indigo-400" title="Select">
+                        <button className="p-2 hover:bg-white/10 rounded-full text-indigo-400" title={t('toolbar.select')}>
                             <MousePointer2 size={16} />
                         </button>
                         <div className="w-[1px] h-4 bg-white/10 mx-1"></div>
-                        <button className="p-2 hover:bg-white/10 rounded-full text-slate-400" title="Pan">
+                        <button className="p-2 hover:bg-white/10 rounded-full text-slate-400" title={t('toolbar.pan')}>
                             <Move size={16} />
                         </button>
                     </div>
@@ -313,11 +307,12 @@ export const PreprocessingPage = () => {
                                         />
                                     )
                             ) : (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-700 pointer-events-none select-none">
-                                    <Film size={48} className="mb-4 opacity-50" />
-                                    <span className="font-mono text-sm">{t('canvas.noVideoMessage')}</span>
-                                    <span className="text-xs mt-2 text-slate-600">{t('canvas.dragHelpText')}</span>
-                                </div>
+                                <EmptyState
+                                    icon={Film}
+                                    title={t('canvas.noVideoMessage')}
+                                    description={t('canvas.dragHelpText')}
+                                    className="absolute inset-0 pointer-events-none select-none"
+                                />
                             )}
 
                             {/* ROI Box */}
@@ -360,7 +355,7 @@ export const PreprocessingPage = () => {
                                         <Loader2 className="animate-spin text-indigo-400" size={16} />
                                         <div className="flex-1">
                                             <div className="flex justify-between text-[10px] mb-1">
-                                                <span className="text-slate-200 font-medium">{currentTask.message || 'Processing...'}</span>
+                                                <span className="text-slate-200 font-medium">{currentTask.message || t('button.processingLabel')}</span>
                                                 <span className="text-indigo-400 font-mono">{currentTask.progress.toFixed(0)}%</span>
                                             </div>
                                             <div className="h-1 bg-slate-700/50 rounded-full overflow-hidden">
@@ -372,7 +367,7 @@ export const PreprocessingPage = () => {
                                 return (
                                     <div className="flex items-center justify-center gap-2 text-xs text-slate-300 py-1">
                                         <Loader2 className="animate-spin text-indigo-400" size={14} />
-                                        <span>Processing...</span>
+                                        <span>{t('button.processingLabel')}</span>
                                     </div>
                                 );
                             })()}
@@ -389,6 +384,6 @@ export const PreprocessingPage = () => {
                     onStartProcessing={handleStartProcessing}
                 />
             </div>
-        </div>
+        </PageShell>
     );
 };

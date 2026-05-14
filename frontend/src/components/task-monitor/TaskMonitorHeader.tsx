@@ -44,13 +44,13 @@ export function TaskMonitorHeader({
           <>
             <div className="hidden md:flex items-center gap-2 text-[10px] text-slate-400">
               <span className="px-2 py-1 rounded-md bg-amber-400/10 text-amber-300 border border-amber-400/20">
-                Queue {summary.pending}
+                {t("queue.pending")} {summary.pending}
               </span>
               <span className="px-2 py-1 rounded-md bg-indigo-400/10 text-indigo-300 border border-indigo-400/20">
-                Running {summary.running}
+                {t("queue.running")} {summary.running}
               </span>
               <span className="px-2 py-1 rounded-md bg-slate-400/10 text-slate-300 border border-slate-400/20">
-                Paused {summary.paused}
+                {t("queue.paused")} {summary.paused}
               </span>
             </div>
             <div className="flex items-center gap-3">

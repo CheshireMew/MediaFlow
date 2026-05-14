@@ -47,18 +47,25 @@ export async function resolveTaskMediaPaths(task: TaskWithDetails) {
   return await resolvePreferredMediaPaths(getTaskMediaCandidates(task));
 }
 
+export async function resolveTaskOutputPath(task: TaskWithDetails) {
+  const { outputPath } = await resolveTaskMediaPaths(task);
+  return outputPath;
+}
+
 export async function resolveTaskMediaReferences(task: TaskWithDetails): Promise<{
   videoRef: MediaReference | null;
   subtitleRef: MediaReference | null;
   contextRef: MediaReference | null;
   outputRef: MediaReference | null;
+  outputPath: string | null;
   contextPath: string | null;
 }> {
   const primaryMedia = resolvePrimaryTaskMedia(task);
-  const { contextPath } = await resolveTaskMediaPaths(task);
+  const { outputPath, contextPath } = await resolveTaskMediaPaths(task);
 
   return {
     ...primaryMedia,
+    outputPath: primaryMedia.outputRef?.path ?? outputPath,
     contextPath: primaryMedia.contextPath ?? contextPath,
   };
 }

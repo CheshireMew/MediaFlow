@@ -25,6 +25,7 @@ import { useEditorFindReplace } from "../hooks/editor/useEditorFindReplace";
 import { useEditorRegionHandlers } from "../hooks/editor/useEditorRegionHandlers";
 import { useEditorStore } from "../stores/editorStore";
 import { normalizeMediaReference } from "../services/ui/mediaReference";
+import { PageShell } from "../components/ui/PageChrome";
 
 const SynthesisDialog = lazy(async () => {
   const mod = await import("../components/dialogs/SynthesisDialog");
@@ -95,6 +96,7 @@ export function EditorPage() {
 
   const { handleContextMenu } = useContextMenuBuilder({
       regions, selectedIds, currentFilePath, currentFileRef, videoRef,
+      currentSubtitlePath, currentSubtitleRef,
       selectSegment, addSegment, addSegments, updateSegments,
       mergeSegments, splitSegment, deleteSegments, setContextMenu,
   });
@@ -155,7 +157,7 @@ export function EditorPage() {
 
   // ── Render ──────────────────────────────────────────────────
   return (
-    <div className="h-screen w-full flex flex-col text-slate-100 overflow-hidden">
+    <PageShell padded={false} className="flex flex-col">
         <EditorHeader
             onOpenFile={openFile}
             onOpenSubtitle={openSubtitle}
@@ -167,7 +169,7 @@ export function EditorPage() {
 
         <div className="flex-1 flex min-h-0 bg-[#0a0a0a] gap-[1px]">
              {/* Left: Subtitle List */}
-             <div className="w-1/3 min-w-[320px] max-w-[480px] flex flex-col bg-[#1a1a1a]"
+             <div className="w-[34%] min-w-[340px] max-w-[540px] flex flex-col bg-[#141414]"
                  onDrop={handleSubtitleDrop} onDragOver={handleDragOver}>
                  <div className="flex-1 min-h-0">
                      <SubtitleList
@@ -194,7 +196,7 @@ export function EditorPage() {
 
                  {/* Detail Editor */}
                  {displaySegment ? (
-                    <div className="h-28 bg-[#1a1a1a] p-2 flex flex-col gap-1 border-t border-white/5 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.5)] z-20">
+                    <div className="h-28 bg-[#151515] p-2 flex flex-col gap-1 border-t border-white/5 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.5)] z-20">
                          <div className="flex justify-between items-center text-[10px] px-1 select-none">
                              <div className="flex items-center gap-2">
                                 <span className={`w-1.5 h-1.5 rounded-full ${activeSegmentId ? 'bg-indigo-500 animate-pulse' : 'bg-slate-500'}`} />
@@ -214,14 +216,14 @@ export function EditorPage() {
                          />
                     </div>
                  ) : (
-                    <div className="h-28 bg-[#1a1a1a] p-2 flex flex-col items-center justify-center border-t border-white/5 z-20 text-slate-700/50 text-xs italic pointer-events-none select-none">
+                    <div className="h-28 bg-[#151515] p-2 flex flex-col items-center justify-center border-t border-white/5 z-20 text-slate-700/50 text-xs italic pointer-events-none select-none">
                         {t('detailEditor.noSelection')}
                     </div>
                  )}
              </div>
 
              {/* Right: Video Preview */}
-             <div className="flex-1 min-w-0 bg-[#1a1a1a] relative flex flex-col justify-center"
+             <div className="flex-1 min-w-0 bg-[#101010] relative flex flex-col justify-center"
                  onDrop={handleVideoDrop} onDragOver={handleDragOver}>
                 <VideoPreview
                     mediaUrl={mediaUrl}
@@ -233,7 +235,7 @@ export function EditorPage() {
         </div>
 
         {/* Bottom: Waveform Timeline */}
-        <div className="h-40 bg-[#1a1a1a] border-t border-white/5 relative z-30 shrink-0">
+        <div className="h-44 bg-[#101010] border-t border-white/5 relative z-30 shrink-0">
              {mediaUrl && waveformReady && (
                <Suspense fallback={null}>
                  <WaveformPlayer
@@ -244,6 +246,7 @@ export function EditorPage() {
                      onRegionClick={handleRegionClick}
                      onContextMenu={handleContextMenu}
                      selectedIds={selectedIds}
+                     activeSegmentId={activeSegmentId}
                      autoScroll={autoScroll}
                      onInteractStart={snapshot}
                  />
@@ -342,6 +345,6 @@ export function EditorPage() {
                 />
             </Suspense>
         )}
-    </div>
+    </PageShell>
   );
 }

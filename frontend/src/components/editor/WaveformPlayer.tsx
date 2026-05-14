@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { AudioLines, Minus, Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import TimelinePlugin from 'wavesurfer.js/dist/plugins/timeline.esm.js';
@@ -26,6 +28,7 @@ interface WaveformPlayerProps {
     onRegionClick: (id: string, e: MouseEvent) => void;
     onContextMenu: (e: MouseEvent, id: string, regionData?: {start: number, end: number}) => void;
     selectedIds?: string[];
+    activeSegmentId?: string | null;
     autoScroll?: boolean;
     onInteractStart?: () => void;
 }
@@ -38,9 +41,11 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
     onRegionClick,
     onContextMenu,
     selectedIds = [],
+    activeSegmentId = null,
     autoScroll = true,
     onInteractStart
 }) => {
+    const { t } = useTranslation('editor');
     const scrollContainerRef = useRef<HTMLDivElement>(null); // Top scrollbar
     const containerRef = useRef<HTMLDivElement>(null); // Waveform wrapper
     const timelineContainerRef = useRef<HTMLDivElement>(null);
@@ -80,6 +85,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
     const [isReady, setIsReady] = useState(false);
     const [hasError, setHasError] = useState(false);
     const [loadProgress, setLoadProgress] = useState(0);
+    const [currentPlaybackRegionId, setCurrentPlaybackRegionId] = useState<string | null>(null);
     const zoomRef = useRef(zoom);
     
     const isScrolling = useRef<'top' | 'wave' | null>(null);
@@ -87,6 +93,29 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
     useEffect(() => {
         zoomRef.current = zoom;
     }, [zoom]);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) {
+            return;
+        }
+
+        const syncCurrentRegion = () => {
+            const time = video.currentTime;
+            const currentRegion = latestRegionsRef.current.find(
+                (region) => time >= region.start && time < region.end,
+            );
+            setCurrentPlaybackRegionId(currentRegion ? String(currentRegion.id) : null);
+        };
+
+        syncCurrentRegion();
+        video.addEventListener('timeupdate', syncCurrentRegion);
+        video.addEventListener('seeked', syncCurrentRegion);
+        return () => {
+            video.removeEventListener('timeupdate', syncCurrentRegion);
+            video.removeEventListener('seeked', syncCurrentRegion);
+        };
+    }, [mediaUrl, videoRef]);
 
     // Sync Scroll: Top scrollbar -> WaveSurfer (via setScroll API)
     const onTopScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -330,12 +359,18 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
         regions.forEach(seg => {
             const strId = String(seg.id);
             const isSelected = selectedIdSet.has(strId);
+            const isActive = activeSegmentId === strId;
+            const isPlaying = currentPlaybackRegionId === strId;
             const isOverlapping = overlappingIds.has(strId);
             
-            let color = 'rgba(79, 70, 229, 0.2)'; 
+            let color = 'rgba(79, 70, 229, 0.22)';
+            if (isPlaying) color = 'rgba(14, 165, 233, 0.36)';
             if (isOverlapping) color = 'rgba(239, 68, 68, 0.5)';
             if (isSelected) {
                 color = isOverlapping ? 'rgba(239, 68, 68, 0.7)' : 'rgba(234, 179, 8, 0.5)';
+            }
+            if (isActive) {
+                color = isOverlapping ? 'rgba(239, 68, 68, 0.78)' : 'rgba(129, 140, 248, 0.58)';
             }
             geometryMap.set(strId, { start: seg.start, end: seg.end, color });
         });
@@ -386,7 +421,7 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
             }
         });
 
-    }, [regions, selectedIds, isReady]);
+    }, [regions, selectedIds, activeSegmentId, currentPlaybackRegionId, isReady]);
 
     // Zoom setup...
     useEffect(() => {
@@ -413,29 +448,38 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
     }, [autoScroll]);
     
     return (
-        <div className="w-full h-full flex flex-col relative bg-[#0a0a0a] border-t border-white/10">
-            {/* Toolbar */}
-            <div className="absolute top-3 right-3 z-30 flex gap-2">
-                <button 
-                  onClick={handleZoomOut} 
-                  className="bg-black/40 backdrop-blur-md p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 transition-all shadow-lg active:scale-95"
-                  title="Zoom Out"
-                >
-                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                </button>
-                <button 
-                  onClick={handleZoomIn} 
-                  className="bg-black/40 backdrop-blur-md p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 transition-all shadow-lg active:scale-95"
-                  title="Zoom In"
-                >
-                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                </button>
+        <div className="w-full h-full flex flex-col relative bg-[#090909] border-t border-white/10">
+            <div className="flex h-8 shrink-0 items-center justify-between border-b border-white/5 bg-[#141414] px-3">
+                <div className="flex items-center gap-2 text-[11px] font-medium text-slate-400">
+                    <AudioLines size={14} className="text-indigo-300" />
+                    <span>{t('waveform.title')}</span>
+                    <span className="rounded-md border border-white/5 bg-white/[0.03] px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+                        {currentPlaybackRegionId ? t('waveform.currentSegment', { id: currentPlaybackRegionId }) : t('waveform.noCurrentSegment')}
+                    </span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-slate-500">{Math.round(zoom)} px/s</span>
+                    <button
+                      onClick={handleZoomOut}
+                      className="bg-black/30 p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 transition-all active:scale-95"
+                      title={t('waveform.zoomOut')}
+                    >
+                        <Minus size={14} />
+                    </button>
+                    <button
+                      onClick={handleZoomIn}
+                      className="bg-black/30 p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 transition-all active:scale-95"
+                      title={t('waveform.zoomIn')}
+                    >
+                        <Plus size={14} />
+                    </button>
+                </div>
             </div>
 
             {/* Synced Top Scrollbar */}
             <div 
                 ref={scrollContainerRef}
-                className="w-full overflow-x-auto overflow-y-hidden custom-scrollbar bg-[#0a0a0a] border-b border-white/5"
+                className="w-full overflow-x-auto overflow-y-hidden custom-scrollbar bg-[#050505] border-b border-white/5"
                 style={{ height: '12px', minHeight: '12px' }}
                 onScroll={onTopScroll}
             >
@@ -444,13 +488,25 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
 
             {/* WaveSurfer Container */}
             <div 
-                className="relative w-full flex-1 overflow-hidden" 
+                className="wavesurfer-wrapper relative w-full flex-1 overflow-hidden" 
                 ref={containerRef} 
                 onContextMenu={(e) => e.preventDefault()}
             >
                {/* Timeline container */}
-               <div ref={timelineContainerRef} className="absolute top-0 left-0 w-full h-5 z-20 pointer-events-none opacity-70"></div>
+               <div ref={timelineContainerRef} className="absolute top-0 left-0 w-full h-5 z-20 pointer-events-none opacity-95"></div>
             </div>
+            <style>{`
+                .wavesurfer-wrapper ::part(cursor) {
+                    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35), 0 0 14px rgba(56, 189, 248, 0.55);
+                }
+                .wavesurfer-wrapper ::part(region) {
+                    border-left: 1px solid rgba(255, 255, 255, 0.16);
+                    border-right: 1px solid rgba(255, 255, 255, 0.12);
+                }
+                .wavesurfer-wrapper ::part(timeline) {
+                    color: rgba(203, 213, 225, 0.78);
+                }
+            `}</style>
             
             {/* Loading Overlay */}
             {!isReady && !hasError && mediaUrl && (
@@ -463,7 +519,9 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
                             />
                         </div>
                         <span className="text-xs font-medium text-indigo-400 tracking-wider uppercase">
-                            {loadProgress < 100 ? `解码音频 ${loadProgress}%` : '渲染波形...'}
+                            {loadProgress < 100
+                                ? t('waveform.decoding', { progress: loadProgress })
+                                : t('waveform.rendering')}
                         </span>
                     </div>
                 </div>

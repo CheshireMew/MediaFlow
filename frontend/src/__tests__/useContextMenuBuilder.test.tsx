@@ -12,12 +12,14 @@ const {
   toastInfoMock,
   toastSuccessMock,
   toastErrorMock,
+  showInExplorerMock,
 } = vi.hoisted(() => ({
   transcribeSegmentMock: vi.fn(),
   translateSegmentsMock: vi.fn(),
   toastInfoMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  showInExplorerMock: vi.fn(),
 }));
 
 vi.mock("../services/domain", () => ({
@@ -33,6 +35,12 @@ vi.mock("../utils/toast", () => ({
     info: toastInfoMock,
     success: toastSuccessMock,
     error: toastErrorMock,
+  },
+}));
+
+vi.mock("../services/fileService", () => ({
+  fileService: {
+    showInExplorer: showInExplorerMock,
   },
 }));
 
@@ -72,6 +80,8 @@ describe("useContextMenuBuilder", () => {
         selectedIds: [],
         currentFilePath: "E:/sample.mp4",
         currentFileRef: null,
+        currentSubtitlePath: null,
+        currentSubtitleRef: null,
         videoRef: { current: null },
         selectSegment: vi.fn(),
         addSegment: vi.fn(),
@@ -142,6 +152,8 @@ describe("useContextMenuBuilder", () => {
         selectedIds: [],
         currentFilePath: "E:/sample.mp4",
         currentFileRef: null,
+        currentSubtitlePath: null,
+        currentSubtitleRef: null,
         videoRef: { current: null },
         selectSegment: vi.fn(),
         addSegment: vi.fn(),
@@ -193,5 +205,51 @@ describe("useContextMenuBuilder", () => {
         text: "こんにちは",
       }),
     ]);
+  });
+
+  it("opens the current subtitle file location from the segment context menu", async () => {
+    const setContextMenu = vi.fn();
+
+    const { result } = renderHook(() =>
+      useContextMenuBuilder({
+        regions: [{ id: "1", start: 1, end: 2, text: "hello" }],
+        selectedIds: ["1"],
+        currentFilePath: "E:/video/sample.mp4",
+        currentFileRef: null,
+        currentSubtitlePath: "E:/subtitles/sample.srt",
+        currentSubtitleRef: null,
+        videoRef: { current: null },
+        selectSegment: vi.fn(),
+        addSegment: vi.fn(),
+        addSegments: vi.fn(),
+        updateSegments: vi.fn(),
+        mergeSegments: vi.fn(),
+        splitSegment: vi.fn(),
+        deleteSegments: vi.fn(),
+        setContextMenu,
+      }),
+    );
+
+    act(() => {
+      result.current.handleContextMenu(
+        { clientX: 16, clientY: 32 } as MouseEvent,
+        "1",
+      );
+    });
+
+    const menu = setContextMenu.mock.calls[0][0];
+    const openFolderItem = menu.items.find(
+      (item: { label: string }) => item.label === "📂 打开字幕所在文件夹",
+    );
+
+    expect(openFolderItem).toBeDefined();
+    expect(openFolderItem.disabled).toBe(false);
+
+    await act(async () => {
+      await openFolderItem.onClick();
+    });
+
+    expect(showInExplorerMock).toHaveBeenCalledWith("E:/subtitles/sample.srt");
+    expect(showInExplorerMock).not.toHaveBeenCalledWith("E:/video/sample.mp4");
   });
 });

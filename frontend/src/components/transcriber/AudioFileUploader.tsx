@@ -16,7 +16,7 @@ export function AudioFileUploader({ file, onFileSelect, onFileDrop, className = 
       onClick={onFileSelect}
       onDragOver={(e) => e.preventDefault()}
       onDrop={onFileDrop}
-      className={`group relative border border-dashed rounded-2xl p-8 flex flex-col items-center justify-center gap-4 transition-all duration-300 cursor-pointer overflow-hidden ${className}
+      className={`group relative border border-dashed rounded-lg p-8 flex flex-col items-center justify-center gap-4 transition-all duration-300 cursor-pointer overflow-hidden ${className}
         ${file 
           ? 'border-purple-500/50 bg-purple-500/5 shadow-[0_0_20px_-5px_rgba(168,85,247,0.15)]' 
           : 'border-white/10 bg-black/20 hover:border-purple-500/30 hover:bg-black/30'
@@ -30,7 +30,7 @@ export function AudioFileUploader({ file, onFileSelect, onFileDrop, className = 
 
       {file ? (
         <>
-          <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20 shadow-inner group-hover:scale-105 transition-transform duration-300">
+          <div className="w-16 h-16 rounded-lg bg-purple-500/10 flex items-center justify-center border border-purple-500/20 shadow-inner group-hover:scale-105 transition-transform duration-300">
             <FileAudio className="w-8 h-8 text-purple-400" />
           </div>
           <div className="text-center z-10">
@@ -48,7 +48,7 @@ export function AudioFileUploader({ file, onFileSelect, onFileDrop, className = 
         </>
       ) : (
         <>
-          <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-purple-500/10 group-hover:border-purple-500/20 transition-colors duration-300">
+          <div className="w-16 h-16 rounded-lg bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-purple-500/10 group-hover:border-purple-500/20 transition-colors duration-300">
              <Upload className="w-8 h-8 text-slate-500 group-hover:text-purple-400 transition-colors duration-300" />
           </div>
           <div className="text-center z-10">

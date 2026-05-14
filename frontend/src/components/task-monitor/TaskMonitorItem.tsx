@@ -27,7 +27,7 @@ import {
   hasTaskSubtitleMedia,
   hasTaskTranscribableMedia,
   hasTaskVideoMedia,
-  resolveTaskMediaPaths,
+  resolveTaskOutputPath,
   resolveTaskNavigationPayload,
 } from "../../services/ui/taskMedia";
 import { NavigationService } from "../../services/ui/navigation";
@@ -87,15 +87,15 @@ function QueueBadge({ task }: { task: TaskWithDetails }) {
   if (task.queue_state === "queued" || task.status === "pending") {
     return (
       <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-amber-400/10 text-amber-300 border-amber-400/20">
-        {task.queue_position ? `Queue #${task.queue_position}` : "Queued"}
+        {task.queue_position ? t("queue.position", { position: task.queue_position }) : t("queue.queued")}
       </span>
     );
   }
   if (task.queue_state === "running" || task.status === "running") {
-    return <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-indigo-400/10 text-indigo-300 border-indigo-400/20">Running</span>;
+    return <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-indigo-400/10 text-indigo-300 border-indigo-400/20">{t("queue.running")}</span>;
   }
   if (task.queue_state === "paused" || task.status === "paused") {
-    return <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-slate-400/10 text-slate-300 border-slate-400/20">Paused</span>;
+    return <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-slate-400/10 text-slate-300 border-slate-400/20">{t("queue.paused")}</span>;
   }
   return null;
 }
@@ -175,8 +175,8 @@ export function TaskMonitorItem({
                   {(hasVideo || hasSubtitle) && (
                     <button
                       onClick={() => {
-                        void resolveTaskMediaPaths(task).then(({ contextPath }) => {
-                          if (contextPath) return fileService.showInExplorer(contextPath);
+                        void resolveTaskOutputPath(task).then((outputPath) => {
+                          if (outputPath) return fileService.showInExplorer(outputPath);
                         });
                       }}
                       className="p-1.5 rounded-lg hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-colors"
@@ -249,7 +249,7 @@ export function TaskMonitorItem({
 
           {import.meta.env.DEV && (
             <details className="mt-2 text-[10px] text-slate-600 cursor-pointer">
-              <summary className="hover:text-slate-400">Debug Info</summary>
+              <summary className="hover:text-slate-400">{t("debugInfo")}</summary>
               <pre className="mt-1 p-2 bg-black/50 rounded overflow-auto max-h-40 whitespace-pre-wrap">
                 {JSON.stringify(createTaskDiagnostic(task, executionSummary), null, 2)}
               </pre>

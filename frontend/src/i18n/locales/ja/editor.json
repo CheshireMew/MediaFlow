@@ -39,6 +39,15 @@
     "emptyState": "字幕がありません",
     "validationOverlap": "重複あり"
   },
+  "waveform": {
+    "title": "タイムライン",
+    "currentSegment": "現在 #{{id}}",
+    "noCurrentSegment": "現在の字幕なし",
+    "zoomIn": "タイムラインを拡大",
+    "zoomOut": "タイムラインを縮小",
+    "decoding": "音声をデコード中 {{progress}}%",
+    "rendering": "波形を描画中..."
+  },
   "findReplace": {
     "title": "検索と置換",
     "findPlaceholder": "検索...",

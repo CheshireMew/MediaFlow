@@ -23,6 +23,17 @@
   "badges": {
     "history": "History"
   },
+  "queue": {
+    "pending": "Queue",
+    "running": "Running",
+    "paused": "Paused",
+    "queued": "Queued",
+    "position": "Queue #{{position}}"
+  },
+  "debugInfo": "Debug Info",
+  "diagnostics": {
+    "ignoredFeedItem": "Ignored incompatible task feed item. reason={{reason}}, expected={{expected}}, received={{received}}, ignored={{ignored}}"
+  },
   "taskTypes": {
     "transcribe": "Transcribe",
     "translate": "Translate",

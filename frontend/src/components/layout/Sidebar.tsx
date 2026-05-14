@@ -27,7 +27,7 @@ function SidebarItem({ icon: Icon, label, isActive, onClick, badge }: SidebarIte
     <div 
       onClick={onClick}
       className={`
-        w-full p-3 mb-2 rounded-xl cursor-pointer transition-all duration-200 group relative
+        w-full h-16 rounded-lg cursor-pointer transition-all duration-200 group relative
         flex flex-col items-center justify-center gap-1
         ${isActive 
           ? 'bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]' 
@@ -36,10 +36,10 @@ function SidebarItem({ icon: Icon, label, isActive, onClick, badge }: SidebarIte
       `}
       title={label}
     >
-      <div className={`p-2 rounded-lg transition-transform duration-300 group-hover:scale-110 ${isActive ? 'bg-indigo-500 shadow-lg shadow-indigo-500/30' : ''}`}>
-        <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'} />
+      <div className={`p-1.5 rounded-lg transition-transform duration-300 group-hover:scale-110 ${isActive ? 'bg-indigo-500 shadow-lg shadow-indigo-500/30' : ''}`}>
+        <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'} />
       </div>
-      <span className={`text-[10px] font-medium tracking-wide ${isActive ? 'text-indigo-200' : 'text-slate-500 group-hover:text-slate-300'}`}>
+      <span className={`max-w-full whitespace-nowrap text-[10px] font-medium tracking-wide ${isActive ? 'text-indigo-200' : 'text-slate-500 group-hover:text-slate-300'}`}>
         {label}
       </span>
       
@@ -85,13 +85,13 @@ export function Sidebar() {
   }
 
   return (
-    <div className="w-20 bg-[#1a1a1a] border-r border-[#333] flex flex-col items-center py-6 h-full select-none z-50 shadow-2xl">
+    <div className="w-24 bg-[#1a1a1a] border-r border-[#333] flex flex-col items-center py-4 h-full select-none z-50 shadow-2xl">
         {/* App Logo/Brand */}
-        <div className="mb-8 cursor-default">
-            <img src={mediaflowMark} alt="MediaFlow" className="w-12 h-12 rounded-2xl shadow-lg shadow-indigo-500/20" />
+        <div className="mb-5 cursor-default">
+            <img src={mediaflowMark} alt="MediaFlow" className="w-11 h-11 rounded-xl shadow-lg shadow-indigo-500/20" />
         </div>
 
-        <div className="flex-1 w-full px-2 space-y-1 overflow-y-auto no-scrollbar">
+        <div className="flex-1 w-full px-2 space-y-1 overflow-hidden">
             {menuItems.map((item) => (
                 <SidebarItem
                     key={item.id}
@@ -105,7 +105,7 @@ export function Sidebar() {
         </div>
 
          {/* Bottom Actions - Exit Button Removed */}
-         <div className="mt-auto px-2 w-full pt-4 border-t border-white/5 space-y-2">
+         <div className="mt-auto px-2 w-full pt-3 border-t border-white/5 space-y-2">
             
          </div>
     </div>

@@ -33,7 +33,7 @@ export function TranscriptionResults({
   const normalizedResult = normalizeTranscribeResult(result);
 
   return (
-    <div className="h-full flex flex-col bg-[#1a1a1a] border border-white/5 rounded-2xl shadow-2xl overflow-hidden">
+    <div className="h-full flex flex-col bg-[#1a1a1a] border border-white/5 rounded-lg shadow-2xl overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
         <h2 className="text-base font-semibold text-white flex items-center gap-2">

@@ -8,6 +8,7 @@ import {
     Play,
     Volume2,
     VolumeX,
+    Subtitles,
 } from "lucide-react";
 import React, { type RefObject, useState, useCallback, useMemo } from "react";
 import {
@@ -59,6 +60,10 @@ function VideoPreviewComponent({
     const [isMuted, setIsMuted] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [subtitlePosition, setSubtitlePosition] = useState({ x: 50, y: 76 });
+    const [subtitleBackgroundAlpha, setSubtitleBackgroundAlpha] = useState(0.6);
+    const [isDraggingSubtitle, setIsDraggingSubtitle] = useState(false);
+    const videoFrameRef = React.useRef<HTMLDivElement>(null);
 
     const handleTimeUpdate = useCallback(() => {
         if (videoRef.current) {
@@ -73,6 +78,11 @@ function VideoPreviewComponent({
         [regions, currentTime]
     );
 
+    const currentSubtitleIndex = useMemo(
+        () => regions.findIndex(r => currentTime >= r.start && currentTime < r.end),
+        [regions, currentTime],
+    );
+
     const [hasError, setHasError] = useState(false);
 
     // Reset error when url changes
@@ -84,6 +94,37 @@ function VideoPreviewComponent({
         setIsPlaying(false);
         setIsRateMenuOpen(false);
     }, [mediaUrl]);
+
+    React.useEffect(() => {
+        if (!isDraggingSubtitle) {
+            return;
+        }
+
+        const handlePointerMove = (event: PointerEvent) => {
+            const frame = videoFrameRef.current;
+            if (!frame) {
+                return;
+            }
+            const rect = frame.getBoundingClientRect();
+            const x = ((event.clientX - rect.left) / rect.width) * 100;
+            const y = ((event.clientY - rect.top) / rect.height) * 100;
+            setSubtitlePosition({
+                x: Math.min(88, Math.max(12, x)),
+                y: Math.min(88, Math.max(20, y)),
+            });
+        };
+
+        const handlePointerUp = () => {
+            setIsDraggingSubtitle(false);
+        };
+
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+        return () => {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+        };
+    }, [isDraggingSubtitle]);
 
     React.useEffect(() => {
         const video = videoRef.current;
@@ -285,18 +326,19 @@ function VideoPreviewComponent({
     );
 
     return (
-        <div className="flex-1 bg-black/40 flex flex-col relative justify-center items-center backdrop-blur-sm">
+        <div className="flex-1 bg-[#0b0b0b] flex flex-col relative justify-center items-center">
             {mediaUrl && !hasError ? (
                 <div
                     ref={panelRef}
                     data-testid="editor-video-preview-panel"
-                    className="w-full h-full min-h-0 relative p-6 flex flex-col gap-3 bg-black/40"
+                    className="w-full h-full min-h-0 relative flex flex-col bg-transparent"
                 >
                     <div
                         ref={stageRef}
-                        className="flex-1 min-h-0 relative flex items-center justify-center bg-black/50 rounded-lg overflow-hidden border border-white/5 shadow-2xl ring-1 ring-white/5"
+                        className="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden border border-white/[0.07] bg-black shadow-2xl"
                     >
                         <div
+                            ref={videoFrameRef}
                             role="button"
                             tabIndex={0}
                             aria-label={isPlaying ? "暂停视频画面" : "播放视频画面"}
@@ -318,35 +360,77 @@ function VideoPreviewComponent({
                                onLoadedMetadata={handleLoadedMetadata}
                                onError={handleError}
                             />
-                            {/* Overlay Subtitles (Improved Typography) */}
-                            <div
-                                className={`absolute left-0 right-0 text-center pointer-events-none ${
-                                    isFullscreen ? "bottom-24 px-16" : "bottom-16 px-12"
-                                }`}
-                            >
-                                {currentSubtitle && (
+                            <div className="pointer-events-none absolute inset-[5%] border border-white/10" />
+                            <div className="pointer-events-none absolute left-[5%] right-[5%] top-1/2 border-t border-dashed border-white/10" />
+                            <div className="pointer-events-none absolute bottom-[20%] left-[5%] right-[5%] border-t border-dashed border-indigo-300/20" />
+
+                            <div className="absolute left-3 top-3 flex items-center gap-2 rounded-lg border border-white/10 bg-black/55 px-2 py-1 text-[10px] font-medium text-slate-300">
+                                <Subtitles size={12} className="text-indigo-300" />
+                                {currentSubtitleIndex >= 0 ? `${currentSubtitleIndex + 1} / ${regions.length}` : `0 / ${regions.length}`}
+                            </div>
+
+                            <div className="absolute right-3 top-3 flex items-center gap-1 rounded-lg border border-white/10 bg-black/75 p-1 text-[10px] font-medium text-slate-300 shadow-lg">
+                                {[0.35, 0.6, 0.85].map((alpha) => (
+                                    <button
+                                        key={alpha}
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            setSubtitleBackgroundAlpha(alpha);
+                                        }}
+                                        className={`h-6 rounded-md px-2 transition-colors ${
+                                            Math.abs(subtitleBackgroundAlpha - alpha) < 0.01
+                                                ? "bg-indigo-500/30 text-indigo-100"
+                                                : "hover:bg-white/10 text-slate-400"
+                                        }`}
+                                    >
+                                        {Math.round(alpha * 100)}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {currentSubtitle && (
+                                <div
+                                    className="absolute z-20 max-w-[86%] -translate-x-1/2 -translate-y-1/2 text-center"
+                                    style={{
+                                        left: `${subtitlePosition.x}%`,
+                                        top: `${subtitlePosition.y}%`,
+                                    }}
+                                >
                                     <span
                                         data-testid="editor-preview-subtitle"
-                                        className={`inline-block max-w-[90%] bg-black/60 text-white/95 rounded-lg font-medium shadow-lg backdrop-blur-md border border-white/10 leading-relaxed break-words ${
-                                            isFullscreen ? "px-8 py-4 text-3xl" : "px-6 py-3 text-lg"
-                                        }`}
+                                        onPointerDown={(event) => {
+                                            event.stopPropagation();
+                                            setIsDraggingSubtitle(true);
+                                        }}
+                                        onClick={(event) => event.stopPropagation()}
+                                        className={`inline-block w-auto max-w-full cursor-move select-none rounded-lg text-white/95 font-medium shadow-lg leading-snug whitespace-normal break-words ring-1 ${
+                                            isDraggingSubtitle ? "ring-indigo-300/70" : "ring-transparent"
+                                        } ${isFullscreen ? "px-6 py-2.5 text-3xl" : "px-4 py-1.5 text-lg"}`}
+                                        style={{ backgroundColor: `rgba(0, 0, 0, ${subtitleBackgroundAlpha})` }}
                                     >
                                         {currentSubtitle}
                                     </span>
-                                )}
-                            </div>
+                                </div>
+                            )}
                         </div>
                     </div>
-                    <div className="shrink-0 rounded-lg border border-white/10 bg-black/55 px-3 py-2 shadow-lg backdrop-blur-md">
-                        <div className="flex items-center gap-3">
+                    <div
+                        className="mx-auto mt-1 shrink-0 rounded-lg border border-white/[0.07] bg-black/80 px-4 py-1 shadow-lg"
+                        style={{
+                            width: frameSize.width > 0 ? `${frameSize.width}px` : "100%",
+                            maxWidth: "100%",
+                        }}
+                    >
+                        <div className="flex items-center gap-2.5">
                             <button
                                 type="button"
                                 title={isPlaying ? "暂停" : "播放"}
                                 aria-label={isPlaying ? "暂停" : "播放"}
                                 onClick={handlePlayPause}
-                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10"
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10"
                             >
-                                {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+                                {isPlaying ? <Pause size={17} /> : <Play size={17} />}
                             </button>
                             <span className="w-28 shrink-0 text-xs font-semibold tabular-nums text-slate-200">
                                 {formatMediaTime(currentTime)} / {formatMediaTime(duration)}
@@ -363,7 +447,7 @@ function VideoPreviewComponent({
                                 className="h-1.5 min-w-0 flex-1 cursor-pointer accent-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
                             />
                             <div
-                                className="relative shrink-0"
+                                className="relative z-30 shrink-0"
                                 onMouseLeave={() => setIsRateMenuOpen(false)}
                             >
                                 <button
@@ -373,7 +457,7 @@ function VideoPreviewComponent({
                                     aria-haspopup="menu"
                                     aria-expanded={isRateMenuOpen}
                                     onClick={() => setIsRateMenuOpen((open) => !open)}
-                                    className="flex h-9 min-w-16 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-xs font-semibold text-white/90 transition-colors hover:bg-white/10"
+                                    className="flex h-7 min-w-14 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/10"
                                 >
                                     <Gauge size={14} />
                                     <span>{formatPlaybackRate(playbackRate)}</span>
@@ -382,7 +466,7 @@ function VideoPreviewComponent({
                                     <div
                                         role="menu"
                                         aria-label="播放速度"
-                                        className="absolute right-0 top-full mt-2 w-28 overflow-hidden rounded-lg border border-white/10 bg-zinc-950/95 py-1 text-sm text-slate-100 shadow-2xl backdrop-blur-md"
+                                        className="absolute bottom-full right-0 z-50 mb-2 w-28 overflow-hidden rounded-lg border border-white/10 bg-zinc-950/95 py-1 text-sm text-slate-100 shadow-2xl backdrop-blur-md"
                                     >
                                         {EDITOR_PLAYBACK_RATES.map((rate) => {
                                             const isActive = Math.abs(playbackRate - rate) < 0.001;
@@ -412,7 +496,7 @@ function VideoPreviewComponent({
                                 title={isMuted ? "取消静音" : "静音"}
                                 aria-label={isMuted ? "取消静音" : "静音"}
                                 onClick={handleMuteToggle}
-                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10"
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10"
                             >
                                 {isMuted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
                             </button>
@@ -431,9 +515,9 @@ function VideoPreviewComponent({
                                 title={isFullscreen ? "缩小" : "全屏"}
                                 aria-label={isFullscreen ? "缩小" : "全屏"}
                                 onClick={handleFullscreenToggle}
-                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10"
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10"
                             >
-                                {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                                {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
                             </button>
                         </div>
                     </div>
