@@ -1,6 +1,7 @@
 from typing import List, Any
-from pathlib import Path
 import shutil
+import tempfile
+from pathlib import Path
 from loguru import logger
 from backend.config import settings
 from backend.models.schemas import SubtitleSegment
@@ -11,6 +12,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 class CoreStrategies:
     def __init__(self, executor: ThreadPoolExecutor):
         self.executor = executor
+
+    @staticmethod
+    def _create_chunk_dir() -> Path:
+        base_dir = settings.TEMP_DIR / "asr-chunks"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        return Path(tempfile.mkdtemp(prefix="chunks-", dir=base_dir))
 
     def transcribe_direct(self, audio_path: str, duration: float, model: Any, language: str, initial_prompt: str, progress_callback) -> List[SubtitleSegment]:
         """Handle short audio files directly."""
@@ -39,7 +46,7 @@ class CoreStrategies:
         split_points = AudioProcessor.calculate_split_points(duration, silence_intervals)
         logger.info(f"Calculated {len(split_points)} split points: {[f'{p:.1f}s' for p in split_points]}")
         
-        chunk_dir = settings.WORKSPACE_DIR / f"chunks_{Path(audio_path).stem}"
+        chunk_dir = self._create_chunk_dir()
         chunk_dir.mkdir(parents=True, exist_ok=True)
         
         chunks = AudioProcessor.split_audio_physically(audio_path, split_points, chunk_dir)

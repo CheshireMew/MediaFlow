@@ -130,10 +130,8 @@ class AudioProcessor:
         # Add end of file as final point
         all_points = split_points + [None] 
         
-        base_name = Path(audio_path).stem
-        
         for idx, end_point in enumerate(all_points):
-            chunk_filename = f"{base_name}_part{idx:03d}.wav"
+            chunk_filename = f"chunk_{idx:03d}.wav"
             chunk_path = output_dir / chunk_filename
 
             trim_filter = f"atrim=start={current_start:.3f}"

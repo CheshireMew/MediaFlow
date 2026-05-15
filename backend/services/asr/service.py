@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import threading
 import wave
+import tempfile
 from pathlib import Path
 from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor
@@ -256,6 +257,44 @@ class ASRService:
         raw_name = f"{model_name}-{device}"
         return "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in raw_name)
 
+    @staticmethod
+    def _create_cli_transcription_output_dir(task_id: str | None) -> Path:
+        base_dir = settings.TEMP_DIR / "faster-whisper-cli"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        safe_task_id = "".join(
+            char if char.isascii() and (char.isalnum() or char in {"-", "_"}) else "_"
+            for char in (task_id or "sync")
+        )[:32] or "sync"
+        return Path(tempfile.mkdtemp(prefix=f"transcribe-{safe_task_id}-", dir=base_dir))
+
+    @staticmethod
+    def _stage_cli_audio_input(audio_path: Path, output_dir: Path) -> Path:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        suffix = audio_path.suffix if audio_path.suffix.isascii() and len(audio_path.suffix) <= 16 else ""
+        staged_path = output_dir / f"input{suffix.lower()}"
+
+        try:
+            os.link(audio_path, staged_path)
+            return staged_path
+        except OSError:
+            pass
+
+        try:
+            os.symlink(audio_path, staged_path)
+            return staged_path
+        except OSError:
+            pass
+
+        logger.info("Copying media to CLI-safe temp path: {}", staged_path)
+        shutil.copy2(audio_path, staged_path)
+        return staged_path
+
+    @staticmethod
+    def _create_segment_audio_path(segment_id: str) -> Path:
+        segment_dir = settings.TEMP_DIR / "asr-segments"
+        segment_dir.mkdir(parents=True, exist_ok=True)
+        return segment_dir / f"segment_{segment_id}.wav"
+
     def transcribe(self, audio_path: str, model_name: str = "base", device: str = "cpu", language: str = None, task_id: str = None, initial_prompt: str = None, progress_callback=None, generate_peaks: bool = True, engine: str = "builtin") -> TaskResult:
         """
         Main entry point for transcription. Dispatches to specific strategies.
@@ -286,8 +325,9 @@ class ASRService:
         final_segments = []
         
         if use_cli:
-            output_dir = settings.WORKSPACE_DIR / f"cli_out_{Path(audio_path).stem}_{int(time.time())}"
+            output_dir = self._create_cli_transcription_output_dir(task_id)
             try:
+                cli_audio_path = self._stage_cli_audio_input(Path(audio_path), output_dir)
                 # 1. Ensure model is available locally
                 # ModelManager returns path to model dir (or model name if fallback)
                 local_model_path_str = self.model_manager.ensure_model_downloaded(model_name, progress_callback)
@@ -300,7 +340,7 @@ class ASRService:
                 
                 # 2. Configure Adapter
                 config = FasterWhisperConfig(
-                    audio_path=Path(audio_path),
+                    audio_path=cli_audio_path,
                     output_dir=output_dir,
                     model_name=model_name,
                     # Pass the root model directory so CLI can find "faster-whisper-{model}" inside it
@@ -466,8 +506,7 @@ class ASRService:
         """
         import uuid
         temp_id = str(uuid.uuid4())[:8]
-        segment_filename = f"segment_{temp_id}.wav"
-        segment_path = settings.WORKSPACE_DIR / segment_filename
+        segment_path = self._create_segment_audio_path(temp_id)
         
         try:
             # 1. Extract Segment

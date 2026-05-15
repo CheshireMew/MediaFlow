@@ -1,6 +1,7 @@
 import React from "react";
 import { Upload, FileAudio } from "lucide-react";
 import { useTranslation } from 'react-i18next';
+import { FileNameLabel } from "../ui/FileNameLabel";
 
 interface AudioFileUploaderProps {
   file: File | null;
@@ -33,8 +34,8 @@ export function AudioFileUploader({ file, onFileSelect, onFileDrop, className = 
           <div className="w-16 h-16 rounded-lg bg-purple-500/10 flex items-center justify-center border border-purple-500/20 shadow-inner group-hover:scale-105 transition-transform duration-300">
             <FileAudio className="w-8 h-8 text-purple-400" />
           </div>
-          <div className="text-center z-10">
-            <p className="font-semibold text-white mb-1.5">{file.name}</p>
+          <div className="z-10 flex w-full min-w-0 flex-col items-center text-center">
+            <FileNameLabel name={file.name} className="mb-1.5" />
             <div className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-300 border border-purple-500/20">
               {(file.size / 1024 / 1024).toFixed(2)} MB
             </div>

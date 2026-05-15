@@ -1,8 +1,8 @@
 import base64
 import os
 import shutil
+import tempfile
 import time
-import uuid
 from pathlib import Path
 from typing import BinaryIO, TypedDict
 
@@ -47,8 +47,10 @@ def _read_preview(path: Path) -> WatermarkPreview:
 
 def save_watermark_preview(filename: str | None, stream: BinaryIO) -> WatermarkPreview:
     logger.info(f"[Preview] Received Watermark Upload: {filename}")
-    safe_filename = Path(filename or "watermark").name
-    temp_input_path = settings.WORKSPACE_DIR / f"{uuid.uuid4()}_{safe_filename}"
+    source_suffix = Path(filename or "").suffix
+    suffix = source_suffix if source_suffix.isascii() and len(source_suffix) <= 16 else ""
+    temp_dir = Path(tempfile.mkdtemp(prefix="watermark-preview-", dir=settings.TEMP_DIR))
+    temp_input_path = temp_dir / f"input{suffix.lower()}"
     persistent_path = _latest_watermark_path()
 
     with temp_input_path.open("wb") as buffer:
@@ -62,9 +64,9 @@ def save_watermark_preview(filename: str | None, stream: BinaryIO) -> WatermarkP
     finally:
         time.sleep(0.2)
         try:
-            if temp_input_path.exists():
-                os.remove(temp_input_path)
-                logger.debug(f"[Preview] Deleted temp input: {temp_input_path.name}")
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                logger.debug(f"[Preview] Deleted temp watermark dir: {temp_dir.name}")
         except Exception as exc:
             logger.warning(f"[Preview] Failed to delete temp input: {exc}")
 

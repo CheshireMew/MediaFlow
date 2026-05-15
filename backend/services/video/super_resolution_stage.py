@@ -1,6 +1,7 @@
 import os
 import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
 from loguru import logger
 
@@ -43,10 +44,16 @@ class SuperResolutionStage:
             next_options["target_resolution"] = "original"
             return SuperResolutionResult(video_path, next_options, progress_callback)
 
-        temp_sr_path = os.path.join(
-            tempfile.gettempdir(),
-            f"sr_{method}_{sr_scale}x_{os.path.basename(video_path)}",
+        source_suffix = Path(video_path).suffix
+        suffix = source_suffix if source_suffix.isascii() and len(source_suffix) <= 16 else ".mp4"
+        settings.TEMP_DIR.mkdir(parents=True, exist_ok=True)
+        temp_fd, temp_sr_path = tempfile.mkstemp(
+            prefix=f"sr_{method}_{sr_scale}x_",
+            suffix=suffix.lower(),
+            dir=settings.TEMP_DIR,
         )
+        os.close(temp_fd)
+        os.remove(temp_sr_path)
         logger.info(f"SR preprocessing: upscaling {video_path} by {sr_scale}x using {method}")
 
         def sr_progress(percent, message):

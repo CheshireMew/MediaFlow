@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isDesktopRuntime } from '../../services/domain';
 import { fileService } from '../../services/fileService';
+import { FileNameLabel } from '../ui/FileNameLabel';
 import {
     isSupportedTranslatorSubtitlePath,
     TRANSLATOR_SUBTITLE_EXTENSIONS,
@@ -71,8 +72,8 @@ export const FileUploader = ({ onFileSelect, currentFile }: FileUploaderProps) =
                     <div className="w-16 h-16 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shadow-inner group-hover:scale-105 transition-transform duration-300">
                         <FileText className="w-8 h-8 text-indigo-400" />
                     </div>
-                    <div className="text-center z-10">
-                        <p className="font-semibold text-white mb-1.5 truncate max-w-md">{currentFile.split(/[/\\]/).pop()}</p>
+                    <div className="z-10 flex w-full min-w-0 flex-col items-center text-center">
+                        <FileNameLabel name={currentFile.split(/[/\\]/).pop() ?? currentFile} className="mb-1.5" />
                         <div className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
                             {t('uploader.readyStatus')}
                         </div>

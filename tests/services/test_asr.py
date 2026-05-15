@@ -252,6 +252,58 @@ def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypa
     assert cmd[cmd.index("--initial_prompt") + 1] == "None"
 
 
+def test_cli_transcribe_stages_input_with_short_temp_filename(asr_service, monkeypatch, tmp_path):
+    long_name = (
+        "X 上的 CopyRebeldia Hoy una industria entera dejo de tener sentido "
+        "un tio publico en GitHub un repo que convierte cualquier foto en un mundo 3D"
+    )
+    audio_path = tmp_path / f"{long_name}.mp4"
+    audio_path.write_bytes(b"fake-audio")
+    cli_path = tmp_path / "faster-whisper-xxl.exe"
+    cli_path.write_bytes(b"fake")
+    temp_dir = tmp_path / "runtime-temp"
+
+    monkeypatch.setattr("backend.services.asr.service.AudioProcessor.get_audio_duration", lambda path: 3.0)
+    monkeypatch.setattr("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path))
+    monkeypatch.setattr("backend.services.asr.service.settings.TEMP_DIR", temp_dir)
+    monkeypatch.setattr(
+        "backend.services.asr.service.SubtitleWriter.save_srt",
+        lambda segments, path: tmp_path / "sample.srt",
+    )
+    monkeypatch.setattr(asr_service.model_manager, "ensure_model_downloaded", lambda *args, **kwargs: "base")
+
+    captured_configs = []
+
+    def fake_execute(config, *_args, **_kwargs):
+        captured_configs.append(config)
+        assert config.output_dir.exists()
+        assert config.audio_path.exists()
+        return []
+
+    monkeypatch.setattr(asr_service.adapter, "execute", fake_execute)
+
+    result = asr_service.transcribe(
+        audio_path=str(audio_path),
+        model_name="base",
+        device="cpu",
+        language="en",
+        engine="cli",
+        task_id="task:with-invalid-chars",
+        generate_peaks=False,
+    )
+
+    assert result.success is True
+    assert len(captured_configs) == 1
+    config = captured_configs[0]
+    output_dir = config.output_dir
+    assert output_dir.parent == temp_dir / "faster-whisper-cli"
+    assert config.audio_path.parent == output_dir
+    assert config.audio_path.name == "input.mp4"
+    assert long_name not in output_dir.name
+    assert long_name not in config.audio_path.name
+    assert "task_with-invalid-chars" in output_dir.name
+
+
 def test_split_audio_physically_uses_precise_wav_chunks(monkeypatch, tmp_path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fake")
@@ -275,11 +327,68 @@ def test_split_audio_physically_uses_precise_wav_chunks(monkeypatch, tmp_path):
     assert len(chunks) == 3
     assert [offset for _, offset in chunks] == [0.0, 10.0, 25.5]
     assert all(path.endswith(".wav") for path, _ in chunks)
+    assert [Path(path).name for path, _ in chunks] == [
+        "chunk_000.wav",
+        "chunk_001.wav",
+        "chunk_002.wav",
+    ]
     assert all("pcm_s16le" in cmd for cmd in calls)
     assert all(any(str(part).startswith("atrim=start=") for part in cmd) for cmd in calls)
     assert "atrim=start=0.000:end=10.000,asetpts=PTS-STARTPTS" in calls[0]
     assert "atrim=start=10.000:end=25.500,asetpts=PTS-STARTPTS" in calls[1]
     assert "atrim=start=25.500,asetpts=PTS-STARTPTS" in calls[2]
+
+
+def test_smart_split_uses_short_temp_chunk_paths(asr_service, monkeypatch, tmp_path):
+    long_name = (
+        "X 上的 CopyRebeldia Hoy una industria entera dejo de tener sentido "
+        "un tio publico en GitHub un repo que convierte cualquier foto en un mundo 3D"
+    )
+    audio_path = tmp_path / f"{long_name}.mp4"
+    audio_path.write_bytes(b"fake")
+    temp_dir = tmp_path / "runtime-temp"
+    monkeypatch.setattr("backend.services.asr.core_strategies.settings.TEMP_DIR", temp_dir)
+    monkeypatch.setattr(
+        "backend.services.asr.core_strategies.AudioProcessor.detect_silence",
+        lambda path: [],
+    )
+    monkeypatch.setattr(
+        "backend.services.asr.core_strategies.AudioProcessor.calculate_split_points",
+        lambda duration, intervals: [600.0],
+    )
+
+    captured_chunk_dir: list[Path] = []
+
+    def fake_split(path, split_points, output_dir):
+        captured_chunk_dir.append(output_dir)
+        chunk_path = output_dir / "chunk_000.wav"
+        chunk_path.write_bytes(b"chunk")
+        return [(str(chunk_path), 0.0)]
+
+    class FakeModel:
+        def transcribe(self, *_args, **_kwargs):
+            return iter([]), None
+
+    monkeypatch.setattr(
+        "backend.services.asr.core_strategies.AudioProcessor.split_audio_physically",
+        fake_split,
+    )
+
+    segments = asr_service.core_strategies.transcribe_smart_split(
+        str(audio_path),
+        1200.0,
+        FakeModel(),
+        "en",
+        None,
+        None,
+    )
+
+    assert segments == []
+    assert len(captured_chunk_dir) == 1
+    chunk_dir = captured_chunk_dir[0]
+    assert chunk_dir.parent == temp_dir / "asr-chunks"
+    assert long_name not in chunk_dir.name
+    assert not chunk_dir.exists()
 
 
 def test_extract_segment_uses_precise_wav_trim(monkeypatch, tmp_path):
