@@ -216,6 +216,7 @@ export function ToolbarButton({
   icon: Icon,
   variant = "subtle",
   className = "",
+  type = "button",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   icon?: IconComponent;
@@ -223,9 +224,10 @@ export function ToolbarButton({
 }) {
   return (
     <button
+      type={type}
       {...props}
       className={[
-        "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium shadow-lg transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
+        "no-drag inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium shadow-lg transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
         buttonVariantClasses[variant],
         className,
       ].join(" ")}
@@ -240,6 +242,7 @@ export function IconButton({
   icon: Icon,
   variant = "subtle",
   className = "",
+  type = "button",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   icon: IconComponent;
@@ -247,9 +250,10 @@ export function IconButton({
 }) {
   return (
     <button
+      type={type}
       {...props}
       className={[
-        "inline-flex h-10 w-10 items-center justify-center rounded-lg border shadow-lg transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
+        "no-drag inline-flex h-10 w-10 items-center justify-center rounded-lg border shadow-lg transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
         buttonVariantClasses[variant],
         className,
       ].join(" ")}

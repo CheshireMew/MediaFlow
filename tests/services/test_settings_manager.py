@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from backend.contracts import ASR_EXECUTION_PREFERENCES
 from backend.services.settings_manager import (
     LLMProvider,
@@ -61,6 +63,35 @@ def test_settings_manager_reads_current_file_on_each_get(tmp_path, monkeypatch):
 
     second = manager.get_settings()
     assert second.language == "ja"
+
+
+def test_settings_manager_atomic_save_keeps_previous_file_on_write_failure(tmp_path, monkeypatch):
+    settings_path = tmp_path / "user_settings.json"
+    settings_path.write_text('{"language":"en","llm_providers":[]}', encoding="utf-8")
+    monkeypatch.setattr(SettingsManager, "_file_path", settings_path)
+    manager = SettingsManager()
+
+    def failing_dump(_data, file_obj, **_kwargs):
+        file_obj.write('{"language":')
+        raise RuntimeError("simulated partial write")
+
+    monkeypatch.setattr("backend.services.settings_manager.json.dump", failing_dump)
+
+    with pytest.raises(RuntimeError, match="simulated partial write"):
+        manager.save(UserSettings(language="ja"))
+
+    assert json.loads(settings_path.read_text(encoding="utf-8"))["language"] == "en"
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_settings_manager_raises_on_invalid_settings_file(tmp_path, monkeypatch):
+    settings_path = tmp_path / "user_settings.json"
+    settings_path.write_text('{"language":', encoding="utf-8")
+    monkeypatch.setattr(SettingsManager, "_file_path", settings_path)
+    manager = SettingsManager()
+
+    with pytest.raises(RuntimeError, match="Failed to load settings"):
+        manager.get_settings()
 
 
 def test_settings_manager_reads_asr_execution_preferences():

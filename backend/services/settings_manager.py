@@ -1,4 +1,6 @@
 import json
+import os
+import threading
 from typing import Any, List, Optional
 
 from loguru import logger
@@ -41,6 +43,7 @@ class AsrExecutionPreferences(BaseModel):
 
 class SettingsManager:
     _file_path = settings.USER_DATA_DIR / "user_settings.json"
+    _io_lock = threading.RLock()
 
     def __init__(self):
         self._ensure_settings_file()
@@ -67,44 +70,61 @@ class SettingsManager:
         return user_settings
 
     def _ensure_settings_file(self) -> None:
-        if self._file_path.exists():
-            return
+        with self._io_lock:
+            if self._file_path.exists():
+                return
 
-        self.save(
-            UserSettings(
-                faster_whisper_cli_path=settings.FASTER_WHISPER_CLI_PATH or None,
+            self.save(
+                UserSettings(
+                    faster_whisper_cli_path=settings.FASTER_WHISPER_CLI_PATH or None,
+                )
             )
-        )
 
     def _load(self) -> UserSettings:
-        self._ensure_settings_file()
-        try:
-            with open(self._file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                data = self._deserialize_settings_data(data)
-                data.setdefault(
-                    "faster_whisper_cli_path",
-                    settings.FASTER_WHISPER_CLI_PATH or None,
-                )
+        with self._io_lock:
+            self._ensure_settings_file()
+            try:
+                with open(self._file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    data = self._deserialize_settings_data(data)
+                    data.setdefault(
+                        "faster_whisper_cli_path",
+                        settings.FASTER_WHISPER_CLI_PATH or None,
+                    )
 
-                loaded_settings = self._normalize_settings(UserSettings(**data))
-                self._apply_runtime_settings(loaded_settings)
-            logger.info(f"Loaded settings from {self._file_path}")
-            return loaded_settings
-        except Exception as e:
-            logger.error(f"Failed to load settings: {e}")
-            return UserSettings()
+                    loaded_settings = self._normalize_settings(UserSettings(**data))
+                    self._apply_runtime_settings(loaded_settings)
+                logger.info(f"Loaded settings from {self._file_path}")
+                return loaded_settings
+            except Exception as e:
+                logger.error(f"Failed to load settings from {self._file_path}: {e}")
+                raise RuntimeError(
+                    f"Failed to load settings from {self._file_path}: {e}"
+                ) from e
 
     def save(self, user_settings: UserSettings) -> None:
-        self._file_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            data = self._serialize_settings_data(user_settings)
+        with self._io_lock:
+            self._file_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = self._file_path.with_name(
+                f".{self._file_path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+            )
+            try:
+                data = self._serialize_settings_data(user_settings)
 
-            with open(self._file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+                with open(temp_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                    f.write("\n")
+                    f.flush()
+                    os.fsync(f.fileno())
 
-        except Exception as e:
-            logger.error(f"Failed to save settings: {e}")
+                os.replace(temp_path, self._file_path)
+            except Exception as e:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                logger.error(f"Failed to save settings to {self._file_path}: {e}")
+                raise
 
     def _serialize_settings_data(self, user_settings: UserSettings) -> dict:
         from backend.utils.security import SecurityManager

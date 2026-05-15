@@ -85,11 +85,12 @@ vi.mock('../pages/TranslatorPage', () => ({ TranslatorPage: () => <div data-test
 vi.mock('../pages/PreprocessingPage', () => ({ PreprocessingPage: () => <div data-testid="page-preprocessing">Preprocessing Page Mock</div> }))
 
 test('renders app with navigation sidebar', async () => {
-  render(<App />)
+  const { container } = render(<App />)
   await waitFor(() => {
     expect(screen.getByTitle(/Editor/i)).toBeInTheDocument()
     expect(screen.getByTestId('page-downloader')).toBeInTheDocument()
   })
+  expect(container.querySelector('.titlebar-drag-region')).not.toBeInTheDocument()
 })
 
 test('opens downloader on first launch', async () => {

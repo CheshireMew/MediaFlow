@@ -360,10 +360,6 @@ function VideoPreviewComponent({
                                onLoadedMetadata={handleLoadedMetadata}
                                onError={handleError}
                             />
-                            <div className="pointer-events-none absolute inset-[5%] border border-white/10" />
-                            <div className="pointer-events-none absolute left-[5%] right-[5%] top-1/2 border-t border-dashed border-white/10" />
-                            <div className="pointer-events-none absolute bottom-[20%] left-[5%] right-[5%] border-t border-dashed border-indigo-300/20" />
-
                             <div className="absolute left-3 top-3 flex items-center gap-2 rounded-lg border border-white/10 bg-black/55 px-2 py-1 text-[10px] font-medium text-slate-300">
                                 <Subtitles size={12} className="text-indigo-300" />
                                 {currentSubtitleIndex >= 0 ? `${currentSubtitleIndex + 1} / ${regions.length}` : `0 / ${regions.length}`}
