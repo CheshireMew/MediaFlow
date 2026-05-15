@@ -42,6 +42,59 @@ describe("text splitter heuristics", () => {
     expect(text.slice(0, splitIndex)).toBe("这个方案需要速度、稳定性和兼容性，");
   });
 
+  it("prefers a substantial comma boundary over a better-centered space", () => {
+    const text = '"Pydantic is still all you need", 大概是在去年这个时候,';
+
+    const splitIndex = getBestSplitIndex(text);
+
+    expect(text.slice(0, splitIndex)).toBe('"Pydantic is still all you need",');
+    expect(text.slice(splitIndex)).toBe(" 大概是在去年这个时候,");
+  });
+
+  it("does not split latin initialisms from following names", () => {
+    const text = "这段内容正在讨论 J.P. 摩根如何影响市场并持续扩展业务";
+
+    const splitIndex = getBestSplitIndex(text);
+
+    expect(`${text.slice(0, splitIndex)}|${text.slice(splitIndex).trimStart()}`).not.toContain(
+      "J.P.|摩根",
+    );
+    expect(text.slice(0, splitIndex)).not.toMatch(/[A-Za-z]\.$/);
+  });
+
+  it("does not split names at middle-dot joiners", () => {
+    const text = "这段内容正在讨论西格蒙德·弗洛伊德理论如何影响现代心理学";
+
+    const splitIndex = getBestSplitIndex(text);
+
+    expect(`${text.slice(0, splitIndex)}|${text.slice(splitIndex)}`).not.toContain(
+      "西格蒙德·|弗洛伊德",
+    );
+    expect(`${text.slice(0, splitIndex)}|${text.slice(splitIndex)}`).not.toContain(
+      "西格蒙德|·弗洛伊德",
+    );
+  });
+
+  it("does not split latin first and last names at the internal space", () => {
+    const text = "我不知道 David Pereira 是否会认为我们正在做的是正确的决定";
+
+    const splitIndex = getBestSplitIndex(text);
+
+    expect(`${text.slice(0, splitIndex)}|${text.slice(splitIndex).trimStart()}`).not.toContain(
+      "David|Pereira",
+    );
+  });
+
+  it("does not split Hangul names into syllable fragments", () => {
+    const text = "중구청장 후보 이동현의 공약은 골목 상권과 주민 생활을 함께 바꾸는 계획입니다";
+
+    const splitIndex = getBestSplitIndex(text);
+
+    expect(`${text.slice(0, splitIndex)}|${text.slice(splitIndex)}`).not.toContain(
+      "이동|현",
+    );
+  });
+
   it("does not split a long sentence without punctuation in smart mode", () => {
     const text =
       "this is a very long subtitle sentence with plenty of words but absolutely no punctuation so smart split should leave it untouched";

@@ -14,7 +14,10 @@ export interface DataSlice {
 
   setRegions: (regions: SubtitleSegment[]) => void;
   replaceRegionsWithUndo: (regions: SubtitleSegment[]) => void;
-  replaceEditorDocument: (regions: SubtitleSegment[]) => void;
+  replaceEditorDocument: (
+    regions: SubtitleSegment[],
+    options?: { preserveSelection?: boolean },
+  ) => void;
   setMediaUrl: (url: string | null) => void;
   setCurrentFilePath: (path: string | null) => void;
   setCurrentSubtitlePath: (path: string | null) => void;
@@ -50,13 +53,26 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
     get().snapshot();
     set({ regions });
   },
-  replaceEditorDocument: (regions) =>
-    set({
-      regions,
-      activeSegmentId: null,
-      selectedIds: [],
-      past: [],
-      future: [],
+  replaceEditorDocument: (regions, options = {}) =>
+    set((state) => {
+      const regionIds = new Set(regions.map((region) => String(region.id)));
+      const selectedIds = options.preserveSelection
+        ? state.selectedIds.filter((id) => regionIds.has(id))
+        : [];
+      const activeSegmentId =
+        options.preserveSelection &&
+        state.activeSegmentId &&
+        regionIds.has(state.activeSegmentId)
+          ? state.activeSegmentId
+          : (selectedIds[0] ?? null);
+
+      return {
+        regions,
+        activeSegmentId,
+        selectedIds,
+        past: [],
+        future: [],
+      };
     }),
   setMediaUrl: (url) => set({ mediaUrl: url }),
   setCurrentFilePath: (path) => set({ currentFilePath: path }),

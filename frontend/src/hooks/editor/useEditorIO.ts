@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useEditorStore } from "../../stores/editorStore";
 import {
   normalizeMediaReference,
@@ -26,6 +26,8 @@ export { isSupportedEditorSubtitlePath } from "./editorFileHelpers";
 export function useEditorIO() {
   const mediaUrl = useEditorStore((state) => state.mediaUrl);
   const currentFilePath = useEditorStore((state) => state.currentFilePath);
+  const currentSubtitlePath = useEditorStore((state) => state.currentSubtitlePath);
+  const currentSubtitlePathRef = useRef(currentSubtitlePath);
   const {
     replaceEditorDocument,
     setMediaUrl,
@@ -45,6 +47,10 @@ export function useEditorIO() {
   const { saveSubtitleFile } = useEditorSubtitleActions();
 
   useEffect(() => {
+    currentSubtitlePathRef.current = currentSubtitlePath;
+  }, [currentSubtitlePath]);
+
+  useEffect(() => {
     const applyEditorPayload = async (payload?: NavigationPayload | null) => {
       const { videoPath, subtitlePath, videoRef, subtitleRef } = resolveNavigationMediaPayload(payload);
 
@@ -53,6 +59,10 @@ export function useEditorIO() {
       }
 
       try {
+        const shouldPreserveSelection = Boolean(
+          subtitlePath && subtitlePath === currentSubtitlePathRef.current,
+        );
+
         setCurrentFilePath(videoPath);
         setCurrentFileRef(
           videoRef ?? normalizeMediaReference(videoPath),
@@ -65,7 +75,9 @@ export function useEditorIO() {
           try {
             const parsed = await loadEditorSubtitle(subtitlePath);
             if (parsed.length > 0) {
-              replaceEditorDocument(parsed);
+              replaceEditorDocument(parsed, {
+                preserveSelection: shouldPreserveSelection,
+              });
               setCurrentSubtitlePath(subtitlePath);
               setCurrentSubtitleRef(
                 subtitleRef ??

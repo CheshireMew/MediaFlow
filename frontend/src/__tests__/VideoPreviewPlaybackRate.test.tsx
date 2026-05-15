@@ -62,6 +62,31 @@ describe("VideoPreview playback rate menu", () => {
     expect(videoRef.current?.playbackRate).toBe(3);
   });
 
+  it("keeps the playback speed menu open on mouse leave and closes it from outside intent", () => {
+    const videoRef = React.createRef<HTMLVideoElement>();
+
+    render(
+      <VideoPreview
+        mediaUrl="file:///D:/video.mp4"
+        videoRef={videoRef}
+        regions={[]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "播放速度" }));
+    const menu = screen.getByRole("menu", { name: "播放速度" });
+
+    fireEvent.mouseLeave(menu.parentElement as HTMLElement);
+    expect(screen.getByRole("menu", { name: "播放速度" })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: "播放速度" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "播放速度" }));
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu", { name: "播放速度" })).toBeNull();
+  });
+
   it("toggles playback from the video frame and fullscreens the subtitle panel", () => {
     const videoRef = React.createRef<HTMLVideoElement>();
 
@@ -102,5 +127,28 @@ describe("VideoPreview playback rate menu", () => {
     expect(requestFullscreen.mock.contexts[0]).toBe(panel);
     expect(panel).toContainElement(screen.getByText("全屏字幕"));
     expect(screen.getByTestId("editor-preview-subtitle")).toHaveClass("text-3xl");
+  });
+
+  it("keeps the draggable subtitle layer at a stable width while positioned", () => {
+    const videoRef = React.createRef<HTMLVideoElement>();
+
+    const { container } = render(
+      <VideoPreview
+        mediaUrl="file:///D:/video.mp4"
+        videoRef={videoRef}
+        regions={[{ id: "1", start: 0, end: 10, text: "在类型提示中我们知道类型是 mcp context" }]}
+      />,
+    );
+
+    const video = container.querySelector("video");
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      value: 1,
+    });
+    fireEvent.timeUpdate(video as HTMLVideoElement);
+
+    expect(screen.getByTestId("editor-preview-subtitle-layer")).toHaveClass("w-[86%]");
+    expect(screen.getByTestId("editor-preview-subtitle-layer")).toHaveClass("pointer-events-none");
+    expect(screen.getByTestId("editor-preview-subtitle")).toHaveClass("pointer-events-auto");
   });
 });

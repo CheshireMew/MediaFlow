@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useEditorStore } from "../../stores/editorStore";
 import { isDesktopRuntime } from "../../services/domain";
 import { fileService } from "../../services/fileService";
 import { normalizeMediaReference } from "../../services/ui/mediaReference";
@@ -38,7 +39,10 @@ export function useEditorFileLoader() {
         try {
           const parsed = await loadEditorSubtitle(subtitlePath);
           if (parsed.length > 0) {
-            replaceEditorDocument(parsed);
+            replaceEditorDocument(parsed, {
+              preserveSelection:
+                subtitlePath === useEditorStore.getState().currentSubtitlePath,
+            });
             setCurrentSubtitlePath(subtitlePath);
             setCurrentSubtitleRef(normalizeMediaReference(subtitlePath));
             return;
@@ -96,7 +100,9 @@ export function useEditorFileLoader() {
           alert("Failed to parse subtitle file. Please provide a valid SRT file.");
           return;
         }
-        replaceEditorDocument(parsed);
+        replaceEditorDocument(parsed, {
+          preserveSelection: path === useEditorStore.getState().currentSubtitlePath,
+        });
         setCurrentSubtitlePath(path);
         setCurrentSubtitleRef(normalizeMediaReference(path));
       } catch (error) {

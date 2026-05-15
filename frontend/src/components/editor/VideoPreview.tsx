@@ -56,6 +56,7 @@ function VideoPreviewComponent({
     const [duration, setDuration] = useState(0);
     const [playbackRate, setPlaybackRate] = useState(1);
     const [isRateMenuOpen, setIsRateMenuOpen] = useState(false);
+    const rateMenuRef = React.useRef<HTMLDivElement>(null);
     const [volume, setVolume] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -167,6 +168,33 @@ function VideoPreviewComponent({
         document.addEventListener("fullscreenchange", syncFullscreenState);
         return () => document.removeEventListener("fullscreenchange", syncFullscreenState);
     }, []);
+
+    React.useEffect(() => {
+        if (!isRateMenuOpen) {
+            return;
+        }
+
+        const handlePointerDown = (event: PointerEvent) => {
+            const menu = rateMenuRef.current;
+            if (menu && event.target instanceof Node && menu.contains(event.target)) {
+                return;
+            }
+            setIsRateMenuOpen(false);
+        };
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setIsRateMenuOpen(false);
+            }
+        };
+
+        document.addEventListener("pointerdown", handlePointerDown);
+        document.addEventListener("keydown", handleKeyDown);
+        return () => {
+            document.removeEventListener("pointerdown", handlePointerDown);
+            document.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [isRateMenuOpen]);
 
     React.useEffect(() => {
         const stage = stageRef.current;
@@ -387,7 +415,8 @@ function VideoPreviewComponent({
 
                             {currentSubtitle && (
                                 <div
-                                    className="absolute z-20 max-w-[86%] -translate-x-1/2 -translate-y-1/2 text-center"
+                                    data-testid="editor-preview-subtitle-layer"
+                                    className="pointer-events-none absolute z-20 w-[86%] -translate-x-1/2 -translate-y-1/2 text-center"
                                     style={{
                                         left: `${subtitlePosition.x}%`,
                                         top: `${subtitlePosition.y}%`,
@@ -400,7 +429,7 @@ function VideoPreviewComponent({
                                             setIsDraggingSubtitle(true);
                                         }}
                                         onClick={(event) => event.stopPropagation()}
-                                        className={`inline-block w-auto max-w-full cursor-move select-none rounded-lg text-white/95 font-medium shadow-lg leading-snug whitespace-normal break-words ring-1 ${
+                                        className={`pointer-events-auto inline-block w-auto max-w-full cursor-move select-none rounded-lg text-white/95 font-medium shadow-lg leading-snug whitespace-normal break-words ring-1 ${
                                             isDraggingSubtitle ? "ring-indigo-300/70" : "ring-transparent"
                                         } ${isFullscreen ? "px-6 py-2.5 text-3xl" : "px-4 py-1.5 text-lg"}`}
                                         style={{ backgroundColor: `rgba(0, 0, 0, ${subtitleBackgroundAlpha})` }}
@@ -443,8 +472,8 @@ function VideoPreviewComponent({
                                 className="h-1.5 min-w-0 flex-1 cursor-pointer accent-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
                             />
                             <div
+                                ref={rateMenuRef}
                                 className="relative z-30 shrink-0"
-                                onMouseLeave={() => setIsRateMenuOpen(false)}
                             >
                                 <button
                                     type="button"

@@ -83,6 +83,46 @@ describe("Editor recovery", () => {
         { id: "1", start: 0, end: 1, text: "New subtitle" },
       ]);
     });
+    expect(useEditorStore.getState().activeSegmentId).toBeNull();
+    expect(useEditorStore.getState().selectedIds).toEqual([]);
+    expect(sessionStorage.getItem("mediaflow:pending_file")).toBeNull();
+  });
+
+  it("preserves the selected subtitle when reloading the same editor subtitle", async () => {
+    useEditorStore.setState({
+      regions: [{ id: "1", start: 0, end: 1, text: "Old subtitle" }],
+      mediaUrl: "file:///E:/old-video.mp4",
+      currentFilePath: "E:/old-video.mp4",
+      currentSubtitlePath: "E:/old-video.srt",
+      currentFileRef: { path: "E:/old-video.mp4", name: "old-video.mp4" },
+      currentSubtitleRef: { path: "E:/old-video.srt", name: "old-video.srt" },
+      activeSegmentId: "1",
+      selectedIds: ["1"],
+      past: [],
+      future: [],
+    });
+
+    writePendingMediaNavigation({
+      target: "editor",
+      video_ref: {
+        path: "E:/old-video.mp4",
+        name: "old-video.mp4",
+      },
+      subtitle_ref: {
+        path: "E:/old-video.srt",
+        name: "old-video.srt",
+      },
+    });
+
+    renderHook(() => useEditorIO());
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().regions).toEqual([
+        { id: "1", start: 0, end: 1, text: "New subtitle" },
+      ]);
+      expect(useEditorStore.getState().activeSegmentId).toBe("1");
+      expect(useEditorStore.getState().selectedIds).toEqual(["1"]);
+    });
     expect(sessionStorage.getItem("mediaflow:pending_file")).toBeNull();
   });
 });

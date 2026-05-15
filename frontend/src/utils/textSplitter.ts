@@ -42,11 +42,14 @@ const ABBREVIATIONS = [
   "vs.",
 ];
 
-const REGEX_CJK =
-  /[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF\u4E00-\u9FFF\u3400-\u4DBF]/g;
+const EAST_ASIAN_CHAR_CLASS =
+  "\\u3000-\\u303F\\u3040-\\u309F\\u30A0-\\u30FF\\u3130-\\u318F\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uAC00-\\uD7AF\\uFF00-\\uFFEF";
+const REGEX_EAST_ASIAN = new RegExp(`[${EAST_ASIAN_CHAR_CLASS}]`, "g");
 const REGEX_LATIN_WORD = /[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g;
-const REGEX_TOKEN =
-  /[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*|[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF\u4E00-\u9FFF\u3400-\u4DBF]+|\s+|./g;
+const REGEX_TOKEN = new RegExp(
+  `[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*|[${EAST_ASIAN_CHAR_CLASS}]+|\\s+|.`,
+  "g",
+);
 
 const BAD_START_WORDS = new Set([
   "a",
@@ -101,6 +104,7 @@ const BAD_START_CJK = new Set(["的", "了", "呢", "吗", "は", "が", "を", 
 const BAD_END_CJK = new Set(["的", "了", "和", "与", "及", "は", "が", "を", "に", "で", "と"]);
 const LOW_PRIORITY_PAUSE_MARKS = new Set(["、"]);
 const LOW_PRIORITY_CJK_BOUNDARIES = new Set(["的"]);
+const NAME_JOINERS = new Set(["·", "・", "･"]);
 
 const MIN_PUNCTUATION_UNITS: Record<TextProfile, number> = {
   latin: 4,
@@ -115,7 +119,7 @@ const RELAXED_REPEATED_BOUNDARY_UNITS: Record<TextProfile, number> = {
 };
 
 function detectTextProfile(text: string): TextProfile {
-  const cjkCount = (text.match(REGEX_CJK) || []).join("").length;
+  const cjkCount = (text.match(REGEX_EAST_ASIAN) || []).join("").length;
   const latinCount = (text.match(REGEX_LATIN_WORD) || []).join("").length;
 
   if (cjkCount === 0 && latinCount > 0) {
@@ -147,13 +151,25 @@ function getFirstWord(text: string): string {
   return match ? match[1].toLowerCase() : "";
 }
 
+function getLastRawLatinWord(text: string): string {
+  const match = text.trim().match(/([A-Za-z]+(?:['’-][A-Za-z]+)*)\W*$/);
+  return match ? match[1] : "";
+}
+
+function getFirstRawLatinWord(text: string): string {
+  const match = text.trim().match(/^([A-Za-z]+(?:['’-][A-Za-z]+)*)/);
+  return match ? match[1] : "";
+}
+
 function getLastCjkChar(text: string): string {
-  const match = text.trim().match(/([\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF])\W*$/);
+  const match = text.trim().match(
+    new RegExp(`([${EAST_ASIAN_CHAR_CLASS}])\\W*$`),
+  );
   return match ? match[1] : "";
 }
 
 function getFirstCjkChar(text: string): string {
-  const match = text.trim().match(/^([\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF])/);
+  const match = text.trim().match(new RegExp(`^([${EAST_ASIAN_CHAR_CLASS}])`));
   return match ? match[1] : "";
 }
 
@@ -176,6 +192,46 @@ function touchesNumberWhitespaceBoundary(text: string, splitIndex: number): bool
   return index >= 0 && /\d/.test(text[index]);
 }
 
+function endsWithLatinInitialism(text: string): boolean {
+  return /(?:^|[\s([{"'“‘])(?:[A-Za-z]\.)+$/.test(text);
+}
+
+function touchesLatinInitialismBoundary(text: string, splitIndex: number): boolean {
+  const prev = text[splitIndex - 1] ?? "";
+  const next = text[splitIndex] ?? "";
+  const before = text.slice(0, splitIndex);
+
+  if (prev === "." && endsWithLatinInitialism(before)) {
+    return true;
+  }
+
+  if (/\s/.test(prev) && endsWithLatinInitialism(before.trimEnd())) {
+    return Boolean(
+      next && new RegExp(`[A-Za-z${EAST_ASIAN_CHAR_CLASS}]`).test(next),
+    );
+  }
+
+  return false;
+}
+
+function isLikelyLatinNamePart(word: string): boolean {
+  return /^[A-Z][a-z]+(?:['’-][A-Z]?[a-z]+)*$/.test(word);
+}
+
+function touchesLatinProperNameBoundary(text: string, splitIndex: number): boolean {
+  const prev = text[splitIndex - 1] ?? "";
+  if (!/\s/.test(prev)) {
+    return false;
+  }
+
+  const before = text.slice(0, splitIndex);
+  const after = text.slice(splitIndex);
+  return (
+    isLikelyLatinNamePart(getLastRawLatinWord(before)) &&
+    isLikelyLatinNamePart(getFirstRawLatinWord(after))
+  );
+}
+
 function canBreakAt(text: string, splitIndex: number): boolean {
   if (splitIndex <= 0 || splitIndex >= text.length) {
     return false;
@@ -187,6 +243,18 @@ function canBreakAt(text: string, splitIndex: number): boolean {
   const charBeforeBoundary = text[splitIndex - 2];
 
   if (touchesNumberWhitespaceBoundary(text, splitIndex)) {
+    return false;
+  }
+
+  if (NAME_JOINERS.has(prev) || NAME_JOINERS.has(next)) {
+    return false;
+  }
+
+  if (touchesLatinInitialismBoundary(text, splitIndex)) {
+    return false;
+  }
+
+  if (touchesLatinProperNameBoundary(text, splitIndex)) {
     return false;
   }
 
@@ -242,6 +310,10 @@ function getBaseReasonScore(reason: SplitReason, profile: TextProfile): number {
   };
 
   return profileScores[profile][reason];
+}
+
+function isStructuralBoundary(reason: SplitReason): boolean {
+  return reason === "dialog" || reason === "sentence" || reason === "pause";
 }
 
 function getCandidatePenalty(
@@ -324,15 +396,13 @@ function countMeaningfulUnits(text: string, profile: TextProfile): number {
     return 0;
   }
 
-  const cjkUnits = (trimmed.match(REGEX_CJK) || []).join("").length;
+  const cjkUnits = (trimmed.match(REGEX_EAST_ASIAN) || []).join("").length;
   const latinUnits = Array.from(trimmed.matchAll(REGEX_LATIN_WORD)).length;
 
-  if (profile === "latin") {
+  if (profile === "latin" && cjkUnits === 0) {
     return latinUnits;
   }
-  if (profile === "cjk") {
-    return cjkUnits + latinUnits;
-  }
+
   return cjkUnits + latinUnits;
 }
 
@@ -378,10 +448,19 @@ function hasEnoughPunctuationContext(
     return true;
   }
 
-  if (reason !== "dialog" && reason !== "sentence" && reason !== "pause") {
+  if (!isStructuralBoundary(reason)) {
     return false;
   }
 
+  return hasSubstantialBoundaryContext(text, splitIndex, profile, options);
+}
+
+function hasSubstantialBoundaryContext(
+  text: string,
+  splitIndex: number,
+  profile: TextProfile,
+  options: SplitHeuristicOptions,
+): boolean {
   const before = text.slice(0, splitIndex);
   const after = text.slice(splitIndex);
   const minUnits = getMinimumBoundaryUnits(text, profile, options);
@@ -432,7 +511,7 @@ function getTokenWeight(token: string, profile: TextProfile): number {
     return 1 + Math.min(token.length, 12) * 0.08;
   }
 
-  if (/^[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF]+$/.test(token)) {
+  if (new RegExp(`^[${EAST_ASIAN_CHAR_CLASS}]+$`).test(token)) {
     return token.length;
   }
 
@@ -492,6 +571,14 @@ function getMidpointBoundaryIndex(text: string, profile: TextProfile): number {
   return bestIndex > 0 ? bestIndex : Math.floor(text.length / 2);
 }
 
+function getBestScoredCandidate(candidates: SplitCandidate[]): SplitCandidate | null {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return [...candidates].sort((a, b) => a.score - b.score)[0];
+}
+
 export function getSplitTimingRatio(text: string, splitIndex: number): number {
   if (!text) {
     return 0.5;
@@ -537,11 +624,12 @@ export function getBestSplitIndex(
 
   const len = text.length;
   const profile = detectTextProfile(text);
-  const candidates: SplitCandidate[] = [];
+  const structuralCandidates: SplitCandidate[] = [];
+  const fallbackCandidates: SplitCandidate[] = [];
 
   for (let i = 1; i < len - 1; i++) {
     if (text[i] === "-" && (text[i - 1] === " " || text[i - 1] === "\n")) {
-      addCandidate(candidates, text, i, "dialog", profile, options);
+      addCandidate(structuralCandidates, text, i, "dialog", profile, options);
     }
   }
 
@@ -551,25 +639,42 @@ export function getBestSplitIndex(
   for (let i = 0; i < len - 1; i++) {
     const char = text[i];
     if (sentenceEndings.includes(char)) {
-      addCandidate(candidates, text, i + 1, "sentence", profile, options);
+      addCandidate(structuralCandidates, text, i + 1, "sentence", profile, options);
     } else if (pauseMarks.includes(char)) {
-      addCandidate(candidates, text, i + 1, "pause", profile, options);
+      addCandidate(structuralCandidates, text, i + 1, "pause", profile, options);
     } else if (
       char === " " &&
       !options.requirePunctuation &&
       shouldUseWhitespaceBoundary(text, profile)
     ) {
-      addCandidate(candidates, text, i + 1, "space", profile, options);
+      addCandidate(fallbackCandidates, text, i + 1, "space", profile, options);
     }
   }
 
-  if (candidates.length === 0) {
-    if (options.requirePunctuation) {
-      return -1;
-    }
-    return getMidpointBoundaryIndex(text, profile);
+  const structuralOptions = { ...options, requirePunctuation: true };
+  const qualifiedStructuralCandidates = options.requirePunctuation
+    ? structuralCandidates
+    : structuralCandidates.filter((candidate) =>
+        hasSubstantialBoundaryContext(
+          text,
+          candidate.index,
+          profile,
+          structuralOptions,
+        ),
+      );
+  const structuralCandidate = getBestScoredCandidate(qualifiedStructuralCandidates);
+  if (structuralCandidate) {
+    return structuralCandidate.index;
   }
 
-  candidates.sort((a, b) => a.score - b.score);
-  return candidates[0].index;
+  if (options.requirePunctuation) {
+    return -1;
+  }
+
+  const fallbackCandidate = getBestScoredCandidate(fallbackCandidates);
+  if (fallbackCandidate) {
+    return fallbackCandidate.index;
+  }
+
+  return getMidpointBoundaryIndex(text, profile);
 }

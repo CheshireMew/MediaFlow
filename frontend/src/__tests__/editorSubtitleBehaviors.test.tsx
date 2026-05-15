@@ -197,6 +197,72 @@ describe("editor subtitle behaviors", () => {
     expect(result.segments[1].text).toBe("and the second half is long enough too.");
   });
 
+  test("smart split prefers a substantial comma boundary over midpoint whitespace", () => {
+    const input = [
+      {
+        id: "1",
+        start: 0,
+        end: 6,
+        text: '"Pydantic is still all you need", 大概是在去年这个时候,',
+      },
+    ];
+
+    const result = smartSplitSubtitleSegments(input);
+
+    expect(result.splitCount).toBe(1);
+    expect(result.segments[0].text).toBe('"Pydantic is still all you need",');
+    expect(result.segments[1].text).toBe("大概是在去年这个时候,");
+  });
+
+  test("smart split keeps latin initialisms and middle-dot names intact", () => {
+    const input = [
+      {
+        id: "1",
+        start: 0,
+        end: 6,
+        text: "这段内容正在讨论 J.P. 摩根如何影响市场并持续扩展业务",
+      },
+      {
+        id: "2",
+        start: 6,
+        end: 12,
+        text: "这段内容正在讨论西格蒙德·弗洛伊德理论如何影响现代心理学",
+      },
+    ];
+
+    const result = smartSplitSubtitleSegments(input, { textLimit: 12 });
+    const joinedRows = result.segments.map((segment) => segment.text).join("|");
+
+    expect(result.splitCount).toBe(2);
+    expect(joinedRows).not.toContain("J.P.|摩根");
+    expect(joinedRows).not.toContain("西格蒙德·|弗洛伊德");
+    expect(joinedRows).not.toContain("西格蒙德|·弗洛伊德");
+  });
+
+  test("smart split keeps multi-word latin and Hangul names intact", () => {
+    const input = [
+      {
+        id: "1",
+        start: 0,
+        end: 6,
+        text: "我不知道 David Pereira 是否会认为我们正在做的是正确的决定",
+      },
+      {
+        id: "2",
+        start: 6,
+        end: 12,
+        text: "중구청장 후보 이동현의 공약은 골목 상권과 주민 생활을 함께 바꾸는 계획입니다",
+      },
+    ];
+
+    const result = smartSplitSubtitleSegments(input, { textLimit: 12 });
+    const joinedRows = result.segments.map((segment) => segment.text).join("|");
+
+    expect(result.splitCount).toBe(2);
+    expect(joinedRows).not.toContain("David|Pereira");
+    expect(joinedRows).not.toContain("이동|현");
+  });
+
   test("smart split can use repeated short clauses separated by two punctuation marks", () => {
     const input = [
       {

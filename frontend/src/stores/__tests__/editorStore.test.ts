@@ -111,6 +111,32 @@ describe("useEditorStore", () => {
     expect(useEditorStore.getState().future).toEqual([]);
   });
 
+  it("preserves valid selection when explicitly reloading the same editor document", () => {
+    useEditorStore.setState({
+      regions: [
+        { id: "1", start: 0, end: 1, text: "before 1" },
+        { id: "2", start: 1, end: 2, text: "before 2" },
+      ],
+      activeSegmentId: "2",
+      selectedIds: ["1", "2"],
+      past: [[{ id: "past", start: 0, end: 1, text: "past" }]],
+      future: [[{ id: "future", start: 0, end: 1, text: "future" }]],
+    });
+
+    useEditorStore.getState().replaceEditorDocument(
+      [
+        { id: "1", start: 0, end: 1, text: "after 1" },
+        { id: "2", start: 1, end: 2, text: "after 2" },
+      ],
+      { preserveSelection: true },
+    );
+
+    expect(useEditorStore.getState().activeSegmentId).toBe("2");
+    expect(useEditorStore.getState().selectedIds).toEqual(["1", "2"]);
+    expect(useEditorStore.getState().past).toEqual([]);
+    expect(useEditorStore.getState().future).toEqual([]);
+  });
+
   it("should undo a full-region replacement in a single step", () => {
     useEditorStore.getState().setRegions([
       { id: "1", start: 0, end: 1, text: "before" },
