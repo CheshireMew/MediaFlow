@@ -1,6 +1,11 @@
 import { isDesktopRuntime } from "../../services/domain";
 import { parseSubtitleContent } from "../../utils/subtitleParser";
 import { fileService } from "../../services/fileService";
+import {
+  TRANSLATION_TARGET_LANGUAGES,
+  getTranslationTargetLanguageSuffix,
+  type TranslationTargetLanguage,
+} from "../../services/domain/translationTargetLanguages";
 
 export const TRANSLATOR_SUBTITLE_EXTENSIONS = [
   ".srt",
@@ -8,16 +13,6 @@ export const TRANSLATOR_SUBTITLE_EXTENSIONS = [
   ".ass",
   ".ssa",
 ];
-
-export const TRANSLATOR_LANGUAGE_SUFFIX_MAP: Record<string, string> = {
-  Chinese: "_CN",
-  English: "_EN",
-  Japanese: "_JP",
-  Spanish: "_ES",
-  French: "_FR",
-  German: "_DE",
-  Russian: "_RU",
-};
 
 export function isSupportedTranslatorSubtitlePath(path: string): boolean {
   const normalized = path.toLowerCase();
@@ -33,19 +28,19 @@ export function stripTranslatorSubtitleExtension(path: string): string {
 }
 
 export function getTranslatorOutputSuffix(
-  targetLang: string,
+  targetLang: TranslationTargetLanguage,
   mode: "standard" | "intelligent" | "proofread",
 ): string {
   if (mode === "proofread") return "_PR";
-  return TRANSLATOR_LANGUAGE_SUFFIX_MAP[targetLang] || "_CN";
+  return getTranslationTargetLanguageSuffix(targetLang);
 }
 
 export function getTranslatorAutoloadSuffixes(
-  targetLang: string,
+  targetLang: TranslationTargetLanguage,
   mode: "standard" | "intelligent" | "proofread",
 ): string[] {
   const preferred = getTranslatorOutputSuffix(targetLang, mode);
-  const languageSuffixes = Object.values(TRANSLATOR_LANGUAGE_SUFFIX_MAP);
+  const languageSuffixes = TRANSLATION_TARGET_LANGUAGES.map(({ suffix }) => suffix);
   const ordered = [preferred, ...languageSuffixes];
   if (mode === "proofread") {
     ordered.push("_PR");

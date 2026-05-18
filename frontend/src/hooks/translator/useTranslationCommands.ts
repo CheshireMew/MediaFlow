@@ -8,13 +8,14 @@ import {
   isAiTranslationSetupRequiredError,
   type NullableExecutionMode,
 } from "../../services/domain";
+import type { TranslationTargetLanguage } from "../../services/domain/translationTargetLanguages";
 import { normalizeMediaReference, type MediaReference } from "../../services/ui/mediaReference";
 
 type UseTranslationCommandsParams = {
   sourceSegments: SubtitleSegment[];
   sourceFilePath: string | null;
   sourceFileRef: MediaReference | null;
-  targetLang: string;
+  targetLang: TranslationTargetLanguage;
   mode: TranslatorMode;
   setTaskStatus: (status: string) => void;
   setProgress: (progress: number) => void;

@@ -17,11 +17,11 @@ describe("useTranslatorOutputActions", () => {
       sourceFilePath: "E:/subs/demo.srt",
       sourceFileRef: { path: "E:/subs/demo.srt", name: "demo.srt" },
       targetSubtitleRef: {
-        path: "E:/subs/demo_CN.srt",
-        name: "demo_CN.srt",
+        path: "E:/subs/demo_ZH-CN.srt",
+        name: "demo_ZH-CN.srt",
         type: "application/x-subrip",
       },
-      targetLang: "Chinese",
+      targetLang: "SimplifiedChinese",
       mode: "standard",
       activeMode: null,
       resultMode: "standard",
@@ -61,7 +61,7 @@ describe("useTranslatorOutputActions", () => {
     });
 
     expect(electronApi.writeFile).toHaveBeenCalledWith(
-      "E:/subs/demo_CN.srt",
+      "E:/subs/demo_ZH-CN.srt",
       expect.any(String),
     );
 
@@ -72,8 +72,8 @@ describe("useTranslatorOutputActions", () => {
         destination: "editor",
         payload: expect.objectContaining({
           subtitle_ref: expect.objectContaining({
-            path: "E:/subs/demo_CN.srt",
-            name: "demo_CN.srt",
+            path: "E:/subs/demo_ZH-CN.srt",
+            name: "demo_ZH-CN.srt",
             type: "application/x-subrip",
           }),
         }),
@@ -85,10 +85,10 @@ describe("useTranslatorOutputActions", () => {
     expect(
       createTranslatorEditorNavigationPayload({
         videoPath: "E:/workspace/demo.mp4",
-        subtitlePath: "E:/workspace/demo_CN.srt",
+        subtitlePath: "E:/workspace/demo_ZH-CN.srt",
         targetSubtitleRef: {
-          path: "E:/canonical/demo_CN.srt",
-          name: "demo_CN.srt",
+          path: "E:/canonical/demo_ZH-CN.srt",
+          name: "demo_ZH-CN.srt",
           type: "application/x-subrip",
         },
       }),
@@ -104,8 +104,8 @@ describe("useTranslatorOutputActions", () => {
         origin: undefined,
       },
       subtitle_ref: {
-        path: "E:/canonical/demo_CN.srt",
-        name: "demo_CN.srt",
+        path: "E:/canonical/demo_ZH-CN.srt",
+        name: "demo_ZH-CN.srt",
         type: "application/x-subrip",
         size: undefined,
         media_id: undefined,
@@ -118,17 +118,17 @@ describe("useTranslatorOutputActions", () => {
       resolveNavigationMediaPayload(
         createTranslatorEditorNavigationPayload({
           videoPath: "E:/workspace/demo.mp4",
-          subtitlePath: "E:/workspace/demo_CN.srt",
+          subtitlePath: "E:/workspace/demo_ZH-CN.srt",
           targetSubtitleRef: {
-            path: "E:/canonical/demo_CN.srt",
-            name: "demo_CN.srt",
+            path: "E:/canonical/demo_ZH-CN.srt",
+            name: "demo_ZH-CN.srt",
             type: "application/x-subrip",
           },
         }),
       ),
     ).toEqual({
       videoPath: "E:/workspace/demo.mp4",
-      subtitlePath: "E:/canonical/demo_CN.srt",
+      subtitlePath: "E:/canonical/demo_ZH-CN.srt",
       videoRef: {
         path: "E:/workspace/demo.mp4",
         name: "demo.mp4",
@@ -140,8 +140,8 @@ describe("useTranslatorOutputActions", () => {
         origin: undefined,
       },
       subtitleRef: {
-        path: "E:/canonical/demo_CN.srt",
-        name: "demo_CN.srt",
+        path: "E:/canonical/demo_ZH-CN.srt",
+        name: "demo_ZH-CN.srt",
         size: undefined,
         type: "application/x-subrip",
         media_id: undefined,

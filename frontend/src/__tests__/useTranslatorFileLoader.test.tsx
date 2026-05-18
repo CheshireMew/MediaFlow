@@ -13,7 +13,7 @@ describe("useTranslatorFileLoader", () => {
       targetSegments: [],
       glossary: [],
       sourceFilePath: null,
-      targetLang: "Chinese",
+      targetLang: "SimplifiedChinese",
       mode: "standard",
       activeMode: null,
       resultMode: null,
@@ -29,7 +29,7 @@ describe("useTranslatorFileLoader", () => {
 
   test("does not restore stale translated subtitles when reloading the same path with changed content", async () => {
     const sourcePath = "E:/subs/demo.srt";
-    const translatedPath = "E:/subs/demo_CN.srt";
+    const translatedPath = "E:/subs/demo_ZH-CN.srt";
     const electronAPI = (window as unknown as Window & { electronAPI: ElectronAPI }).electronAPI;
 
     useTranslatorStore.setState({
@@ -75,7 +75,7 @@ describe("useTranslatorFileLoader", () => {
 
   test("keeps autoload behavior when reloading the same path with unchanged content", async () => {
     const sourcePath = "E:/subs/demo.srt";
-    const translatedPath = "E:/subs/demo_CN.srt";
+    const translatedPath = "E:/subs/demo_ZH-CN.srt";
     const electronAPI = (window as unknown as Window & { electronAPI: ElectronAPI }).electronAPI;
 
     useTranslatorStore.setState({
@@ -112,7 +112,7 @@ describe("useTranslatorFileLoader", () => {
     });
     expect(useTranslatorStore.getState().targetSubtitleRef).toEqual({
       path: translatedPath,
-      name: "demo_CN.srt",
+      name: "demo_ZH-CN.srt",
     });
     expect(electronAPI.readFile).toHaveBeenCalledWith(translatedPath);
   });

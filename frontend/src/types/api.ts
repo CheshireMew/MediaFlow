@@ -8,6 +8,7 @@
 
 import type { SubtitleSegment } from "./task";
 import type { TaskResultShape } from "../contracts/taskContract";
+import type { TranslationTargetLanguage } from "../services/domain/translationTargetLanguages";
 import type {
   CleanRequest,
   EnhanceRequest,
@@ -215,7 +216,7 @@ export type TranscriptionEngine = NonNullable<GeneratedTranscribeSegmentRequest[
 
 export interface TranslateRequest {
   segments: SubtitleSegment[];
-  target_language: string;
+  target_language: TranslationTargetLanguage;
   mode?: "standard" | "intelligent" | "proofread";
   context_ref?: MediaReference | null;
 }

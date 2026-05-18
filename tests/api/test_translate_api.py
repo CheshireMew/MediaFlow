@@ -1,3 +1,5 @@
+import pytest
+
 from backend.application.translation_service import (
     get_language_suffix,
     get_translation_output_suffix,
@@ -7,19 +9,21 @@ from fastapi.testclient import TestClient
 
 
 def test_get_language_suffix_uses_frontend_compatible_codes():
-    assert get_language_suffix("Chinese") == "_CN"
+    assert get_language_suffix("SimplifiedChinese") == "_ZH-CN"
+    assert get_language_suffix("TraditionalChinese") == "_ZH-TW"
     assert get_language_suffix("English") == "_EN"
     assert get_language_suffix("Japanese") == "_JP"
     assert get_language_suffix("Spanish") == "_ES"
     assert get_language_suffix("French") == "_FR"
 
 
-def test_get_language_suffix_falls_back_to_language_name_for_unknown_values():
-    assert get_language_suffix("Italian") == "_Italian"
+def test_get_language_suffix_rejects_unknown_values():
+    with pytest.raises(ValueError, match="Unsupported translation target language"):
+        get_language_suffix("Italian")
 
 
 def test_get_translation_output_suffix_uses_proofread_suffix():
-    assert get_translation_output_suffix("Chinese", "proofread") == "_PR"
+    assert get_translation_output_suffix("SimplifiedChinese", "proofread") == "_PR"
     assert get_translation_output_suffix("Japanese", "standard") == "_JP"
 
 
@@ -38,7 +42,7 @@ def test_translate_endpoint_returns_400_for_client_value_errors(monkeypatch):
         "/api/v1/translate/",
         json={
             "segments": [],
-            "target_language": "Chinese",
+            "target_language": "SimplifiedChinese",
             "mode": "standard",
         },
     )

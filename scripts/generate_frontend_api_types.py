@@ -162,6 +162,9 @@ def _field(schema: dict[str, Any], name: str, prop_schema: dict[str, Any]) -> st
 
 
 def _interface_from_schema(name: str, schema: dict[str, Any]) -> str:
+    if "enum" in schema or "const" in schema:
+        return f"export type {name} = {_schema_type(schema)};"
+
     lines = [f"export interface {name} {{"]
     for name, prop_schema in schema.get("properties", {}).items():
         lines.append(_field(schema, name, prop_schema))

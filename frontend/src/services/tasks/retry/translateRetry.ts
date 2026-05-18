@@ -1,6 +1,10 @@
 import type { TranslateRequest } from "../../../types/api";
 import type { Task } from "../../../types/task";
-import { executionService } from "../../domain";
+import {
+  DEFAULT_TRANSLATION_TARGET_LANGUAGE,
+  executionService,
+  normalizeTranslationTargetLanguage,
+} from "../../domain";
 import { fileService } from "../../fileService";
 import { parseSubtitleContent } from "../../../utils/subtitleParser";
 import type { RetryHandler, RetrySubmission } from "./types";
@@ -42,7 +46,9 @@ async function submitTranslateRetry(task: Task): Promise<RetrySubmission | null>
   }
 
   const targetLanguage =
-    typeof params.target_language === "string" ? params.target_language : "Chinese";
+    typeof params.target_language === "string"
+      ? normalizeTranslationTargetLanguage(params.target_language)
+      : DEFAULT_TRANSLATION_TARGET_LANGUAGE;
   const mode: TranslateMode = isTranslateMode(params.mode) ? params.mode : "standard";
   const translateReq = {
     segments,
@@ -71,4 +77,3 @@ export const translateRetryHandler: RetryHandler = {
   accepts: (task) => task.type === "translate",
   submit: submitTranslateRetry,
 };
-

@@ -5,7 +5,7 @@ from backend.models.schemas import MediaReference, SubtitleSegment
 
 
 def test_build_translation_task_result_emits_structured_media_refs(monkeypatch):
-    saved_path = Path("C:/tmp/demo_CN.srt")
+    saved_path = Path("C:/tmp/demo_ZH-CN.srt")
 
     monkeypatch.setattr(
         "backend.utils.subtitle_writer.SubtitleWriter.save_srt",
@@ -16,7 +16,7 @@ def test_build_translation_task_result_emits_structured_media_refs(monkeypatch):
         [
             SubtitleSegment(id="1", start=0.0, end=1.0, text="你好"),
         ],
-        target_language="Chinese",
+        target_language="SimplifiedChinese",
         mode="standard",
         context_ref=MediaReference(
             path="C:/tmp/demo.srt",
@@ -35,7 +35,7 @@ def test_build_translation_task_result_emits_structured_media_refs(monkeypatch):
 
 
 def test_build_translation_task_result_prefers_normalized_context_ref(monkeypatch):
-    saved_path = Path("C:/tmp/demo_CN.srt")
+    saved_path = Path("C:/tmp/demo_ZH-CN.srt")
 
     monkeypatch.setattr(
         "backend.utils.subtitle_writer.SubtitleWriter.save_srt",
@@ -46,7 +46,7 @@ def test_build_translation_task_result_prefers_normalized_context_ref(monkeypatc
         [
             SubtitleSegment(id="1", start=0.0, end=1.0, text="你好"),
         ],
-        target_language="Chinese",
+        target_language="SimplifiedChinese",
         mode="standard",
         context_ref=MediaReference(
             path="C:/canonical/demo.srt",

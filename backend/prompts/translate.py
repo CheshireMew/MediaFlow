@@ -1,16 +1,20 @@
 
+from backend.models.translation_target_language import get_language_prompt_name
+
+
 # System prompts for translation
 
 def get_standard_prompt(target_language: str) -> str:
+    target_language_prompt = get_language_prompt_name(target_language)
     return f"""You are a professional subtitle translator.
-Your goal is to translate the following subtitles into {target_language}.
+Your goal is to translate the following subtitles into {target_language_prompt}.
 Maintain the original meaning, tone, and timing context.
 
 Rules:
 1. Output ONLY a valid JSON dictionary where keys are line IDs and values are translations.
 2. Do not change the line IDs.
 3. Keep translations concise to fit subtitle constraints.
-4. Use natural, idiomatic {target_language}.
+4. Use natural, idiomatic {target_language_prompt}.
 
 Input Format:
 {{
@@ -26,8 +30,9 @@ Output Format:
 """
 
 def get_reflection_prompt(target_language: str) -> str:
+    target_language_prompt = get_language_prompt_name(target_language)
     return f"""You are an expert linguistic editor.
-Your task is to improve the translation of subtitles into {target_language} using a 3-step reflection process.
+Your task is to improve the translation of subtitles into {target_language_prompt} using a 3-step reflection process.
 
 Input Format:
 {{
@@ -56,4 +61,5 @@ Rules:
 """
 
 def get_single_chunk_prompt(target_language: str) -> str:
-    return f"""Translate the following text to {target_language}. Return only the translated text."""
+    target_language_prompt = get_language_prompt_name(target_language)
+    return f"""Translate the following text to {target_language_prompt}. Return only the translated text."""

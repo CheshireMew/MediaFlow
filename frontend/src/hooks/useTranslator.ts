@@ -9,6 +9,7 @@ import { useGlossary } from "./useGlossary";
 import { useFileIO } from "./useFileIO";
 import type { SubtitleSegment } from "../types/task";
 import type { GlossaryTerm } from "../services/domain";
+import type { TranslationTargetLanguage } from "../services/domain/translationTargetLanguages";
 
 // --- Types ---
 export type { TranslatorMode };
@@ -21,7 +22,7 @@ interface UseTranslatorReturn {
   sourceFilePath: string | null;
 
   // UI State
-  targetLang: string;
+  targetLang: TranslationTargetLanguage;
   mode: TranslatorMode;
   activeMode: TranslatorMode | null;
   resultMode: TranslatorResultMode;
@@ -35,7 +36,7 @@ interface UseTranslatorReturn {
   // Actions
   setSourceSegments: (s: SubtitleSegment[]) => void;
   updateTargetSegment: (index: number, text: string) => void;
-  setTargetLang: (lang: string) => void;
+  setTargetLang: (lang: TranslationTargetLanguage) => void;
   setMode: (m: TranslatorMode) => void;
   handleFileUpload: (path: string) => Promise<void>;
   refreshGlossary: () => Promise<void>;

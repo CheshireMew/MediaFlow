@@ -1,6 +1,7 @@
 import { parseSRT } from "../../utils/subtitleParser";
 import type { SubtitleSegment } from "../../types/task";
 import { fileService } from "../../services/fileService";
+import { TRANSLATION_TARGET_LANGUAGES } from "../../services/domain/translationTargetLanguages";
 
 export const SUPPORTED_EDITOR_SUBTITLE_EXTENSIONS = [".srt"] as const;
 
@@ -27,7 +28,10 @@ export async function loadEditorSubtitle(path: string) {
 }
 
 export function buildRelatedSubtitleCandidates(videoPath: string): string[] {
-  const priorities = ["_CN", "_EN", "_JP", "_ES", "_FR", "_DE", "_RU", ""];
+  const priorities = [
+    ...TRANSLATION_TARGET_LANGUAGES.map(({ suffix }) => suffix),
+    "",
+  ];
   const basePath = videoPath.replace(/\.[^.]+$/, "");
   return priorities.map((suffix) => `${basePath}${suffix}.srt`);
 }
@@ -36,7 +40,7 @@ export async function findRelatedVideoForSubtitle(
   subtitlePath: string,
 ): Promise<string | null> {
   const videoExts = [".mp4", ".mkv", ".avi", ".mov", ".webm"];
-  const languageSuffixes = ["_CN", "_EN", "_JP", "_ES", "_FR", "_DE", "_RU"];
+  const languageSuffixes = TRANSLATION_TARGET_LANGUAGES.map(({ suffix }) => suffix);
 
   let basePath = subtitlePath.replace(/\.[^.]+$/, "");
 

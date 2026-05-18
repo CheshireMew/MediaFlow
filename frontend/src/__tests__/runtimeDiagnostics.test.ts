@@ -69,7 +69,7 @@ describe("runtimeDiagnostics", () => {
           result: {
             files: [{ type: "subtitle", path: "E:/demo.zh.srt" }],
             meta: {
-              language: "Chinese",
+              language: "SimplifiedChinese",
               subtitle_ref: {
                 path: "E:/canonical/demo.zh.srt",
                 name: "demo.zh.srt",
@@ -116,7 +116,7 @@ describe("runtimeDiagnostics", () => {
       status: "running",
       params_keys: ["context_path", "mode", "context_ref", "subtitle_ref"],
       result_meta: {
-        language: "Chinese",
+        language: "SimplifiedChinese",
         subtitle_ref: {
           path: "E:/canonical/demo.zh.srt",
           name: "demo.zh.srt",

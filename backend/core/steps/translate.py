@@ -8,6 +8,7 @@ from backend.core.container import Services
 from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 from backend.utils.subtitle_writer import SubtitleWriter
 from backend.models.schemas import SubtitleSegment, FileRef
+from backend.models.translation_target_language import get_language_suffix, parse_translation_target_language
 
 class TranslateStep(PipelineStep):
     @property
@@ -22,9 +23,10 @@ class TranslateStep(PipelineStep):
 
         segments = [SubtitleSegment(**s) if isinstance(s, dict) else s for s in segments_data]
 
-        target_language = params.get("target_language")
-        if not target_language:
+        raw_target_language = params.get("target_language")
+        if not raw_target_language:
             raise ValueError("Translate step requires 'target_language' param")
+        target_language = parse_translation_target_language(raw_target_language).value
 
         mode = params.get("mode", "standard")
 
@@ -58,19 +60,9 @@ class TranslateStep(PipelineStep):
         if base_path:
             p = Path(base_path)
             
-            # Standard Suffix Map (matching frontend/backend API)
-            suffix_map = {
-                "Chinese": "_CN",
-                "English": "_EN", 
-                "Japanese": "_JP",
-                "Spanish": "_ES", 
-                "French": "_FR",
-                "German": "_DE",
-                "Russian": "_RU"
-            }
-            lang_suffix = suffix_map.get(target_language, f"_{target_language}")
+            lang_suffix = get_language_suffix(target_language)
             
-            # e.g., video.mp4 -> video_CN.srt
+            # e.g., video.mp4 -> video_ZH-CN.srt
             output_name = f"{p.stem}{lang_suffix}.srt"
             output_path = p.parent / output_name
         else:

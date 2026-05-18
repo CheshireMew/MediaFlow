@@ -312,21 +312,21 @@ describe("TaskMonitor navigation actions", () => {
           created_at: Date.now(),
           request_params: {
             video_path: "E:/workspace/sample.mp4",
-            subtitle_path: "E:/workspace/sample_CN.srt",
+            subtitle_path: "E:/workspace/sample_ZH-CN.srt",
             video_ref: {
               path: "E:/canonical/sample.mp4",
               name: "sample.mp4",
             },
             subtitle_ref: {
-              path: "E:/canonical/sample_CN.srt",
-              name: "sample_CN.srt",
+              path: "E:/canonical/sample_ZH-CN.srt",
+              name: "sample_ZH-CN.srt",
             },
           },
           result: {
             success: true,
             files: [
               { type: "video", path: "E:/workspace/sample.mp4" },
-              { type: "subtitle", path: "E:/workspace/sample_CN.srt" },
+              { type: "subtitle", path: "E:/workspace/sample_ZH-CN.srt" },
             ],
             meta: {
               video_ref: {
@@ -334,14 +334,14 @@ describe("TaskMonitor navigation actions", () => {
                 name: "sample.mp4",
               },
               subtitle_ref: {
-                path: "E:/canonical/sample_CN.srt",
-                name: "sample_CN.srt",
+                path: "E:/canonical/sample_ZH-CN.srt",
+                name: "sample_ZH-CN.srt",
               },
             },
           },
           artifacts: [
             artifact("video", "output", "E:/canonical/sample.mp4", "sample.mp4"),
-            artifact("subtitle", "output", "E:/canonical/sample_CN.srt", "sample_CN.srt"),
+            artifact("subtitle", "output", "E:/canonical/sample_ZH-CN.srt", "sample_ZH-CN.srt"),
           ],
         },
       ],
@@ -370,8 +370,8 @@ describe("TaskMonitor navigation actions", () => {
             name: "sample.mp4",
           },
           subtitleRef: {
-            path: "E:/canonical/sample_CN.srt",
-            name: "sample_CN.srt",
+            path: "E:/canonical/sample_ZH-CN.srt",
+            name: "sample_ZH-CN.srt",
           },
         },
       );

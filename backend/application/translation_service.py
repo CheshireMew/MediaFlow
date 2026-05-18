@@ -13,25 +13,19 @@ from backend.models.schemas import (
     TaskResult,
     TranslationRequest,
 )
+from backend.models.translation_target_language import (
+    TranslationTargetLanguage,
+    get_language_suffix,
+    parse_translation_target_language,
+)
 from backend.services.media_refs import create_media_ref
 
 
-LANGUAGE_SUFFIX_MAP = {
-    "Chinese": "_CN",
-    "English": "_EN",
-    "Japanese": "_JP",
-    "Spanish": "_ES",
-    "French": "_FR",
-    "German": "_DE",
-    "Russian": "_RU",
-}
+def _target_language_value(target_language: str | TranslationTargetLanguage) -> str:
+    return parse_translation_target_language(target_language).value
 
 
-def get_language_suffix(target_language: str) -> str:
-    return LANGUAGE_SUFFIX_MAP.get(target_language, f"_{target_language}")
-
-
-def get_translation_output_suffix(target_language: str, mode: str) -> str:
+def get_translation_output_suffix(target_language: str | TranslationTargetLanguage, mode: str) -> str:
     if mode == "proofread":
         return "_PR"
     return get_language_suffix(target_language)
@@ -40,14 +34,15 @@ def get_translation_output_suffix(target_language: str, mode: str) -> str:
 def build_translation_task_result(
     segments: List[SubtitleSegment],
     *,
-    target_language: str,
+    target_language: str | TranslationTargetLanguage,
     mode: str,
     context_ref: Optional[MediaReference] = None,
 ) -> TaskResult:
     files: list[FileRef] = []
+    target_language_value = _target_language_value(target_language)
     meta = {
         "segments": [seg.model_dump(mode="json") for seg in segments],
-        "language": target_language,
+        "language": target_language_value,
     }
     resolved_context_ref = context_ref
     if resolved_context_ref:
@@ -57,7 +52,7 @@ def build_translation_task_result(
         try:
             from backend.utils.subtitle_writer import SubtitleWriter
 
-            suffix = get_translation_output_suffix(target_language, mode)
+            suffix = get_translation_output_suffix(target_language_value, mode)
             source_path = Path(resolved_context_ref.path)
             save_path = source_path.parent / f"{source_path.stem}{suffix}"
 
@@ -102,7 +97,7 @@ async def _translation_background(task_id: str, req: TranslationRequest) -> None
         success_message="Translation completed",
         result_transformer=lambda segments: build_translation_task_result(
             segments,
-            target_language=req.target_language,
+            target_language=req.target_language.value,
             mode=req.mode,
             context_ref=req.context_ref,
         ).model_dump(mode="json"),
@@ -116,20 +111,20 @@ def _translation_immediate(
 ):
     translated_segments = runtime_service(Services.LLM_TRANSLATOR).translate_segments(
         segments=req.segments,
-        target_language=req.target_language,
+        target_language=req.target_language.value,
         mode=req.mode,
         batch_size=10,
         progress_callback=progress_callback,
     )
     result = build_translation_task_result(
         translated_segments,
-        target_language=req.target_language,
+        target_language=req.target_language.value,
         mode=req.mode,
         context_ref=req.context_ref,
     )
     return {
         "segments": result.meta.get("segments", []),
-        "language": req.target_language,
+        "language": req.target_language.value,
         "context_ref": result.meta.get("context_ref"),
         "subtitle_ref": result.meta.get("subtitle_ref"),
         "output_ref": result.meta.get("output_ref"),

@@ -11,6 +11,10 @@ import { SegmentsTable } from '../components/translator/SegmentsTable';
 import { Sidebar } from '../components/translator/Sidebar';
 import type { TranslatorMode } from '../hooks/useTranslator';
 import { PageContent, PageHeader, PageShell, ToolbarButton, WorkPanel } from '../components/ui/PageChrome';
+import {
+    TRANSLATION_TARGET_LANGUAGES,
+    type TranslationTargetLanguage,
+} from '../services/domain/translationTargetLanguages';
 
 type ElectronSubtitleFile = {
     path: string;
@@ -177,14 +181,12 @@ export const TranslatorPage = () => {
                              <div className="relative group">
                                 <select 
                                     value={targetLang} 
-                                    onChange={e => setTargetLang(e.target.value)}
+                                    onChange={e => setTargetLang(e.target.value as TranslationTargetLanguage)}
                                     className="bg-black/40 border border-white/10 text-xs px-3 py-1.5 rounded-lg outline-none text-slate-300 hover:text-white focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all appearance-none pr-8 cursor-pointer font-medium"
                                 >
-                                    <option value="Chinese">{t('languages.Chinese')}</option>
-                                    <option value="English">{t('languages.English')}</option>
-                                    <option value="Japanese">{t('languages.Japanese')}</option>
-                                    <option value="Spanish">{t('languages.Spanish')}</option>
-                                    <option value="French">{t('languages.French')}</option>
+                                    {TRANSLATION_TARGET_LANGUAGES.map(({ value, labelKey }) => (
+                                        <option key={value} value={value}>{t(labelKey)}</option>
+                                    ))}
                                 </select>
                              </div>
                          </div>

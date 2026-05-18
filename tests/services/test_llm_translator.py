@@ -64,7 +64,7 @@ def test_translate_segments_fails_immediately_when_batch_translation_cannot_fall
     monkeypatch.setattr(llm_translator, "_translate_batch_struct", fail_batch)
 
     with pytest.raises(RuntimeError, match="before single-line fallback could complete"):
-        llm_translator.translate_segments(segments, "Chinese", batch_size=10)
+        llm_translator.translate_segments(segments, "SimplifiedChinese", batch_size=10)
 
 
 def test_build_translation_batches_uses_source_overlap():
@@ -111,7 +111,7 @@ def test_translate_segments_parallel_batches_preserve_output_order(monkeypatch):
 
     result = llm_translator.translate_segments(
         segments,
-        "Chinese",
+        "SimplifiedChinese",
         batch_size=2,
         max_concurrency=3,
     )
@@ -147,7 +147,7 @@ def test_translate_segments_parallel_batches_fail_fast_without_waiting_for_other
     with pytest.raises(RuntimeError, match="Batch 1/2. Last error: batch 1 failed"):
         llm_translator.translate_segments(
             segments,
-            "Chinese",
+            "SimplifiedChinese",
             batch_size=2,
             max_concurrency=2,
         )
@@ -182,7 +182,7 @@ def test_translate_segments_parallel_batches_respect_cancel_check(monkeypatch):
     with pytest.raises(TaskCancelRequested, match="Task cancelled by user"):
         llm_translator.translate_segments(
             segments,
-            "Chinese",
+            "SimplifiedChinese",
             batch_size=2,
             max_concurrency=2,
             cancel_check=cancel_check,
@@ -204,7 +204,7 @@ def test_validate_response_rejects_same_count_but_wrong_ids():
         ]
     )
 
-    is_valid, error_msg, mapped = validate_response(resp, segments, "Chinese")
+    is_valid, error_msg, mapped = validate_response(resp, segments, "SimplifiedChinese")
 
     assert is_valid is False
     assert mapped == []
@@ -228,7 +228,7 @@ def test_validate_response_rejects_duplicate_ids():
         ]
     )
 
-    is_valid, error_msg, mapped = validate_response(resp, segments, "Chinese")
+    is_valid, error_msg, mapped = validate_response(resp, segments, "SimplifiedChinese")
 
     assert is_valid is False
     assert mapped == []
@@ -281,7 +281,7 @@ def test_translate_with_correction_falls_back_when_ids_do_not_match(monkeypatch)
         system_prompt="test",
         segments=segments,
         input_json_str='[{"id":"14","source_text":"Line 14"},{"id":"15","source_text":"Line 15"}]',
-        target_language="Chinese",
+        target_language="SimplifiedChinese",
         mode_label="Standard",
     )
 
@@ -300,7 +300,7 @@ def test_validate_response_rejects_empty_translated_text():
         ]
     )
 
-    is_valid, error_msg, mapped = validate_response(resp, segments, "Chinese")
+    is_valid, error_msg, mapped = validate_response(resp, segments, "SimplifiedChinese")
 
     assert is_valid is False
     assert mapped == []
@@ -328,7 +328,7 @@ def test_validate_response_rejects_source_text_shift():
         ]
     )
 
-    is_valid, error_msg, mapped = validate_response(resp, segments, "Chinese")
+    is_valid, error_msg, mapped = validate_response(resp, segments, "SimplifiedChinese")
 
     assert is_valid is False
     assert mapped == []
@@ -346,7 +346,7 @@ def test_validate_response_normalizes_casual_em_dash_for_chinese():
         ]
     )
 
-    is_valid, error_msg, mapped = validate_response(resp, segments, "Chinese")
+    is_valid, error_msg, mapped = validate_response(resp, segments, "SimplifiedChinese")
 
     assert is_valid is True
     assert error_msg == ""
@@ -402,7 +402,7 @@ def test_translate_with_correction_recovers_broken_tool_call_json():
         system_prompt="test",
         segments=segments,
         input_json_str="""[{"id":"19","source_text":"And I've never found anyone who said no or hung up the phone when I called."}]""",
-        target_language="Chinese",
+        target_language="SimplifiedChinese",
         mode_label="Standard",
     )
 
@@ -444,7 +444,7 @@ def test_translate_single_fallback_uses_plain_text_completion():
         client=client,
         model_name="test-model",
         segments=segments,
-        target_language="Chinese",
+        target_language="SimplifiedChinese",
         mode_label="Standard",
     )
 
@@ -486,7 +486,7 @@ def test_translate_single_fallback_normalizes_casual_em_dash_for_chinese():
         client=client,
         model_name="test-model",
         segments=segments,
-        target_language="Chinese",
+        target_language="SimplifiedChinese",
         mode_label="Standard",
     )
 
@@ -521,7 +521,7 @@ def test_translate_batch_struct_skips_cache_when_fallback_keeps_source(monkeypat
 
     result = llm_translator._translate_batch_struct(
         segments=segments,
-        target_language="Chinese",
+        target_language="SimplifiedChinese",
         mode="standard",
     )
 
@@ -555,7 +555,7 @@ def test_translate_batch_struct_normalizes_cached_chinese_text(monkeypatch):
 
     result = llm_translator._translate_batch_struct(
         segments=segments,
-        target_language="Chinese",
+        target_language="SimplifiedChinese",
         mode="standard",
     )
 
@@ -608,7 +608,7 @@ def test_intelligent_mode_recovers_broken_tool_call_json(monkeypatch):
 
     result = llm_translator._translate_batch_struct(
         segments=segments,
-        target_language="Chinese",
+        target_language="SimplifiedChinese",
         mode="intelligent",
     )
 

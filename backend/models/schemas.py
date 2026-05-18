@@ -2,6 +2,10 @@
 from typing import Optional, List, Dict, Any, Literal
 
 from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
+from backend.models.translation_target_language import (
+    DEFAULT_TRANSLATION_TARGET_LANGUAGE,
+    TranslationTargetLanguage,
+)
 
 class DownloadRequest(BaseModel):
     url: HttpUrl
@@ -126,14 +130,14 @@ class TranscribeParams(BaseModel):
 class TranslateParams(BaseModel):
     """Parameters for the translate pipeline step."""
     context_ref: Optional[MediaReference] = None
-    target_language: str = "Chinese"
+    target_language: TranslationTargetLanguage = DEFAULT_TRANSLATION_TARGET_LANGUAGE
     mode: str = "standard"  # "standard" | "intelligent" | "proofread"
     batch_size: int = 50
 
 
 class TranslationRequest(BaseModel):
     segments: List[SubtitleSegment]
-    target_language: str = "Chinese"
+    target_language: TranslationTargetLanguage = DEFAULT_TRANSLATION_TARGET_LANGUAGE
     mode: str = "standard"
     context_ref: Optional[MediaReference] = None
 

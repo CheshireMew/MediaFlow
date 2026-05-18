@@ -2,6 +2,7 @@ import json
 from typing import Dict, List, Optional
 
 from backend.models.schemas import SubtitleSegment
+from backend.models.translation_target_language import get_language_prompt_name
 
 
 class TranslationPromptBuilder:
@@ -40,7 +41,8 @@ class TranslationPromptBuilder:
         target_language: str,
         relevant_terms,
     ) -> str:
-        system_prompt = f"You are a professional subtitle translator translating to {target_language}."
+        target_language_prompt = get_language_prompt_name(target_language)
+        system_prompt = f"You are a professional subtitle translator translating to {target_language_prompt}."
         system_prompt += "\nThe source text is transcribed from audio and may contain errors. Use context to correct errors during translation."
         system_prompt += f"\n{self.output_style_rules()}"
 
@@ -105,12 +107,13 @@ Rules:
         base_prompt: str,
         target_language: str,
     ) -> str:
+        target_language_prompt = get_language_prompt_name(target_language)
         return base_prompt + f"""
 MODE: INTELLIGENT (Semantic Resegmentation)
 Rules:
 1. You are allowed to MERGE short, fragmented lines into complete sentences.
 2. You are allowed to SPLIT long, run-on sentences into readable chunks.
-3. Goal: readability and natural flow in {target_language}.
+3. Goal: readability and natural flow in {target_language_prompt}.
 4. For each segment, provide 'time_percentage' (0.0-1.0) representing its portion of total duration.
 """
 
@@ -130,8 +133,9 @@ Rules:
                 f"{self.output_style_rules()}"
             )
         else:
+            target_language_prompt = get_language_prompt_name(target_language)
             system_content = (
-                f"Translate the following subtitle line to {target_language}.\n"
+                f"Translate the following subtitle line to {target_language_prompt}.\n"
                 "Return only the translated subtitle text as plain text.\n"
                 "Do not return JSON, markdown, labels, or explanations.\n"
                 "Do not merge, split, or rewrite surrounding lines.\n"

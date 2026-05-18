@@ -286,7 +286,7 @@ describe("taskMedia", () => {
       },
       result: {
         success: true,
-        files: [{ type: "subtitle", path: "E:/workspace/demo_CN.srt" }],
+        files: [{ type: "subtitle", path: "E:/workspace/demo_ZH-CN.srt" }],
       },
     };
 

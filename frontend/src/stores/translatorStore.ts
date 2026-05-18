@@ -8,6 +8,7 @@ import {
   restoreStoredTranslationPreferences,
   type TranslationExecutionMode,
 } from "../services/persistence/translationPreferences";
+import type { TranslationTargetLanguage } from "../services/domain/translationTargetLanguages";
 import {
   readUiStateValue,
   subscribeUiStateSettingsInitialized,
@@ -28,7 +29,7 @@ interface TranslatorState {
   targetSubtitleRef: MediaReference | null;
 
   // UI State
-  targetLang: string;
+  targetLang: TranslationTargetLanguage;
   mode: TranslatorMode;
   activeMode: TranslatorMode | null;
   resultMode: TranslatorResultMode;
@@ -49,7 +50,7 @@ interface TranslatorState {
   setSourceFilePath: (path: string | null) => void;
   setSourceFileRef: (reference: MediaReference | null) => void;
   setTargetSubtitleRef: (reference: MediaReference | null) => void;
-  setTargetLang: (lang: string) => void;
+  setTargetLang: (lang: TranslationTargetLanguage) => void;
   setMode: (mode: TranslatorMode) => void;
   setActiveMode: (mode: TranslatorMode | null) => void;
   setResultMode: (mode: TranslatorResultMode) => void;

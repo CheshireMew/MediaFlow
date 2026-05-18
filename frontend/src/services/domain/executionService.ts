@@ -16,6 +16,7 @@ import {
 } from "./executionExecutor";
 import { restoreStoredAsrExecutionPreferences } from "../persistence/asrExecutionPreferences";
 import { restoreStoredTranslationPreferences } from "../persistence/translationPreferences";
+import type { TranslationTargetLanguage } from "./translationTargetLanguages";
 import {
   restoreStoredSynthesisExecutionPreferences,
 } from "../persistence/synthesisExecutionPreferences";
@@ -176,7 +177,7 @@ export const executionService = {
 
   async translate(payload: {
     segments: SubtitleSegment[];
-    target_language: string;
+    target_language: TranslationTargetLanguage;
     mode: "standard" | "intelligent" | "proofread";
     context_ref?: MediaReference | null;
   }): Promise<ExecutionOutcome> {

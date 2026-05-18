@@ -43,13 +43,13 @@ class SubtitleWriter:
         path_obj = Path(audio_path)
         # Check if the path allows us to safely replace suffix
         # logic: if suffix is a known media type, replace it. 
-        # If it's something else (like .2023_CN from a dot-containing filename), append .srt.
+            # If it's something else (like .2023_ZH-CN from a dot-containing filename), append .srt.
         
         suffix = path_obj.suffix.lower()
         if suffix in ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.mp3', '.wav', '.flac', '.m4a']:
             srt_path = path_obj.with_suffix(".srt")
         else:
-            # It's likely a stem or a file with dots in the name (e.g. "Movie.2023_CN")
+            # It's likely a stem or a file with dots in the name (e.g. "Movie.2023_ZH-CN")
             if suffix == '.srt':
                 srt_path = path_obj
             else:

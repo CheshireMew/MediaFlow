@@ -27,11 +27,14 @@
     "noSourceSegment": "Extra target segment created by smart split"
   },
   "languages": {
-    "Chinese": "Chinese (中文)",
+    "SimplifiedChinese": "Simplified Chinese",
+    "TraditionalChinese": "Traditional Chinese",
     "English": "English",
     "Japanese": "Japanese",
     "Spanish": "Spanish",
-    "French": "French"
+    "French": "French",
+    "German": "German",
+    "Russian": "Russian"
   },
   "modes": {
     "standard": "Standard",

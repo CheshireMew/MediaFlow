@@ -67,7 +67,7 @@ describe("useTranslationTask", () => {
         name: "demo.srt",
       },
       targetSubtitleRef: null,
-      targetLang: "Chinese",
+      targetLang: "SimplifiedChinese",
       mode: "standard",
       activeMode: null,
       resultMode: null,
@@ -123,7 +123,7 @@ describe("useTranslationTask", () => {
             path: "E:/subs/demo.srt",
             name: "demo.srt",
           }),
-          target_language: "Chinese",
+          target_language: "SimplifiedChinese",
           mode: "proofread",
         }),
       }),
@@ -353,7 +353,7 @@ describe("useTranslationTask", () => {
 
     expect(translationServiceMock.startTranslation).toHaveBeenCalledWith(expect.objectContaining({
       segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
-      target_language: "Chinese",
+      target_language: "SimplifiedChinese",
       mode: "standard",
       context_ref: expect.objectContaining({
         path: "E:/subs/demo.srt",
@@ -407,7 +407,7 @@ describe("useTranslationTask", () => {
 
     expect(translationServiceMock.startTranslation).toHaveBeenCalledWith(expect.objectContaining({
       segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
-      target_language: "Chinese",
+      target_language: "SimplifiedChinese",
       mode: "standard",
       context_ref: expect.objectContaining({
         path: "E:/canonical/demo.srt",

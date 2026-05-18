@@ -10,8 +10,8 @@ import {
   getTranslatorAutoloadSuffixes,
   isSupportedTranslatorSubtitlePath,
   loadTranslatorSubtitle,
-  TRANSLATOR_LANGUAGE_SUFFIX_MAP,
 } from "./translatorFileHelpers";
+import { getTranslationTargetLanguageBySuffix } from "../../services/domain/translationTargetLanguages";
 
 export function useTranslatorFileLoader() {
   const {
@@ -64,9 +64,7 @@ export function useTranslatorFileLoader() {
       try {
         const parsed = await loadTranslatorSubtitle(targetPath);
         if (parsed && parsed.length > 0) {
-          const foundLang = Object.keys(TRANSLATOR_LANGUAGE_SUFFIX_MAP).find(
-            (key) => TRANSLATOR_LANGUAGE_SUFFIX_MAP[key] === suffix,
-          );
+          const foundLang = getTranslationTargetLanguageBySuffix(suffix);
           if (foundLang) setTargetLang(foundLang);
           setTargetSegments(parsed);
           setTargetSubtitleRef(normalizeMediaReference(targetPath));

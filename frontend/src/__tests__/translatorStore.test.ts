@@ -12,7 +12,7 @@ describe("translatorStore persistence", () => {
       sourceFilePath: null,
       sourceFileRef: null,
       targetSubtitleRef: null,
-      targetLang: "Chinese",
+      targetLang: "SimplifiedChinese",
       mode: "standard",
       activeMode: null,
       resultMode: null,

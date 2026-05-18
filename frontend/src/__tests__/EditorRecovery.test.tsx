@@ -61,8 +61,8 @@ describe("Editor recovery", () => {
         name: "canonical-video.mp4",
       },
       subtitle_ref: {
-        path: "E:/canonical/new-video_CN.srt",
-        name: "canonical-new-video_CN.srt",
+        path: "E:/canonical/new-video_ZH-CN.srt",
+        name: "canonical-new-video_ZH-CN.srt",
       },
     });
 
@@ -75,8 +75,8 @@ describe("Editor recovery", () => {
           name: "canonical-video.mp4",
         },
         subtitleRef: {
-          path: "E:/canonical/new-video_CN.srt",
-          name: "canonical-new-video_CN.srt",
+          path: "E:/canonical/new-video_ZH-CN.srt",
+          name: "canonical-new-video_ZH-CN.srt",
         },
       });
       expect(useEditorStore.getState().regions).toEqual([

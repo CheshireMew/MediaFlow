@@ -27,11 +27,11 @@ def analyze():
         print("SRT not found!")
         return
     
-    # Filter out _CN.srt, pick the base one or the one user meant
-    # User said "Original video" but didn't specify which SRT. The list_dir showed .srt and _CN.srt.
-    # Usually the localized one (_CN) is the one burned if it's a translation task, or the original if just captioning.
+    # Filter out _ZH-CN.srt, pick the base one or the one user meant
+    # User said "Original video" but didn't specify which SRT. The list_dir showed .srt and _ZH-CN.srt.
+    # Usually the localized one (_ZH-CN) is the one burned if it's a translation task, or the original if just captioning.
     # Let's check both or the largest one.
-    srt_path = next((f for f in srt_files if "_CN" in f), srt_files[0])
+    srt_path = next((f for f in srt_files if "_ZH-CN" in f), srt_files[0])
     print(f"Using SRT: {srt_path}")
 
     # Probe resolution

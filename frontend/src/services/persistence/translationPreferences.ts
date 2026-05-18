@@ -1,10 +1,15 @@
 import { parseVersionedSnapshot, serializeVersionedSnapshot } from "./versionedSnapshot";
 import { readUiStateValue, writeUiStateValue } from "./uiStateSettings";
+import {
+  DEFAULT_TRANSLATION_TARGET_LANGUAGE,
+  normalizeTranslationTargetLanguage,
+  type TranslationTargetLanguage,
+} from "../domain/translationTargetLanguages";
 
 export type TranslationExecutionMode = "standard" | "intelligent" | "proofread";
 
 export type TranslationPreferences = {
-  targetLanguage: string;
+  targetLanguage: TranslationTargetLanguage;
   mode: TranslationExecutionMode;
 };
 
@@ -12,7 +17,7 @@ const TRANSLATION_PREFERENCES_KEY = "translation_preferences";
 const TRANSLATION_PREFERENCES_VERSION = 2;
 
 const DEFAULT_TRANSLATION_PREFERENCES: TranslationPreferences = {
-  targetLanguage: "Chinese",
+  targetLanguage: DEFAULT_TRANSLATION_TARGET_LANGUAGE,
   mode: "standard",
 };
 
@@ -20,10 +25,7 @@ function normalizeTranslationPreferences(
   payload: Partial<TranslationPreferences> | null | undefined,
 ): TranslationPreferences {
   return {
-    targetLanguage:
-      typeof payload?.targetLanguage === "string" && payload.targetLanguage.trim()
-        ? payload.targetLanguage
-        : DEFAULT_TRANSLATION_PREFERENCES.targetLanguage,
+    targetLanguage: normalizeTranslationTargetLanguage(payload?.targetLanguage),
     mode:
       payload?.mode === "standard" ||
       payload?.mode === "intelligent" ||

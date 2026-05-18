@@ -1,18 +1,7 @@
 import re
 from typing import Optional
 
-_CHINESE_TARGET_LANGUAGE_KEYS = {
-    "chinese",
-    "zh",
-    "zh-cn",
-    "zh-hans",
-    "zh-hant",
-    "zh-tw",
-    "zh-hk",
-    "中文",
-    "汉语",
-    "漢語",
-}
+from backend.models.translation_target_language import is_chinese_target_language
 
 _CJK_CHAR_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 _EM_DASH_RUN_RE = re.compile(r"\s*[—]{1,}\s*")
@@ -41,8 +30,7 @@ def normalize_text_for_target_language(
 
 
 def _should_normalize_as_chinese(text: str, target_language: Optional[str]) -> bool:
-    language_key = (target_language or "").strip().lower()
-    return language_key in _CHINESE_TARGET_LANGUAGE_KEYS or bool(_CJK_CHAR_RE.search(text))
+    return is_chinese_target_language(target_language) or bool(_CJK_CHAR_RE.search(text))
 
 
 def _normalize_chinese_em_dash(text: str, source_text: Optional[str]) -> str:

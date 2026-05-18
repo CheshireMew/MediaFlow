@@ -173,7 +173,7 @@ describe("service media contract", () => {
 
     await executionService.translate({
       segments: [],
-      target_language: "Chinese",
+      target_language: "SimplifiedChinese",
       mode: "standard",
       context_ref: {
         path: "E:/canonical/source.srt",
@@ -187,7 +187,7 @@ describe("service media contract", () => {
 
     expect(apiClientMock.startTranslation).toHaveBeenCalledWith(expect.objectContaining({
       segments: [],
-      target_language: "Chinese",
+      target_language: "SimplifiedChinese",
       mode: "standard",
       context_ref: expect.objectContaining({
         path: "E:/canonical/source.srt",

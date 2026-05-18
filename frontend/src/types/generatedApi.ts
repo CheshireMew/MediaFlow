@@ -5,6 +5,7 @@ export interface PipelineStepRequest {
   step_name: string;
   params: unknown;
 }
+export type TranslationTargetLanguage = "SimplifiedChinese" | "TraditionalChinese" | "English" | "Japanese" | "Spanish" | "French" | "German" | "Russian";
 export interface MediaReference {
   path: string;
   name: string;
@@ -102,7 +103,7 @@ export interface TranscribeParams {
 }
 export interface TranslateParams {
   context_ref?: MediaReference | null;
-  target_language?: string;
+  target_language?: TranslationTargetLanguage;
   mode?: string;
   batch_size?: number;
 }

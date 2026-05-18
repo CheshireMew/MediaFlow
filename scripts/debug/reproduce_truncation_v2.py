@@ -12,7 +12,7 @@ def test_truncation(path_str):
     
     # Simulating Translation Case
     stem = path.stem
-    suffix = "_CN" # or _CN.srt? NO, translate.py uses "_CN" then calls save_srt
+    suffix = "_ZH-CN"
     
     # Case A: translate.py passes stem+suffix (no extension)
     save_path_str = f"{path.parent}\\{stem}{suffix}"

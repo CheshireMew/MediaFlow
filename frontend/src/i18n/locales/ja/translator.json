@@ -27,11 +27,14 @@
     "noSourceSegment": "スマート分割で生成された追加ターゲット段"
   },
   "languages": {
-    "Chinese": "中国語",
+    "SimplifiedChinese": "簡体字中国語",
+    "TraditionalChinese": "繁体字中国語",
     "English": "英語",
     "Japanese": "日本語",
     "Spanish": "スペイン語",
-    "French": "フランス語"
+    "French": "フランス語",
+    "German": "ドイツ語",
+    "Russian": "ロシア語"
   },
   "modes": {
     "standard": "標準",

@@ -27,11 +27,14 @@
     "noSourceSegment": "智能分割生成的新增目标段"
   },
   "languages": {
-    "Chinese": "中文",
+    "SimplifiedChinese": "简体中文",
+    "TraditionalChinese": "繁体中文",
     "English": "英语",
     "Japanese": "日语",
     "Spanish": "西班牙语",
-    "French": "法语"
+    "French": "法语",
+    "German": "德语",
+    "Russian": "俄语"
   },
   "modes": {
     "standard": "标准",
