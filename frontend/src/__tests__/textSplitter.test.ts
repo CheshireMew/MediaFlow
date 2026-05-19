@@ -123,6 +123,41 @@ describe("text splitter heuristics", () => {
     expect(getBestSplitIndex(text)).not.toBe(whitespaceEndIndex);
   });
 
+  it("keeps numeric amounts attached when falling back near a CJK midpoint", () => {
+    const text = "然后股价下跌，他们一直在等了三四年，等它涨回60美元";
+    const amountStartIndex = text.indexOf("60美元");
+    const splitIndex = getBestSplitIndex(text);
+
+    expect(splitIndex).toBe(text.indexOf("，等它涨回") + 1);
+    expect(splitIndex).not.toBe(amountStartIndex);
+    expect(text.slice(splitIndex)).toBe("等它涨回60美元");
+  });
+
+  it("moves manual playhead fallback to the nearest safe boundary", () => {
+    const text = "他们一直在等它涨回60美元然后才继续投资其他资产";
+    const result = splitSubtitleSegment(
+      {
+        id: "1",
+        start: 75.65,
+        end: 80.16,
+        text,
+      },
+      {
+        currentTime: 79.65,
+        fallbackToMidpoint: true,
+        heuristics: { requirePunctuation: true },
+      },
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.parts.map((part) => part.text).join("|")).not.toContain(
+      "60|美元",
+    );
+    expect(result?.parts.map((part) => part.text).join("|")).not.toContain(
+      "|60美元",
+    );
+  });
+
   it("only splits at a pause mark when both sides are substantial in smart mode", () => {
     const validText = "这是前半句足够长的说明内容部分，这也是后半句足够长的说明内容部分";
     const shortTailText = "这是前半句足够长的说明内容部分，很短";

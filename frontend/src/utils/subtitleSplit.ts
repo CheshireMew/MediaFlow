@@ -1,5 +1,6 @@
 import {
   getBestSplitIndex,
+  getNearestSafeSplitIndex,
   getSplitTimingRatio,
   type SplitHeuristicOptions,
 } from "./textSplitter";
@@ -61,12 +62,13 @@ export function splitSubtitleSegment<T extends SegmentLike>(
 
     if (isPlayheadInside && typeof currentTime === "number") {
       splitTime = currentTime;
-      splitIndex = Math.floor(
+      const preferredIndex = Math.floor(
         text.length * ((currentTime - segment.start) / duration),
       );
+      splitIndex = getNearestSafeSplitIndex(text, preferredIndex);
     } else {
       splitTime = segment.start + duration / 2;
-      splitIndex = midpointIndex;
+      splitIndex = getNearestSafeSplitIndex(text, midpointIndex);
     }
   } else {
     return null;

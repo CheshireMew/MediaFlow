@@ -7,7 +7,11 @@ from backend.services.asr import ASRService
 from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils.audio_processor import AudioProcessor
 from backend.utils.segment_refiner import SegmentRefiner
-from backend.utils.subtitle_text_splitter import HARD_WORD_LIMIT_ENGLISH, count_text_units
+from backend.utils.subtitle_text_splitter import (
+    HARD_WORD_LIMIT_ENGLISH,
+    count_text_units,
+    find_text_split_index,
+)
 from backend.models.schemas import FileRef, TaskResult
 from backend.models.schemas import SubtitleSegment
 from backend.core.task_control import TaskPauseRequested
@@ -456,6 +460,16 @@ def test_normalize_segments_rebalances_overlong_english_cue():
     assert normalized[0].text.endswith(",")
     assert normalized[1].text.startswith("and ")
     assert all(count_text_units(seg.text) <= HARD_WORD_LIMIT_ENGLISH for seg in normalized)
+
+
+def test_backend_text_splitter_prefers_safe_cjk_pause_before_amount():
+    text = "然后股价下跌，他们一直在等了三四年，等它涨回60美元以后才继续投资其他资产"
+
+    split_index = find_text_split_index(text)
+
+    assert split_index == text.index("，等它涨回") + 1
+    assert text[:split_index] == "然后股价下跌，他们一直在等了三四年，"
+    assert text[split_index:] == "等它涨回60美元以后才继续投资其他资产"
 
 
 def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, monkeypatch, tmp_path):

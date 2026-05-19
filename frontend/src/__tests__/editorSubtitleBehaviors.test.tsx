@@ -159,6 +159,25 @@ describe("editor subtitle behaviors", () => {
     expect(joined).not.toContain("1|and");
   });
 
+  test("smart split keeps short CJK numeric amounts with their clause", () => {
+    const input = [
+      {
+        id: "1",
+        start: 75.65,
+        end: 80.16,
+        text: "然后股价下跌，他们一直在等了三四年，等它涨回60美元",
+      },
+    ];
+
+    const result = smartSplitSubtitleSegments(input);
+
+    expect(result.splitCount).toBe(1);
+    expect(result.segments.map((segment) => segment.text)).toEqual([
+      "然后股价下跌，他们一直在等了三四年，",
+      "等它涨回60美元",
+    ]);
+  });
+
   test("smart split keeps english words intact inside mixed CJK subtitles", () => {
     const input = [
       {
