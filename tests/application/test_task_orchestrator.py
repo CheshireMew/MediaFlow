@@ -121,6 +121,7 @@ async def test_submit_pipeline_recycles_matching_completed_task():
     assert updates["status"] == "pending"
     assert updates["progress"] == 0.0
     assert updates["message"] == "Resuming..."
+    assert updates["request_params"] == req.model_dump(mode="json")
     assert task_manager.enqueued[0][0] == "task-1"
     assert task_manager.enqueued[0][2] == "Queued"
 

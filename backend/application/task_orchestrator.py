@@ -76,11 +76,17 @@ class TaskOrchestrator:
             queued_message=queued_message,
         )
 
-    async def reset_task_for_reuse(self, task_id: str, message: str = "Resuming...") -> None:
+    async def reset_task_for_reuse(
+        self,
+        task_id: str,
+        message: str = "Resuming...",
+        request_params: dict | None = None,
+    ) -> None:
         await self._task_resume_service.reset_task_for_reuse(
             self._task_manager,
             task_id,
             message=message,
+            request_params=request_params,
         )
 
     def build_resume_runner(self, task) -> callable:

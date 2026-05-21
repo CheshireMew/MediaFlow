@@ -80,3 +80,54 @@ async def test_download_fallback_when_no_handler():
             mock_get_handler.assert_called_once()
             # Verify executor called with original URL
             assert mock_loop.run_in_executor.called
+
+
+def test_download_retries_retryable_ytdlp_network_failure():
+    downloader_service = make_downloader()
+
+    with (
+        patch.object(
+            downloader_service,
+            "_execute_yt_dlp_download",
+            side_effect=[
+                Exception("EOF occurred in violation of protocol (_ssl.c:1007)"),
+                ({"title": "Recovered"}, "D:/out.mp4"),
+            ],
+        ) as mock_execute,
+        patch("backend.services.downloader.service.time.sleep") as mock_sleep,
+    ):
+        result = downloader_service._execute_yt_dlp_download_with_retry(
+            url="https://x.com/i/status/1",
+            ydl_opts={},
+            require_prepared_path=True,
+            classify_url="https://x.com/i/status/1",
+            operation_name="media download",
+        )
+
+    assert result == ({"title": "Recovered"}, "D:/out.mp4")
+    assert mock_execute.call_count == 2
+    mock_sleep.assert_called_once_with(1)
+
+
+def test_download_does_not_retry_unknown_ytdlp_failure():
+    downloader_service = make_downloader()
+
+    with (
+        patch.object(
+            downloader_service,
+            "_execute_yt_dlp_download",
+            side_effect=Exception("Task cancelled by user"),
+        ) as mock_execute,
+        patch("backend.services.downloader.service.time.sleep") as mock_sleep,
+        pytest.raises(Exception, match="Task cancelled by user"),
+    ):
+        downloader_service._execute_yt_dlp_download_with_retry(
+            url="https://example.com/video",
+            ydl_opts={},
+            require_prepared_path=True,
+            classify_url="https://example.com/video",
+            operation_name="media download",
+        )
+
+    assert mock_execute.call_count == 1
+    mock_sleep.assert_not_called()

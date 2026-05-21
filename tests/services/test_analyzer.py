@@ -28,11 +28,12 @@ async def test_analyze_single_video():
         }
         
         result = await analyzer_service.analyze("http://example.com/video")
-        
+
         assert result.type == "single"
         assert result.title == "Test Video"
         assert result.duration == 60
         assert result.count is None
+        assert mock_ydl_cls.call_args.args[0]["extractor_retries"] == 5
 
 @pytest.mark.asyncio
 async def test_analyze_playlist():

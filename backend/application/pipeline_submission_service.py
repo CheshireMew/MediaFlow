@@ -26,9 +26,10 @@ class PipelineSubmissionService:
         req,
         task_type: str,
     ) -> dict:
+        request_params = req.model_dump(mode="json")
         existing_task_id = orchestrator.find_existing_task(
             task_type,
-            req.model_dump(mode="json"),
+            request_params,
         )
         if existing_task_id:
             task = orchestrator.get_task(existing_task_id)
@@ -41,7 +42,10 @@ class PipelineSubmissionService:
                     )
 
                 logger.info(f"Recycling existing task: {existing_task_id}")
-                await orchestrator.reset_task_for_reuse(existing_task_id)
+                await orchestrator.reset_task_for_reuse(
+                    existing_task_id,
+                    request_params=request_params,
+                )
                 await orchestrator.enqueue_existing_task(existing_task_id, queued_message="Queued")
                 restarted = orchestrator.get_task(existing_task_id)
                 return task_submission_response(
@@ -49,17 +53,16 @@ class PipelineSubmissionService:
                     "Task restarted",
                 )
 
-        params = req.model_dump(mode="json")
         logger.info(
             f"Pipeline Request: task_name={req.task_name}, steps={len(req.steps)}, type={task_type}"
         )
-        logger.debug(f"DEBUG PIPELINE PARAMS TYPE: {type(params)}")
-        logger.debug(f"DEBUG PIPELINE PARAMS CONTENT: {params}")
+        logger.debug(f"DEBUG PIPELINE PARAMS TYPE: {type(request_params)}")
+        logger.debug(f"DEBUG PIPELINE PARAMS CONTENT: {request_params}")
 
         return await orchestrator.submit_task(
             task_type=task_type,
             task_name=req.task_name,
-            request_params=req.model_dump(mode="json"),
+            request_params=request_params,
             initial_message="Queued",
             queued_message="Queued",
         )

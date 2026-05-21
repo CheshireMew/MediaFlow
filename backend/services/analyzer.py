@@ -11,7 +11,7 @@ from backend.services.download_errors import (
     YtDlpErrorCapture,
     classify_download_error,
 )
-from urllib.parse import urlparse
+from backend.services.ytdlp_runtime_options import YtDlpRuntimeOptions
 
 
 
@@ -25,7 +25,7 @@ class AnalyzerService:
         cookie_manager: CookieManager,
     ):
         self._platform_factory = platform_factory
-        self._cookie_manager = cookie_manager
+        self._ytdlp_options = YtDlpRuntimeOptions(cookie_manager=cookie_manager)
 
     async def analyze(self, url: str) -> AnalyzeResult:
         """
@@ -46,48 +46,17 @@ class AnalyzerService:
                 return self._adapt_result(result)
 
         # 2. Fallback to yt-dlp (Standard Logic)
-        from backend.config import settings
         logger.info(f"Fallback to yt-dlp (Version: {yt_dlp.version.__version__})")
         
         error_capture = YtDlpErrorCapture()
         ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
+            **self._ytdlp_options.build_base(
+                url=url,
+                logger_sink=error_capture,
+            ),
             'extract_flat': 'in_playlist',  # Don't download, just extract info
             'ignoreerrors': True,
-            'logger': error_capture,
-            'ffmpeg_location': settings.FFMPEG_PATH,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
-
-        # Apply Proxy
-        if settings.DOWNLOADER_PROXY:
-            logger.info(f"Using Proxy: {settings.DOWNLOADER_PROXY}")
-            ydl_opts['proxy'] = settings.DOWNLOADER_PROXY
-
-        # Apply Cookies
-        try:
-            domain = urlparse(url).netloc
-            # Handle x.com / twitter.com specifically
-            if "x.com" in domain or "twitter.com" in domain:
-                # Try to find valid cookies for either domain
-                cookie_path = None
-                if self._cookie_manager.has_valid_cookies("x.com"):
-                    cookie_path = self._cookie_manager.get_cookie_path("x.com")
-                elif self._cookie_manager.has_valid_cookies("twitter.com"):
-                    cookie_path = self._cookie_manager.get_cookie_path("twitter.com")
-                
-                if cookie_path:
-                    logger.info(f"Using Cookies: {cookie_path}")
-                    ydl_opts['cookiefile'] = str(cookie_path)
-            else:
-                # Generic domain cookie support
-                if self._cookie_manager.has_valid_cookies(domain):
-                    cookie_path = self._cookie_manager.get_cookie_path(domain)
-                    ydl_opts['cookiefile'] = str(cookie_path)
-                    logger.info(f"Using Cookies: {cookie_path}")
-        except Exception as e:
-            logger.warning(f"Failed to load cookies: {e}")
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # yt-dlp is blocking, so we should technically run this in a thread pool executor

@@ -12,6 +12,7 @@ from backend.models.schemas import TaskResult
 from backend.services.cookie_manager import CookieManager
 from backend.services.download_errors import classify_download_error
 from backend.services.platforms.factory import PlatformFactory
+from backend.services.ytdlp_runtime_options import YtDlpRuntimeOptions
 
 from .artifacts import DownloadArtifactResolver, sanitize_filename
 from .config_builder import YtDlpConfigBuilder
@@ -27,8 +28,8 @@ class DownloaderService:
         cookie_manager: CookieManager,
     ):
         self.output_dir = settings.WORKSPACE_DIR
-        self._cookie_manager = cookie_manager
         self._platform_factory = platform_factory
+        self._ytdlp_options = YtDlpRuntimeOptions(cookie_manager=cookie_manager)
         self._artifact_resolver = DownloadArtifactResolver()
         self._post_processor = DownloadPostProcessor()
 
@@ -123,7 +124,7 @@ class DownloaderService:
         target_output_dir.mkdir(parents=True, exist_ok=True)
         config_builder = YtDlpConfigBuilder(
             target_output_dir,
-            cookie_manager=self._cookie_manager,
+            runtime_options=self._ytdlp_options,
         )
 
         media_progress = self._build_phase_progress_callback(
@@ -152,10 +153,12 @@ class DownloaderService:
 
         logger.info(f"Starting media download: {url}")
         try:
-            media_info, prepared_path = self._execute_yt_dlp_download(
+            media_info, prepared_path = self._execute_yt_dlp_download_with_retry(
                 url=url,
                 ydl_opts=media_opts,
                 require_prepared_path=True,
+                classify_url=start_url or url,
+                operation_name="media download",
             )
         except Exception as e:
             classified_error = classify_download_error(e, url=start_url or url)
@@ -188,10 +191,12 @@ class DownloaderService:
             )
             try:
                 logger.info(f"Starting subtitle download: {url}")
-                self._execute_yt_dlp_download(
+                self._execute_yt_dlp_download_with_retry(
                     url=url,
                     ydl_opts=subtitle_opts,
                     require_prepared_path=False,
+                    classify_url=start_url or url,
+                    operation_name="subtitle download",
                 )
             except Exception as e:
                 subtitle_error = str(e)
@@ -286,6 +291,34 @@ class DownloaderService:
                 raise RuntimeError("No info returned")
             prepared_path = ydl.prepare_filename(info) if require_prepared_path else None
         return info, prepared_path
+
+    def _execute_yt_dlp_download_with_retry(
+        self,
+        *,
+        url: str,
+        ydl_opts: dict,
+        require_prepared_path: bool,
+        classify_url: str,
+        operation_name: str,
+    ) -> tuple[dict, Optional[str]]:
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return self._execute_yt_dlp_download(
+                    url=url,
+                    ydl_opts=ydl_opts,
+                    require_prepared_path=require_prepared_path,
+                )
+            except Exception as e:
+                classified_error = classify_download_error(e, url=classify_url)
+                if classified_error.code != "network" or attempt >= max_attempts:
+                    raise
+                delay = attempt
+                logger.warning(
+                    f"yt-dlp {operation_name} failed [{classified_error.code}] "
+                    f"on attempt {attempt}/{max_attempts}; retrying in {delay}s: {e}"
+                )
+                time.sleep(delay)
 
     def _build_phase_progress_callback(
         self,
