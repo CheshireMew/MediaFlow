@@ -17,7 +17,10 @@ import { VideoPreview } from "../components/editor/VideoPreview";
 // Custom Hooks
 import { useEditorIO } from "../hooks/editor/useEditorIO";
 import { useEditorShortcuts } from "../hooks/editor/useEditorShortcuts";
-import { useEditorActions } from "../hooks/editor/useEditorActions";
+import {
+  resolveSubtitleReferenceForSavedPath,
+  useEditorActions,
+} from "../hooks/editor/useEditorActions";
 import { useContextMenuBuilder } from "../hooks/editor/useContextMenuBuilder";
 import { useEditorDragDrop } from "../hooks/editor/useEditorDragDrop";
 import { useEditorPlaybackPersistence } from "../hooks/editor/useEditorPlaybackPersistence";
@@ -308,10 +311,11 @@ export function EditorPage() {
                             media_kind: "video",
                             role: "source",
                         });
-                        const subtitleRefForSubmission = currentSubtitleRef ?? normalizeMediaReference(srtPath, {
-                            type: "application/x-subrip",
-                            media_kind: "subtitle",
-                            role: "source",
+                        const subtitleRefForSubmission = resolveSubtitleReferenceForSavedPath({
+                            currentFilePath,
+                            currentSubtitlePath,
+                            currentSubtitleRef,
+                            savedPath: srtPath,
                         });
                         if (!videoRefForSubmission || !subtitleRefForSubmission) {
                             alert(t('synthesis.missingFilesError'));

@@ -10,6 +10,7 @@ import { installElectronMock } from "./testUtils/electronMock";
 
 describe("useTranslatorOutputActions", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     useTranslatorStore.setState({
       sourceSegments: [{ id: "1", start: 0, end: 1, text: "hello" }],
       targetSegments: [{ id: "1", start: 0, end: 1, text: "你好" }],
@@ -79,6 +80,38 @@ describe("useTranslatorOutputActions", () => {
         }),
       }),
     );
+  });
+
+  it("uses a transport stream sibling when the subtitle keeps the media suffix", async () => {
+    useTranslatorStore.setState({
+      sourceFilePath: "E:/subs/demo.ts.srt",
+      sourceFileRef: { path: "E:/subs/demo.ts.srt", name: "demo.ts.srt" },
+    });
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => undefined);
+    const electronApi = installElectronMock({
+      getFileSize: vi.fn(async (targetPath: string) => {
+        if (targetPath === "E:/subs/demo.ts") {
+          return 1024;
+        }
+        throw new Error(`Missing file: ${targetPath}`);
+      }),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+    });
+    const { result } = renderHook(() => useTranslatorOutputActions());
+
+    await act(async () => {
+      await result.current.handleOpenInEditor();
+    });
+
+    expect(electronApi.writeFile).toHaveBeenCalledWith(
+      "E:/subs/demo_ZH-CN.srt",
+      expect.any(String),
+    );
+    expect(alertSpy).not.toHaveBeenCalled();
+
+    const event = dispatchSpy.mock.calls[0]?.[0] as CustomEvent;
+    expect(event.detail.payload.video_ref.path).toBe("E:/subs/demo.ts");
   });
 
   it("builds editor navigation payloads with canonical subtitle refs", () => {

@@ -24,6 +24,8 @@ export type {
   FasterWhisperCliPrewarmRequest,
   FasterWhisperCliPrewarmResponse,
   CudaReadinessResponse,
+  EditorPreviewMediaRequest,
+  EditorPreviewMediaResponse,
   ImagePreviewResponse,
   MediaVisibleStartRequest,
   MediaVisibleStartResponse,
@@ -60,6 +62,8 @@ import type {
   FasterWhisperCliPrewarmRequest,
   FasterWhisperCliPrewarmResponse,
   CudaReadinessResponse,
+  EditorPreviewMediaRequest,
+  EditorPreviewMediaResponse,
   ImagePreviewResponse,
   MediaVisibleStartRequest,
   MediaVisibleStartResponse,
@@ -367,6 +371,13 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+
+  resolveEditorPreviewMediaSource: (payload: EditorPreviewMediaRequest) => {
+    return request<EditorPreviewMediaResponse>("/editor/preview/media/source", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }, 300_000);
   },
 
   // ─── Preprocessing ───────────────────────────────────────────────

@@ -5,6 +5,7 @@ import {
   updateStoredSynthesisExecutionPreferences,
   type SynthesisExecutionPreferences,
 } from "../../../../services/persistence/synthesisExecutionPreferences";
+import { buildSuffixedOutputPath } from "../../../../services/ui/generatedOutputPath";
 
 export interface OutputSettingsState {
   quality: "high" | "balanced" | "small";
@@ -70,11 +71,8 @@ export function useOutputSettings(
   useEffect(() => {
     if (!isOpen || !videoPath) return;
 
-    // Filename: default to current filename + _synthesized
+    // Filename: default to current filename + _synthesized.mp4
     const name = videoPath.split(/[\\/]/).pop() || "video.mp4";
-    const baseName = name.substring(0, name.lastIndexOf(".")) || name;
-    const ext = name.substring(name.lastIndexOf("."));
-    const defaultName = `${baseName}_synthesized${ext}`;
 
     // Directory: last used or current video directory
     const currentDir = videoPath.substring(
@@ -82,6 +80,14 @@ export function useOutputSettings(
       Math.max(videoPath.lastIndexOf("\\"), videoPath.lastIndexOf("/")),
     );
     const nextDir = persistedPreferences.lastOutputDir || currentDir;
+    const sep = nextDir.includes("\\") ? "\\" : "/";
+    const cleanDir = nextDir.endsWith(sep) ? nextDir.slice(0, -1) : nextDir;
+    const defaultPath = buildSuffixedOutputPath(
+      `${cleanDir}${sep}${name}`,
+      "_synthesized",
+      ".mp4",
+    );
+    const defaultName = defaultPath.split(/[\\/]/).pop() || "video_synthesized.mp4";
     const timer = setTimeout(() => {
       setOutputFilename(defaultName);
       setOutputDir(nextDir);

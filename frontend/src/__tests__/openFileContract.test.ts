@@ -3,12 +3,14 @@ import {
   buildHtmlFileAccept,
   buildOpenFileDialogFilters,
   fileMatchesOpenDialogProfile,
+  getMediaExtensionsWithDot,
 } from "../contracts/openFileContract";
 
 describe("openFileContract", () => {
   it("keeps image extensions out of the transcriber picker", () => {
     const filters = buildOpenFileDialogFilters("transcriber-media");
     expect(filters[0].extensions).toContain("mp4");
+    expect(filters[0].extensions).toContain("ts");
     expect(filters[0].extensions).toContain("mp3");
     expect(filters[0].extensions).not.toContain("jpg");
     expect(filters[0].extensions).not.toContain("png");
@@ -53,5 +55,17 @@ describe("openFileContract", () => {
         "transcriber-media",
       ),
     ).toBe(true);
+    expect(
+      fileMatchesOpenDialogProfile(
+        { name: "capture.ts", type: "" },
+        "editor-media",
+      ),
+    ).toBe(true);
+  });
+
+  it("exposes dotted video extensions for sibling media lookups", () => {
+    expect(getMediaExtensionsWithDot("video")).toEqual(
+      expect.arrayContaining([".mp4", ".ts", ".mts"]),
+    );
   });
 });

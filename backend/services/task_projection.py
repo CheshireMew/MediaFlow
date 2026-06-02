@@ -5,6 +5,7 @@ from typing import Any
 
 from backend.core.task_catalog import pipeline_step_to_type
 from backend.models.schemas import MediaReference, TaskArtifact
+from backend.services.media_extensions import media_kind_from_extension
 
 
 REF_KEY_ROLES: dict[str, str] = {
@@ -22,27 +23,6 @@ FILE_TYPE_TO_KIND = {
     "subtitle": "subtitle",
     "image": "image",
 }
-
-EXTENSION_TO_KIND = {
-    ".mp4": "video",
-    ".mov": "video",
-    ".mkv": "video",
-    ".webm": "video",
-    ".mp3": "audio",
-    ".wav": "audio",
-    ".m4a": "audio",
-    ".flac": "audio",
-    ".aac": "audio",
-    ".srt": "subtitle",
-    ".vtt": "subtitle",
-    ".ass": "subtitle",
-    ".ssa": "subtitle",
-    ".png": "image",
-    ".jpg": "image",
-    ".jpeg": "image",
-    ".webp": "image",
-}
-
 
 def primary_operation(task_type: str, request_params: dict[str, Any] | None) -> str:
     if task_type != "pipeline":
@@ -81,9 +61,9 @@ def _media_kind_from_ref(ref: MediaReference, fallback_key: str | None = None) -
     if mime_type.startswith("image/"):
         return "image"
 
-    suffix = Path(ref.path).suffix.lower()
-    if suffix in EXTENSION_TO_KIND:
-        return EXTENSION_TO_KIND[suffix]
+    media_kind_from_path = media_kind_from_extension(ref.path)
+    if media_kind_from_path:
+        return media_kind_from_path
 
     if fallback_key:
         if "audio" in fallback_key:
@@ -187,7 +167,7 @@ def _walk_result_refs(payload: Any, artifacts: list[TaskArtifact], seen: set[tup
             if not isinstance(path, str) or not path:
                 continue
             file_type = str(file_item.get("type") or "").lower()
-            kind = FILE_TYPE_TO_KIND.get(file_type) or EXTENSION_TO_KIND.get(Path(path).suffix.lower(), "file")
+            kind = FILE_TYPE_TO_KIND.get(file_type) or media_kind_from_extension(path) or "file"
             ref = MediaReference(
                 path=path,
                 name=Path(path).name,

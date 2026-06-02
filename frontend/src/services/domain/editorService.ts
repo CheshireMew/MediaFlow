@@ -1,6 +1,7 @@
 import { requireExecutionMediaReference } from "./executionPayload";
 import type { MediaReference } from "../ui/mediaReference";
 import type {
+  EditorPreviewMediaResponse,
   ImagePreviewResponse,
   MediaVisibleStartResponse,
   TranscribeSegmentResponse,
@@ -73,6 +74,22 @@ export const editorService = {
       backendCall: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.getMediaVisibleStart(normalizedPayload),
+        ),
+    });
+  },
+
+  async resolvePreviewMediaSource(payload: {
+    video_ref: MediaReference;
+  }): Promise<EditorPreviewMediaResponse> {
+    return await executeBackendDirectCall({
+      payload,
+      normalizePayload: (nextPayload) => ({
+        ...nextPayload,
+        video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
+      }),
+      backendCall: (normalizedPayload) =>
+        import("../../api/client").then(({ apiClient }) =>
+          apiClient.resolveEditorPreviewMediaSource(normalizedPayload),
         ),
     });
   },

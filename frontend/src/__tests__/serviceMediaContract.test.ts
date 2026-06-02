@@ -337,4 +337,33 @@ describe("service media contract", () => {
       },
     });
   });
+
+  it("treats transport stream transcribe sources as video refs", () => {
+    expect(
+      normalizeTranscribeResultMediaReferences(
+        {
+          segments: [],
+          text: "",
+          language: "en",
+          subtitle_ref: {
+            path: "E:/canonical/source.srt",
+            name: "source.srt",
+          },
+        },
+        {
+          path: "E:/canonical/source.ts",
+          name: "source.ts",
+        },
+      ),
+    ).toMatchObject({
+      video_ref: {
+        path: "E:/canonical/source.ts",
+        name: "source.ts",
+      },
+      subtitle_ref: {
+        path: "E:/canonical/source.srt",
+        name: "source.srt",
+      },
+    });
+  });
 });

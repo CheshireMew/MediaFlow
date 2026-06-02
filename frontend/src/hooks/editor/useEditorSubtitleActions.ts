@@ -3,6 +3,7 @@ import type { SubtitleSegment } from "../../types/task";
 import { isDesktopRuntime } from "../../services/domain";
 import { useEditorStore } from "../../stores/editorStore";
 import { fileService } from "../../services/fileService";
+import { normalizeMediaReference } from "../../services/ui/mediaReference";
 import { serializeEditorSubtitles } from "./editorFileHelpers";
 
 export function useEditorSubtitleActions() {
@@ -12,6 +13,9 @@ export function useEditorSubtitleActions() {
   );
   const setCurrentSubtitlePath = useEditorStore(
     (state) => state.setCurrentSubtitlePath,
+  );
+  const setCurrentSubtitleRef = useEditorStore(
+    (state) => state.setCurrentSubtitleRef,
   );
 
   const saveSubtitleFile = useCallback(
@@ -42,13 +46,16 @@ export function useEditorSubtitleActions() {
 
       if (isDesktopRuntime()) {
         try {
-          await fileService.writeFile(
+          const didWrite = await fileService.writeFile(
             targetPath,
             serializeEditorSubtitles(regionsToSave),
           );
-          if (!currentSubtitlePath) {
-            setCurrentSubtitlePath(targetPath);
+          if (didWrite === false) {
+            throw new Error(`Failed to write subtitle file: ${targetPath}`);
           }
+          const subtitleRef = normalizeMediaReference(targetPath);
+          setCurrentSubtitlePath(targetPath);
+          setCurrentSubtitleRef(subtitleRef);
           return targetPath;
         } catch (error) {
           console.error("[EditorIO] Failed to save subtitle file", error);
@@ -59,7 +66,7 @@ export function useEditorSubtitleActions() {
       console.warn("Saving not supported in browser mode (yet)");
       return false;
     },
-    [currentFilePath, currentSubtitlePath, setCurrentSubtitlePath],
+    [currentFilePath, currentSubtitlePath, setCurrentSubtitlePath, setCurrentSubtitleRef],
   );
 
   return { saveSubtitleFile };

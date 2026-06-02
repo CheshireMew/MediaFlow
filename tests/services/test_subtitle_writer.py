@@ -2,6 +2,7 @@ from pathlib import Path
 
 from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils import text_shaper
+from backend.models.schemas import SubtitleSegment
 
 
 def test_convert_srt_to_ass_preserves_single_line_margin_v(tmp_path: Path):
@@ -30,3 +31,15 @@ def test_text_shaper_uses_font_measurement_when_available(monkeypatch):
     shaped = text_shaper.shape("WWW", max_width_px=24, font_size=24, font_name="Arial")
 
     assert shaped == "WWW"
+
+
+def test_save_srt_replaces_transport_stream_suffix(tmp_path: Path):
+    media_path = tmp_path / "sample.ts"
+
+    output_path = SubtitleWriter.save_srt(
+        [SubtitleSegment(id="1", start=0.0, end=1.0, text="hello")],
+        str(media_path),
+    )
+
+    assert output_path == str(tmp_path / "sample.srt")
+    assert (tmp_path / "sample.srt").exists()

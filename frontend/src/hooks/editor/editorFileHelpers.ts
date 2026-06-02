@@ -36,35 +36,6 @@ export function buildRelatedSubtitleCandidates(videoPath: string): string[] {
   return priorities.map((suffix) => `${basePath}${suffix}.srt`);
 }
 
-export async function findRelatedVideoForSubtitle(
-  subtitlePath: string,
-): Promise<string | null> {
-  const videoExts = [".mp4", ".mkv", ".avi", ".mov", ".webm"];
-  const languageSuffixes = TRANSLATION_TARGET_LANGUAGES.map(({ suffix }) => suffix);
-
-  let basePath = subtitlePath.replace(/\.[^.]+$/, "");
-
-  for (const suffix of languageSuffixes) {
-    if (basePath.endsWith(suffix)) {
-      basePath = basePath.slice(0, -suffix.length);
-      break;
-    }
-  }
-
-  for (const ext of videoExts) {
-    try {
-      const size = await fileService.getFileSize(basePath + ext);
-      if (size && size > 0) {
-        return basePath + ext;
-      }
-    } catch {
-      // Ignore missing candidate files.
-    }
-  }
-
-  return null;
-}
-
 export function serializeEditorSubtitles(regions: SubtitleSegment[]): string {
   const formatTimestamp = (time: number) => {
     const date = new Date(0);

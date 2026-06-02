@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List
 from loguru import logger
 from backend.models.schemas import SubtitleSegment
+from backend.services.media_extensions import MEDIA_EXTENSIONS
 from backend.utils.subtitle_parser import SubtitleParser
 from backend.utils.text_shaper import shape
 
@@ -46,7 +47,7 @@ class SubtitleWriter:
             # If it's something else (like .2023_ZH-CN from a dot-containing filename), append .srt.
         
         suffix = path_obj.suffix.lower()
-        if suffix in ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.mp3', '.wav', '.flac', '.m4a']:
+        if suffix in MEDIA_EXTENSIONS:
             srt_path = path_obj.with_suffix(".srt")
         else:
             # It's likely a stem or a file with dots in the name (e.g. "Movie.2023_ZH-CN")

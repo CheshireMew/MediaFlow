@@ -185,6 +185,47 @@ def test_serialize_video_output_ref_does_not_create_subtitle_artifact():
     assert not any(artifact["kind"] == "subtitle" for artifact in payload["artifacts"])
 
 
+def test_serialize_transport_stream_result_file_as_video_artifact():
+    view = TaskQueueView()
+    task = Task(
+        id="task-ts-output",
+        type="download",
+        status="completed",
+        persistence_scope="history",
+        lifecycle=TASK_LIFECYCLE["history_only"],
+        progress=100.0,
+        message="",
+        request_params={},
+        result={
+            "files": [{"path": "E:/video/capture.ts"}],
+        },
+    )
+
+    payload = view.serialize_task(
+        task,
+        running_ids=set(),
+        queued_ids=set(),
+        queued_order=[],
+    ).model_dump(mode="json")
+
+    assert payload["artifacts"] == [
+        {
+            "kind": "video",
+            "role": "output",
+            "ref": {
+                "path": "E:/video/capture.ts",
+                "name": "capture.ts",
+                "size": None,
+                "type": None,
+                "media_id": None,
+                "media_kind": "video",
+                "role": "output",
+                "origin": "task",
+            },
+        }
+    ]
+
+
 def test_serialize_translate_task_does_not_add_empty_video_ref_slot():
     view = TaskQueueView()
     task = Task(

@@ -16,6 +16,7 @@ import { useTranslatorFileLoader } from "./translator/useTranslatorFileLoader";
 import { useTranslatorOutputActions } from "./translator/useTranslatorOutputActions";
 
 export {
+  buildTranslatorOutputPath,
   getTranslatorAutoloadSuffixes,
   getTranslatorOutputSuffix,
   isSupportedTranslatorSubtitlePath,

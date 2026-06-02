@@ -6,6 +6,7 @@ import {
   getTranslationTargetLanguageSuffix,
   type TranslationTargetLanguage,
 } from "../../services/domain/translationTargetLanguages";
+import { buildSuffixedOutputPath } from "../../services/ui/generatedOutputPath";
 
 export const TRANSLATOR_SUBTITLE_EXTENSIONS = [
   ".srt",
@@ -33,6 +34,14 @@ export function getTranslatorOutputSuffix(
 ): string {
   if (mode === "proofread") return "_PR";
   return getTranslationTargetLanguageSuffix(targetLang);
+}
+
+export function buildTranslatorOutputPath(
+  sourcePath: string,
+  suffix: string,
+  extension = ".srt",
+): string {
+  return buildSuffixedOutputPath(sourcePath, suffix, extension);
 }
 
 export function getTranslatorAutoloadSuffixes(

@@ -166,6 +166,16 @@ class MediaVisibleStartResponse(BaseModel):
     has_leading_black: bool
 
 
+class EditorPreviewMediaRequest(BaseModel):
+    video_ref: MediaReference
+
+
+class EditorPreviewMediaResponse(BaseModel):
+    source_ref: MediaReference
+    media_ref: MediaReference
+    remuxed: bool
+
+
 class TextEvent(BaseModel):
     start: float
     end: float

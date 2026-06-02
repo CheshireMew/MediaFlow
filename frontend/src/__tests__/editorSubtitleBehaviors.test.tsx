@@ -27,6 +27,7 @@ import {
   resolveWatermarkPosition,
 } from "../services/domain";
 import {
+  resolveSubtitleReferenceForSavedPath,
   resolveSubtitleReferenceForTranslation,
   resolveSubtitlePathForTranslation,
   resolveTranslationNavigationPayload,
@@ -38,12 +39,14 @@ import {
   smartSplitSubtitleSegments,
 } from "../utils/subtitleSmartSplit";
 import {
+  buildTranslatorOutputPath,
   getTranslatorAutoloadSuffixes,
   getTranslatorOutputSuffix,
   isSupportedTranslatorSubtitlePath,
   stripTranslatorSubtitleExtension,
 } from "../hooks/useFileIO";
 import { getSelectedTextForFindReplace } from "../hooks/editor/useEditorFindReplace";
+import { buildSuffixedOutputPath } from "../services/ui/generatedOutputPath";
 import { fixOverlaps } from "../utils/validation";
 
 describe("editor subtitle behaviors", () => {
@@ -332,6 +335,38 @@ describe("editor subtitle behaviors", () => {
     expect(getTranslatorOutputSuffix("Japanese", "standard")).toBe("_JP");
   });
 
+  test("translator output path preserves normal names and shortens Windows edge paths", () => {
+    expect(buildTranslatorOutputPath("E:/subs/demo.srt", "_ZH-CN")).toBe(
+      "E:/subs/demo_ZH-CN.srt",
+    );
+    expect(buildTranslatorOutputPath("E:/subs/demo.ts.srt", "_ZH-CN")).toBe(
+      "E:/subs/demo.ts_ZH-CN.srt",
+    );
+
+    const longPath = buildTranslatorOutputPath(
+      "C:\\Users\\Lenovo\\Downloads\\Cannibal Stocks (@cannibalstocks)- 'Mohnish Pabrai just revealed that Charlie Munger was buying Alpha Metallurgical Resources literally days before he passed away. Still making long-term bets at 99.9 years old. $AMR traded ar.ts.srt",
+      "_ZH-CN",
+    );
+
+    expect(longPath.length).toBeLessThanOrEqual(240);
+    expect(longPath).toMatch(/-[0-9a-f]{8}_ZH-CN\.srt$/);
+  });
+
+  test("synthesis output path uses mp4 even when the source is transport stream", () => {
+    expect(
+      buildSuffixedOutputPath("E:/clips/demo.ts", "_synthesized", ".mp4"),
+    ).toBe("E:/clips/demo_synthesized.mp4");
+
+    const longPath = buildSuffixedOutputPath(
+      "C:\\Users\\Lenovo\\Downloads\\Cannibal Stocks (@cannibalstocks)- 'Mohnish Pabrai just revealed that Charlie Munger was buying Alpha Metallurgical Resources literally days before he passed away. Still making long-term bets at 99.9 years old. $AMR traded ar.ts",
+      "_synthesized",
+      ".mp4",
+    );
+
+    expect(longPath.length).toBeLessThanOrEqual(240);
+    expect(longPath).toMatch(/-[0-9a-f]{8}_synthesized\.mp4$/);
+  });
+
   test("translator autoload prefers the current target language before other saved translations", () => {
     expect(getTranslatorAutoloadSuffixes("Japanese", "standard")).toEqual([
       "_JP",
@@ -407,6 +442,23 @@ describe("editor subtitle behaviors", () => {
     ).toEqual({
       path: "E:/exports/demo_final.srt",
       name: "demo_final.srt",
+    });
+  });
+
+  test("saved subtitle path wins over stale subtitle refs for synthesis", () => {
+    expect(
+      resolveSubtitleReferenceForSavedPath({
+        currentFilePath: "E:/video/demo.ts",
+        currentSubtitlePath: "E:/workspace/demo.ts_ZH-CN.srt",
+        currentSubtitleRef: {
+          path: "E:/missing/demo.ts_ZH-CN.srt",
+          name: "demo.ts_ZH-CN.srt",
+        },
+        savedPath: "E:/workspace/demo.ts_ZH-CN.srt",
+      }),
+    ).toEqual({
+      path: "E:/workspace/demo.ts_ZH-CN.srt",
+      name: "demo.ts_ZH-CN.srt",
     });
   });
 

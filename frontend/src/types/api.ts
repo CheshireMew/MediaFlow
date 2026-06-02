@@ -155,6 +155,16 @@ export interface MediaVisibleStartResponse {
   has_leading_black: boolean;
 }
 
+export interface EditorPreviewMediaRequest {
+  video_ref: MediaReference;
+}
+
+export interface EditorPreviewMediaResponse {
+  source_ref: MediaReference;
+  media_ref: MediaReference;
+  remuxed: boolean;
+}
+
 export interface SynthesizeOptions {
   font_name?: string;
   font_size?: number;

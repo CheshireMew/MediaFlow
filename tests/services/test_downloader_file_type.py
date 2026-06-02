@@ -9,3 +9,4 @@ def test_infer_media_file_type_returns_audio_for_audio_extensions():
 def test_infer_media_file_type_returns_video_for_video_extensions():
     assert infer_media_file_type("sample.mp4") == "video"
     assert infer_media_file_type("sample.webm") == "video"
+    assert infer_media_file_type("sample.ts") == "video"

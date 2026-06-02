@@ -9,10 +9,15 @@ import {
 } from "../../services/ui/navigation";
 import type { MediaReference } from "../../services/ui/mediaReference";
 import {
+  buildTranslatorOutputPath,
   formatTranslatorTimestamp,
   getTranslatorOutputSuffix,
   stripTranslatorSubtitleExtension,
 } from "./translatorFileHelpers";
+import {
+  findRelatedVideoForSubtitle,
+  formatRelatedVideoCandidateSummary,
+} from "../../services/ui/relatedMedia";
 
 export function createTranslatorEditorNavigationPayload(params: {
   videoPath: string;
@@ -34,18 +39,7 @@ export function useTranslatorOutputActions() {
     if (!sourceFilePath || !isDesktopRuntime()) return;
 
     const suffix = getTranslatorOutputSuffix(targetLang, mode);
-
-    let defaultPath = sourceFilePath;
-    const lastDotIndex = defaultPath.lastIndexOf(".");
-    const lastSepIndex = Math.max(
-      defaultPath.lastIndexOf("/"),
-      defaultPath.lastIndexOf("\\"),
-    );
-
-    if (lastDotIndex > lastSepIndex) {
-      defaultPath = defaultPath.substring(0, lastDotIndex);
-    }
-    defaultPath += `${suffix}.srt`;
+    const defaultPath = buildTranslatorOutputPath(sourceFilePath, suffix);
 
     try {
       const savePath = await fileService.showSaveDialog({
@@ -69,7 +63,10 @@ export function useTranslatorOutputActions() {
         });
       }
 
-      await fileService.writeFile(savePath.filePath, content);
+      const didWrite = await fileService.writeFile(savePath.filePath, content);
+      if (didWrite === false) {
+        throw new Error(`Failed to write subtitle file: ${savePath.filePath}`);
+      }
     } catch (error) {
       console.error(error);
       alert("Failed to save file: " + error);
@@ -82,31 +79,17 @@ export function useTranslatorOutputActions() {
     }
 
     const basePath = stripTranslatorSubtitleExtension(sourceFilePath);
-    let videoPath: string | null = null;
-    for (const ext of [".mp4", ".mkv", ".avi", ".mov", ".webm"]) {
-      try {
-        const size = await fileService.getFileSize(basePath + ext);
-        if (size && size > 0) {
-          videoPath = basePath + ext;
-          break;
-        }
-      } catch {
-        continue
-      }
-    }
+    const videoPath = await findRelatedVideoForSubtitle(sourceFilePath);
 
     if (!videoPath) {
       console.warn("Could not find associated video file.");
       alert(
-        `Could not find an associated video next to the subtitle.\nTried: ${basePath}.mp4/.mkv/.avi/.mov/.webm\nThe editor will open with a best-effort video path.`,
+        `Could not find an associated video next to the subtitle.\nTried: ${formatRelatedVideoCandidateSummary(sourceFilePath)}\nThe editor will open with a best-effort video path.`,
       );
     }
 
     const suffix = getTranslatorOutputSuffix(targetLang, mode);
-    let fallbackTargetSrtPath = sourceFilePath;
-    const lastDot = fallbackTargetSrtPath.lastIndexOf(".");
-    if (lastDot > 0) fallbackTargetSrtPath = fallbackTargetSrtPath.substring(0, lastDot);
-    fallbackTargetSrtPath += `${suffix}.srt`;
+    const fallbackTargetSrtPath = buildTranslatorOutputPath(sourceFilePath, suffix);
     const targetSrtPath = targetSubtitleRef?.path ?? fallbackTargetSrtPath;
 
     try {
@@ -117,7 +100,10 @@ export function useTranslatorOutputActions() {
         content += `${index + 1}\n${startStr} --> ${endStr}\n${seg.text || ""}\n\n`;
       });
 
-      await fileService.writeFile(targetSrtPath, content);
+      const didWrite = await fileService.writeFile(targetSrtPath, content);
+      if (didWrite === false) {
+        throw new Error(`Failed to write subtitle file: ${targetSrtPath}`);
+      }
     } catch (error) {
       console.error("Failed to auto-save translation before opening editor", error);
       alert(

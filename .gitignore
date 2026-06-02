@@ -26,6 +26,7 @@ output/
 bin/
 data/
 workspace/
+tools/
 
 # Node
 node_modules/

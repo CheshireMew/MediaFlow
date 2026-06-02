@@ -34,7 +34,7 @@ export interface ElectronAPI {
   showInExplorer: (filePath: string) => Promise<void>;
   fetchCookies: (targetUrl: string) => Promise<unknown>;
   getPathForFile: (file: File) => string;
-  writeFile: (filePath: string, content: string) => Promise<void>;
+  writeFile: (filePath: string, content: string) => Promise<boolean>;
   getFileSize: (filePath: string) => Promise<number>;
   getDesktopRuntimeInfo?: () => Promise<DesktopRuntimeInfo>;
   minimize: () => void;

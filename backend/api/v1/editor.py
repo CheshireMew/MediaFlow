@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 import os
 from backend.models.schemas import (
+    EditorPreviewMediaRequest,
+    EditorPreviewMediaResponse,
     MediaReference,
     MediaVisibleStartRequest,
     MediaVisibleStartResponse,
@@ -50,6 +52,28 @@ async def get_media_visible_start(req: MediaVisibleStartRequest):
         visible_start=visible_start,
         has_leading_black=visible_start > 0,
     )
+
+
+@router.post("/preview/media/source", response_model=EditorPreviewMediaResponse)
+async def resolve_preview_media_source(req: EditorPreviewMediaRequest):
+    try:
+        source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        from backend.application.editor_preview_service import resolve_editor_preview_media
+
+        source_ref, media_ref, remuxed = resolve_editor_preview_media(str(source_path))
+        return EditorPreviewMediaResponse(
+            source_ref=source_ref,
+            media_ref=media_ref,
+            remuxed=remuxed,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/synthesize", response_model=TaskResponse)

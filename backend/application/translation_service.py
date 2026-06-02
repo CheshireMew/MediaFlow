@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import List, Optional
 
 from loguru import logger
@@ -18,6 +17,7 @@ from backend.models.translation_target_language import (
     get_language_suffix,
     parse_translation_target_language,
 )
+from backend.services.generated_output_paths import build_suffixed_output_path
 from backend.services.media_refs import create_media_ref
 
 
@@ -53,12 +53,15 @@ def build_translation_task_result(
             from backend.utils.subtitle_writer import SubtitleWriter
 
             suffix = get_translation_output_suffix(target_language_value, mode)
-            source_path = Path(resolved_context_ref.path)
-            save_path = source_path.parent / f"{source_path.stem}{suffix}"
+            save_path = build_suffixed_output_path(
+                resolved_context_ref.path,
+                suffix,
+                extension=".srt",
+            )
 
             logger.debug(
                 f"[Translate] Saving translated subtitles: source={resolved_context_ref.path}, "
-                f"target={save_path}.srt"
+                f"target={save_path}"
             )
 
             saved_path = SubtitleWriter.save_srt(segments, str(save_path))

@@ -9,13 +9,13 @@ export type OpenFileDialogRequest = {
   profile: OpenFileDialogProfile;
 };
 
-type MediaKind = "audio" | "video" | "image";
+export type MediaKind = "audio" | "video" | "image";
 
-const MEDIA_EXTENSIONS: Record<MediaKind, string[]> = {
+export const MEDIA_EXTENSIONS = {
   video: ["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "ts", "mts"],
   audio: ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "opus"],
   image: ["jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif"],
-};
+} as const satisfies Record<MediaKind, readonly string[]>;
 
 const OPEN_FILE_PROFILE_KINDS: Record<OpenFileDialogProfile, MediaKind[]> = {
   "editor-media": ["audio", "video"],
@@ -28,8 +28,16 @@ function getProfileKinds(profile: OpenFileDialogProfile) {
   return OPEN_FILE_PROFILE_KINDS[profile];
 }
 
-function getProfileExtensions(profile: OpenFileDialogProfile) {
-  return getProfileKinds(profile).flatMap((kind) => MEDIA_EXTENSIONS[kind]);
+function getProfileExtensions(profile: OpenFileDialogProfile): string[] {
+  return getProfileKinds(profile).flatMap((kind) => getMediaExtensions(kind));
+}
+
+export function getMediaExtensions(kind: MediaKind): string[] {
+  return [...MEDIA_EXTENSIONS[kind]];
+}
+
+export function getMediaExtensionsWithDot(kind: MediaKind): string[] {
+  return getMediaExtensions(kind).map((extension) => `.${extension}`);
 }
 
 function getProfileLabel(profile: OpenFileDialogProfile) {

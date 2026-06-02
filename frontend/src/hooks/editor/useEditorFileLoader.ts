@@ -9,11 +9,11 @@ import {
 } from "../../contracts/openFileContract";
 import {
   buildRelatedSubtitleCandidates,
-  findRelatedVideoForSubtitle,
   isSupportedEditorSubtitlePath,
   loadEditorSubtitle,
-  pathToFileURL,
 } from "./editorFileHelpers";
+import { findRelatedVideoForSubtitle } from "../../services/ui/relatedMedia";
+import { resolveEditorPreviewMediaUrl } from "./editorPreviewSource";
 import { useEditorDocumentWriters } from "./useEditorDocumentWriters";
 
 type ElectronMediaFile = {
@@ -64,9 +64,10 @@ export function useEditorFileLoader() {
       replaceEditorDocument([]);
       setCurrentFilePath(path);
       setCurrentSubtitlePath(null);
-      setCurrentFileRef(normalizeMediaReference(path));
+      const fileRef = normalizeMediaReference(path);
+      setCurrentFileRef(fileRef);
       setCurrentSubtitleRef(null);
-      setMediaUrl(pathToFileURL(path));
+      setMediaUrl(await resolveEditorPreviewMediaUrl(path, fileRef));
       await tryLoadRelatedSubtitle(path);
     },
     [
@@ -89,9 +90,10 @@ export function useEditorFileLoader() {
 
       const videoPath = await findRelatedVideoForSubtitle(path);
       if (videoPath) {
+        const videoRef = normalizeMediaReference(videoPath);
         setCurrentFilePath(videoPath);
-        setCurrentFileRef(normalizeMediaReference(videoPath));
-        setMediaUrl(pathToFileURL(videoPath));
+        setCurrentFileRef(videoRef);
+        setMediaUrl(await resolveEditorPreviewMediaUrl(videoPath, videoRef));
       }
 
       try {

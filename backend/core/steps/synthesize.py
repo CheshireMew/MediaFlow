@@ -1,4 +1,3 @@
-from pathlib import Path
 from loguru import logger
 
 from backend.core.steps.base import PipelineStep
@@ -7,6 +6,7 @@ from backend.core.context import PipelineContext
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 from backend.models.schemas import FileRef
+from backend.services.generated_output_paths import build_suffixed_output_path
 
 class SynthesizeStep(PipelineStep):
     @property
@@ -30,8 +30,11 @@ class SynthesizeStep(PipelineStep):
             raise ValueError("Synthesize step requires 'video_path' and 'srt_path' in context")
 
         # 2. Output Path
-        p = Path(video_path)
-        output_path = p.parent / f"{p.stem}_synthesized.mp4"
+        output_path = build_suffixed_output_path(
+            video_path,
+            "_synthesized",
+            extension=".mp4",
+        )
 
         # 3. Execution
         synthesis = runtime_service(Services.VIDEO_SYNTHESIS)

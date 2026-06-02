@@ -35,7 +35,7 @@ interface UseEditorActionsReturn {
   isSmartSplitting: boolean;
 }
 
-export function resolveSubtitleReferenceForTranslation(params: {
+export function resolveSubtitleReferenceForSavedPath(params: {
   currentFilePath: string;
   currentSubtitlePath: string | null;
   currentSubtitleRef: MediaReference | null;
@@ -60,6 +60,15 @@ export function resolveSubtitleReferenceForTranslation(params: {
 
   const subtitlePath = currentSubtitlePath ?? currentFilePath.replace(/\.[^.]+$/, ".srt");
   return normalizeMediaReference(subtitlePath)!;
+}
+
+export function resolveSubtitleReferenceForTranslation(params: {
+  currentFilePath: string;
+  currentSubtitlePath: string | null;
+  currentSubtitleRef: MediaReference | null;
+  savedPath: string | boolean;
+}): MediaReference {
+  return resolveSubtitleReferenceForSavedPath(params);
 }
 
 export function resolveSubtitlePathForTranslation(

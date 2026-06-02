@@ -9,6 +9,7 @@ from backend.core.runtime_access import runtime_service, TaskRuntimeContext
 from backend.utils.subtitle_writer import SubtitleWriter
 from backend.models.schemas import SubtitleSegment, FileRef
 from backend.models.translation_target_language import get_language_suffix, parse_translation_target_language
+from backend.services.generated_output_paths import build_suffixed_output_path
 
 class TranslateStep(PipelineStep):
     @property
@@ -60,11 +61,14 @@ class TranslateStep(PipelineStep):
         if base_path:
             p = Path(base_path)
             
-            lang_suffix = get_language_suffix(target_language)
+            lang_suffix = "_PR" if mode == "proofread" else get_language_suffix(target_language)
             
             # e.g., video.mp4 -> video_ZH-CN.srt
-            output_name = f"{p.stem}{lang_suffix}.srt"
-            output_path = p.parent / output_name
+            output_path = build_suffixed_output_path(
+                p,
+                lang_suffix,
+                extension=".srt",
+            )
         else:
             # Fallback
             output_path = Path(f"translated_{target_language}.srt")

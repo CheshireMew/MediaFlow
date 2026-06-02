@@ -1,4 +1,5 @@
 import type { ElectronFile } from "../../types/electron";
+import { getMediaExtensionsWithDot } from "../../contracts/openFileContract";
 import type { TranscribeResult } from "../../types/transcriber";
 import { normalizeMediaReference, type MediaReference } from "../ui/mediaReference";
 
@@ -27,7 +28,7 @@ function chooseResultMediaRef(
   );
 }
 
-const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"]);
+const VIDEO_EXTENSIONS = new Set(getMediaExtensionsWithDot("video"));
 
 function normalizeVideoMediaReference(
   value?: MediaSeed | ElectronFile | MediaReference | null,

@@ -8,6 +8,7 @@ import re
 from loguru import logger
 
 from backend.models.schemas import FileRef
+from backend.services.media_extensions import MEDIA_EXTENSIONS, media_kind_from_extension
 from backend.utils.subtitle_parser import SubtitleParser
 
 
@@ -21,8 +22,8 @@ def sanitize_filename(name: str) -> str:
 
 
 def infer_media_file_type(path: str) -> str:
-    suffix = Path(path).suffix.lower()
-    if suffix in {".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg"}:
+    media_kind = media_kind_from_extension(path)
+    if media_kind == "audio":
         return "audio"
     return "video"
 
@@ -84,7 +85,7 @@ class DownloadArtifacts:
 
 
 class DownloadArtifactResolver:
-    _preferred_media_suffixes = {".mp4", ".mkv", ".webm", ".m4a", ".mp3", ".wav", ".mov"}
+    _preferred_media_suffixes = MEDIA_EXTENSIONS
     _subtitle_priority = (
         ".en.vtt",
         ".zh.vtt",

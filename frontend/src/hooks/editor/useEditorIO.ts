@@ -13,10 +13,8 @@ import {
   type NavigationPayload,
   resolveNavigationMediaPayload,
 } from "../../services/ui/navigation";
-import {
-  loadEditorSubtitle,
-  pathToFileURL,
-} from "./editorFileHelpers";
+import { loadEditorSubtitle } from "./editorFileHelpers";
+import { resolveEditorPreviewMediaUrl } from "./editorPreviewSource";
 import { useEditorFileLoader } from "./useEditorFileLoader";
 import { useEditorSubtitleActions } from "./useEditorSubtitleActions";
 import { useEditorDocumentWriters } from "./useEditorDocumentWriters";
@@ -64,12 +62,11 @@ export function useEditorIO() {
         );
 
         setCurrentFilePath(videoPath);
-        setCurrentFileRef(
-          videoRef ?? normalizeMediaReference(videoPath),
-        );
+        const resolvedVideoRef = videoRef ?? normalizeMediaReference(videoPath);
+        setCurrentFileRef(resolvedVideoRef);
         setCurrentSubtitlePath(null);
         setCurrentSubtitleRef(null);
-        setMediaUrl(pathToFileURL(videoPath));
+        setMediaUrl(await resolveEditorPreviewMediaUrl(videoPath, resolvedVideoRef));
 
         if (subtitlePath) {
           try {
@@ -110,7 +107,7 @@ export function useEditorIO() {
       }
 
       if (currentFilePath) {
-        setMediaUrl(pathToFileURL(currentFilePath));
+        setMediaUrl(await resolveEditorPreviewMediaUrl(currentFilePath));
       }
     };
     void restoreSession();
