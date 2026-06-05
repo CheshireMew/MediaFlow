@@ -11,6 +11,7 @@ from backend.services.download_errors import (
     YtDlpErrorCapture,
     classify_download_error,
 )
+from backend.services.media_url import normalize_media_url
 from backend.services.ytdlp_runtime_options import YtDlpRuntimeOptions
 
 
@@ -32,6 +33,7 @@ class AnalyzerService:
         Analyze a URL to determine if it's a single video or playlist.
         Uses PlatformFactory for custom logic, falls back to yt-dlp.
         """
+        url = normalize_media_url(url)
         logger.info(f"Analyzing URL: {url}")
 
         # 1. Try Custom Platform Logic

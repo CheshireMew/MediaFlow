@@ -72,7 +72,6 @@ import type {
   TranscribeSegmentResponse,
   TranslateRequest,
   TranslateResponse,
-  TranslationTaskStatus,
   OCRExtractRequest,
   OCRTextEvent,
   MediaReference,
@@ -233,7 +232,7 @@ export const apiClient = {
   },
 
   getTaskStatus: (taskId: string) => {
-    return request<TranslationTaskStatus>(`/tasks/${taskId}`);
+    return request<Task>(`/tasks/${taskId}`);
   },
 
   listTasks: () => {

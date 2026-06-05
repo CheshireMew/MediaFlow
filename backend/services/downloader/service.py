@@ -11,6 +11,7 @@ from backend.config import settings
 from backend.models.schemas import TaskResult
 from backend.services.cookie_manager import CookieManager
 from backend.services.download_errors import classify_download_error
+from backend.services.media_url import normalize_media_url
 from backend.services.platforms.factory import PlatformFactory
 from backend.services.ytdlp_runtime_options import YtDlpRuntimeOptions
 
@@ -50,7 +51,7 @@ class DownloaderService:
         local_source: Optional[str] = None,
         codec: str = "best",
     ) -> TaskResult:
-        url = str(url)
+        url = normalize_media_url(url)
 
         handler = await self._platform_factory.get_handler(url)
         final_url = url

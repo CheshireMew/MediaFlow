@@ -79,6 +79,26 @@ async def test_analyze_preserves_upstream_title_without_guessing_encoding():
 
 
 @pytest.mark.asyncio
+async def test_analyze_normalizes_x_pro_url_before_ytdlp():
+    with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
+        analyzer_service = make_analyzer()
+        mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
+        mock_ydl.extract_info.return_value = {
+            "_type": "video",
+            "title": "X Video",
+            "webpage_url": "https://x.com/jawwwn_/status/2062587453463007642/video/1",
+        }
+
+        result = await analyzer_service.analyze(
+            "https://pro.x.com/jawwwn_/status/2062587453463007642/video/1"
+        )
+
+        normalized_url = "https://x.com/jawwwn_/status/2062587453463007642/video/1"
+        mock_ydl.extract_info.assert_called_once_with(normalized_url, download=False)
+        assert result.url == normalized_url
+
+
+@pytest.mark.asyncio
 async def test_analyze_surfaces_classified_ytdlp_error():
     with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
         analyzer_service = make_analyzer()

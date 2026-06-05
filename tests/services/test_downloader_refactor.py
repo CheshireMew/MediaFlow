@@ -82,6 +82,47 @@ async def test_download_fallback_when_no_handler():
             assert mock_loop.run_in_executor.called
 
 
+@pytest.mark.asyncio
+async def test_download_normalizes_x_pro_url_before_sync_download():
+    downloader_service = make_downloader()
+    expected_asset = TaskResult(
+        success=True,
+        files=[FileRef(type="video", path="path", label="source")],
+        meta={"id": "task3", "filename": "file.mp4", "duration": 10, "title": "Title"},
+    )
+
+    with (
+        patch(
+            "backend.services.platforms.factory.PlatformFactory.get_handler",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as mock_get_handler,
+        patch.object(
+            downloader_service,
+            "_perform_download_sync",
+            return_value=expected_asset,
+        ) as mock_sync_download,
+        patch("asyncio.get_running_loop") as mock_get_loop,
+    ):
+        mock_loop = MagicMock()
+        mock_get_loop.return_value = mock_loop
+        mock_loop.run_in_executor = AsyncMock(
+            side_effect=lambda _executor, callback: callback()
+        )
+
+        result = await downloader_service.download(
+            "https://pro.x.com/jawwwn_/status/2062587453463007642/video/1",
+            task_id="task3",
+        )
+
+    normalized_url = "https://x.com/jawwwn_/status/2062587453463007642/video/1"
+    assert result == expected_asset
+    mock_get_handler.assert_called_once_with(normalized_url)
+    mock_sync_download.assert_called_once()
+    assert mock_sync_download.call_args.kwargs["url"] == normalized_url
+    assert mock_sync_download.call_args.kwargs["start_url"] == normalized_url
+
+
 def test_download_retries_retryable_ytdlp_network_failure():
     downloader_service = make_downloader()
 
