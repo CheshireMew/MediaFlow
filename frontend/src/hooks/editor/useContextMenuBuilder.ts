@@ -5,7 +5,7 @@ import {
 } from "../../services/domain";
 import { restoreStoredAsrExecutionPreferences } from "../../services/persistence/asrExecutionPreferences";
 import { restoreStoredTranslationPreferences } from "../../services/persistence/translationPreferences";
-import { fileService } from "../../services/fileService";
+import { createOpenSubtitleFolderMenuItem } from "../../components/ui/SubtitleFileContextMenu";
 import { normalizeMediaReference, type MediaReference } from "../../services/ui/mediaReference";
 import { formatSRTTime } from "../../utils/subtitleParser";
 import type { ContextMenuItem } from "../../components/ui/ContextMenu";
@@ -267,6 +267,8 @@ export function useContextMenuBuilder({
         if (indices[i + 1] !== indices[i] + 1) isContinuous = false;
       }
 
+      const subtitlePath = currentSubtitlePathRef.current ?? currentSubtitleRefRef.current?.path;
+
       const menu: ContextMenuItem[] = [
         {
           label: "播放此片段",
@@ -367,24 +369,15 @@ export function useContextMenuBuilder({
             }
           },
         },
-        {
+        createOpenSubtitleFolderMenuItem({
           label: "📂 打开字幕所在文件夹",
-          disabled: !(currentSubtitlePathRef.current ?? currentSubtitleRefRef.current?.path),
-          onClick: async () => {
-            const subtitlePath = currentSubtitlePathRef.current ?? currentSubtitleRefRef.current?.path;
-            if (!subtitlePath) {
-              return;
-            }
-
-            try {
-              await fileService.showInExplorer(subtitlePath);
-            } catch (err) {
-              console.error("Failed to show subtitle in explorer", err);
-              const { toast } = await import("../../utils/toast");
-              toast.error("无法打开字幕所在文件夹: " + String(err));
-            }
+          subtitlePath,
+          onError: async (err) => {
+            console.error("Failed to show subtitle in explorer", err);
+            const { toast } = await import("../../utils/toast");
+            toast.error("无法打开字幕所在文件夹: " + String(err));
           },
-        },
+        }),
         { separator: true, label: "", onClick: () => {} },
       ];
 

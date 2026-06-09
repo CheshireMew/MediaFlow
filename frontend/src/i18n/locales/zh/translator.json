@@ -26,6 +26,9 @@
     "generatedSegment": "新增段",
     "noSourceSegment": "智能分割生成的新增目标段"
   },
+  "contextMenu": {
+    "openSubtitleFolder": "打开字幕所在文件夹"
+  },
   "languages": {
     "SimplifiedChinese": "简体中文",
     "TraditionalChinese": "繁体中文",

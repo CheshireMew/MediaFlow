@@ -20,6 +20,7 @@ interface UseTranslatorReturn {
   targetSegments: SubtitleSegment[];
   glossary: GlossaryTerm[];
   sourceFilePath: string | null;
+  targetSubtitlePath: string | null;
 
   // UI State
   targetLang: TranslationTargetLanguage;
@@ -53,6 +54,7 @@ export const useTranslator = (): UseTranslatorReturn => {
     targetSegments,
     activeMode,
     resultMode,
+    targetSubtitleRef,
     setSourceSegments,
     updateTargetSegment,
   } = useTranslatorStore();
@@ -69,6 +71,7 @@ export const useTranslator = (): UseTranslatorReturn => {
     targetSegments,
     glossary: glo.glossary,
     sourceFilePath: io.sourceFilePath,
+    targetSubtitlePath: targetSubtitleRef?.path ?? null,
 
     // UI State
     targetLang: task.targetLang,

@@ -22,6 +22,9 @@
     "translate": "翻訳",
     "openEditor": "エディターを開く"
   },
+  "contextMenu": {
+    "openSubtitleFolder": "字幕のフォルダーを開く"
+  },
   "uploader": {
     "replaceButton": "ファイルを置換",
     "dragText": "音声/動画をドラッグ＆ドロップ",

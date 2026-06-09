@@ -18,6 +18,7 @@ vi.mock("react-i18next", () => ({
       if (key === "results.missingSubtitleAlert") return "No usable SRT path was found in the result.";
       if (key === "actions.translate") return "Translate";
       if (key === "actions.openEditor") return "Open Editor";
+      if (key === "contextMenu.openSubtitleFolder") return "Open subtitle folder";
       if (key === "results.segmentsCount") return `${params?.count ?? 0} segments`;
       return key;
     },
@@ -167,6 +168,25 @@ describe("TranscriptionResults actions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Editor" }));
 
     expect(onSendToEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the subtitle folder from the result list context menu", () => {
+    const electronMock = installElectronMock();
+
+    render(
+      <TranscriptionResults
+        result={createSampleTranscriptionResult()}
+        isSmartSplitting={false}
+        onSmartSplit={vi.fn()}
+        onSendToEditor={vi.fn()}
+        onSendToTranslator={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByText(createSampleTranscriptionResult().segments[0].text));
+    fireEvent.click(screen.getByRole("button", { name: "Open subtitle folder" }));
+
+    expect(electronMock.showInExplorer).toHaveBeenCalledWith("E:/sample.srt");
   });
 
   it("builds translator navigation payloads with canonical media refs", () => {

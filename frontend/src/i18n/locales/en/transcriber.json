@@ -22,6 +22,9 @@
     "translate": "Translate",
     "openEditor": "Open Editor"
   },
+  "contextMenu": {
+    "openSubtitleFolder": "Open subtitle folder"
+  },
   "uploader": {
     "replaceButton": "Replace File",
     "dragText": "Drag & drop audio/video",

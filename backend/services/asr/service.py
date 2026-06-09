@@ -422,7 +422,7 @@ class ASRService:
         # Unified post-processing for both CLI and Python API paths
         logger.info("Applying smart segment merging...")
         if final_segments:
-            final_segments = SegmentRefiner.normalize_segments(final_segments)
+            final_segments = SegmentRefiner.normalize_segments(final_segments, rebalance=False)
         else:
             final_segments = []
 

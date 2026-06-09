@@ -20,7 +20,166 @@ from backend.utils.subtitle_text_splitter import (
 )
 
 
+SENTENCE_END = ".?!。？！…"
+SOFT_BREAK = ",;:，；：、"
+
+
+class _PseudoWord:
+    def __init__(self, start: float, end: float, text: str):
+        self.start = start
+        self.end = end
+        self.word = text
+
+
 class SegmentRefiner:
+    @staticmethod
+    def _word_text(words) -> str:
+        return "".join(getattr(word, "word", "") for word in words).strip()
+
+    @staticmethod
+    def _flush_words(words) -> SubtitleSegment | None:
+        text = SegmentRefiner._word_text(words)
+        if not text:
+            return None
+        return SubtitleSegment(
+            id="0",
+            start=float(words[0].start),
+            end=float(words[-1].end),
+            text=text,
+        )
+
+    @staticmethod
+    def _find_soft_cut(words) -> int | None:
+        for index in range(len(words) - 1, -1, -1):
+            text = str(getattr(words[index], "word", "")).strip()
+            if text and text[-1] in SOFT_BREAK:
+                return index
+        return None
+
+    @staticmethod
+    def _find_pause_cut(words, min_gap_s: float = 0.2) -> int | None:
+        best_gap = min_gap_s
+        best_index = None
+        start_index = max(1, len(words) // 3)
+        for index in range(start_index, len(words) - 1):
+            gap = float(words[index + 1].start) - float(words[index].end)
+            if gap > best_gap:
+                best_gap = gap
+                best_index = index
+        return best_index
+
+    @staticmethod
+    def _postprocess_word_segments(segments: List[SubtitleSegment]) -> List[SubtitleSegment]:
+        cleaned: List[SubtitleSegment] = []
+        for segment in segments:
+            if segment.end <= segment.start or not segment.text.strip():
+                continue
+            if cleaned and segment.text == cleaned[-1].text:
+                cleaned[-1].end = max(cleaned[-1].end, segment.end)
+                continue
+            cleaned.append(segment)
+
+        merged: List[SubtitleSegment] = []
+        for segment in cleaned:
+            duration = segment.end - segment.start
+            unit_count = count_text_units(segment.text)
+            if merged and duration < 0.4 and unit_count < 3:
+                merged[-1].text = join_subtitle_text(merged[-1].text, segment.text)
+                merged[-1].end = segment.end
+            else:
+                merged.append(segment)
+
+        for index in range(1, len(merged)):
+            previous = merged[index - 1]
+            current = merged[index]
+            if current.start < previous.end:
+                current.start = previous.end
+            if current.end <= current.start:
+                current.end = current.start + 0.3
+
+        for index, segment in enumerate(merged):
+            segment.id = str(index + 1)
+        return merged
+
+    @staticmethod
+    def _refine_with_word_boundaries(
+        segments,
+        *,
+        max_line_ms: int = 6000,
+        pause_ms: int = 500,
+        max_chars: int = 80,
+    ) -> List[SubtitleSegment]:
+        flat_words = []
+        has_real_words = False
+        for segment in segments:
+            words = list(getattr(segment, "words", None) or [])
+            if words:
+                has_real_words = True
+                flat_words.extend(words)
+            else:
+                flat_words.append(
+                    _PseudoWord(
+                        float(segment.start),
+                        float(segment.end),
+                        str(getattr(segment, "text", "")),
+                    )
+                )
+
+        if not has_real_words or not flat_words:
+            return []
+
+        result: List[SubtitleSegment] = []
+        current_words = []
+        total = len(flat_words)
+        for index, word in enumerate(flat_words):
+            current_words.append(word)
+            word_text = str(getattr(word, "word", "")).strip()
+            current_text = SegmentRefiner._word_text(current_words)
+            duration_ms = (float(word.end) - float(current_words[0].start)) * 1000
+            gap_ms = (
+                (float(flat_words[index + 1].start) - float(word.end)) * 1000
+                if index + 1 < total
+                else 0
+            )
+            next_word_text = (
+                str(getattr(flat_words[index + 1], "word", "")).strip()
+                if index + 1 < total
+                else ""
+            )
+
+            ends_sentence = bool(word_text) and word_text[-1] in SENTENCE_END
+            next_looks_continuation = SegmentRefiner._starts_like_continuation(next_word_text)
+            big_pause = gap_ms >= pause_ms and not next_looks_continuation
+            too_long = duration_ms >= max_line_ms or len(current_text) >= max_chars
+
+            if ends_sentence or big_pause:
+                segment = SegmentRefiner._flush_words(current_words)
+                if segment:
+                    result.append(segment)
+                current_words = []
+            elif too_long:
+                cut_index = SegmentRefiner._find_soft_cut(current_words)
+                if cut_index is None or cut_index >= len(current_words) - 1:
+                    cut_index = SegmentRefiner._find_pause_cut(current_words)
+                if cut_index is not None and cut_index < len(current_words) - 1:
+                    head = current_words[:cut_index + 1]
+                    current_words = current_words[cut_index + 1:]
+                    segment = SegmentRefiner._flush_words(head)
+                    if segment:
+                        result.append(segment)
+                else:
+                    segment = SegmentRefiner._flush_words(current_words)
+                    if segment:
+                        result.append(segment)
+                    current_words = []
+
+        if current_words:
+            segment = SegmentRefiner._flush_words(current_words)
+            if segment:
+                result.append(segment)
+
+        return SegmentRefiner._postprocess_word_segments(result)
+
     @staticmethod
     def refine_segments(segments) -> List[SubtitleSegment]:
         """
@@ -33,6 +192,10 @@ class SegmentRefiner:
         """
         if not segments:
             return []
+
+        word_boundary_segments = SegmentRefiner._refine_with_word_boundaries(segments)
+        if word_boundary_segments:
+            return word_boundary_segments
         
         refined = []
         
@@ -276,12 +439,16 @@ class SegmentRefiner:
         return balanced
 
     @staticmethod
-    def normalize_segments(segments: List[SubtitleSegment]) -> List[SubtitleSegment]:
+    def normalize_segments(
+        segments: List[SubtitleSegment],
+        *,
+        rebalance: bool = True,
+    ) -> List[SubtitleSegment]:
         if not segments:
             return []
 
         merged = SegmentRefiner.merge_segments(segments)
-        balanced = SegmentRefiner.rebalance_segment_lengths(merged)
+        balanced = SegmentRefiner.rebalance_segment_lengths(merged) if rebalance else merged
         timed = SegmentRefiner.optimize_timing(balanced)
 
         for i, seg in enumerate(timed):

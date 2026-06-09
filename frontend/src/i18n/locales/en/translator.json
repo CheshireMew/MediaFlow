@@ -26,6 +26,9 @@
     "generatedSegment": "Generated",
     "noSourceSegment": "Extra target segment created by smart split"
   },
+  "contextMenu": {
+    "openSubtitleFolder": "Open subtitle folder"
+  },
   "languages": {
     "SimplifiedChinese": "Simplified Chinese",
     "TraditionalChinese": "Traditional Chinese",

@@ -5,6 +5,7 @@ import { fileService } from "../../services/fileService";
 import { createNavigationMediaPayload } from "../../services/ui/navigation";
 import { normalizeTranscribeResult } from "../../services/ui/transcribeResult";
 import type { TranscribeResult } from "../../types/transcriber";
+import { SubtitleFileContextMenu } from "../ui/SubtitleFileContextMenu";
 
 interface TranscriptionResultsProps {
   result: TranscribeResult | null;
@@ -60,7 +61,11 @@ export function TranscriptionResults({
       </div>
       
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-0 scroll-smooth custom-scrollbar bg-black/20">
+      <SubtitleFileContextMenu
+        className="flex-1 overflow-y-auto p-0 scroll-smooth custom-scrollbar bg-black/20"
+        subtitlePath={normalizedResult?.subtitle_ref?.path ?? null}
+        openFolderLabel={t("contextMenu.openSubtitleFolder")}
+      >
         {result && result.segments && result.segments.length > 0 ? (
           <div className="divide-y divide-white/5">
             {result.segments.map((seg, idx) => (
@@ -85,7 +90,7 @@ export function TranscriptionResults({
             <p className="text-sm font-medium">{t("results.empty")}</p>
           </div>
         )}
-      </div>
+      </SubtitleFileContextMenu>
 
       {/* Footer Actions */}
       {normalizedResult && (

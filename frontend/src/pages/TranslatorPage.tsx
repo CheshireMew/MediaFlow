@@ -27,6 +27,7 @@ export const TranslatorPage = () => {
         targetSegments,
         glossary,
         sourceFilePath,
+        targetSubtitlePath,
         targetLang,
         mode,
         activeMode,
@@ -219,6 +220,7 @@ export const TranslatorPage = () => {
                     targetSegments={targetSegments}
                     onUpdateTarget={updateTargetSegment}
                     onFileSelect={handleFileUpload}
+                    subtitlePath={targetSubtitlePath ?? sourceFilePath}
                  />
                      
                  {/* Loading Overlay */}

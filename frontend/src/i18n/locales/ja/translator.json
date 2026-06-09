@@ -26,6 +26,9 @@
     "generatedSegment": "生成段",
     "noSourceSegment": "スマート分割で生成された追加ターゲット段"
   },
+  "contextMenu": {
+    "openSubtitleFolder": "字幕のフォルダーを開く"
+  },
   "languages": {
     "SimplifiedChinese": "簡体字中国語",
     "TraditionalChinese": "繁体字中国語",

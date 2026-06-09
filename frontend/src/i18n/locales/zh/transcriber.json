@@ -22,6 +22,9 @@
     "translate": "翻译",
     "openEditor": "打开编辑器"
   },
+  "contextMenu": {
+    "openSubtitleFolder": "打开字幕所在文件夹"
+  },
   "uploader": {
     "replaceButton": "替换文件",
     "dragText": "拖放音频/视频文件",

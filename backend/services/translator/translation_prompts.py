@@ -100,6 +100,11 @@ Rules:
 6. Do NOT translate. Keep the original language.
 7. NEVER merge semantic content from neighboring segments into the current one.
 8. If a line is incomplete, keep it incomplete instead of borrowing completion from the next line.
+9. Optimize for subtitle viewing, not article prose: keep each line concise, natural, and easy to read on screen.
+10. Fix ASR mistakes in proper nouns, product names, people names, acronyms, numbers, and technical terms when context makes the correction clear.
+11. Remove filler words, repeated stutters, and low-information speech fragments only when doing so does not drop meaning.
+12. Preserve technical terms and well-known brand/product names in their original form when that is the natural usage.
+13. For Chinese subtitles, use contemporary natural Chinese, keep spaces between Chinese text and standalone English terms, and avoid unnecessary punctuation when the subtitle is clearer without it.
 {ctx_note}"""
 
     def build_intelligent_system_prompt(

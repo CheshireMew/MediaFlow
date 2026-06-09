@@ -3,6 +3,7 @@ import type { SubtitleSegment } from '../../types/task';
 import { Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { CSSProperties } from 'react';
+import { SubtitleFileContextMenu } from '../ui/SubtitleFileContextMenu';
 
 type ContentSizingStyle = CSSProperties & {
     fieldSizing: 'content';
@@ -13,6 +14,7 @@ interface SegmentsTableProps {
     targetSegments: SubtitleSegment[];
     onUpdateTarget: (index: number, text: string) => void;
     onFileSelect: (path: string) => void;
+    subtitlePath?: string | null;
 }
 
 const formatTime = (seconds: number) => {
@@ -26,12 +28,16 @@ const formatTime = (seconds: number) => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
-export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, onFileSelect }: SegmentsTableProps) => {
+export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, onFileSelect, subtitlePath }: SegmentsTableProps) => {
     const { t } = useTranslation('translator');
     const contentSizingStyle: ContentSizingStyle = { fieldSizing: 'content' };
     const rowCount = Math.max(sourceSegments.length, targetSegments.length);
     return (
-        <div className="flex-1 overflow-y-auto min-h-0 relative scroll-smooth custom-scrollbar bg-black/20">
+        <SubtitleFileContextMenu
+            className="flex-1 overflow-y-auto min-h-0 relative scroll-smooth custom-scrollbar bg-black/20"
+            subtitlePath={subtitlePath}
+            openFolderLabel={t('contextMenu.openSubtitleFolder')}
+        >
             {sourceSegments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full p-10">
                     <div className="max-w-md w-full">
@@ -112,6 +118,6 @@ export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, 
                     })}
                 </div>
             )}
-        </div>
+        </SubtitleFileContextMenu>
     );
 };

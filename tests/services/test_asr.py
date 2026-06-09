@@ -444,6 +444,54 @@ def test_merge_segments_rescues_sentence_continuations():
     assert merged[0].text.endswith("of my peers.")
 
 
+def test_refine_segments_uses_word_timestamps_to_rescue_sentence_tail_after_pause():
+    class Word:
+        def __init__(self, start, end, word):
+            self.start = start
+            self.end = end
+            self.word = word
+
+    class Segment:
+        def __init__(self, start, end, text, words):
+            self.start = start
+            self.end = end
+            self.text = text
+            self.words = words
+
+    segments = [
+        Segment(
+            0.0,
+            1.5,
+            "This is a grave",
+            [
+                Word(0.0, 0.2, "This"),
+                Word(0.25, 0.35, " is"),
+                Word(0.4, 0.55, " a"),
+                Word(0.6, 0.9, " grave"),
+            ],
+        ),
+        Segment(
+            1.55,
+            3.0,
+            "mistake. Now continue.",
+            [
+                Word(1.55, 1.85, " mistake."),
+                Word(2.2, 2.45, " Now"),
+                Word(2.5, 2.9, " continue."),
+            ],
+        ),
+    ]
+
+    refined = SegmentRefiner.refine_segments(segments)
+
+    assert [segment.text for segment in refined] == [
+        "This is a grave mistake.",
+        "Now continue.",
+    ]
+    assert refined[0].end == 1.85
+    assert refined[1].start == 2.2
+
+
 def test_normalize_segments_rebalances_overlong_english_cue():
     segments = [
         SubtitleSegment(
@@ -460,6 +508,28 @@ def test_normalize_segments_rebalances_overlong_english_cue():
     assert normalized[0].text.endswith(",")
     assert normalized[1].text.startswith("and ")
     assert all(count_text_units(seg.text) <= HARD_WORD_LIMIT_ENGLISH for seg in normalized)
+
+
+def test_normalize_segments_can_preserve_semantic_sentence_units_for_translation():
+    segments = [
+        SubtitleSegment(
+            id="3",
+            start=8.0,
+            end=10.0,
+            text="And so the business version of the contrarian",
+        ),
+        SubtitleSegment(
+            id="4",
+            start=10.0,
+            end=12.0,
+            text="question that I always think is a good one to ask is,",
+        ),
+    ]
+
+    normalized = SegmentRefiner.normalize_segments(segments, rebalance=False)
+
+    assert len(normalized) == 1
+    assert "contrarian question" in normalized[0].text
 
 
 def test_backend_text_splitter_prefers_safe_cjk_pause_before_amount():

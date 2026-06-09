@@ -3,6 +3,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 import yt_dlp
 from loguru import logger
@@ -303,6 +304,7 @@ class DownloaderService:
         operation_name: str,
     ) -> tuple[dict, Optional[str]]:
         max_attempts = 3
+        last_error: Exception | None = None
         for attempt in range(1, max_attempts + 1):
             try:
                 return self._execute_yt_dlp_download(
@@ -311,15 +313,94 @@ class DownloaderService:
                     require_prepared_path=require_prepared_path,
                 )
             except Exception as e:
+                last_error = e
                 classified_error = classify_download_error(e, url=classify_url)
                 if classified_error.code != "network" or attempt >= max_attempts:
-                    raise
+                    break
                 delay = attempt
                 logger.warning(
                     f"yt-dlp {operation_name} failed [{classified_error.code}] "
                     f"on attempt {attempt}/{max_attempts}; retrying in {delay}s: {e}"
                 )
                 time.sleep(delay)
+
+        if last_error and self._should_retry_with_browser_cookies(
+            last_error,
+            classify_url=classify_url,
+            ydl_opts=ydl_opts,
+        ):
+            cookie_opts = self._with_browser_cookies(ydl_opts, browser="chrome")
+            logger.info(
+                "Retrying YouTube {} with browser cookies from Chrome after yt-dlp error: {}",
+                operation_name,
+                last_error,
+            )
+            try:
+                return self._execute_yt_dlp_download(
+                    url=url,
+                    ydl_opts=cookie_opts,
+                    require_prepared_path=require_prepared_path,
+                )
+            except Exception as chrome_error:
+                edge_opts = self._with_browser_cookies(ydl_opts, browser="edge")
+                logger.info(
+                    "Retrying YouTube {} with browser cookies from Edge after Chrome cookie retry failed: {}",
+                    operation_name,
+                    chrome_error,
+                )
+                return self._execute_yt_dlp_download(
+                    url=url,
+                    ydl_opts=edge_opts,
+                    require_prepared_path=require_prepared_path,
+                )
+
+        if last_error:
+            raise last_error
+        raise RuntimeError("yt-dlp download failed without an error")
+
+    @classmethod
+    def _should_retry_with_browser_cookies(
+        cls,
+        error: Exception,
+        *,
+        classify_url: str,
+        ydl_opts: dict,
+    ) -> bool:
+        if ydl_opts.get("cookiefile") or ydl_opts.get("cookiesfrombrowser"):
+            return False
+        if not cls._is_youtube_url(classify_url):
+            return False
+
+        classified = classify_download_error(error, url=classify_url)
+        if classified.code in {"auth_required", "rate_limited"}:
+            return True
+
+        error_text = str(error).lower()
+        return any(
+            marker in error_text
+            for marker in (
+                "sabr",
+                "po token",
+                "potoken",
+                "visitor data",
+                "http error 403",
+                "forbidden",
+            )
+        )
+
+    @staticmethod
+    def _with_browser_cookies(ydl_opts: dict, *, browser: str) -> dict:
+        next_opts = dict(ydl_opts)
+        next_opts["cookiesfrombrowser"] = (browser, None, None, None)
+        return next_opts
+
+    @staticmethod
+    def _is_youtube_url(url: str) -> bool:
+        try:
+            domain = urlparse(url).netloc.lower()
+        except Exception:
+            return False
+        return domain == "youtu.be" or domain.endswith(".youtube.com") or domain == "youtube.com"
 
     def _build_phase_progress_callback(
         self,
