@@ -176,6 +176,48 @@ class EditorPreviewMediaResponse(BaseModel):
     remuxed: bool
 
 
+class ClipCandidate(BaseModel):
+    id: str
+    start: float
+    end: float
+    title: Optional[str] = None
+    reason: Optional[str] = None
+    score: float = 0.0
+    transcript: Optional[str] = None
+    selected: bool = True
+
+
+class HighlightDetectionRequest(BaseModel):
+    video_ref: MediaReference
+    subtitle_segments: List[SubtitleSegment] = Field(default_factory=list)
+    max_candidates: int = Field(default=6, ge=1, le=20)
+    min_duration: float = Field(default=12.0, ge=1.0)
+    max_duration: float = Field(default=75.0, ge=2.0)
+
+
+class HighlightDetectionResponse(BaseModel):
+    candidates: List[ClipCandidate]
+    source: Literal["llm"]
+    duration: float
+
+
+class ClipExportSegment(BaseModel):
+    id: str
+    start: float
+    end: float
+    title: Optional[str] = None
+
+
+class ClipExportRequest(BaseModel):
+    video_ref: MediaReference
+    segments: List[ClipExportSegment]
+    render_mode: Literal["burned", "source"] = "burned"
+    srt_ref: Optional[MediaReference] = None
+    watermark_path: Optional[str] = None
+    options: Optional[dict] = None
+    output_dir: Optional[str] = None
+
+
 class TextEvent(BaseModel):
     start: float
     end: float

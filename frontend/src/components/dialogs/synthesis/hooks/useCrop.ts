@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  updateStoredSynthesisExecutionPreferences,
+  type SynthesisExecutionPreferences,
+} from "../../../../services/persistence/synthesisExecutionPreferences";
 
 export interface CropState {
   isEnabled: boolean;
@@ -8,10 +12,38 @@ export interface CropState {
   setCrop: (v: { x: number; y: number; w: number; h: number }) => void;
 }
 
-export function useCrop(): CropState {
-  const [isEnabled, setIsEnabled] = useState(false);
-  // Start from full frame so enabling crop does not unexpectedly cut the video.
-  const [crop, setCrop] = useState({ x: 0, y: 0, w: 1, h: 1 });
+export function useCrop(
+  isOpen: boolean,
+  persistedPreferences: SynthesisExecutionPreferences,
+): CropState {
+  const [isEnabled, setIsEnabled] = useState(() => persistedPreferences.crop.isEnabled);
+  const [crop, setCrop] = useState(() => persistedPreferences.crop.crop);
+  const isInitialized = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      isInitialized.current = false;
+      return;
+    }
+
+    isInitialized.current = false;
+    const timer = setTimeout(() => {
+      setIsEnabled(persistedPreferences.crop.isEnabled);
+      setCrop(persistedPreferences.crop.crop);
+      isInitialized.current = true;
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isOpen, persistedPreferences]);
+
+  useEffect(() => {
+    if (!isInitialized.current) return;
+    updateStoredSynthesisExecutionPreferences({
+      crop: {
+        isEnabled,
+        crop,
+      },
+    });
+  }, [crop, isEnabled, isInitialized]);
 
   return {
     isEnabled,

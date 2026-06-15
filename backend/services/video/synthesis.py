@@ -38,7 +38,7 @@ class SynthesisOrchestrator:
         temp_fonts_dir = None
         sr_result = self._super_resolution_stage.prepare(video_path, options, progress_callback)
         try:
-            self._ensure_media_inputs_exist(sr_result.video_path, srt_path)
+            self._ensure_media_inputs_exist(sr_result.video_path, srt_path, sr_result.options)
             sr_result.options = self._resolve_timeline_options(sr_result.video_path, sr_result.options)
             duration = self._calculate_duration(sr_result.video_path, sr_result.options)
             input_video, audio = self._create_input_streams(sr_result.video_path, sr_result.options)
@@ -72,15 +72,17 @@ class SynthesisOrchestrator:
                     logger.warning(f"Failed to delete temp SR file: {exc}")
 
     @staticmethod
-    def _ensure_media_inputs_exist(video_path: str, srt_path: str) -> None:
+    def _ensure_media_inputs_exist(video_path: str, srt_path: str | None, options: dict) -> None:
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Video not found: {video_path}")
-        if not os.path.exists(srt_path):
+        if not options.get("skip_subtitles") and (not srt_path or not os.path.exists(srt_path)):
             raise FileNotFoundError(f"Subtitles not found: {srt_path}")
 
     @staticmethod
     def _resolve_timeline_options(video_path: str, options: dict) -> dict:
         next_options = dict(options)
+        if next_options.get("disable_auto_trim"):
+            return next_options
         if float(next_options.get("trim_start", 0) or 0) > 0:
             return next_options
 

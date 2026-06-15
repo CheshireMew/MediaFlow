@@ -12,6 +12,7 @@ from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
 from backend.models.schemas import (
     CleanRequest,
+    ClipExportRequest,
     EnhanceRequest,
     OCRExtractRequest,
     SynthesisRequest,
@@ -72,6 +73,12 @@ async def _run_synthesis_background(task_id: str, request: SynthesisRequest) -> 
     from backend.application.synthesis_service import _synthesis_background
 
     await _synthesis_background(task_id, request)
+
+
+async def _run_clip_export_background(task_id: str, request: ClipExportRequest) -> None:
+    from backend.application.clip_export_task_service import _clip_export_background
+
+    await _clip_export_background(task_id, request)
 
 
 async def _run_ocr_background(task_id: str, request: OCRExtractRequest) -> None:
@@ -135,6 +142,11 @@ def _synthesis_name(request: SynthesisRequest) -> str:
     return request.video_ref.name or Path(request.video_ref.path).name
 
 
+def _clip_export_name(request: ClipExportRequest) -> str:
+    source_name = request.video_ref.name or Path(request.video_ref.path).name
+    return f"Export clips from {source_name}"
+
+
 def _enhancement_name(request: EnhanceRequest) -> str:
     source = Path(request.video_ref.path)
     return f"Enhance {source.name} ({request.method} {request.scale})"
@@ -172,6 +184,12 @@ OPERATIONS: dict[str, TaskOperation] = {
         request_model=SynthesisRequest,
         task_name=_synthesis_name,
         background=_run_synthesis_background,
+    ),
+    "clip_export": TaskOperation(
+        task_type="clip_export",
+        request_model=ClipExportRequest,
+        task_name=_clip_export_name,
+        background=_run_clip_export_background,
     ),
     "extract": TaskOperation(
         task_type="extract",

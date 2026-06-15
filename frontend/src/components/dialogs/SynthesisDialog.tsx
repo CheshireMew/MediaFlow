@@ -54,7 +54,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     isOpen, onClose, regions, videoPath, mediaUrl, onSynthesize
 }) => {
     const { t } = useTranslation('synthesis');
-    const [persistedPreferences] = useState(() => restoreStoredSynthesisExecutionPreferences());
+    const [persistedPreferences, setPersistedPreferences] = useState(() => restoreStoredSynthesisExecutionPreferences());
     // --- Shared refs ---
     const videoRef = useRef<HTMLVideoElement>(null);
     const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
@@ -63,6 +63,14 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     const [synthesisProgress, setSynthesisProgress] = useState(0);
     const [synthesisMessage, setSynthesisMessage] = useState('');
     const [mediaVisibleStart, setMediaVisibleStart] = useState(0);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        setPersistedPreferences(restoreStoredSynthesisExecutionPreferences());
+    }, [isOpen]);
 
     useEffect(() => {
         if (!isOpen || mediaVisibleStart <= 0 || !videoRef.current) {
@@ -159,15 +167,36 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     const [watermarkEnabled, setWatermarkEnabled] = useState(() => {
         return persistedPreferences.watermarkEnabled;
     });
+    const togglesInitialized = useRef(false);
 
     useEffect(() => {
+        if (!isOpen) {
+            togglesInitialized.current = false;
+            return;
+        }
+
+        togglesInitialized.current = false;
+        const timer = setTimeout(() => {
+            setSubtitleEnabled(persistedPreferences.subtitleEnabled);
+            setWatermarkEnabled(persistedPreferences.watermarkEnabled);
+            togglesInitialized.current = true;
+        }, 0);
+
+        return () => clearTimeout(timer);
+    }, [isOpen, persistedPreferences]);
+
+    useEffect(() => {
+        if (!togglesInitialized.current) {
+            return;
+        }
+
         updateStoredSynthesisExecutionPreferences({
             subtitleEnabled,
             watermarkEnabled,
         });
     }, [subtitleEnabled, watermarkEnabled]);
 
-    const crop = useCrop();
+    const crop = useCrop(isOpen, persistedPreferences);
     const outputViewportMetrics = resolvePreviewViewportMetrics({
         sourceWidth: videoSize.w,
         sourceHeight: videoSize.h,
@@ -188,7 +217,6 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     );
     const watermark = useWatermark(
         isOpen,
-        style.isInitialized,
         {
             w: outputViewportMetrics.outputSourceWidth,
             h: outputViewportMetrics.outputSourceHeight,
@@ -198,7 +226,6 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     const output = useOutputSettings(
         isOpen,
         videoPath,
-        style.isInitialized,
         persistedPreferences,
     );
 
@@ -241,6 +268,11 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                     wmScale: watermark.wmScale,
                     wmOpacity: watermark.wmOpacity,
                     wmPos: watermark.wmPos,
+                    hasCustomLayout: true,
+                },
+                crop: {
+                    isEnabled: crop.isEnabled,
+                    crop: crop.crop,
                 },
             };
 

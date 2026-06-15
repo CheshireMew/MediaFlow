@@ -11,6 +11,12 @@ export type SynthesisWatermarkPreferences = {
   wmScale: number;
   wmOpacity: number;
   wmPos: { x: number; y: number };
+  hasCustomLayout: boolean;
+};
+
+export type SynthesisCropPreferences = {
+  isEnabled: boolean;
+  crop: { x: number; y: number; w: number; h: number };
 };
 
 export type SynthesisExecutionPreferences = {
@@ -21,13 +27,15 @@ export type SynthesisExecutionPreferences = {
   lastOutputDir: string | null;
   subtitleStyle: SynthesisSubtitleStylePreferences;
   watermark: SynthesisWatermarkPreferences;
+  crop: SynthesisCropPreferences;
 };
 
 export type SynthesisExecutionPreferencesUpdate = Partial<
-  Omit<SynthesisExecutionPreferences, "subtitleStyle" | "watermark">
+  Omit<SynthesisExecutionPreferences, "subtitleStyle" | "watermark" | "crop">
 > & {
   subtitleStyle?: Partial<SynthesisSubtitleStylePreferences>;
   watermark?: Partial<SynthesisWatermarkPreferences>;
+  crop?: Partial<SynthesisCropPreferences>;
 };
 
 const SYNTHESIS_EXECUTION_PREFERENCES_KEY = "synthesis_execution_preferences";
@@ -61,11 +69,21 @@ export const DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES: SynthesisExecutionPreferen
     wmScale: 0.2,
     wmOpacity: 0.8,
     wmPos: { x: 0.5, y: 0.5 },
+    hasCustomLayout: false,
+  },
+  crop: {
+    isEnabled: false,
+    crop: { x: 0, y: 0, w: 1, h: 1 },
   },
 };
 
 function finiteNumber(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function unitIntervalNumber(value: unknown, fallback: number) {
+  const nextValue = finiteNumber(value, fallback);
+  return Math.max(0, Math.min(1, nextValue));
 }
 
 function nonEmptyString(value: unknown, fallback: string) {
@@ -110,15 +128,47 @@ function normalizeWatermarkPreferences(
   payload: Partial<SynthesisWatermarkPreferences> | null | undefined,
 ): SynthesisWatermarkPreferences {
   const defaults = DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES.watermark;
+  const wmScale = finiteNumber(payload?.wmScale, defaults.wmScale);
+  const wmOpacity = finiteNumber(payload?.wmOpacity, defaults.wmOpacity);
+  const wmPos =
+    payload?.wmPos &&
+    typeof payload.wmPos.x === "number" &&
+    typeof payload.wmPos.y === "number"
+      ? { x: payload.wmPos.x, y: payload.wmPos.y }
+      : { ...defaults.wmPos };
+  const hasCustomLayout =
+    typeof payload?.hasCustomLayout === "boolean"
+      ? payload.hasCustomLayout
+      : wmScale !== defaults.wmScale ||
+        wmPos.x !== defaults.wmPos.x ||
+        wmPos.y !== defaults.wmPos.y;
+
   return {
-    wmScale: finiteNumber(payload?.wmScale, defaults.wmScale),
-    wmOpacity: finiteNumber(payload?.wmOpacity, defaults.wmOpacity),
-    wmPos:
-      payload?.wmPos &&
-      typeof payload.wmPos.x === "number" &&
-      typeof payload.wmPos.y === "number"
-        ? { x: payload.wmPos.x, y: payload.wmPos.y }
-        : { ...defaults.wmPos },
+    wmScale,
+    wmOpacity,
+    wmPos,
+    hasCustomLayout,
+  };
+}
+
+function normalizeCropPreferences(
+  payload: Partial<SynthesisCropPreferences> | null | undefined,
+): SynthesisCropPreferences {
+  const defaults = DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES.crop;
+  const crop = {
+    x: unitIntervalNumber(payload?.crop?.x, defaults.crop.x),
+    y: unitIntervalNumber(payload?.crop?.y, defaults.crop.y),
+    w: unitIntervalNumber(payload?.crop?.w, defaults.crop.w),
+    h: unitIntervalNumber(payload?.crop?.h, defaults.crop.h),
+  };
+
+  return {
+    isEnabled: typeof payload?.isEnabled === "boolean" ? payload.isEnabled : defaults.isEnabled,
+    crop: {
+      ...crop,
+      w: crop.w > 0 ? crop.w : defaults.crop.w,
+      h: crop.h > 0 ? crop.h : defaults.crop.h,
+    },
   };
 }
 
@@ -141,6 +191,7 @@ function normalizeSynthesisExecutionPreferences(
     lastOutputDir: typeof payload?.lastOutputDir === "string" ? payload.lastOutputDir : null,
     subtitleStyle: normalizeSubtitleStylePreferences(payload?.subtitleStyle),
     watermark: normalizeWatermarkPreferences(payload?.watermark),
+    crop: normalizeCropPreferences(payload?.crop),
   };
 }
 
@@ -184,6 +235,12 @@ export function mergeSynthesisExecutionPreferences(
           ...updates.watermark,
         }
       : currentPreferences.watermark,
+    crop: updates.crop
+      ? {
+          ...currentPreferences.crop,
+          ...updates.crop,
+        }
+      : currentPreferences.crop,
   });
 }
 

@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
 from backend.config import settings
+from backend.services.llm_io_logger import log_llm_messages, log_llm_response
 from backend.services.runtime_diagnostics import CudaReadinessResponse, RuntimeDiagnosticsService
 from backend.services.settings_manager import LLMProvider, UserSettings
 
@@ -80,11 +81,14 @@ class SettingsApplicationService:
             base_url=provider.base_url,
             timeout=15.0,
         )
-        client.chat.completions.create(
+        messages = [{"role": "user", "content": "Reply with OK."}]
+        log_llm_messages("Provider connection test", messages)
+        response = client.chat.completions.create(
             model=provider.model,
-            messages=[{"role": "user", "content": "Reply with OK."}],
+            messages=messages,
             max_tokens=3,
         )
+        log_llm_response("Provider connection test", response)
         return {"status": "success", "message": "Connection successful"}
 
     def update_yt_dlp(self) -> dict[str, str | None]:

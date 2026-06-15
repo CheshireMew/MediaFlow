@@ -1,8 +1,12 @@
+import asyncio
 from fastapi import APIRouter, HTTPException, UploadFile
 import os
 from backend.models.schemas import (
+    ClipExportRequest,
     EditorPreviewMediaRequest,
     EditorPreviewMediaResponse,
+    HighlightDetectionRequest,
+    HighlightDetectionResponse,
     MediaReference,
     MediaVisibleStartRequest,
     MediaVisibleStartResponse,
@@ -74,6 +78,63 @@ async def resolve_preview_media_source(req: EditorPreviewMediaRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/highlights/detect", response_model=HighlightDetectionResponse)
+async def detect_highlight_candidates(req: HighlightDetectionRequest):
+    try:
+        source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        from backend.application.highlight_service import detect_highlights
+
+        candidates, source, duration = await asyncio.to_thread(
+            detect_highlights,
+            video_path=str(source_path),
+            subtitle_segments=req.subtitle_segments,
+            max_candidates=req.max_candidates,
+            min_duration=req.min_duration,
+            max_duration=req.max_duration,
+        )
+        return HighlightDetectionResponse(
+            candidates=candidates,
+            source=source,
+            duration=duration,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/clips/export", response_model=TaskResponse)
+async def export_clip_segments(req: ClipExportRequest):
+    try:
+        validate_input_file(req.video_ref.path, label="video_ref.path")
+        subtitles_required = req.render_mode == "burned" and not (req.options or {}).get("skip_subtitles")
+        if subtitles_required and req.srt_ref:
+            validate_input_file(req.srt_ref.path, label="srt_ref.path")
+        if req.watermark_path:
+            validate_input_file(req.watermark_path, label="watermark_path")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not req.segments:
+        raise HTTPException(status_code=400, detail="No clip segments selected")
+
+    if subtitles_required and not req.srt_ref:
+        raise HTTPException(status_code=400, detail="Burned clip export requires subtitles")
+
+    from backend.application.task_operations import submit_task_operation
+
+    response = await submit_task_operation("clip_export", req)
+    return TaskResponse(**response)
 
 
 @router.post("/synthesize", response_model=TaskResponse)

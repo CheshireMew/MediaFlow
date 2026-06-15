@@ -149,7 +149,7 @@ def _walk_result_refs(payload: Any, artifacts: list[TaskArtifact], seen: set[tup
     if isinstance(meta, dict):
         for key, value in meta.items():
             if key in REF_KEY_ROLES:
-                default_role = "output" if key in {"output_ref", "video_ref", "subtitle_ref"} else REF_KEY_ROLES[key]
+                default_role = "output" if key in {"output_ref", "video_ref"} else REF_KEY_ROLES[key]
                 _append_ref_artifact(
                     artifacts,
                     seen,

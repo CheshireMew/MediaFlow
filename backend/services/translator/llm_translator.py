@@ -1,11 +1,10 @@
-import json
-from typing import Callable, Dict, List, Literal, Optional
+from typing import Callable, List, Literal, Optional
 
 from loguru import logger
-from pydantic import BaseModel
 
 from backend.config import settings
 from backend.models.schemas import SubtitleSegment
+from backend.services.llm_io_logger import log_llm_messages, log_llm_response
 from backend.services.translator.text_normalizer import normalize_text_for_target_language
 from backend.services.translator.translation_cache import TranslationCache
 from backend.services.translator.translation_client import TranslationClientFactory
@@ -57,26 +56,6 @@ class LLMTranslator:
     def _checkpoint(cancel_check: Optional[Callable[[], None]]) -> None:
         checkpoint(cancel_check)
 
-    @staticmethod
-    def _log_llm_messages(mode_label: str, messages: List[Dict[str, str]]) -> None:
-        try:
-            logger.debug(
-                f"[LLM IO] {mode_label} request messages:\n"
-                f"{json.dumps(messages, ensure_ascii=False, indent=2)}"
-            )
-        except Exception as exc:
-            logger.warning(f"[LLM IO] Failed to serialize {mode_label} request messages: {exc}")
-
-    @staticmethod
-    def _log_llm_response(mode_label: str, response_model: BaseModel) -> None:
-        try:
-            logger.debug(
-                f"[LLM IO] {mode_label} response payload:\n"
-                f"{response_model.model_dump_json(indent=2)}"
-            )
-        except Exception as exc:
-            logger.warning(f"[LLM IO] Failed to serialize {mode_label} response payload: {exc}")
-
     def _translate_single_fallback(
         self,
         client,
@@ -97,12 +76,14 @@ class LLMTranslator:
                     target_language,
                     mode_label,
                 )
-                self._log_llm_messages(f"{mode_label} single [{segment.id}]", messages)
+                request_label = f"{mode_label} single [{segment.id}]"
+                log_llm_messages(request_label, messages)
                 completion = client.chat.completions.create(
                     model=model_name,
                     messages=messages,
                     temperature=0.3,
                 )
+                log_llm_response(request_label, completion)
                 translated_text = self._response_parser.extract_plain_text_from_completion(completion)
                 if translated_text:
                     result.append(
@@ -138,7 +119,7 @@ class LLMTranslator:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": input_json_str},
         ]
-        self._log_llm_messages(mode_label, messages)
+        log_llm_messages(mode_label, messages)
         self._checkpoint(cancel_check)
         try:
             resp = client.chat.completions.create(
@@ -178,7 +159,7 @@ class LLMTranslator:
             )
             resp = recovered
 
-        self._log_llm_response(mode_label, resp)
+        log_llm_response(mode_label, resp)
         logger.info(f"[LLM IO] {mode_label}: input {segment_count}, output {len(resp.segments)}")
 
         is_valid, error_msg, mapped = self._response_validator.validate(resp, segments, target_language)
@@ -308,7 +289,7 @@ class LLMTranslator:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content},
             ]
-            self._log_llm_messages("Intelligent", messages)
+            log_llm_messages("Intelligent", messages)
             self._checkpoint(cancel_check)
             try:
                 resp = client.chat.completions.create(
@@ -336,7 +317,7 @@ class LLMTranslator:
                 logger.warning("[LLM] Intelligent: recovered batch response after structured parse failure")
                 resp = recovered
 
-            self._log_llm_response("Intelligent", resp)
+            log_llm_response("Intelligent", resp)
             logger.info(f"[LLM IO] Intelligent: input {len(segments)} -> output {len(resp.segments)}")
 
             total_start = segments[0].start

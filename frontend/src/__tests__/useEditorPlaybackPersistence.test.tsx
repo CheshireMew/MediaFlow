@@ -87,4 +87,43 @@ describe("useEditorPlaybackPersistence", () => {
     unmount();
     vi.useRealTimers();
   });
+
+  it("binds playback rate persistence when the video element appears after the hook mounts", () => {
+    const filePath = "C:\\late-video.mp4";
+    let rateChangeHandler: (() => void) | null = null;
+    const videoElement = {
+      currentTime: 0,
+      duration: 120,
+      playbackRate: 1,
+      addEventListener: vi.fn((event: string, handler: () => void) => {
+        if (event === "ratechange") {
+          rateChangeHandler = handler;
+        }
+      }),
+      removeEventListener: vi.fn(),
+    } as unknown as HTMLVideoElement;
+    const videoRef = {
+      current: null,
+    } as React.RefObject<HTMLVideoElement | null>;
+
+    const { result, unmount } = renderHook(() =>
+      useEditorPlaybackPersistence({
+        currentFilePath: filePath,
+        videoRef,
+      }),
+    );
+
+    videoRef.current = videoElement;
+
+    act(() => {
+      result.current.handleLoadedMetadata();
+      videoElement.playbackRate = 2.5;
+      rateChangeHandler?.();
+    });
+
+    expect(readUiStateValue("editor_playback_rate")).toContain("\"playbackRate\":2.5");
+
+    unmount();
+    vi.useRealTimers();
+  });
 });

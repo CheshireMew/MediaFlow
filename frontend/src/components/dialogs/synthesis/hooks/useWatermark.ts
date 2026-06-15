@@ -7,6 +7,7 @@ import {
   type WatermarkPositionPreset,
 } from "../../../../services/domain";
 import {
+  DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES,
   updateStoredSynthesisExecutionPreferences,
   type SynthesisExecutionPreferences,
 } from "../../../../services/persistence/synthesisExecutionPreferences";
@@ -27,7 +28,6 @@ export interface WatermarkState {
 
 export function useWatermark(
   isOpen: boolean,
-  isInitialized: React.MutableRefObject<boolean>,
   outputSize: { w: number; h: number },
   persistedPreferences: SynthesisExecutionPreferences,
 ): WatermarkState {
@@ -35,29 +35,37 @@ export function useWatermark(
   const [watermarkPreviewUrl, setWatermarkPreviewUrl] = useState<string | null>(
     null,
   );
-  const [wmScale, setWmScale] = useState(0.2);
-  const [wmOpacity, setWmOpacity] = useState(0.8);
-  const [wmPos, setWmPos] = useState({ x: 0.5, y: 0.5 });
+  const [wmScale, setWmScale] = useState(() => persistedPreferences.watermark.wmScale);
+  const [wmOpacity, setWmOpacity] = useState(() => persistedPreferences.watermark.wmOpacity);
+  const [wmPos, setWmPos] = useState(() => persistedPreferences.watermark.wmPos);
   const [watermarkSize, setWatermarkSize] = useState({ w: 0, h: 0 });
   const layoutInitializedKey = useRef<string | null>(null);
   const hasManualLayout = useRef(false);
 
   // --- Restore from shared settings ---
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      layoutInitializedKey.current = null;
+      hasManualLayout.current = false;
+      return;
+    }
+
     const timer = setTimeout(() => {
-      setWmOpacity(persistedPreferences.watermark.wmOpacity);
+      const nextWatermark = persistedPreferences.watermark;
+      layoutInitializedKey.current = null;
+      hasManualLayout.current = nextWatermark.hasCustomLayout;
+      setWmOpacity(nextWatermark.wmOpacity);
+      if (nextWatermark.hasCustomLayout) {
+        setWmScale(nextWatermark.wmScale);
+        setWmPos(nextWatermark.wmPos);
+      } else {
+        setWmScale(DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES.watermark.wmScale);
+        setWmPos(DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES.watermark.wmPos);
+      }
     }, 0);
 
     return () => clearTimeout(timer);
   }, [isOpen, persistedPreferences.watermark]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      layoutInitializedKey.current = null;
-      hasManualLayout.current = false;
-    }
-  }, [isOpen]);
 
   // --- Load persisted watermark image ---
   useEffect(() => {
@@ -120,28 +128,6 @@ export function useWatermark(
     watermarkSize.w,
   ]);
 
-  // --- Persist scale/opacity/pos ---
-  useEffect(() => {
-    if (!isInitialized.current) return;
-    updateStoredSynthesisExecutionPreferences({
-      watermark: { wmScale },
-    });
-  }, [wmScale, isInitialized]);
-
-  useEffect(() => {
-    if (!isInitialized.current) return;
-    updateStoredSynthesisExecutionPreferences({
-      watermark: { wmOpacity },
-    });
-  }, [wmOpacity, isInitialized]);
-
-  useEffect(() => {
-    if (!isInitialized.current) return;
-    updateStoredSynthesisExecutionPreferences({
-      watermark: { wmPos },
-    });
-  }, [wmPos, isInitialized]);
-
   // --- Handle watermark upload ---
   const handleWatermarkSelect = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -176,26 +162,50 @@ export function useWatermark(
   // so that edge-aligned presets don't clip outside the frame.
   const applyWmPositionPreset = (pos: WatermarkPositionPreset) => {
     hasManualLayout.current = true;
-    setWmPos(
-      resolveWatermarkPosition({
-        preset: pos,
-        outputWidth: outputSize.w,
-        outputHeight: outputSize.h,
-        watermarkWidth: watermarkSize.w,
-        watermarkHeight: watermarkSize.h,
-        wmScale,
-      }),
-    );
+    const nextPos = resolveWatermarkPosition({
+      preset: pos,
+      outputWidth: outputSize.w,
+      outputHeight: outputSize.h,
+      watermarkWidth: watermarkSize.w,
+      watermarkHeight: watermarkSize.h,
+      wmScale,
+    });
+    setWmPos(nextPos);
+    updateStoredSynthesisExecutionPreferences({
+      watermark: {
+        wmPos: nextPos,
+        hasCustomLayout: true,
+      },
+    });
   };
 
   const updateWmScale = (value: number) => {
     hasManualLayout.current = true;
     setWmScale(value);
+    updateStoredSynthesisExecutionPreferences({
+      watermark: {
+        wmScale: value,
+        hasCustomLayout: true,
+      },
+    });
+  };
+
+  const updateWmOpacity = (value: number) => {
+    setWmOpacity(value);
+    updateStoredSynthesisExecutionPreferences({
+      watermark: { wmOpacity: value },
+    });
   };
 
   const updateWmPos = (value: { x: number; y: number }) => {
     hasManualLayout.current = true;
     setWmPos(value);
+    updateStoredSynthesisExecutionPreferences({
+      watermark: {
+        wmPos: value,
+        hasCustomLayout: true,
+      },
+    });
   };
 
   return {
@@ -206,7 +216,7 @@ export function useWatermark(
     wmPos,
     watermarkSize,
     setWmScale: updateWmScale,
-    setWmOpacity,
+    setWmOpacity: updateWmOpacity,
     setWmPos: updateWmPos,
     handleWatermarkSelect,
     applyWmPositionPreset,

@@ -4,6 +4,8 @@ from json_repair import repair_json
 from loguru import logger
 from pydantic import BaseModel
 
+from backend.services.llm_io_logger import log_llm_messages, log_llm_response
+
 
 class TranslationResponseParser:
     @staticmethod
@@ -96,17 +98,20 @@ class TranslationResponseParser:
         response_model: Type[BaseModel],
         mode_label: str,
     ) -> Optional[BaseModel]:
+        request_label = f"{mode_label} raw retry"
+        log_llm_messages(request_label, messages)
         try:
             completion = client.chat.completions.create(
                 model=model_name,
                 messages=messages,
                 temperature=0.3,
             )
+            log_llm_response(request_label, completion)
         except Exception as error:
             recovered = self.recover_structured_response_from_exception(
                 error,
                 response_model,
-                f"{mode_label} raw retry",
+                request_label,
             )
             if recovered:
                 return recovered
@@ -119,7 +124,7 @@ class TranslationResponseParser:
             recovered = self.parse_structured_response_payload(
                 payload,
                 response_model,
-                f"{mode_label} raw retry",
+                request_label,
             )
             if recovered:
                 logger.warning(

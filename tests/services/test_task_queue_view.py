@@ -185,6 +185,71 @@ def test_serialize_video_output_ref_does_not_create_subtitle_artifact():
     assert not any(artifact["kind"] == "subtitle" for artifact in payload["artifacts"])
 
 
+def test_serialize_synthesis_result_keeps_input_subtitle_out_of_output_artifacts():
+    view = TaskQueueView()
+    task = Task(
+        id="task-synthesis",
+        type="synthesis",
+        status="completed",
+        persistence_scope="history",
+        lifecycle=TASK_LIFECYCLE["history_only"],
+        progress=100.0,
+        message="",
+        request_params={
+            "video_ref": {
+                "path": "E:/source/source.mp4",
+                "name": "source.mp4",
+                "media_kind": "video",
+            },
+            "srt_ref": {
+                "path": "E:/source/source.srt",
+                "name": "source.srt",
+                "media_kind": "subtitle",
+            },
+        },
+        result={
+            "files": [{"type": "video", "path": "E:/renders/source_burned.mp4"}],
+            "meta": {
+                "video_ref": {
+                    "path": "E:/renders/source_burned.mp4",
+                    "name": "source_burned.mp4",
+                    "media_kind": "video",
+                    "role": "output",
+                    "origin": "task",
+                },
+                "output_ref": {
+                    "path": "E:/renders/source_burned.mp4",
+                    "name": "source_burned.mp4",
+                    "media_kind": "video",
+                    "role": "output",
+                    "origin": "task",
+                },
+                "subtitle_ref": {
+                    "path": "E:/source/source.srt",
+                    "name": "source.srt",
+                    "media_kind": "subtitle",
+                },
+            },
+        },
+    )
+
+    payload = view.serialize_task(
+        task,
+        running_ids=set(),
+        queued_ids=set(),
+        queued_order=[],
+    ).model_dump(mode="json")
+
+    assert {
+        (artifact["kind"], artifact["role"], artifact["ref"]["path"])
+        for artifact in payload["artifacts"]
+    } == {
+        ("video", "input", "E:/source/source.mp4"),
+        ("subtitle", "input", "E:/source/source.srt"),
+        ("video", "output", "E:/renders/source_burned.mp4"),
+    }
+
+
 def test_serialize_transport_stream_result_file_as_video_artifact():
     view = TaskQueueView()
     task = Task(

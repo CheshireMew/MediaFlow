@@ -340,8 +340,7 @@ describe("useTranscriber", () => {
     expect(result.current.state.device).toBe("cpu");
     expect(result.current.state.currentTranscriptionTaskId).toBeNull();
     expect(result.current.state.result?.text).toBe("snapshot");
-    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"model\":\"base\"");
-    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"device\":\"cpu\"");
+    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toBeNull();
   });
 
   it("persists transcriber document state separately from shared ASR preferences", async () => {
@@ -365,8 +364,23 @@ describe("useTranscriber", () => {
     expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"currentTranscriptionTaskId\"");
     expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"model\"");
     expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"device\"");
-    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"model\":\"base\"");
-    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"device\":\"cpu\"");
+    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toBeNull();
+  });
+
+  it("persists shared ASR preferences only through ASR setting actions", async () => {
+    const { result } = renderHook(() => useTranscriber());
+
+    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toBeNull();
+
+    act(() => {
+      result.current.actions.setModel("small");
+      result.current.actions.setDevice("cuda");
+      result.current.actions.setEngine("cli");
+    });
+
+    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"model\":\"small\"");
+    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"device\":\"cuda\"");
+    expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toContain("\"engine\":\"cli\"");
   });
 
 

@@ -1,11 +1,13 @@
 // ── Output Settings State + Persistence ──
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { fileService } from "../../../../services/fileService";
 import {
   updateStoredSynthesisExecutionPreferences,
   type SynthesisExecutionPreferences,
 } from "../../../../services/persistence/synthesisExecutionPreferences";
 import { buildSuffixedOutputPath } from "../../../../services/ui/generatedOutputPath";
+
+export type SynthesisTargetResolution = "original" | "720p" | "1080p" | "sr_2x" | "sr_4x";
 
 export interface OutputSettingsState {
   quality: "high" | "balanced" | "small";
@@ -23,29 +25,44 @@ export interface OutputSettingsState {
   setTrimStart: (v: number) => void;
   trimEnd: number;
   setTrimEnd: (v: number) => void;
-  targetResolution: string;
-  setTargetResolution: (v: string) => void;
+  targetResolution: SynthesisTargetResolution;
+  setTargetResolution: (v: SynthesisTargetResolution) => void;
 }
 
 export function useOutputSettings(
   isOpen: boolean,
   videoPath: string | null,
-  isInitialized: React.MutableRefObject<boolean>,
   persistedPreferences: SynthesisExecutionPreferences,
 ): OutputSettingsState {
-  const [quality, setQuality] = useState<"high" | "balanced" | "small">(
+  const [quality, setQualityState] = useState<"high" | "balanced" | "small">(
     () => persistedPreferences.quality,
   );
   const [isQualityMenuOpen, setIsQualityMenuOpen] = useState(false);
   const [outputFilename, setOutputFilename] = useState("");
-  const [outputDir, setOutputDir] = useState<string | null>(null);
+  const [outputDir, setOutputDirState] = useState<string | null>(null);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
-  const [useGpu, setUseGpu] = useState(() => persistedPreferences.useGpu);
-  // Output resolution is intentionally per-run only.
-  // Different videos need different export decisions, so we always start from "original"
-  // instead of restoring the previous video's resolution choice.
-  const [targetResolution, setTargetResolution] = useState("original");
+  const [useGpu, setUseGpuState] = useState(() => persistedPreferences.useGpu);
+  const [targetResolution, setTargetResolutionState] = useState<SynthesisTargetResolution>(
+    "original",
+  );
+  const isInitialized = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      isInitialized.current = false;
+      return;
+    }
+
+    isInitialized.current = false;
+    const timer = setTimeout(() => {
+      setQualityState(persistedPreferences.quality);
+      setUseGpuState(persistedPreferences.useGpu);
+      setTargetResolutionState("original");
+      isInitialized.current = true;
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isOpen, persistedPreferences]);
 
   // Reset trim when video changes or dialog opens
   useEffect(() => {
@@ -57,15 +74,31 @@ export function useOutputSettings(
     return () => clearTimeout(timer);
   }, [isOpen, videoPath]);
 
-  // --- Persist quality ---
-  useEffect(() => {
-    if (!isInitialized.current) return;
-    updateStoredSynthesisExecutionPreferences({
-      quality,
-      useGpu,
-      lastOutputDir: outputDir,
-    });
-  }, [isInitialized, outputDir, quality, useGpu]);
+  const persistOutputPreferences = (
+    updates: Partial<Pick<SynthesisExecutionPreferences, "quality" | "useGpu" | "lastOutputDir">>,
+  ) => {
+    if (!isOpen || !isInitialized.current) return;
+    updateStoredSynthesisExecutionPreferences(updates);
+  };
+
+  const setQuality = (value: "high" | "balanced" | "small") => {
+    setQualityState(value);
+    persistOutputPreferences({ quality: value });
+  };
+
+  const setUseGpu = (value: boolean) => {
+    setUseGpuState(value);
+    persistOutputPreferences({ useGpu: value });
+  };
+
+  const setTargetResolution = (value: SynthesisTargetResolution) => {
+    setTargetResolutionState(value);
+  };
+
+  const setOutputDir = (value: string | null) => {
+    setOutputDirState(value);
+    persistOutputPreferences({ lastOutputDir: value });
+  };
 
   // --- Initialize output path from video path ---
   useEffect(() => {
@@ -90,7 +123,7 @@ export function useOutputSettings(
     const defaultName = defaultPath.split(/[\\/]/).pop() || "video_synthesized.mp4";
     const timer = setTimeout(() => {
       setOutputFilename(defaultName);
-      setOutputDir(nextDir);
+      setOutputDirState(nextDir);
     }, 0);
     return () => clearTimeout(timer);
   }, [isOpen, persistedPreferences.lastOutputDir, videoPath]);

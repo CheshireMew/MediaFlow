@@ -6,6 +6,7 @@
     "translate",
     "pipeline",
     "synthesis",
+    "clip_export",
     "enhancement",
     "cleanup",
     "extract"
@@ -17,6 +18,7 @@
     "translate",
     "pipeline",
     "synthesis",
+    "clip_export",
     "extract"
   ],
   "experimental_task_types": {

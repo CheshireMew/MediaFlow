@@ -514,7 +514,9 @@ describe("editor subtitle behaviors", () => {
   });
 
   test("crop starts from the full frame until the user adjusts it", () => {
-    const { result } = renderHook(() => useCrop());
+    const { result } = renderHook(() =>
+      useCrop(true, DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES),
+    );
 
     expect(result.current.isEnabled).toBe(false);
     expect(result.current.crop).toEqual({ x: 0, y: 0, w: 1, h: 1 });

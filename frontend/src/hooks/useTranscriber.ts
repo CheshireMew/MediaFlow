@@ -13,7 +13,9 @@ import {
 import {
   persistStoredAsrExecutionPreferences,
   restoreStoredAsrExecutionPreferences,
+  type AsrExecutionPreferences,
 } from "../services/persistence/asrExecutionPreferences";
+import { subscribeUiStateSettingsInitialized } from "../services/persistence/uiStateSettings";
 import { useTranscriberNavigation } from "./transcriber/useTranscriberNavigation";
 import { useTranscriberCommands } from "./transcriber/useTranscriberCommands";
 import { useTranscriberTaskSync } from "./transcriber/useTranscriberTaskSync";
@@ -30,13 +32,13 @@ export function useTranscriber() {
   const { executionMode, setExecutionMode } = useExecutionModeState("transcriber");
 
   // Settings
-  const [model, setModel] = useState(
+  const [model, setModelState] = useState(
     () => restoreStoredAsrExecutionPreferences().model,
   );
-  const [device, setDevice] = useState(
+  const [device, setDeviceState] = useState(
     () => restoreStoredAsrExecutionPreferences().device,
   );
-  const [engine, setEngine] = useState<"builtin" | "cli">(
+  const [engine, setEngineState] = useState<"builtin" | "cli">(
     () => restoreStoredAsrExecutionPreferences().engine,
   );
 
@@ -58,12 +60,35 @@ export function useTranscriber() {
   });
 
   useEffect(() => {
-    persistStoredAsrExecutionPreferences({
-      engine,
-      model,
-      device,
+    return subscribeUiStateSettingsInitialized(() => {
+      const preferences = restoreStoredAsrExecutionPreferences();
+      setEngineState(preferences.engine);
+      setModelState(preferences.model);
+      setDeviceState(preferences.device);
     });
-  }, [device, engine, model]);
+  }, []);
+
+  const persistAsrPreferenceUpdate = (updates: Partial<AsrExecutionPreferences>) => {
+    persistStoredAsrExecutionPreferences({
+      ...restoreStoredAsrExecutionPreferences(),
+      ...updates,
+    });
+  };
+
+  const setEngine = (value: "builtin" | "cli") => {
+    setEngineState(value);
+    persistAsrPreferenceUpdate({ engine: value });
+  };
+
+  const setModel = (value: string) => {
+    setModelState(value);
+    persistAsrPreferenceUpdate({ model: value });
+  };
+
+  const setDevice = (value: string) => {
+    setDeviceState(value);
+    persistAsrPreferenceUpdate({ device: value });
+  };
 
   useEffect(() => {
     if (engine !== "cli") {

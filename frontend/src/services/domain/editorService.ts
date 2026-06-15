@@ -1,14 +1,18 @@
 import { requireExecutionMediaReference } from "./executionPayload";
 import type { MediaReference } from "../ui/mediaReference";
 import type {
+  ClipExportRequest,
   EditorPreviewMediaResponse,
+  HighlightDetectionRequest,
+  HighlightDetectionResponse,
   ImagePreviewResponse,
   MediaVisibleStartResponse,
   TranscribeSegmentResponse,
   TranslateRequest,
   TranslateResponse,
 } from "../../types/api";
-import { executeBackendDirectCall } from "./executionExecutor";
+import { executeBackendDirectCall, executeTaskSubmission } from "./executionExecutor";
+import type { ExecutionOutcome } from "./taskSubmission";
 import {
   ensureAiTranslationConfigured,
   ensureCliTranscriptionConfigured,
@@ -90,6 +94,40 @@ export const editorService = {
       backendCall: (normalizedPayload) =>
         import("../../api/client").then(({ apiClient }) =>
           apiClient.resolveEditorPreviewMediaSource(normalizedPayload),
+        ),
+    });
+  },
+
+  async detectHighlightCandidates(
+    payload: HighlightDetectionRequest,
+  ): Promise<HighlightDetectionResponse> {
+    await ensureAiTranslationConfigured();
+
+    return await executeBackendDirectCall({
+      payload,
+      normalizePayload: (nextPayload) => ({
+        ...nextPayload,
+        video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
+      }),
+      backendCall: (normalizedPayload) =>
+        import("../../api/client").then(({ apiClient }) =>
+          apiClient.detectHighlightCandidates(normalizedPayload),
+        ),
+    });
+  },
+
+  async exportClipSegments(
+    payload: ClipExportRequest,
+  ): Promise<ExecutionOutcome> {
+    return await executeTaskSubmission({
+      payload,
+      normalizePayload: (nextPayload) => ({
+        ...nextPayload,
+        video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
+      }),
+      backendSubmit: (normalizedPayload) =>
+        import("../../api/client").then(({ apiClient }) =>
+          apiClient.exportClipSegments(normalizedPayload),
         ),
     });
   },

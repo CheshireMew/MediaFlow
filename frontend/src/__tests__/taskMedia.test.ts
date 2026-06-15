@@ -215,6 +215,7 @@ describe("taskMedia", () => {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-synthesis-output",
       type: "synthesis",
+      primary_operation: "synthesis",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
@@ -231,6 +232,36 @@ describe("taskMedia", () => {
       outputPath: "E:/renders/source_synthesized.mp4",
       videoPath: "E:/renders/source_synthesized.mp4",
     });
+  });
+
+  it("keeps synthesis output video ahead of an incorrectly output-role subtitle artifact", async () => {
+    const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
+      id: "task-synthesis-subtitle-output",
+      type: "synthesis",
+      primary_operation: "synthesis",
+      status: "completed",
+      progress: 100,
+      created_at: Date.now(),
+      request_params: {},
+      artifacts: [
+        artifact("video", "input", "E:/source/source.mp4", "source.mp4"),
+        artifact("subtitle", "output", "E:/source/source.srt", "source.srt"),
+        artifact("video", "output", "E:/renders/source_synthesized.mp4", "source_synthesized.mp4"),
+      ],
+    };
+
+    await expect(resolveTaskOutputPath(task)).resolves.toBe("E:/renders/source_synthesized.mp4");
+    await expect(resolveTaskMediaReferences(task)).resolves.toMatchObject({
+      outputRef: {
+        path: "E:/renders/source_synthesized.mp4",
+      },
+      outputPath: "E:/renders/source_synthesized.mp4",
+    });
+    expect(getTaskMediaCandidates(task).output).toEqual([
+      "E:/renders/source_synthesized.mp4",
+      "E:/source/source.srt",
+    ]);
   });
 
   it("does not prioritize stale path fields when structured subtitle refs exist", () => {

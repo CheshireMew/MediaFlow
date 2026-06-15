@@ -30,6 +30,11 @@ const preferences: SynthesisExecutionPreferences = {
     wmScale: 0.2,
     wmOpacity: 0.8,
     wmPos: { x: 0.5, y: 0.5 },
+    hasCustomLayout: false,
+  },
+  crop: {
+    isEnabled: false,
+    crop: { x: 0, y: 0, w: 1, h: 1 },
   },
 };
 
@@ -73,5 +78,11 @@ describe("buildSynthesisOptionsFromPreferences", () => {
     });
 
     expect(options.trim_start).toBe(0.0349609);
+  });
+
+  it("uses original resolution when no dialog override is provided", () => {
+    const options = buildSynthesisOptionsFromPreferences(preferences);
+
+    expect(options.target_resolution).toBe("original");
   });
 });

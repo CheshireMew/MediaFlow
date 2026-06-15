@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   persistEditorPlaybackRate,
   persistEditorPlaybackTime,
@@ -15,6 +15,36 @@ export function useEditorPlaybackPersistence({
   currentFilePath,
   videoRef,
 }: UseEditorPlaybackPersistenceArgs) {
+  const playbackRateCleanupRef = useRef<(() => void) | null>(null);
+  const playbackRateVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  const bindPlaybackRatePersistence = useCallback((video: HTMLVideoElement) => {
+    if (playbackRateVideoRef.current === video) {
+      return;
+    }
+
+    playbackRateCleanupRef.current?.();
+    playbackRateVideoRef.current = video;
+
+    const savedRate = restoreEditorPlaybackRate();
+    if (Number.isFinite(savedRate) && savedRate > 0 && video.playbackRate !== savedRate) {
+      video.playbackRate = savedRate;
+    }
+
+    const saveRate = () => {
+      persistEditorPlaybackRate(video.playbackRate);
+    };
+
+    video.addEventListener("ratechange", saveRate);
+    playbackRateCleanupRef.current = () => {
+      saveRate();
+      video.removeEventListener("ratechange", saveRate);
+      if (playbackRateVideoRef.current === video) {
+        playbackRateVideoRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !currentFilePath) {
@@ -39,26 +69,15 @@ export function useEditorPlaybackPersistence({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) {
-      return;
+    if (video) {
+      bindPlaybackRatePersistence(video);
     }
-
-    const savedRate = restoreEditorPlaybackRate();
-    if (Number.isFinite(savedRate) && savedRate > 0 && video.playbackRate !== savedRate) {
-      video.playbackRate = savedRate;
-    }
-
-    const saveRate = () => {
-      persistEditorPlaybackRate(video.playbackRate);
-    };
-
-    video.addEventListener("ratechange", saveRate);
 
     return () => {
-      saveRate();
-      video.removeEventListener("ratechange", saveRate);
+      playbackRateCleanupRef.current?.();
+      playbackRateCleanupRef.current = null;
     };
-  }, [currentFilePath, videoRef]);
+  }, [bindPlaybackRatePersistence, videoRef]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (!currentFilePath || !videoRef.current) {
@@ -73,6 +92,7 @@ export function useEditorPlaybackPersistence({
     ) {
       videoRef.current.playbackRate = savedRate;
     }
+    bindPlaybackRatePersistence(videoRef.current);
 
     const savedTime = restoreEditorPlaybackTime(currentFilePath);
     if (!savedTime) {
@@ -83,7 +103,7 @@ export function useEditorPlaybackPersistence({
     if (!isNaN(time) && time > 0 && time < videoRef.current.duration) {
       videoRef.current.currentTime = time;
     }
-  }, [currentFilePath, videoRef]);
+  }, [bindPlaybackRatePersistence, currentFilePath, videoRef]);
 
   return { handleLoadedMetadata };
 }

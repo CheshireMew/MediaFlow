@@ -13,14 +13,29 @@ const firstArtifactRef = (
   predicate: (artifact: TaskArtifact) => boolean,
 ): MediaReference | null => artifactsOf(task).find(predicate)?.ref ?? null;
 
+const firstSortedArtifactRef = (
+  task: TaskWithDetails,
+  predicate: (artifact: TaskArtifact) => boolean,
+): MediaReference | null => sortedArtifacts(task, predicate)[0]?.ref ?? null;
+
 const artifactPaths = (
+  task: TaskWithDetails,
+  predicate: (artifact: TaskArtifact) => boolean,
+) =>
+  sortedArtifacts(task, predicate)
+    .map((artifact) => artifact.ref.path);
+
+const sortedArtifacts = (
   task: TaskWithDetails,
   predicate: (artifact: TaskArtifact) => boolean,
 ) =>
   artifactsOf(task)
     .filter(predicate)
-    .sort((left, right) => rolePriority(left.role) - rolePriority(right.role))
-    .map((artifact) => artifact.ref.path);
+    .sort(
+      (left, right) =>
+        rolePriority(left.role) - rolePriority(right.role) ||
+        outputKindPriority(task, left) - outputKindPriority(task, right),
+    );
 
 const rolePriority = (role: TaskArtifact["role"]) => {
   switch (role) {
@@ -35,6 +50,45 @@ const rolePriority = (role: TaskArtifact["role"]) => {
   }
 };
 
+const outputKindPriority = (task: TaskWithDetails, artifact: TaskArtifact) => {
+  if (artifact.role !== "output") {
+    return fallbackKindPriority(artifact.kind);
+  }
+
+  const operation = task.primary_operation ?? task.type;
+  switch (operation) {
+    case "synthesis":
+    case "clip_export":
+    case "enhancement":
+    case "cleanup":
+      return artifact.kind === "video" ? 0 : fallbackKindPriority(artifact.kind) + 1;
+    case "transcribe":
+    case "translate":
+      return artifact.kind === "subtitle" ? 0 : fallbackKindPriority(artifact.kind) + 1;
+    case "download":
+      if (artifact.kind === "video") return 0;
+      if (artifact.kind === "audio") return 1;
+      return fallbackKindPriority(artifact.kind) + 1;
+    default:
+      return fallbackKindPriority(artifact.kind);
+  }
+};
+
+const fallbackKindPriority = (kind: TaskArtifact["kind"]) => {
+  switch (kind) {
+    case "video":
+      return 0;
+    case "audio":
+      return 1;
+    case "subtitle":
+      return 2;
+    case "image":
+      return 3;
+    default:
+      return 4;
+  }
+};
+
 export function getTaskStructuredMediaRefs(task: TaskWithDetails) {
   return {
     videoRef:
@@ -46,7 +100,7 @@ export function getTaskStructuredMediaRefs(task: TaskWithDetails) {
     contextRef:
       firstArtifactRef(task, (artifact) => artifact.role === "context"),
     outputRef:
-      firstArtifactRef(task, (artifact) => artifact.role === "output"),
+      firstSortedArtifactRef(task, (artifact) => artifact.role === "output"),
   };
 }
 

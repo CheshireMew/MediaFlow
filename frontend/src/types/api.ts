@@ -6,7 +6,7 @@
  * frontend-only option bags that do not exist as backend Pydantic models.
  */
 
-import type { SubtitleSegment } from "./task";
+import type { ClipCandidate, SubtitleSegment } from "./task";
 import type { TaskResultShape } from "../contracts/taskContract";
 import type { TranslationTargetLanguage } from "../services/domain/translationTargetLanguages";
 import type {
@@ -163,6 +163,37 @@ export interface EditorPreviewMediaResponse {
   source_ref: MediaReference;
   media_ref: MediaReference;
   remuxed: boolean;
+}
+
+export interface HighlightDetectionRequest {
+  video_ref: MediaReference;
+  subtitle_segments?: SubtitleSegment[];
+  max_candidates?: number;
+  min_duration?: number;
+  max_duration?: number;
+}
+
+export interface HighlightDetectionResponse {
+  candidates: ClipCandidate[];
+  source: "llm";
+  duration: number;
+}
+
+export interface ClipExportSegment {
+  id: string;
+  start: number;
+  end: number;
+  title?: string | null;
+}
+
+export interface ClipExportRequest {
+  video_ref: MediaReference;
+  segments: ClipExportSegment[];
+  render_mode?: "burned" | "source";
+  srt_ref?: MediaReference | null;
+  watermark_path?: string | null;
+  options?: SynthesizeOptions | null;
+  output_dir?: string | null;
 }
 
 export interface SynthesizeOptions {

@@ -225,6 +225,57 @@ describe("TaskMonitor navigation actions", () => {
     });
   });
 
+  it("opens the synthesized video folder when subtitle artifacts also have output role", async () => {
+    const electronMock = installElectronMock({
+      getFileSize: vi.fn(async (targetPath: string) => {
+        if (targetPath === "E:/renders/source_synthesized.mp4" || targetPath === "E:/source/source.srt") {
+          return 1024;
+        }
+        throw new Error(`Missing file: ${targetPath}`);
+      }),
+    });
+    useTaskContextMock.mockReturnValue({
+      tasks: [
+        {
+          ...BACKEND_TASK_CONTRACT_FIELDS,
+          id: "task-synthesis-folder",
+          type: "synthesis",
+          primary_operation: "synthesis",
+          status: "completed",
+          progress: 100,
+          name: "Synthesize source.mp4",
+          message: "Synthesis completed",
+          created_at: Date.now(),
+          request_params: {},
+          result: { success: true, meta: {} },
+          artifacts: [
+            artifact("video", "input", "E:/source/source.mp4", "source.mp4"),
+            artifact("subtitle", "output", "E:/source/source.srt", "source.srt"),
+            artifact("video", "output", "E:/renders/source_synthesized.mp4", "source_synthesized.mp4"),
+          ],
+        },
+      ],
+      connected: true,
+      remoteTasksReady: true,
+      tasksSettled: true,
+      pauseAllTasks: vi.fn(),
+      pauseTask: vi.fn(),
+      resumeTask: vi.fn(),
+      addTask: vi.fn(),
+      deleteTask: vi.fn(),
+      clearTasks: vi.fn(),
+    });
+
+    render(<TaskMonitor />);
+
+    fireEvent.click(screen.getByTitle("actions.showFolder.tooltip"));
+
+    await waitFor(() => {
+      expect(electronMock.showInExplorer).toHaveBeenCalledWith("E:/renders/source_synthesized.mp4");
+    });
+    expect(electronMock.showInExplorer).not.toHaveBeenCalledWith("E:/source/source.srt");
+  });
+
   it("prefers an existing resolved media path over stale task memory when navigating", async () => {
     const dispatchSpy = vi.spyOn(window, "dispatchEvent");
 

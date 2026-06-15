@@ -26,6 +26,9 @@ export type {
   CudaReadinessResponse,
   EditorPreviewMediaRequest,
   EditorPreviewMediaResponse,
+  HighlightDetectionRequest,
+  HighlightDetectionResponse,
+  ClipExportRequest,
   ImagePreviewResponse,
   MediaVisibleStartRequest,
   MediaVisibleStartResponse,
@@ -64,6 +67,9 @@ import type {
   CudaReadinessResponse,
   EditorPreviewMediaRequest,
   EditorPreviewMediaResponse,
+  HighlightDetectionRequest,
+  HighlightDetectionResponse,
+  ClipExportRequest,
   ImagePreviewResponse,
   MediaVisibleStartRequest,
   MediaVisibleStartResponse,
@@ -377,6 +383,20 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(payload),
     }, 300_000);
+  },
+
+  detectHighlightCandidates: (payload: HighlightDetectionRequest) => {
+    return request<HighlightDetectionResponse>("/editor/highlights/detect", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }, 300_000);
+  },
+
+  exportClipSegments: (payload: ClipExportRequest) => {
+    return request<TaskResponse>("/editor/clips/export", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
   // ─── Preprocessing ───────────────────────────────────────────────

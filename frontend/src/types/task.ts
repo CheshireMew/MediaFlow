@@ -24,6 +24,17 @@ export interface SubtitleSegment {
   text: string;
 }
 
+export interface ClipCandidate {
+  id: string;
+  start: number;
+  end: number;
+  title?: string | null;
+  reason?: string | null;
+  score: number;
+  transcript?: string | null;
+  selected: boolean;
+}
+
 export type TaskStep = PipelineRequest["steps"][number];
 
 export type { FileRef, TaskMediaRef, TaskTraceItem };

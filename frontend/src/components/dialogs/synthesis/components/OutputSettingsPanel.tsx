@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonitorPlay, Zap, Cpu } from 'lucide-react';
-import type { OutputSettingsState } from '../hooks/useOutputSettings';
+import type { OutputSettingsState, SynthesisTargetResolution } from '../hooks/useOutputSettings';
 
 interface Props {
     output: OutputSettingsState;
@@ -61,13 +61,13 @@ export const OutputSettingsPanel: React.FC<Props> = ({ output }) => {
                         <MonitorPlay size={12} className="text-indigo-400"/> {t('output.resolution')}
                     </label>
                     <div className="grid grid-cols-5 gap-1.5">
-                        {[
+                        {([
                             { id: "original", label: t('output.original') },
                             { id: "720p", label: "720p (HD)" },
                             { id: "1080p", label: "1080p" },
                             { id: "sr_2x", label: "⚡ " + t('output.sr2x') },
                             { id: "sr_4x", label: "⚡ " + t('output.sr4x') },
-                        ].map((opt) => (
+                        ] satisfies Array<{ id: SynthesisTargetResolution; label: string }>).map((opt) => (
                             <button
                                 key={opt.id}
                                 onClick={() => output.setTargetResolution(opt.id)}
