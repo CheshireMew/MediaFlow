@@ -3,6 +3,7 @@ import {
   restoreStoredSynthesisExecutionPreferences,
   updateStoredSynthesisExecutionPreferences,
 } from "../services/persistence/synthesisExecutionPreferences";
+import { writeUiStateValue } from "../services/persistence/uiStateSettings";
 
 describe("synthesisExecutionPreferences", () => {
   beforeEach(() => {
@@ -29,10 +30,6 @@ describe("synthesisExecutionPreferences", () => {
         wmPos: { x: 0.5, y: 0.5 },
         hasCustomLayout: false,
       },
-      crop: {
-        isEnabled: false,
-        crop: { x: 0, y: 0, w: 1, h: 1 },
-      },
     });
     expect(localStorage.getItem("synthesis_execution_preferences")).toBeNull();
   });
@@ -48,10 +45,6 @@ describe("synthesisExecutionPreferences", () => {
       watermark: {
         wmOpacity: 0.4,
       },
-      crop: {
-        isEnabled: true,
-        crop: { x: 0.1, y: 0.2, w: 0.7, h: 0.6 },
-      },
     });
 
     const preferences = restoreStoredSynthesisExecutionPreferences();
@@ -61,9 +54,31 @@ describe("synthesisExecutionPreferences", () => {
     expect(preferences.subtitleStyle.fontName).toBe("Arial");
     expect(preferences.watermark.wmOpacity).toBe(0.4);
     expect(preferences.watermark.wmScale).toBe(0.2);
-    expect(preferences.crop).toEqual({
-      isEnabled: true,
-      crop: { x: 0.1, y: 0.2, w: 0.7, h: 0.6 },
-    });
+    expect("crop" in preferences).toBe(false);
+  });
+
+  it("ignores crop values from older unified snapshots", () => {
+    writeUiStateValue(
+      "synthesis_execution_preferences",
+      JSON.stringify({
+        schema_version: 1,
+        payload: {
+          subtitleEnabled: true,
+          watermarkEnabled: true,
+          quality: "small",
+          useGpu: true,
+          lastOutputDir: null,
+          crop: {
+            isEnabled: true,
+            crop: { x: 0.1, y: 0.2, w: 0.7, h: 0.6 },
+          },
+        },
+      }),
+    );
+
+    const preferences = restoreStoredSynthesisExecutionPreferences();
+
+    expect(preferences.quality).toBe("small");
+    expect("crop" in preferences).toBe(false);
   });
 });

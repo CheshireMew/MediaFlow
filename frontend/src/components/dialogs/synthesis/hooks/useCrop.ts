@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import {
-  updateStoredSynthesisExecutionPreferences,
-  type SynthesisExecutionPreferences,
-} from "../../../../services/persistence/synthesisExecutionPreferences";
+import { useEffect, useState } from "react";
+
+const DEFAULT_CROP = { x: 0, y: 0, w: 1, h: 1 };
 
 export interface CropState {
   isEnabled: boolean;
@@ -14,36 +12,22 @@ export interface CropState {
 
 export function useCrop(
   isOpen: boolean,
-  persistedPreferences: SynthesisExecutionPreferences,
+  videoPath?: string | null,
 ): CropState {
-  const [isEnabled, setIsEnabled] = useState(() => persistedPreferences.crop.isEnabled);
-  const [crop, setCrop] = useState(() => persistedPreferences.crop.crop);
-  const isInitialized = useRef(false);
+  const [isEnabled, setIsEnabled] = useState(false);
+  const [crop, setCrop] = useState(DEFAULT_CROP);
 
   useEffect(() => {
     if (!isOpen) {
-      isInitialized.current = false;
       return;
     }
 
-    isInitialized.current = false;
     const timer = setTimeout(() => {
-      setIsEnabled(persistedPreferences.crop.isEnabled);
-      setCrop(persistedPreferences.crop.crop);
-      isInitialized.current = true;
+      setIsEnabled(false);
+      setCrop(DEFAULT_CROP);
     }, 0);
     return () => clearTimeout(timer);
-  }, [isOpen, persistedPreferences]);
-
-  useEffect(() => {
-    if (!isInitialized.current) return;
-    updateStoredSynthesisExecutionPreferences({
-      crop: {
-        isEnabled,
-        crop,
-      },
-    });
-  }, [crop, isEnabled, isInitialized]);
+  }, [isOpen, videoPath]);
 
   return {
     isEnabled,

@@ -32,10 +32,6 @@ const preferences: SynthesisExecutionPreferences = {
     wmPos: { x: 0.5, y: 0.5 },
     hasCustomLayout: false,
   },
-  crop: {
-    isEnabled: false,
-    crop: { x: 0, y: 0, w: 1, h: 1 },
-  },
 };
 
 describe("buildSynthesisOptionsFromPreferences", () => {

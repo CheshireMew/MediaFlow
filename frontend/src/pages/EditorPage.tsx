@@ -304,7 +304,6 @@ export function EditorPage() {
       const renderOptions =
         renderMode === "burned"
           ? buildSynthesisOptionsFromPreferences(synthesisPreferences, {
-              crop: synthesisPreferences.crop.isEnabled ? synthesisPreferences.crop.crop : null,
               videoSize: videoElement
                 ? {
                     w: videoElement.videoWidth,

@@ -515,8 +515,33 @@ describe("editor subtitle behaviors", () => {
 
   test("crop starts from the full frame until the user adjusts it", () => {
     const { result } = renderHook(() =>
-      useCrop(true, DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES),
+      useCrop(true, "E:/video-a.mp4"),
     );
+
+    expect(result.current.isEnabled).toBe(false);
+    expect(result.current.crop).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+  });
+
+  test("crop resets instead of restoring stale values when the video changes", async () => {
+    const { result, rerender } = renderHook(
+      ({ videoPath }) => useCrop(true, videoPath),
+      { initialProps: { videoPath: "E:/video-a.mp4" } },
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    act(() => {
+      result.current.setIsEnabled(true);
+      result.current.setCrop({ x: 0.1, y: 0.2, w: 0.7, h: 0.6 });
+    });
+
+    rerender({ videoPath: "E:/video-b.mp4" });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
     expect(result.current.isEnabled).toBe(false);
     expect(result.current.crop).toEqual({ x: 0, y: 0, w: 1, h: 1 });

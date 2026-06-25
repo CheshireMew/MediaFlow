@@ -196,7 +196,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         });
     }, [subtitleEnabled, watermarkEnabled]);
 
-    const crop = useCrop(isOpen, persistedPreferences);
+    const crop = useCrop(isOpen, videoPath);
     const outputViewportMetrics = resolvePreviewViewportMetrics({
         sourceWidth: videoSize.w,
         sourceHeight: videoSize.h,
@@ -269,10 +269,6 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                     wmOpacity: watermark.wmOpacity,
                     wmPos: watermark.wmPos,
                     hasCustomLayout: true,
-                },
-                crop: {
-                    isEnabled: crop.isEnabled,
-                    crop: crop.crop,
                 },
             };
 

@@ -14,11 +14,6 @@ export type SynthesisWatermarkPreferences = {
   hasCustomLayout: boolean;
 };
 
-export type SynthesisCropPreferences = {
-  isEnabled: boolean;
-  crop: { x: number; y: number; w: number; h: number };
-};
-
 export type SynthesisExecutionPreferences = {
   subtitleEnabled: boolean;
   watermarkEnabled: boolean;
@@ -27,15 +22,13 @@ export type SynthesisExecutionPreferences = {
   lastOutputDir: string | null;
   subtitleStyle: SynthesisSubtitleStylePreferences;
   watermark: SynthesisWatermarkPreferences;
-  crop: SynthesisCropPreferences;
 };
 
 export type SynthesisExecutionPreferencesUpdate = Partial<
-  Omit<SynthesisExecutionPreferences, "subtitleStyle" | "watermark" | "crop">
+  Omit<SynthesisExecutionPreferences, "subtitleStyle" | "watermark">
 > & {
   subtitleStyle?: Partial<SynthesisSubtitleStylePreferences>;
   watermark?: Partial<SynthesisWatermarkPreferences>;
-  crop?: Partial<SynthesisCropPreferences>;
 };
 
 const SYNTHESIS_EXECUTION_PREFERENCES_KEY = "synthesis_execution_preferences";
@@ -71,19 +64,10 @@ export const DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES: SynthesisExecutionPreferen
     wmPos: { x: 0.5, y: 0.5 },
     hasCustomLayout: false,
   },
-  crop: {
-    isEnabled: false,
-    crop: { x: 0, y: 0, w: 1, h: 1 },
-  },
 };
 
 function finiteNumber(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function unitIntervalNumber(value: unknown, fallback: number) {
-  const nextValue = finiteNumber(value, fallback);
-  return Math.max(0, Math.min(1, nextValue));
 }
 
 function nonEmptyString(value: unknown, fallback: string) {
@@ -151,27 +135,6 @@ function normalizeWatermarkPreferences(
   };
 }
 
-function normalizeCropPreferences(
-  payload: Partial<SynthesisCropPreferences> | null | undefined,
-): SynthesisCropPreferences {
-  const defaults = DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES.crop;
-  const crop = {
-    x: unitIntervalNumber(payload?.crop?.x, defaults.crop.x),
-    y: unitIntervalNumber(payload?.crop?.y, defaults.crop.y),
-    w: unitIntervalNumber(payload?.crop?.w, defaults.crop.w),
-    h: unitIntervalNumber(payload?.crop?.h, defaults.crop.h),
-  };
-
-  return {
-    isEnabled: typeof payload?.isEnabled === "boolean" ? payload.isEnabled : defaults.isEnabled,
-    crop: {
-      ...crop,
-      w: crop.w > 0 ? crop.w : defaults.crop.w,
-      h: crop.h > 0 ? crop.h : defaults.crop.h,
-    },
-  };
-}
-
 function normalizeSynthesisExecutionPreferences(
   payload: Partial<SynthesisExecutionPreferences> | null | undefined,
 ): SynthesisExecutionPreferences {
@@ -191,7 +154,6 @@ function normalizeSynthesisExecutionPreferences(
     lastOutputDir: typeof payload?.lastOutputDir === "string" ? payload.lastOutputDir : null,
     subtitleStyle: normalizeSubtitleStylePreferences(payload?.subtitleStyle),
     watermark: normalizeWatermarkPreferences(payload?.watermark),
-    crop: normalizeCropPreferences(payload?.crop),
   };
 }
 
@@ -235,12 +197,6 @@ export function mergeSynthesisExecutionPreferences(
           ...updates.watermark,
         }
       : currentPreferences.watermark,
-    crop: updates.crop
-      ? {
-          ...currentPreferences.crop,
-          ...updates.crop,
-        }
-      : currentPreferences.crop,
   });
 }
 
