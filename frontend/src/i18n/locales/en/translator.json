@@ -27,7 +27,9 @@
     "noSourceSegment": "Extra target segment created by smart split"
   },
   "contextMenu": {
-    "openSubtitleFolder": "Open subtitle folder"
+    "openSubtitleFolder": "Open subtitle folder",
+    "openSourceSubtitleFolder": "Open source subtitle folder",
+    "openTargetSubtitleFolder": "Open translated subtitle folder"
   },
   "languages": {
     "SimplifiedChinese": "Simplified Chinese",

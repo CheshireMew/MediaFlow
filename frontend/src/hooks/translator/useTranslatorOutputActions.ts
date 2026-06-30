@@ -7,7 +7,10 @@ import {
   createNavigationMediaPayload,
   NavigationService,
 } from "../../services/ui/navigation";
-import type { MediaReference } from "../../services/ui/mediaReference";
+import {
+  normalizeMediaReference,
+  type MediaReference,
+} from "../../services/ui/mediaReference";
 import {
   buildTranslatorOutputPath,
   formatTranslatorTimestamp,
@@ -33,7 +36,14 @@ export function createTranslatorEditorNavigationPayload(params: {
 }
 
 export function useTranslatorOutputActions() {
-  const { sourceFilePath, targetSubtitleRef, targetLang, mode, targetSegments } = useTranslatorStore();
+  const {
+    sourceFilePath,
+    targetSubtitleRef,
+    targetLang,
+    mode,
+    targetSegments,
+    setTargetSubtitleRef,
+  } = useTranslatorStore();
 
   const exportSRT = useCallback(async () => {
     if (!sourceFilePath || !isDesktopRuntime()) return;
@@ -67,11 +77,20 @@ export function useTranslatorOutputActions() {
       if (didWrite === false) {
         throw new Error(`Failed to write subtitle file: ${savePath.filePath}`);
       }
+
+      setTargetSubtitleRef(
+        normalizeMediaReference(savePath.filePath, {
+          type: savePath.filePath.toLowerCase().endsWith(".txt")
+            ? "text/plain"
+            : "application/x-subrip",
+          origin: "translator-export",
+        }),
+      );
     } catch (error) {
       console.error(error);
       alert("Failed to save file: " + error);
     }
-  }, [mode, sourceFilePath, targetLang, targetSegments]);
+  }, [mode, setTargetSubtitleRef, sourceFilePath, targetLang, targetSegments]);
 
   const handleOpenInEditor = useCallback(async () => {
     if (!sourceFilePath || targetSegments.length === 0 || !isDesktopRuntime()) {
@@ -112,16 +131,24 @@ export function useTranslatorOutputActions() {
       return;
     }
 
+    const resolvedTargetSubtitleRef =
+      targetSubtitleRef ??
+      normalizeMediaReference(targetSrtPath, {
+        type: "application/x-subrip",
+        origin: "translator-editor-autosave",
+      });
+    setTargetSubtitleRef(resolvedTargetSubtitleRef);
+
     const resolvedVideoPath = videoPath || basePath + ".mp4";
     NavigationService.navigate(
       "editor",
       createTranslatorEditorNavigationPayload({
         videoPath: resolvedVideoPath,
         subtitlePath: targetSrtPath,
-        targetSubtitleRef,
+        targetSubtitleRef: resolvedTargetSubtitleRef,
       }),
     );
-  }, [mode, sourceFilePath, targetLang, targetSegments, targetSubtitleRef]);
+  }, [mode, setTargetSubtitleRef, sourceFilePath, targetLang, targetSegments, targetSubtitleRef]);
 
   return {
     exportSRT,

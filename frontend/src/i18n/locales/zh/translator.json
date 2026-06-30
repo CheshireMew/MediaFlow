@@ -27,7 +27,9 @@
     "noSourceSegment": "智能分割生成的新增目标段"
   },
   "contextMenu": {
-    "openSubtitleFolder": "打开字幕所在文件夹"
+    "openSubtitleFolder": "打开字幕所在文件夹",
+    "openSourceSubtitleFolder": "打开源语言字幕所在文件夹",
+    "openTargetSubtitleFolder": "打开译文字幕所在文件夹"
   },
   "languages": {
     "SimplifiedChinese": "简体中文",

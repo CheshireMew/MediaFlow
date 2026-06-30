@@ -2,8 +2,10 @@ import { FileUploader } from './FileUploader';
 import type { SubtitleSegment } from '../../types/task';
 import { Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { CSSProperties } from 'react';
-import { SubtitleFileContextMenu } from '../ui/SubtitleFileContextMenu';
+import { useCallback, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
+import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
+import { createOpenSubtitleFolderMenuItem } from '../ui/SubtitleFileContextMenu';
+import { isDesktopRuntime } from '../../services/desktop';
 
 type ContentSizingStyle = CSSProperties & {
     fieldSizing: 'content';
@@ -14,7 +16,8 @@ interface SegmentsTableProps {
     targetSegments: SubtitleSegment[];
     onUpdateTarget: (index: number, text: string) => void;
     onFileSelect: (path: string) => void;
-    subtitlePath?: string | null;
+    sourceSubtitlePath?: string | null;
+    targetSubtitlePath?: string | null;
 }
 
 const formatTime = (seconds: number) => {
@@ -28,16 +31,61 @@ const formatTime = (seconds: number) => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
-export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, onFileSelect, subtitlePath }: SegmentsTableProps) => {
+type SubtitleColumnMenuState = {
+    position: { x: number; y: number };
+    label: string;
+    subtitlePath: string;
+};
+
+export const SegmentsTable = ({
+    sourceSegments,
+    targetSegments,
+    onUpdateTarget,
+    onFileSelect,
+    sourceSubtitlePath,
+    targetSubtitlePath,
+}: SegmentsTableProps) => {
     const { t } = useTranslation('translator');
     const contentSizingStyle: ContentSizingStyle = { fieldSizing: 'content' };
     const rowCount = Math.max(sourceSegments.length, targetSegments.length);
+    const [subtitleColumnMenu, setSubtitleColumnMenu] = useState<SubtitleColumnMenuState | null>(null);
+    const menuItems = useMemo<ContextMenuItem[]>(
+        () =>
+            subtitleColumnMenu
+                ? [
+                    createOpenSubtitleFolderMenuItem({
+                        label: subtitleColumnMenu.label,
+                        subtitlePath: subtitleColumnMenu.subtitlePath,
+                    }),
+                ]
+                : [],
+        [subtitleColumnMenu],
+    );
+    const handleSubtitleColumnContextMenu = useCallback(
+        (
+            event: MouseEvent<HTMLDivElement>,
+            params: {
+                label: string;
+                subtitlePath?: string | null;
+            },
+        ) => {
+            if (!params.subtitlePath || !isDesktopRuntime()) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            setSubtitleColumnMenu({
+                position: { x: event.clientX, y: event.clientY },
+                label: params.label,
+                subtitlePath: params.subtitlePath,
+            });
+        },
+        [],
+    );
+
     return (
-        <SubtitleFileContextMenu
-            className="flex-1 overflow-y-auto min-h-0 relative scroll-smooth custom-scrollbar bg-black/20"
-            subtitlePath={subtitlePath}
-            openFolderLabel={t('contextMenu.openSubtitleFolder')}
-        >
+        <div className="flex-1 overflow-y-auto min-h-0 relative scroll-smooth custom-scrollbar bg-black/20">
             {sourceSegments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full p-10">
                     <div className="max-w-md w-full">
@@ -53,7 +101,15 @@ export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, 
                         return (
                             <div key={`${srcSeg?.id ?? 'missing-src'}-${tgtSeg?.id ?? 'missing-tgt'}-${index}`} className="grid grid-cols-2 group hover:bg-white/[0.02] transition-colors">
                                 {/* Source Column */}
-                                <div className="p-4 border-r border-white/5 min-w-0 flex flex-col gap-2">
+                                <div
+                                    className="p-4 border-r border-white/5 min-w-0 flex flex-col gap-2"
+                                    onContextMenu={(event) =>
+                                        handleSubtitleColumnContextMenu(event, {
+                                            label: t('contextMenu.openSourceSubtitleFolder'),
+                                            subtitlePath: sourceSubtitlePath,
+                                        })
+                                    }
+                                >
                                     {srcSeg ? (
                                         <>
                                             <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono select-none">
@@ -75,7 +131,15 @@ export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, 
                                 </div>
 
                                 {/* Target Column */}
-                                <div className="p-4 min-w-0 bg-indigo-500/[0.01] relative group/edit">
+                                <div
+                                    className="p-4 min-w-0 bg-indigo-500/[0.01] relative group/edit"
+                                    onContextMenu={(event) =>
+                                        handleSubtitleColumnContextMenu(event, {
+                                            label: t('contextMenu.openTargetSubtitleFolder'),
+                                            subtitlePath: targetSubtitlePath,
+                                        })
+                                    }
+                                >
                                     {tgtSeg ? (
                                         <>
                                             <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono mb-2 opacity-0 group-hover/edit:opacity-100 transition-opacity select-none absolute top-4 right-4 gap-2">
@@ -118,6 +182,11 @@ export const SegmentsTable = ({ sourceSegments, targetSegments, onUpdateTarget, 
                     })}
                 </div>
             )}
-        </SubtitleFileContextMenu>
+            <ContextMenu
+                items={menuItems}
+                position={subtitleColumnMenu?.position ?? null}
+                onClose={() => setSubtitleColumnMenu(null)}
+            />
+        </div>
     );
 };

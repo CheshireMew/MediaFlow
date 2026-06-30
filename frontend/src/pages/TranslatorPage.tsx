@@ -5,16 +5,16 @@ import {
 } from 'lucide-react';
 
 import { useTranslator } from '../hooks/useTranslator';
-import { glossaryService } from '../services/domain';
+import {
+    glossaryService,
+    TRANSLATION_TARGET_LANGUAGES,
+    type TranslationTargetLanguage,
+} from '../services/domain';
 import { fileService } from '../services/fileService';
 import { SegmentsTable } from '../components/translator/SegmentsTable';
 import { Sidebar } from '../components/translator/Sidebar';
 import type { TranslatorMode } from '../hooks/useTranslator';
 import { PageContent, PageHeader, PageShell, ToolbarButton, WorkPanel } from '../components/ui/PageChrome';
-import {
-    TRANSLATION_TARGET_LANGUAGES,
-    type TranslationTargetLanguage,
-} from '../services/domain/translationTargetLanguages';
 
 type ElectronSubtitleFile = {
     path: string;
@@ -220,7 +220,8 @@ export const TranslatorPage = () => {
                     targetSegments={targetSegments}
                     onUpdateTarget={updateTargetSegment}
                     onFileSelect={handleFileUpload}
-                    subtitlePath={targetSubtitlePath ?? sourceFilePath}
+                    sourceSubtitlePath={sourceFilePath}
+                    targetSubtitlePath={targetSubtitlePath}
                  />
                      
                  {/* Loading Overlay */}
