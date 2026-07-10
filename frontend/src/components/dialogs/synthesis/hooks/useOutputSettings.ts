@@ -3,11 +3,13 @@ import { useState, useEffect, useRef } from "react";
 import { fileService } from "../../../../services/fileService";
 import {
   updateStoredSynthesisExecutionPreferences,
+  type SynthesisTargetResolution,
   type SynthesisExecutionPreferences,
 } from "../../../../services/persistence/synthesisExecutionPreferences";
 import { buildSuffixedOutputPath } from "../../../../services/ui/generatedOutputPath";
+import { resolveVideoExportOutputDir } from "../../../../services/domain";
 
-export type SynthesisTargetResolution = "original" | "720p" | "1080p" | "sr_2x" | "sr_4x";
+export type { SynthesisTargetResolution } from "../../../../services/persistence/synthesisExecutionPreferences";
 
 export interface OutputSettingsState {
   quality: "high" | "balanced" | "small";
@@ -33,18 +35,24 @@ export function useOutputSettings(
   isOpen: boolean,
   videoPath: string | null,
   persistedPreferences: SynthesisExecutionPreferences,
+  exportKind: "full-video" | "clips",
 ): OutputSettingsState {
   const [quality, setQualityState] = useState<"high" | "balanced" | "small">(
     () => persistedPreferences.quality,
   );
   const [isQualityMenuOpen, setIsQualityMenuOpen] = useState(false);
-  const [outputFilename, setOutputFilename] = useState("");
-  const [outputDir, setOutputDirState] = useState<string | null>(null);
+  const initialOutput = resolveInitialOutput(
+    videoPath,
+    persistedPreferences.lastOutputDir,
+    exportKind,
+  );
+  const [outputFilename, setOutputFilename] = useState(initialOutput.filename);
+  const [outputDir, setOutputDirState] = useState<string | null>(initialOutput.dir);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
   const [useGpu, setUseGpuState] = useState(() => persistedPreferences.useGpu);
   const [targetResolution, setTargetResolutionState] = useState<SynthesisTargetResolution>(
-    "original",
+    () => resolveInitialTargetResolution(persistedPreferences.targetResolution, exportKind),
   );
   const isInitialized = useRef(false);
 
@@ -58,11 +66,13 @@ export function useOutputSettings(
     const timer = setTimeout(() => {
       setQualityState(persistedPreferences.quality);
       setUseGpuState(persistedPreferences.useGpu);
-      setTargetResolutionState("original");
+      setTargetResolutionState(
+        resolveInitialTargetResolution(persistedPreferences.targetResolution, exportKind),
+      );
       isInitialized.current = true;
     }, 0);
     return () => clearTimeout(timer);
-  }, [isOpen, persistedPreferences]);
+  }, [exportKind, isOpen, persistedPreferences]);
 
   // Reset trim when video changes or dialog opens
   useEffect(() => {
@@ -93,6 +103,8 @@ export function useOutputSettings(
 
   const setTargetResolution = (value: SynthesisTargetResolution) => {
     setTargetResolutionState(value);
+    if (!isOpen || !isInitialized.current) return;
+    updateStoredSynthesisExecutionPreferences({ targetResolution: value });
   };
 
   const setOutputDir = (value: string | null) => {
@@ -104,29 +116,17 @@ export function useOutputSettings(
   useEffect(() => {
     if (!isOpen || !videoPath) return;
 
-    // Filename: default to current filename + _synthesized.mp4
-    const name = videoPath.split(/[\\/]/).pop() || "video.mp4";
-
-    // Directory: last used or current video directory
-    const currentDir = videoPath.substring(
-      0,
-      Math.max(videoPath.lastIndexOf("\\"), videoPath.lastIndexOf("/")),
+    const nextOutput = resolveInitialOutput(
+      videoPath,
+      persistedPreferences.lastOutputDir,
+      exportKind,
     );
-    const nextDir = persistedPreferences.lastOutputDir || currentDir;
-    const sep = nextDir.includes("\\") ? "\\" : "/";
-    const cleanDir = nextDir.endsWith(sep) ? nextDir.slice(0, -1) : nextDir;
-    const defaultPath = buildSuffixedOutputPath(
-      `${cleanDir}${sep}${name}`,
-      "_synthesized",
-      ".mp4",
-    );
-    const defaultName = defaultPath.split(/[\\/]/).pop() || "video_synthesized.mp4";
     const timer = setTimeout(() => {
-      setOutputFilename(defaultName);
-      setOutputDirState(nextDir);
+      setOutputFilename(nextOutput.filename);
+      setOutputDirState(nextOutput.dir);
     }, 0);
     return () => clearTimeout(timer);
-  }, [isOpen, persistedPreferences.lastOutputDir, videoPath]);
+  }, [exportKind, isOpen, persistedPreferences.lastOutputDir, videoPath]);
 
   // --- Select output folder ---
   const handleSelectOutputFolder = async () => {
@@ -159,4 +159,37 @@ export function useOutputSettings(
     targetResolution,
     setTargetResolution,
   };
+}
+
+function resolveInitialOutput(
+  videoPath: string | null,
+  lastOutputDir: string | null,
+  exportKind: "full-video" | "clips",
+): { dir: string | null; filename: string } {
+  if (!videoPath) {
+    return { dir: null, filename: "" };
+  }
+
+  const name = videoPath.split(/[\\/]/).pop() || "video.mp4";
+  const dir = resolveVideoExportOutputDir(videoPath, lastOutputDir, exportKind);
+  const outputSep = dir.includes("\\") ? "\\" : "/";
+  const cleanDir = dir.endsWith(outputSep) ? dir.slice(0, -1) : dir;
+  const defaultPath = buildSuffixedOutputPath(
+    `${cleanDir}${outputSep}${name}`,
+    "_synthesized",
+    ".mp4",
+  );
+  return {
+    dir,
+    filename: defaultPath.split(/[\\/]/).pop() || "video_synthesized.mp4",
+  };
+}
+
+function resolveInitialTargetResolution(
+  targetResolution: SynthesisTargetResolution,
+  exportKind: "full-video" | "clips",
+): SynthesisTargetResolution {
+  return exportKind === "clips" && targetResolution.startsWith("sr_")
+    ? "original"
+    : targetResolution;
 }

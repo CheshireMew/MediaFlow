@@ -18,6 +18,7 @@ describe("synthesisExecutionPreferences", () => {
       watermarkEnabled: true,
       quality: "balanced",
       useGpu: true,
+      targetResolution: "original",
       lastOutputDir: null,
       subtitleStyle: {
         fontSize: 24,
@@ -39,6 +40,7 @@ describe("synthesisExecutionPreferences", () => {
 
     updateStoredSynthesisExecutionPreferences({
       quality: "small",
+      targetResolution: "1080p",
       subtitleStyle: {
         fontColor: "#00FF00",
       },
@@ -50,6 +52,7 @@ describe("synthesisExecutionPreferences", () => {
     const preferences = restoreStoredSynthesisExecutionPreferences();
 
     expect(preferences.quality).toBe("small");
+    expect(preferences.targetResolution).toBe("1080p");
     expect(preferences.subtitleStyle.fontColor).toBe("#00FF00");
     expect(preferences.subtitleStyle.fontName).toBe("Arial");
     expect(preferences.watermark.wmOpacity).toBe(0.4);

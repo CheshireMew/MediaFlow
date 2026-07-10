@@ -13,6 +13,7 @@ site-packages/
 # Generated/Large Directories
 temp/
 .temp/
+.tmp/
 .benchmarks/
 .pytest_cache/
 models/
@@ -52,8 +53,9 @@ user_data/
 /dist-backend/
 /build-desktop-worker/
 /dist-desktop-worker/
+/build-desktop-backend/
+/dist-desktop-backend/
 *.spec
-!mediaflow-backend.spec
 
 # Electron / desktop packaging artifacts
 /frontend/release/

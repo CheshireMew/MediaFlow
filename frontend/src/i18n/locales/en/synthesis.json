@@ -1,7 +1,14 @@
 {
-  "title": "Video Synthesis",
-  "successMessage": "Synthesis Task Started! Check Task Monitor.",
-  "errorMessage": "Failed to start synthesis.",
+  "title": "Video Export",
+  "clipExport": {
+    "title": "Clip Export",
+    "summary": "{{count}} clips · {{duration}} seconds total",
+    "untitled": "Untitled clip",
+    "previewIndex": "Clip {{current}} / {{count}}",
+    "previousClip": "Previous clip",
+    "nextClip": "Next clip",
+    "startExport": "Export {{count}} clips"
+  },
   "style": {
     "sectionTitle": "Subtitles",
     "stylePreset": "Style Preset",
@@ -33,7 +40,8 @@
     "topAligned": "Top aligned",
     "dragHint": "Drag text in preview to adjust position.",
     "resetPosition": "Reset Position",
-    "subtitleDisabledHint": "Subtitle rendering is off. Subtitles will not be burned into the video."
+    "subtitleDisabledHint": "Subtitle rendering is off. Subtitles will not be burned into the video.",
+    "subtitleUnavailableHint": "No subtitles are available for this video, so subtitle rendering is off."
   },
   "watermark": {
     "sectionTitle": "Watermark",
@@ -57,6 +65,8 @@
     "srNote": "AI Super Resolution: Upscale video before burning subtitles. Takes longer. Requires Real-ESRGAN.",
     "filename": "Filename",
     "filenamePlaceholder": "video_synthesized.mp4",
+    "batchFiles": "{{count}} separate video files will be exported",
+    "batchNaming": "Files are named from clip order and title inside a unique batch folder.",
     "saveFolder": "Save to Folder",
     "changeFolder": "Change"
   },
@@ -77,9 +87,12 @@
     "setCurrent": "Set Current",
     "reset": "Reset",
     "noMediaLoaded": "No Media Loaded",
+    "togglePlayback": "Play or pause video preview",
+    "loadingMediaFrame": "Loading video preview...",
+    "mediaLoadError": "Video preview failed to load",
+    "mediaLoadErrorHint": "Reopen the export panel or check the video codec",
     "subtitlePosition": "(Subtitle Position)",
-    "startRender": "Start Render",
-    "rendering": "Rendering",
-    "preparingSynthesis": "Preparing synthesis..."
+    "startExport": "Export Video",
+    "submitting": "Submitting..."
   }
 }

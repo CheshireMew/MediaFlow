@@ -17,8 +17,9 @@
     "detectHighlightsRequiresSubtitlesTooltip": "AIハイライト検索を使う前に字幕を読み込むか生成してください",
     "detectHighlightsButton": "候補検索",
     "detectingHighlightsButton": "検索中...",
-    "synthesizeTooltip": "字幕付き動画をエクスポート",
-    "synthesizeButton": "合成",
+    "exportTooltip": "動画書き出し設定を開く",
+    "exportRequiresVideoTooltip": "先に動画を開いてください",
+    "exportButton": "書き出し",
     "saveButton": "保存",
     "saveAsTooltip": "名前を付けて保存..."
   },
@@ -53,24 +54,32 @@
     "requiresSubtitlesTooltip": "先に字幕を読み込むか生成してください",
     "requiresSubtitlesMessage": "AIハイライト検索を使う前に字幕を読み込むか生成してください。",
     "detectingButton": "検索中...",
-    "exportSelectedButton": "{{count}} 件をレンダー",
-    "exportBurnedTooltip": "字幕とウォーターマーク付きで書き出し",
-    "exportSourceTooltip": "字幕とウォーターマークを焼き込まず高速書き出し",
-    "exportingButton": "書き出し中...",
+    "createButton": "クリップを作成",
+    "createTooltip": "現在の再生位置から15秒のクリップを作成",
+    "configureExportButton": "書き出し設定 {{count}}",
+    "configureExportTooltip": "字幕、ウォーターマーク、品質、出力先を設定",
+    "quickExportButton": "クイック書き出し",
+    "quickExportTooltip": "保存済みの字幕・ウォーターマーク・品質・解像度・エンコーダー・保存先設定を再利用します（クロップは再利用しません）",
+    "submittingButton": "送信中...",
     "columnRange": "範囲",
     "columnCandidate": "候補",
     "columnUse": "使用",
-    "emptyState": "候補クリップはまだありません",
+    "emptyState": "クリップはまだありません。AI検索または手動作成ができます。",
     "untitled": "無題のクリップ",
     "noReason": "判定理由はまだありません",
     "toggleSelectedTooltip": "このクリップを書き出し対象にする",
     "deleteTooltip": "候補を削除",
     "missingVideoError": "先に動画を開いてください",
-    "detectNoCandidates": "候補クリップが見つかりませんでした",
-    "detectSuccess": "{{count}} 件の候補クリップを生成しました",
+    "detectNoCandidates": "新しい候補は見つかりませんでした。既存のクリップは変更されていません",
+    "detectSuccess": "AIが{{count}}件の候補を分析しました。既存のクリップと編集は保持されています",
     "detectError": "ハイライト候補の検索に失敗しました",
     "noSelectedClips": "候補クリップを少なくとも1件選択してください",
-    "exportQueued": "{{count}} 件のクリップ書き出しをキューに追加しました",
+    "exportQueued": "{{count}} 件のクリップを追加しました。進行状況はここに表示されます",
+    "exportInProgress": "クリップを書き出し中...",
+    "exportCompleted": "{{count}} 件のクリップを書き出しました",
+    "exportPaused": "クリップ書き出しを一時停止しました",
+    "exportCancelled": "クリップ書き出しをキャンセルしました",
+    "openOutputFolder": "フォルダーを開く",
     "exportSubtitleError": "レンダー書き出し前の字幕保存に失敗しました",
     "exportError": "クリップの書き出しに失敗しました",
     "detailTitle": "候補クリップ",
@@ -84,7 +93,9 @@
     "contextExportSelected": "選択クリップを書き出し",
     "contextDelete": "候補を削除",
     "manualClipTitle": "手動クリップ {{index}}",
-    "manualClipReason": "タイムラインで手動選択"
+    "manualClipReason": "手動で作成",
+    "manualCreateUnavailable": "動画の読み込みが完了していないため、まだクリップを作成できません",
+    "manualCreateSuccess": "現在の再生位置からクリップを作成しました"
   },
   "waveform": {
     "title": "タイムライン",
@@ -106,7 +117,7 @@
     "replaceAllButton": "全て"
   },
   "synthesis": {
-    "confirmUnsavedMessage": "字幕の保存に失敗しました。合成は古いファイルを使用する可能性があります。続行しますか？",
-    "missingFilesError": "合成できません：動画または字幕ファイルがありません。"
+    "missingFilesError": "書き出しできません：動画ファイルがありません。",
+    "exportError": "動画書き出しの送信に失敗しました"
   }
 }

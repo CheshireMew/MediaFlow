@@ -17,6 +17,16 @@ export {
   resolveSynthesisWatermarkPath,
 } from "./synthesisExecution";
 export {
+  getVideoExportClipDuration,
+  resolveClipRenderMode,
+  resolveVideoExportOutputDir,
+} from "./videoExport";
+export type {
+  VideoExportScope,
+  VideoExportSubmission,
+} from "./videoExport";
+export { mergeDetectedClipCandidates } from "./clipCandidates";
+export {
   DEFAULT_PRESETS,
   DEFAULT_SUBTITLE_POSITION,
   FONT_PRESETS,

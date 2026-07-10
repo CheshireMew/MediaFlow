@@ -62,6 +62,53 @@ def test_synthesis_orchestrator_succeeds_for_video_without_audio(tmp_path):
     assert output_path.stat().st_size > 0
 
 
+def test_synthesis_orchestrator_succeeds_without_subtitles_when_disabled(tmp_path):
+    video_path = tmp_path / "no_subtitles.mp4"
+    output_path = tmp_path / "no_subtitles_exported.mp4"
+
+    subprocess.run(
+        [
+            settings.FFMPEG_PATH,
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=320x180:d=1",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(video_path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+    synthesis = SynthesisOrchestrator(
+        super_resolution_stage=SuperResolutionStage(),
+        filter_graph_builder=FilterGraphBuilder(),
+        encoder_config_resolver=EncoderConfigResolver(),
+        ffmpeg_runner=FfmpegRunner(),
+    )
+
+    result_path = synthesis.synthesize(
+        str(video_path),
+        None,
+        str(output_path),
+        options={
+            "skip_subtitles": True,
+            "disable_auto_trim": True,
+            "video_width": 320,
+            "video_height": 180,
+            "use_gpu": False,
+        },
+    )
+
+    assert result_path == str(output_path)
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
 def test_super_resolution_stage_uses_short_temp_output_path(monkeypatch, tmp_path):
     long_name = (
         "X 上的 CopyRebeldia Hoy una industria entera dejo de tener sentido "

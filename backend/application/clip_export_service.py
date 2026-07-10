@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import math
 import re
-import subprocess
+import shutil
+import uuid
+from datetime import datetime
 from pathlib import Path
 
-from loguru import logger
-
-from backend.config import settings
 from backend.core.container import Services
 from backend.core.runtime_access import runtime_service
 from backend.models.schemas import ClipExportSegment, MediaReference
 from backend.services.media_refs import create_media_ref
+from backend.services.video.media_prober import MediaProber
+
+
+CLIP_DURATION_TOLERANCE_SECONDS = 0.15
 
 
 def export_clips(
@@ -25,42 +29,56 @@ def export_clips(
     progress_callback=None,
 ) -> list[MediaReference]:
     source = Path(video_ref.path)
-    target_dir = Path(output_dir) if output_dir else source.with_name(f"{source.stem}_clips")
-    target_dir.mkdir(parents=True, exist_ok=True)
-
     if render_mode not in {"burned", "source"}:
         raise ValueError(f"Unsupported clip export render mode: {render_mode}")
     if render_mode == "burned" and not _subtitles_disabled(options) and not srt_ref:
         raise ValueError("Burned clip export requires subtitles.")
 
-    exported: list[MediaReference] = []
-    total = len(segments)
-    for index, segment in enumerate(segments, start=1):
-        if segment.end <= segment.start:
-            raise ValueError(f"Invalid clip range for {segment.id}: end must be greater than start")
+    planned_segments = plan_clip_segments(source, segments)
 
-        label = _slug(segment.title or segment.id)
-        suffix = "source" if render_mode == "source" else "rendered"
-        output_path = target_dir / f"{source.stem}_clip_{index:02d}_{suffix}_{label}.mp4"
-        if progress_callback:
-            progress_callback(_segment_progress(index - 1, total), f"Exporting clip {index}/{total}...")
+    target_root = Path(output_dir) if output_dir else source.with_name(f"{source.stem}_clips")
+    target_root.mkdir(parents=True, exist_ok=True)
+    batch_id = uuid.uuid4().hex[:8]
+    batch_label = datetime.now().strftime("export_%Y%m%d_%H%M%S_%f") + f"_{batch_id}"
+    staging_dir = target_root / f".{batch_label}.staging"
+    final_dir = target_root / batch_label
+    staging_dir.mkdir(parents=False, exist_ok=False)
 
-        if render_mode == "source":
-            _run_ffmpeg_copy_clip(str(source), str(output_path), segment.start, segment.end)
-        else:
-            _render_burned_clip(
+    staged_names: list[str] = []
+    total = len(planned_segments)
+    try:
+        for index, segment in enumerate(planned_segments, start=1):
+            label = _slug(segment.title or segment.id)
+            suffix = "source" if render_mode == "source" else "rendered"
+            filename = f"{source.stem}_clip_{index:02d}_{suffix}_{label}.mp4"
+            staged_path = staging_dir / filename
+            if progress_callback:
+                progress_callback(_segment_progress(index - 1, total), f"Exporting clip {index}/{total}...")
+
+            _render_clip(
                 source_path=str(source),
                 srt_path=srt_ref.path if srt_ref else None,
-                output_path=str(output_path),
+                output_path=str(staged_path),
                 watermark_path=watermark_path,
                 options=options or {},
                 segment=segment,
+                render_mode=render_mode,
                 progress_callback=_clip_progress_callback(progress_callback, index, total),
             )
+            _validate_rendered_clip(staged_path, segment)
+            staged_names.append(filename)
 
-        exported.append(
-            MediaReference.model_validate(create_media_ref(str(output_path), "video/mp4", role="output"))
+        staging_dir.rename(final_dir)
+    except Exception:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
+
+    exported = [
+        MediaReference.model_validate(
+            create_media_ref(str(final_dir / filename), "video/mp4", role="output")
         )
+        for filename in staged_names
+    ]
 
     if progress_callback:
         progress_callback(100, "Clip export completed")
@@ -80,7 +98,7 @@ def build_clip_export_task_result(files: list[MediaReference]) -> dict:
     }
 
 
-def _render_burned_clip(
+def _render_clip(
     *,
     source_path: str,
     srt_path: str | None,
@@ -88,6 +106,7 @@ def _render_burned_clip(
     watermark_path: str | None,
     options: dict,
     segment: ClipExportSegment,
+    render_mode: str,
     progress_callback=None,
 ) -> None:
     render_options = {
@@ -96,14 +115,64 @@ def _render_burned_clip(
         "trim_end": float(segment.end),
         "disable_auto_trim": True,
     }
+    effective_srt_path = srt_path
+    effective_watermark_path = watermark_path
+    if render_mode == "source":
+        render_options["skip_subtitles"] = True
+        render_options["preserve_frame_rate"] = True
+        effective_srt_path = None
+        effective_watermark_path = None
+
     runtime_service(Services.VIDEO_SYNTHESIS).synthesize(
         video_path=source_path,
-        srt_path=srt_path,
+        srt_path=effective_srt_path,
         output_path=output_path,
-        watermark_path=watermark_path,
+        watermark_path=effective_watermark_path,
         options=render_options,
         progress_callback=progress_callback,
     )
+
+
+def plan_clip_segments(source: Path, segments: list[ClipExportSegment]) -> list[ClipExportSegment]:
+    if not segments:
+        raise ValueError("No clip segments selected")
+
+    duration = MediaProber.get_duration(str(source))
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError(f"Unable to determine video duration: {source}")
+
+    planned_segments: list[ClipExportSegment] = []
+    for segment in segments:
+        if segment.end > duration + CLIP_DURATION_TOLERANCE_SECONDS:
+            raise ValueError(
+                f"Clip range for {segment.id} exceeds video duration "
+                f"({segment.end:.3f}s > {duration:.3f}s)"
+            )
+        normalized_end = min(segment.end, duration)
+        if normalized_end <= segment.start:
+            raise ValueError(
+                f"Clip range for {segment.id} starts at or beyond video duration "
+                f"({segment.start:.3f}s >= {duration:.3f}s)"
+            )
+        planned_segments.append(segment.model_copy(update={"end": normalized_end}))
+    return planned_segments
+
+
+def _validate_rendered_clip(output_path: Path, segment: ClipExportSegment) -> None:
+    if not output_path.is_file() or output_path.stat().st_size <= 0:
+        raise RuntimeError(f"Clip export produced no output: {output_path.name}")
+
+    actual_duration = MediaProber.get_duration(str(output_path))
+    expected_duration = segment.end - segment.start
+    if (
+        not math.isfinite(actual_duration)
+        or actual_duration <= 0
+        or abs(actual_duration - expected_duration) > CLIP_DURATION_TOLERANCE_SECONDS
+    ):
+        raise RuntimeError(
+            f"Clip export duration mismatch for {segment.id}: "
+            f"expected {expected_duration:.3f}s, got {actual_duration:.3f}s"
+        )
 
 
 def _subtitles_disabled(options: dict | None) -> bool:
@@ -133,37 +202,3 @@ def _segment_progress(completed: int, total: int) -> float:
 def _slug(value: str) -> str:
     cleaned = re.sub(r"[^\w\u4e00-\u9fff-]+", "_", value, flags=re.UNICODE).strip("_")
     return (cleaned or "clip")[:32]
-
-
-def _run_ffmpeg_copy_clip(source_path: str, output_path: str, start: float, end: float) -> None:
-    duration = max(0.001, end - start)
-    command = [
-        settings.FFMPEG_PATH,
-        "-hide_banner",
-        "-y",
-        "-ss",
-        f"{start:.3f}",
-        "-i",
-        source_path,
-        "-t",
-        f"{duration:.3f}",
-        "-map",
-        "0",
-        "-c",
-        "copy",
-        "-avoid_negative_ts",
-        "make_zero",
-        output_path,
-    ]
-    logger.info(f"Source clip export command: {' '.join(command)}")
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=max(60, int(duration * 4 + 30)),
-    )
-    if result.returncode != 0:
-        stderr_tail = "\n".join(result.stderr.splitlines()[-20:])
-        raise RuntimeError(f"FFmpeg clip export failed:\n{stderr_tail}")

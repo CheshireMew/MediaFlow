@@ -55,7 +55,7 @@ export function buildSynthesisOptionsFromPreferences(
   const options: SynthesizeOptions = {
     ...resolveQualityOptions(preferences.quality),
     use_gpu: preferences.useGpu,
-    target_resolution: overrides?.targetResolution ?? "original",
+    target_resolution: overrides?.targetResolution ?? preferences.targetResolution,
   };
 
   if ((overrides?.trimStart ?? 0) > 0) {

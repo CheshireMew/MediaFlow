@@ -56,6 +56,7 @@ export interface TaskMeta {
 export interface TaskRequestParams {
   steps?: PipelineRequest["steps"];
   video_ref?: TaskMediaRef | null;
+  srt_ref?: TaskMediaRef | null;
   subtitle_ref?: TaskMediaRef | null;
   context_ref?: TaskMediaRef | null;
   output_ref?: TaskMediaRef | null;

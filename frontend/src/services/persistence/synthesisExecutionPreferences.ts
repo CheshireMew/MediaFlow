@@ -4,6 +4,7 @@ import { readUiStateValue, writeUiStateValue } from "./uiStateSettings";
 import { parseVersionedSnapshot, serializeVersionedSnapshot } from "./versionedSnapshot";
 
 export type SynthesisQuality = "high" | "balanced" | "small";
+export type SynthesisTargetResolution = "original" | "720p" | "1080p" | "sr_2x" | "sr_4x";
 
 export type SynthesisSubtitleStylePreferences = PersistedSubtitleStyleValues;
 
@@ -19,6 +20,7 @@ export type SynthesisExecutionPreferences = {
   watermarkEnabled: boolean;
   quality: SynthesisQuality;
   useGpu: boolean;
+  targetResolution: SynthesisTargetResolution;
   lastOutputDir: string | null;
   subtitleStyle: SynthesisSubtitleStylePreferences;
   watermark: SynthesisWatermarkPreferences;
@@ -39,6 +41,7 @@ export const DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES: SynthesisExecutionPreferen
   watermarkEnabled: true,
   quality: "balanced",
   useGpu: true,
+  targetResolution: "original",
   lastOutputDir: null,
   subtitleStyle: {
     fontSize: 24,
@@ -151,6 +154,13 @@ function normalizeSynthesisExecutionPreferences(
         ? payload.quality
         : defaults.quality,
     useGpu: typeof payload?.useGpu === "boolean" ? payload.useGpu : defaults.useGpu,
+    targetResolution:
+      payload?.targetResolution === "720p" ||
+      payload?.targetResolution === "1080p" ||
+      payload?.targetResolution === "sr_2x" ||
+      payload?.targetResolution === "sr_4x"
+        ? payload.targetResolution
+        : defaults.targetResolution,
     lastOutputDir: typeof payload?.lastOutputDir === "string" ? payload.lastOutputDir : null,
     subtitleStyle: normalizeSubtitleStylePreferences(payload?.subtitleStyle),
     watermark: normalizeWatermarkPreferences(payload?.watermark),

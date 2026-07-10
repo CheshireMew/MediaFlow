@@ -109,6 +109,30 @@ describe("service media contract", () => {
     expect(apiClientMock.synthesizeVideo.mock.calls[0]?.[0]).not.toHaveProperty("srt_path");
   });
 
+  it("submits a subtitle-free video export through the same synthesis boundary", async () => {
+    await executionService.synthesize({
+      video_ref: {
+        path: "E:/canonical/source.mp4",
+        name: "source.mp4",
+        media_kind: "video",
+        role: "source",
+      },
+      srt_ref: null,
+      watermark_path: null,
+      output_ref: {
+        path: "E:/out/exported.mp4",
+        name: "exported.mp4",
+        role: "output",
+      },
+      options: { skip_subtitles: true },
+    });
+
+    expect(apiClientMock.synthesizeVideo).toHaveBeenCalledWith(expect.objectContaining({
+      srt_ref: null,
+      options: { skip_subtitles: true },
+    }));
+  });
+
   it("keeps structured video refs in preprocessing submissions", async () => {
     await preprocessingService.extractText({
       video_ref: {

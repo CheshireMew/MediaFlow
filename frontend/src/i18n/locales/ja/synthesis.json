@@ -1,7 +1,14 @@
 {
-  "title": "動画合成",
-  "successMessage": "合成タスクが開始されました！タスクモニターを確認してください。",
-  "errorMessage": "合成の開始に失敗しました。",
+  "title": "動画書き出し",
+  "clipExport": {
+    "title": "クリップ書き出し",
+    "summary": "{{count}} 件 · 合計 {{duration}} 秒",
+    "untitled": "無題のクリップ",
+    "previewIndex": "クリップ {{current}} / {{count}}",
+    "previousClip": "前のクリップ",
+    "nextClip": "次のクリップ",
+    "startExport": "{{count}} 件を書き出す"
+  },
   "style": {
     "sectionTitle": "字幕",
     "stylePreset": "スタイルプリセット",
@@ -33,7 +40,8 @@
     "topAligned": "上揃え",
     "dragHint": "プレビューでテキストをドラッグして位置を調整。",
     "resetPosition": "位置をリセット",
-    "subtitleDisabledHint": "字幕レンダリングがオフです。合成時に字幕は焼き込まれません。"
+    "subtitleDisabledHint": "字幕レンダリングがオフです。書き出し時に字幕は焼き込まれません。",
+    "subtitleUnavailableHint": "利用可能な字幕がないため、字幕レンダリングはオフです。"
   },
   "watermark": {
     "sectionTitle": "ウォーターマーク",
@@ -43,7 +51,7 @@
     "positionPreset": "位置プリセット",
     "scale": "スケール",
     "opacity": "不透明度",
-    "watermarkDisabledHint": "ウォーターマークレンダリングがオフです。合成時にウォーターマークは追加されません。"
+    "watermarkDisabledHint": "ウォーターマークレンダリングがオフです。書き出し時にウォーターマークは追加されません。"
   },
   "output": {
     "sectionTitle": "出力",
@@ -57,6 +65,8 @@
     "srNote": "AI超解像：字幕を焼く前に動画を拡大します。処理に時間がかかります。Real-ESRGANが必要です。",
     "filename": "ファイル名",
     "filenamePlaceholder": "video_synthesized.mp4",
+    "batchFiles": "{{count}} 件の個別動画を書き出します",
+    "batchNaming": "クリップ番号とタイトルで自動命名し、固有のバッチフォルダーに保存します。",
     "saveFolder": "保存先フォルダー",
     "changeFolder": "変更"
   },
@@ -77,9 +87,12 @@
     "setCurrent": "現在位置に設定",
     "reset": "リセット",
     "noMediaLoaded": "メディア未読み込み",
+    "togglePlayback": "動画プレビューを再生または一時停止",
+    "loadingMediaFrame": "動画プレビューを読み込み中...",
+    "mediaLoadError": "動画プレビューを読み込めませんでした",
+    "mediaLoadErrorHint": "書き出しパネルを開き直すか、動画コーデックを確認してください",
     "subtitlePosition": "（字幕位置）",
-    "startRender": "レンダリング開始",
-    "rendering": "レンダリング中",
-    "preparingSynthesis": "合成を準備中..."
+    "startExport": "動画を書き出す",
+    "submitting": "送信中..."
   }
 }

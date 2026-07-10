@@ -136,7 +136,7 @@ export interface TranscribeSegmentRequest {
 }
 export interface SynthesisRequest {
   video_ref: MediaReference;
-  srt_ref: MediaReference;
+  srt_ref?: MediaReference | null;
   watermark_path?: string | null;
   output_ref?: MediaReference | null;
   options?: Record<string, unknown> | null;

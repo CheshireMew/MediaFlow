@@ -16,6 +16,7 @@ import {
     resolvePreviewViewportMetrics,
 } from "../../services/domain";
 import type { SubtitleSegment } from "../../types/task";
+import { formatMediaPlaybackTime } from "../../utils/mediaTime";
 
 interface VideoPreviewProps {
     mediaUrl: string | null;
@@ -28,17 +29,6 @@ const EDITOR_PLAYBACK_RATES = [1, 1.25, 1.5, 1.75, 2, 2.5, 3] as const;
 
 function formatPlaybackRate(rate: number) {
     return rate === 1 ? "正常" : `${rate}`;
-}
-
-function formatMediaTime(seconds: number) {
-    if (!Number.isFinite(seconds) || seconds <= 0) {
-        return "0:00";
-    }
-
-    const totalSeconds = Math.floor(seconds);
-    const minutes = Math.floor(totalSeconds / 60);
-    const remainingSeconds = totalSeconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
 
 function VideoPreviewComponent({
@@ -458,7 +448,7 @@ function VideoPreviewComponent({
                                 {isPlaying ? <Pause size={17} /> : <Play size={17} />}
                             </button>
                             <span className="w-28 shrink-0 text-xs font-semibold tabular-nums text-slate-200">
-                                {formatMediaTime(currentTime)} / {formatMediaTime(duration)}
+                                {formatMediaPlaybackTime(currentTime)} / {formatMediaPlaybackTime(duration)}
                             </span>
                             <input
                                 type="range"

@@ -1,12 +1,11 @@
-// ── SynthesisDialog — Slim Orchestration Shell ──
+// ── Unified Video Export Dialog — Slim Orchestration Shell ──
 // All state logic lives in hooks, all UI sections live in subcomponents.
-// This component only handles: hook wiring, handleSynthesize, and dialog layout.
+// This component only handles: hook wiring, export submission, and dialog layout.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { MonitorPlay } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
-import type { SynthesizeOptions } from '../../types/api';
 import { useSubtitleStyle } from './synthesis/hooks/useSubtitleStyle';
 import { useWatermark } from './synthesis/hooks/useWatermark';
 import { useOutputSettings } from './synthesis/hooks/useOutputSettings';
@@ -18,7 +17,11 @@ import { VideoPreview } from './synthesis/components/VideoPreview';
 import {
     buildSynthesisOptionsFromPreferences,
     editorService,
+    getVideoExportClipDuration,
     resolvePreviewViewportMetrics,
+    resolveSynthesisWatermarkPath,
+    type VideoExportScope,
+    type VideoExportSubmission,
 } from '../../services/domain';
 import { normalizeMediaReference, type MediaReference } from '../../services/ui/mediaReference';
 import {
@@ -37,21 +40,21 @@ function resolvePreviewVisibleStart(visibleStart: number) {
     return visibleStart + PREVIEW_VISIBLE_FRAME_OFFSET_SECONDS;
 }
 
-interface SynthesisDialogProps {
+interface VideoExportDialogProps {
     isOpen: boolean;
     onClose: () => void;
     regions: SubtitleSegment[];
     videoPath: string | null;
     mediaUrl: string | null;
-    onSynthesize?: (
-        options: SynthesizeOptions & { output_ref?: MediaReference | null },
+    exportScope: VideoExportScope;
+    onExport: (
+        submission: VideoExportSubmission,
         videoPath: string,
-        watermarkPath: string | null,
-    ) => Promise<void>;
+    ) => Promise<boolean>;
 }
 
-export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({ 
-    isOpen, onClose, regions, videoPath, mediaUrl, onSynthesize
+export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
+    isOpen, onClose, regions, videoPath, mediaUrl, exportScope, onExport
 }) => {
     const { t } = useTranslation('synthesis');
     const [persistedPreferences, setPersistedPreferences] = useState(() => restoreStoredSynthesisExecutionPreferences());
@@ -59,10 +62,15 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     const videoRef = useRef<HTMLVideoElement>(null);
     const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
     const [currentTime, setCurrentTime] = useState(0);
-    const [isSynthesizing, setIsSynthesizing] = useState(false);
-    const [synthesisProgress, setSynthesisProgress] = useState(0);
-    const [synthesisMessage, setSynthesisMessage] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [mediaVisibleStart, setMediaVisibleStart] = useState(0);
+    const [activeClipIndex, setActiveClipIndex] = useState(0);
+    const isClipExport = exportScope.kind === "clips";
+    const clipSegments = exportScope.kind === "clips" ? exportScope.segments : [];
+    const activeClip = clipSegments[activeClipIndex] ?? null;
+    const firstClipStart = clipSegments[0]?.start ?? 0;
+    const subtitleAvailable = regions.some((region) => region.text.trim().length > 0);
+    const clipDuration = getVideoExportClipDuration(exportScope);
 
     useEffect(() => {
         if (!isOpen) {
@@ -73,7 +81,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     }, [isOpen]);
 
     useEffect(() => {
-        if (!isOpen || mediaVisibleStart <= 0 || !videoRef.current) {
+        if (!isOpen || isClipExport || mediaVisibleStart <= 0 || !videoRef.current) {
             return;
         }
 
@@ -101,7 +109,7 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
             target.removeEventListener("loadedmetadata", seekToVisibleFrame);
             target.removeEventListener("canplay", seekToVisibleFrame);
         };
-    }, [isOpen, mediaUrl, mediaVisibleStart]);
+    }, [isClipExport, isOpen, mediaUrl, mediaVisibleStart]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -112,12 +120,13 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         }
 
         setVideoSize({ w: 0, h: 0 });
-        setCurrentTime(0);
+        setCurrentTime(isClipExport ? firstClipStart : 0);
         setMediaVisibleStart(0);
-    }, [isOpen, videoPath, mediaUrl]);
+        setActiveClipIndex(0);
+    }, [firstClipStart, isClipExport, isOpen, videoPath, mediaUrl]);
 
     useEffect(() => {
-        if (!isOpen || !videoPath) {
+        if (!isOpen || isClipExport || !videoPath) {
             return;
         }
 
@@ -158,7 +167,24 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         return () => {
             cancelled = true;
         };
-    }, [isOpen, videoPath, mediaUrl]);
+    }, [isClipExport, isOpen, videoPath, mediaUrl]);
+
+    useEffect(() => {
+        if (!isOpen || !activeClip || !videoRef.current) return;
+
+        const video = videoRef.current;
+        const seekToClip = () => {
+            video.pause();
+            video.currentTime = activeClip.start;
+            setCurrentTime(activeClip.start);
+        };
+        if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            seekToClip();
+        } else {
+            video.addEventListener("loadedmetadata", seekToClip, { once: true });
+        }
+        return () => video.removeEventListener("loadedmetadata", seekToClip);
+    }, [activeClip, isOpen]);
 
     // --- Toggle switches with shared settings persistence ---
     const [subtitleEnabled, setSubtitleEnabled] = useState(() => {
@@ -227,22 +253,27 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
         isOpen,
         videoPath,
         persistedPreferences,
+        exportScope.kind,
     );
 
-    // --- Synthesize Action (cross-cutting: reads from all 3 hooks) ---
-    const handleSynthesize = async () => {
-        if (!videoPath) return;
+    // --- Export action (cross-cutting: reads from all settings hooks) ---
+    const handleExport = async () => {
+        if (!videoPath || isSubmitting) return;
         
-        setIsSynthesizing(true);
-        setSynthesisProgress(0);
-        setSynthesisMessage(t('preview.preparingSynthesis'));
+        setIsSubmitting(true);
         try {
+            const effectiveSubtitleEnabled = subtitleAvailable && subtitleEnabled;
+            const effectiveTargetResolution =
+                isClipExport && output.targetResolution.startsWith("sr_")
+                    ? "original"
+                    : output.targetResolution;
             const effectivePreferences: SynthesisExecutionPreferences = {
                 ...persistedPreferences,
-                subtitleEnabled,
+                subtitleEnabled: effectiveSubtitleEnabled,
                 watermarkEnabled,
                 quality: output.quality,
                 useGpu: output.useGpu,
+                targetResolution: effectiveTargetResolution,
                 lastOutputDir: output.outputDir,
                 subtitleStyle: {
                     ...persistedPreferences.subtitleStyle,
@@ -272,45 +303,49 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                 },
             };
 
-            const options: SynthesizeOptions = buildSynthesisOptionsFromPreferences(
+            const options = buildSynthesisOptionsFromPreferences(
                 effectivePreferences,
                 {
-                    targetResolution: output.targetResolution,
-                    trimStart: Math.max(output.trimStart, mediaVisibleStart),
-                    trimEnd: output.trimEnd,
+                    targetResolution: effectiveTargetResolution,
+                    trimStart: isClipExport ? undefined : Math.max(output.trimStart, mediaVisibleStart),
+                    trimEnd: isClipExport ? undefined : output.trimEnd,
                     crop: crop.isEnabled ? crop.crop : null,
                     videoSize,
                 },
             );
 
-            if (onSynthesize) {
-                let targetPath = null;
-                if (output.outputDir && output.outputFilename) {
-                    const sep = output.outputDir.includes('\\') ? '\\' : '/';
-                    const cleanDir = output.outputDir.endsWith(sep) ? output.outputDir.slice(0, -1) : output.outputDir;
-                    targetPath = `${cleanDir}${sep}${output.outputFilename}`;
-                }
-                
-                const finalOptions = {
-                    ...options,
-                    output_ref: normalizeMediaReference(targetPath, {
+            let outputRef: MediaReference | null = null;
+            if (!isClipExport && output.outputDir && output.outputFilename) {
+                const sep = output.outputDir.includes('\\') ? '\\' : '/';
+                const cleanDir = output.outputDir.endsWith(sep) ? output.outputDir.slice(0, -1) : output.outputDir;
+                const targetPath = `${cleanDir}${sep}${output.outputFilename}`;
+                outputRef = normalizeMediaReference(targetPath, {
                         type: "video/mp4",
                         media_kind: "video",
                         role: "output",
                         origin: "task",
-                    }),
-                };
-
-                await onSynthesize(finalOptions, videoPath, watermarkEnabled ? watermark.watermarkPath : null);
+                    });
             }
-            
-            onClose();
+
+            const effectiveWatermarkPath = watermarkEnabled
+                ? watermark.watermarkPath ?? await resolveSynthesisWatermarkPath(effectivePreferences)
+                : null;
+            const submitted = await onExport(
+                {
+                    options,
+                    outputRef,
+                    outputDir: output.outputDir,
+                    watermarkPath: effectiveWatermarkPath,
+                    subtitleEnabled: effectiveSubtitleEnabled,
+                    watermarkEnabled,
+                },
+                videoPath,
+            );
+            if (submitted) onClose();
         } catch (e) {
             console.error(e);
         } finally {
-            setIsSynthesizing(false);
-            setSynthesisProgress(0);
-            setSynthesisMessage('');
+            setIsSubmitting(false);
         }
     };
 
@@ -320,8 +355,14 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <div 
-                className="bg-[#0a0a0a] w-[95vw] h-[90vh] rounded-lg border border-white/10 shadow-2xl flex overflow-hidden ring-1 ring-white/5"
+                className="relative bg-[#0a0a0a] w-[95vw] h-[90vh] rounded-lg border border-white/10 shadow-2xl flex overflow-hidden ring-1 ring-white/5"
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties & { WebkitAppRegion: 'no-drag' }}
+                aria-busy={isSubmitting}
+                onKeyDownCapture={(event) => {
+                    if (!isSubmitting) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                }}
             >
                 {/* Left: Settings Panel */}
                 <div className="w-[340px] bg-[#161616] flex flex-col border-r border-white/5 z-10 shrink-0">
@@ -330,13 +371,30 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                             <div className="p-2 bg-indigo-500/20 rounded-lg">
                                 <MonitorPlay size={20} className="text-indigo-400"/>
                             </div>
-                            {t('title')}
+                            {isClipExport ? t('clipExport.title') : t('title')}
                         </h2>
+                        {isClipExport && (
+                            <p className="mt-2 text-xs text-slate-500">
+                                {t('clipExport.summary', {
+                                    count: clipSegments.length,
+                                    duration: clipDuration.toFixed(1),
+                                })}
+                            </p>
+                        )}
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-0 flex flex-col gap-6">
-                        <SubtitleStylePanel style={style} enabled={subtitleEnabled} onToggle={setSubtitleEnabled} />
-                        <OutputSettingsPanel output={output} />
+                        <SubtitleStylePanel
+                            style={style}
+                            enabled={subtitleAvailable && subtitleEnabled}
+                            available={subtitleAvailable}
+                            onToggle={setSubtitleEnabled}
+                        />
+                        <OutputSettingsPanel
+                            output={output}
+                            batchMode={isClipExport}
+                            batchCount={clipSegments.length}
+                        />
                         <WatermarkPanel watermark={watermark} enabled={watermarkEnabled} onToggle={setWatermarkEnabled} />
                     </div>
                 </div>
@@ -348,18 +406,34 @@ export const SynthesisDialog: React.FC<SynthesisDialogProps> = ({
                     watermark={watermark}
                     output={output}
                     crop={crop}
-                    subtitleEnabled={subtitleEnabled}
+                    subtitleEnabled={subtitleAvailable && subtitleEnabled}
                     watermarkEnabled={watermarkEnabled}
                     onClose={onClose}
-                    onSynthesizeClick={handleSynthesize}
-                    isSynthesizing={isSynthesizing}
-                    synthesisProgress={synthesisProgress}
-                    synthesisMessage={synthesisMessage}
+                    onExportClick={handleExport}
+                    isSubmitting={isSubmitting}
                     videoRef={videoRef}
                     setVideoSize={setVideoSize}
                     currentTime={currentTime}
                     onTimeUpdate={setCurrentTime}
+                    previewRange={activeClip ? { start: activeClip.start, end: activeClip.end } : null}
+                    clipNavigator={activeClip ? {
+                        index: activeClipIndex,
+                        count: clipSegments.length,
+                        title: activeClip.title || t('clipExport.untitled'),
+                        onPrevious: () => setActiveClipIndex((current) => Math.max(0, current - 1)),
+                        onNext: () => setActiveClipIndex((current) => Math.min(clipSegments.length - 1, current + 1)),
+                    } : null}
+                    allowTrim={!isClipExport}
+                    actionLabel={isClipExport
+                        ? t('clipExport.startExport', { count: clipSegments.length })
+                        : t('preview.startExport')}
                 />
+                {isSubmitting && (
+                    <div
+                        className="absolute inset-0 z-[200] cursor-wait"
+                        aria-hidden="true"
+                    />
+                )}
             </div>
         </div>
     );

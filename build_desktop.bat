@@ -5,6 +5,14 @@ title MediaFlow Desktop Builder
 
 set "ROOT_DIR=%~dp0"
 if "%ROOT_DIR:~-1%"=="\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
+set "BUILD_TEMP_DIR=%ROOT_DIR%\.tmp\desktop-build"
+set "PYINSTALLER_CONFIG_DIR=%ROOT_DIR%\.tmp\pyinstaller"
+if not defined PIP_CACHE_DIR set "PIP_CACHE_DIR=D:\Tools\pip-cache"
+set "TEMP=%BUILD_TEMP_DIR%"
+set "TMP=%BUILD_TEMP_DIR%"
+if not exist "%BUILD_TEMP_DIR%" mkdir "%BUILD_TEMP_DIR%"
+if not exist "%PYINSTALLER_CONFIG_DIR%" mkdir "%PYINSTALLER_CONFIG_DIR%"
+if not exist "%PIP_CACHE_DIR%" mkdir "%PIP_CACHE_DIR%"
 
 echo ==================================================
 echo            MediaFlow Desktop Build

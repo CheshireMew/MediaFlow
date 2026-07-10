@@ -11,7 +11,7 @@ async def _synthesis_background(task_id: str, req: SynthesisRequest):
 
     logger.info(f"Synthesis Options: {json.dumps(req.options, indent=2)}")
     video_path = req.video_ref.path
-    srt_path = req.srt_ref.path
+    srt_path = req.srt_ref.path if req.srt_ref else None
     output_path = req.output_ref.path if req.output_ref else None
 
     await BackgroundTaskRunner.run(
@@ -24,8 +24,8 @@ async def _synthesis_background(task_id: str, req: SynthesisRequest):
             "watermark_path": req.watermark_path,
             "options": req.options,
         },
-        start_message="Preparing synthesis...",
-        success_message="Synthesis completed!",
+        start_message="Preparing video export...",
+        success_message="Video export completed!",
         result_transformer=lambda path: {
             "success": True,
             "files": [{"type": "video", "path": path, "label": "synthesis_output"}],

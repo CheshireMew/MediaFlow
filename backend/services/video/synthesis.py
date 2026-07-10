@@ -27,7 +27,7 @@ class SynthesisOrchestrator:
     def synthesize(
         self,
         video_path: str,
-        srt_path: str,
+        srt_path: str | None,
         output_path: str,
         watermark_path: str | None = None,
         options: dict | None = None,

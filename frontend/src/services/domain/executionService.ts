@@ -199,7 +199,7 @@ export const executionService = {
   async synthesize(payload: {
     task_id?: string;
     video_ref: MediaReference;
-    srt_ref: MediaReference;
+    srt_ref?: MediaReference | null;
     watermark_path?: string | null;
     output_ref?: MediaReference | null;
     options: Record<string, unknown>;
@@ -209,7 +209,9 @@ export const executionService = {
       normalizePayload: (nextPayload) => ({
         ...nextPayload,
         video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Synthesis video"),
-        srt_ref: requireExecutionMediaReference(nextPayload.srt_ref, "Synthesis subtitle"),
+        srt_ref: nextPayload.srt_ref
+          ? requireExecutionMediaReference(nextPayload.srt_ref, "Synthesis subtitle")
+          : null,
         output_ref: nextPayload.output_ref ?? null,
       }),
       backendSubmit: (normalizedPayload) =>

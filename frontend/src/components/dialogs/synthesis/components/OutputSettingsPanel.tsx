@@ -6,9 +6,11 @@ import type { OutputSettingsState, SynthesisTargetResolution } from '../hooks/us
 
 interface Props {
     output: OutputSettingsState;
+    batchMode?: boolean;
+    batchCount?: number;
 }
 
-export const OutputSettingsPanel: React.FC<Props> = ({ output }) => {
+export const OutputSettingsPanel: React.FC<Props> = ({ output, batchMode = false, batchCount = 0 }) => {
     const { t } = useTranslation('synthesis');
     const {
         outputFilename, setOutputFilename,
@@ -17,7 +19,17 @@ export const OutputSettingsPanel: React.FC<Props> = ({ output }) => {
         useGpu, setUseGpu,
     } = output;
 
-    console.log("OutputSettingsPanel rendered, useGpu:", useGpu);
+    const resolutionOptions: Array<{ id: SynthesisTargetResolution; label: string }> = [
+        { id: "original", label: t('output.original') },
+        { id: "720p", label: "720p (HD)" },
+        { id: "1080p", label: "1080p" },
+    ];
+    if (!batchMode) {
+        resolutionOptions.push(
+            { id: "sr_2x", label: "⚡ " + t('output.sr2x') },
+            { id: "sr_4x", label: "⚡ " + t('output.sr4x') },
+        );
+    }
 
     return (
         <div className="space-y-3">
@@ -60,14 +72,8 @@ export const OutputSettingsPanel: React.FC<Props> = ({ output }) => {
                     <label className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
                         <MonitorPlay size={12} className="text-indigo-400"/> {t('output.resolution')}
                     </label>
-                    <div className="grid grid-cols-5 gap-1.5">
-                        {([
-                            { id: "original", label: t('output.original') },
-                            { id: "720p", label: "720p (HD)" },
-                            { id: "1080p", label: "1080p" },
-                            { id: "sr_2x", label: "⚡ " + t('output.sr2x') },
-                            { id: "sr_4x", label: "⚡ " + t('output.sr4x') },
-                        ] satisfies Array<{ id: SynthesisTargetResolution; label: string }>).map((opt) => (
+                    <div className={`grid gap-1.5 ${batchMode ? 'grid-cols-3' : 'grid-cols-5'}`}>
+                        {resolutionOptions.map((opt) => (
                             <button
                                 key={opt.id}
                                 onClick={() => output.setTargetResolution(opt.id)}
@@ -90,17 +96,26 @@ export const OutputSettingsPanel: React.FC<Props> = ({ output }) => {
                     </div>
                 )}
 
-                {/* Filename Input */}
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('output.filename')}</label>
-                    <input 
-                        type="text"
-                        value={outputFilename}
-                        onChange={e => setOutputFilename(e.target.value)}
-                        className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all"
-                        placeholder={t('output.filenamePlaceholder')}
-                    />
-                </div>
+                {batchMode ? (
+                    <div className="rounded-lg border border-amber-500/10 bg-amber-500/[0.05] p-3 text-[10px] leading-relaxed text-slate-400">
+                        <span className="font-semibold text-amber-300">
+                            {t('output.batchFiles', { count: batchCount })}
+                        </span>
+                        <br />
+                        {t('output.batchNaming')}
+                    </div>
+                ) : (
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('output.filename')}</label>
+                        <input
+                            type="text"
+                            value={outputFilename}
+                            onChange={e => setOutputFilename(e.target.value)}
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all"
+                            placeholder={t('output.filenamePlaceholder')}
+                        />
+                    </div>
+                )}
 
                 {/* Folder Selection */}
                 <div className="space-y-1.5">

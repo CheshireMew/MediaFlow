@@ -10,10 +10,11 @@ import { PanelToggle } from './PanelToggle';
 interface Props {
     style: SubtitleStyleState;
     enabled: boolean;
+    available?: boolean;
     onToggle: (enabled: boolean) => void;
 }
 
-export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }) => {
+export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available = true, onToggle }) => {
     const { t } = useTranslation('synthesis');
     const {
         fontSize, fontColor, fontName, isBold, isItalic,
@@ -34,18 +35,24 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, onToggle }
                     <Type size={12}/> {t('style.sectionTitle')}
                 </h3>
                 <PanelToggle
-                    enabled={enabled}
-                    onToggle={onToggle}
+                     enabled={enabled}
+                     onToggle={onToggle}
+                     disabled={!available}
                     enableTitle={t('common:enable')}
                     disableTitle={t('common:disable')}
                 />
             </div>
-            {!enabled && (
+            {!available && (
+                <p className="text-[10px] text-amber-500/80 bg-amber-500/[0.06] border border-amber-500/10 rounded-lg p-3 text-center">
+                    {t('style.subtitleUnavailableHint')}
+                </p>
+            )}
+            {available && !enabled && (
                 <p className="text-[10px] text-slate-600 bg-white/[0.02] border border-white/5 rounded-lg p-3 text-center">
                     {t('style.subtitleDisabledHint', '字幕渲染已关闭，合成时将不会烧录字幕')}
                 </p>
             )}
-            {enabled && (
+            {available && enabled && (
             <>
             <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-4 hover:border-white/10 transition-colors">
                 {/* Style Presets */}

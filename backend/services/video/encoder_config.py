@@ -14,10 +14,11 @@ class EncoderConfigResolver:
             "color_primaries": "bt709",
             "color_trc": "bt709",
             "colorspace": "bt709",
-            "r": "30",
             "brand": "mp42",
             "movflags": "faststart+write_colr",
         }
+        if not options.get("preserve_frame_rate"):
+            universal_flags["r"] = "30"
 
         if use_gpu and MediaProber.detect_nvenc():
             nvenc_preset_map = {

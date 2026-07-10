@@ -151,7 +151,7 @@ class SynthesizeParams(BaseModel):
 
 class SynthesisRequest(BaseModel):
     video_ref: MediaReference
-    srt_ref: MediaReference
+    srt_ref: Optional[MediaReference] = None
     watermark_path: Optional[str] = None
     output_ref: Optional[MediaReference] = None
     options: Optional[dict] = None
@@ -203,9 +203,15 @@ class HighlightDetectionResponse(BaseModel):
 
 class ClipExportSegment(BaseModel):
     id: str
-    start: float
-    end: float
+    start: float = Field(ge=0, allow_inf_nan=False)
+    end: float = Field(ge=0, allow_inf_nan=False)
     title: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_time_range(self):
+        if self.end <= self.start:
+            raise ValueError("Clip end must be greater than start")
+        return self
 
 
 class ClipExportRequest(BaseModel):

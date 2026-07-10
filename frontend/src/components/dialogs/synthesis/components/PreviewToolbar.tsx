@@ -1,4 +1,4 @@
-import { ChevronDown, Scissors, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Scissors, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { CropState } from "../hooks/useCrop";
 import type { OutputSettingsState } from "../hooks/useOutputSettings";
@@ -9,6 +9,14 @@ type PreviewToolbarProps = {
   isTrimOpen: boolean;
   setIsTrimOpen: (value: boolean) => void;
   onClose: () => void;
+  showTrimButton?: boolean;
+  clipNavigator?: {
+    index: number;
+    count: number;
+    title: string;
+    onPrevious: () => void;
+    onNext: () => void;
+  } | null;
 };
 
 export function PreviewToolbar({
@@ -17,6 +25,8 @@ export function PreviewToolbar({
   isTrimOpen,
   setIsTrimOpen,
   onClose,
+  showTrimButton = true,
+  clipNavigator = null,
 }: PreviewToolbarProps) {
   const { t } = useTranslation("synthesis");
   const { quality, setQuality, isQualityMenuOpen, setIsQualityMenuOpen } = output;
@@ -33,9 +43,36 @@ export function PreviewToolbar({
   return (
     <div className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-[#1a1a1a] shrink-0">
       <div className="flex items-center gap-4">
-        <span className="text-slate-400 text-xs font-medium bg-white/5 px-2 py-1 rounded border border-white/5">
-          {t("preview.previewMode")}
-        </span>
+        {clipNavigator ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={clipNavigator.onPrevious}
+              disabled={clipNavigator.index === 0}
+              className="rounded-md border border-white/5 bg-white/[0.03] p-1 text-slate-400 hover:text-white disabled:opacity-30"
+              title={t("clipExport.previousClip")}
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="max-w-[300px] truncate text-xs font-medium text-slate-200" title={clipNavigator.title}>
+              {t("clipExport.previewIndex", {
+                current: clipNavigator.index + 1,
+                count: clipNavigator.count,
+              })} · {clipNavigator.title}
+            </span>
+            <button
+              onClick={clipNavigator.onNext}
+              disabled={clipNavigator.index >= clipNavigator.count - 1}
+              className="rounded-md border border-white/5 bg-white/[0.03] p-1 text-slate-400 hover:text-white disabled:opacity-30"
+              title={t("clipExport.nextClip")}
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        ) : (
+          <span className="text-slate-400 text-xs font-medium bg-white/5 px-2 py-1 rounded border border-white/5">
+            {t("preview.previewMode")}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-4">
         <div className="relative">
@@ -83,13 +120,15 @@ export function PreviewToolbar({
 
         <div className="h-4 w-[1px] bg-white/10" />
 
-        <button
-          onClick={() => setIsTrimOpen(!isTrimOpen)}
-          className={`p-1.5 rounded-lg transition-all ${isTrimOpen ? "bg-indigo-500/20 text-indigo-400" : "hover:bg-white/10 text-slate-400 hover:text-white"}`}
-          title={t("preview.trimVideo")}
-        >
-          <Scissors size={18} />
-        </button>
+        {showTrimButton && (
+          <button
+            onClick={() => setIsTrimOpen(!isTrimOpen)}
+            className={`p-1.5 rounded-lg transition-all ${isTrimOpen ? "bg-indigo-500/20 text-indigo-400" : "hover:bg-white/10 text-slate-400 hover:text-white"}`}
+            title={t("preview.trimVideo")}
+          >
+            <Scissors size={18} />
+          </button>
+        )}
 
         <button
           onClick={() => crop.setIsEnabled(!crop.isEnabled)}

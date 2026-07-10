@@ -10,7 +10,12 @@ import {
   executionService,
   getExecutionSubmission,
   buildSynthesisOptionsFromPreferences,
+  mergeDetectedClipCandidates,
+  resolveClipRenderMode,
   resolveSynthesisWatermarkPath,
+  resolveVideoExportOutputDir,
+  type VideoExportScope,
+  type VideoExportSubmission,
 } from "../services/domain";
 import { useTaskContext } from "../context/taskContext";
 import { restoreStoredSynthesisExecutionPreferences } from "../services/persistence/synthesisExecutionPreferences";
@@ -33,13 +38,17 @@ import { useEditorFindReplace } from "../hooks/editor/useEditorFindReplace";
 import { useEditorRegionHandlers } from "../hooks/editor/useEditorRegionHandlers";
 import { useEditorStore } from "../stores/editorStore";
 import { normalizeMediaReference } from "../services/ui/mediaReference";
+import { resolveTaskOutputPath } from "../services/ui/taskMedia";
+import { fileService } from "../services/fileService";
 import { PageShell } from "../components/ui/PageChrome";
 import type { ClipCandidate, SubtitleSegment } from "../types/task";
+import type { ClipExportSegment } from "../types/api";
+import { stopVideoAtClipEnd } from "../utils/clipPlayback";
 import { toast } from "../utils/toast";
 
-const SynthesisDialog = lazy(async () => {
+const VideoExportDialog = lazy(async () => {
   const mod = await import("../components/dialogs/SynthesisDialog");
-  return { default: mod.SynthesisDialog };
+  return { default: mod.VideoExportDialog };
 });
 
 const WaveformPlayer = lazy(async () => {
@@ -50,18 +59,24 @@ const WaveformPlayer = lazy(async () => {
 export function EditorPage() {
   const { t } = useTranslation('editor');
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { addTask } = useTaskContext();
+  const clipPlaybackEndRef = useRef<number | null>(null);
+  const { addTask, tasks } = useTaskContext();
 
   // ── UI State ────────────────────────────────────────────────
   const autoScroll = true;
-  const [showSynthesis, setShowSynthesis] = useState(false);
+  const [exportScope, setExportScope] = useState<VideoExportScope | null>(null);
   const [waveformReady, setWaveformReady] = useState(false);
   const [workspaceMode, setWorkspaceMode] =
     useState<EditorWorkspaceMode>("subtitles");
   const [clipCandidates, setClipCandidates] = useState<ClipCandidate[]>([]);
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
   const [isDetectingHighlights, setIsDetectingHighlights] = useState(false);
-  const [isExportingClips, setIsExportingClips] = useState(false);
+  const [isQuickExportingClips, setIsQuickExportingClips] = useState(false);
+  const [lastClipExportTracking, setLastClipExportTracking] = useState<{
+    taskId: string;
+    sourcePath: string;
+  } | null>(null);
+  const notifiedClipExportTaskIdRef = useRef<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
       position: { x: number; y: number };
       items: ContextMenuItem[];
@@ -103,6 +118,9 @@ export function EditorPage() {
       mediaUrl, openFile, openSubtitle, saveSubtitleFile, currentFilePath,
       loadVideo, loadSubtitleFromPath,
   } = useEditorIO();
+  const currentVideoSourcePath = currentFileRef?.path ?? currentFilePath ?? null;
+  const currentVideoSourcePathRef = useRef(currentVideoSourcePath);
+  currentVideoSourcePathRef.current = currentVideoSourcePath;
 
   const resolveCurrentVideoReference = () => {
     return currentFileRef ?? normalizeMediaReference(currentFilePath, {
@@ -152,6 +170,32 @@ export function EditorPage() {
       return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [regionsRef]);
 
+  useEffect(() => {
+    clipPlaybackEndRef.current = null;
+  }, [mediaUrl, workspaceMode]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const stopAtClipEnd = () => {
+      const clipEnd = clipPlaybackEndRef.current;
+      if (clipEnd === null || !stopVideoAtClipEnd(video, clipEnd)) return;
+
+      clipPlaybackEndRef.current = null;
+    };
+    const clearClipBoundary = () => {
+      clipPlaybackEndRef.current = null;
+    };
+
+    video.addEventListener("timeupdate", stopAtClipEnd);
+    video.addEventListener("ended", clearClipBoundary);
+    return () => {
+      video.removeEventListener("timeupdate", stopAtClipEnd);
+      video.removeEventListener("ended", clearClipBoundary);
+    };
+  }, [mediaUrl]);
+
   // ── Shortcuts ───────────────────────────────────────────────
   useEditorShortcuts({
       videoRef, selectedIds, activeSegmentId,
@@ -177,7 +221,10 @@ export function EditorPage() {
   useEffect(() => {
     setClipCandidates([]);
     setActiveClipId(null);
-  }, [currentFilePath]);
+    setExportScope(null);
+    setLastClipExportTracking(null);
+    notifiedClipExportTaskIdRef.current = null;
+  }, [currentVideoSourcePath]);
 
   const handleVideoMetadataReady = () => {
     handleLoadedMetadata();
@@ -195,6 +242,30 @@ export function EditorPage() {
     .map((candidate) => candidate.id);
   const activeClip = clipCandidates.find((candidate) => candidate.id === activeClipId) ?? null;
   const hasSubtitleContent = regions.some((region) => region.text.trim().length > 0);
+  const lastClipExportTask = lastClipExportTracking?.sourcePath === currentVideoSourcePath
+    ? tasks.find((task) => task.id === lastClipExportTracking.taskId) ?? null
+    : null;
+  const lastClipExportOutputCount = lastClipExportTask?.artifacts?.filter(
+    (artifact) => artifact.kind === "video" && artifact.role === "output",
+  ).length ?? 0;
+
+  useEffect(() => {
+    if (!lastClipExportTask || notifiedClipExportTaskIdRef.current === lastClipExportTask.id) return;
+    if (lastClipExportTask.status === "completed") {
+      notifiedClipExportTaskIdRef.current = lastClipExportTask.id;
+      toast.success(t("clips.exportCompleted", { count: lastClipExportOutputCount }));
+    } else if (lastClipExportTask.status === "failed") {
+      notifiedClipExportTaskIdRef.current = lastClipExportTask.id;
+      toast.error(lastClipExportTask.error || t("clips.exportError"));
+    }
+  }, [lastClipExportOutputCount, lastClipExportTask, t]);
+
+  const handleOpenLastClipExport = () => {
+    if (!lastClipExportTask) return;
+    void resolveTaskOutputPath(lastClipExportTask).then((outputPath) => {
+      if (outputPath) return fileService.showInExplorer(outputPath);
+    });
+  };
 
   const updateClipCandidate = (
     id: string,
@@ -229,8 +300,10 @@ export function EditorPage() {
         min_duration: 12,
         max_duration: 75,
       });
-      setClipCandidates(response.candidates);
-      setActiveClipId(response.candidates[0]?.id ?? null);
+      setClipCandidates((current) =>
+        mergeDetectedClipCandidates(current, response.candidates),
+      );
+      setActiveClipId((current) => current ?? response.candidates[0]?.id ?? null);
       if (response.candidates.length === 0) {
         toast.warning(t("clips.detectNoCandidates"));
       } else {
@@ -245,6 +318,7 @@ export function EditorPage() {
   };
 
   const handleClipClick = (id: string) => {
+    clipPlaybackEndRef.current = null;
     setActiveClipId(id);
     const clip = clipCandidates.find((candidate) => candidate.id === id);
     if (clip && videoRef.current) {
@@ -253,6 +327,7 @@ export function EditorPage() {
   };
 
   const handleClipRegionClick = (id: string, event?: MouseEvent) => {
+    clipPlaybackEndRef.current = null;
     setActiveClipId(id);
     if (event?.ctrlKey || event?.metaKey) {
       updateClipCandidate(id, {
@@ -285,88 +360,250 @@ export function EditorPage() {
     }
   };
 
-  const handleExportSelectedClips = async (renderMode: "burned" | "source" = "burned") => {
+  const addManualClip = (startValue: number, endValue: number, id?: string) => {
+    const start = Number(startValue.toFixed(3));
+    const end = Number(endValue.toFixed(3));
+    if (end <= start) return;
+
+    const candidateId = id ?? `manual-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    setClipCandidates((current) => [
+      ...current,
+      {
+        id: candidateId,
+        start,
+        end,
+        title: t("clips.manualClipTitle", { index: current.length + 1 }),
+        reason: t("clips.manualClipReason"),
+        score: 100,
+        transcript: null,
+        selected: true,
+      },
+    ]);
+    setActiveClipId(candidateId);
+  };
+
+  const handleCreateManualClip = () => {
+    const video = videoRef.current;
+    const duration = video?.duration ?? 0;
+    if (!video || !Number.isFinite(duration) || duration <= 0) {
+      toast.warning(t("clips.manualCreateUnavailable"));
+      return;
+    }
+
+    const defaultDuration = 15;
+    const playhead = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+    let start = Math.max(0, Math.min(playhead, duration));
+    const end = Math.min(duration, start + defaultDuration);
+    if (end - start < 1) start = Math.max(0, end - defaultDuration);
+    addManualClip(start, end);
+    toast.success(t("clips.manualCreateSuccess"));
+  };
+
+  const getSelectedClipSegments = () => clipCandidates
+    .filter((candidate) => candidate.selected)
+    .map((candidate) => ({
+      id: candidate.id,
+      start: candidate.start,
+      end: candidate.end,
+      title: candidate.title,
+    }));
+
+  const handleConfigureClipExport = () => {
     const videoRefForSubmission = resolveCurrentVideoReference();
-    const selectedClips = clipCandidates.filter((candidate) => candidate.selected);
+    const selectedSegments = getSelectedClipSegments();
     if (!videoRefForSubmission) {
       alert(t("clips.missingVideoError"));
       return;
     }
-    if (selectedClips.length === 0) {
+    if (selectedSegments.length === 0) {
       toast.warning(t("clips.noSelectedClips"));
       return;
     }
 
-    setIsExportingClips(true);
+    setExportScope({ kind: "clips", segments: selectedSegments });
+  };
+
+  const submitClipExport = async (
+    segments: ClipExportSegment[],
+    submission: VideoExportSubmission,
+  ): Promise<boolean> => {
+    const videoRefForSubmission = resolveCurrentVideoReference();
+    if (!videoRefForSubmission) {
+      toast.error(t("clips.missingVideoError"));
+      return false;
+    }
+    const submittedSourcePath = videoRefForSubmission.path;
+
     try {
-      const synthesisPreferences = restoreStoredSynthesisExecutionPreferences();
-      const videoElement = videoRef.current;
-      const renderOptions =
-        renderMode === "burned"
-          ? buildSynthesisOptionsFromPreferences(synthesisPreferences, {
-              videoSize: videoElement
-                ? {
-                    w: videoElement.videoWidth,
-                    h: videoElement.videoHeight,
-                  }
-                : null,
-            })
-          : null;
       let subtitleRefForSubmission: ReturnType<typeof resolveSubtitleReferenceForSavedPath> | null = null;
-      if (renderMode === "burned" && !renderOptions?.skip_subtitles) {
+      if (submission.subtitleEnabled) {
         let srtPath: string | false = false;
         try {
           srtPath = await saveSubtitleFile(regions);
         } catch (error) {
           console.error("[EditorClips] Failed to save subtitles before clip export", error);
         }
-        if (!srtPath || !currentFilePath) {
+        const sourcePath = currentFilePath || videoRefForSubmission.path;
+        if (!srtPath || !sourcePath) {
           toast.error(t("clips.exportSubtitleError"));
-          return;
+          return false;
         }
         subtitleRefForSubmission = resolveSubtitleReferenceForSavedPath({
-          currentFilePath,
+          currentFilePath: sourcePath,
           currentSubtitlePath,
           currentSubtitleRef,
           savedPath: srtPath,
         });
       }
-      const watermarkPath =
-        renderMode === "burned"
-          ? await resolveSynthesisWatermarkPath(synthesisPreferences)
-          : null;
       const exportPayload = {
         video_ref: videoRefForSubmission,
-        render_mode: renderMode,
+        render_mode: resolveClipRenderMode(submission),
         srt_ref: subtitleRefForSubmission,
-        watermark_path: watermarkPath,
-        options: renderOptions,
-        output_dir: synthesisPreferences.lastOutputDir,
-        segments: selectedClips.map((candidate) => ({
-          id: candidate.id,
-          start: candidate.start,
-          end: candidate.end,
-          title: candidate.title,
-        })),
+        watermark_path: submission.watermarkPath,
+        options: submission.options,
+        output_dir: submission.outputDir,
+        segments,
       };
       const executionResult = await editorService.exportClipSegments(exportPayload);
+      getExecutionSubmission(executionResult);
+      const task = createTaskFromExecutionOutcome({
+        outcome: executionResult,
+        type: "clip_export",
+        name: currentFilePath
+          ? `Export clips ${currentFilePath.split(/[\\/]/).pop()}`
+          : "Export clips",
+        request_params: exportPayload,
+      });
+      addTask(task);
+      if (currentVideoSourcePathRef.current === submittedSourcePath) {
+        setLastClipExportTracking({
+          taskId: task.id,
+          sourcePath: submittedSourcePath,
+        });
+        notifiedClipExportTaskIdRef.current = null;
+        toast.success(t("clips.exportQueued", { count: segments.length }));
+      }
+      return true;
+    } catch (error) {
+      console.error("[EditorClips] Failed to export clips", error);
+      toast.error(t("clips.exportError"));
+      return false;
+    }
+  };
+
+  const handleQuickExportSelectedClips = async () => {
+    const videoRefForSubmission = resolveCurrentVideoReference();
+    const segments = getSelectedClipSegments();
+    if (!videoRefForSubmission) {
+      toast.error(t("clips.missingVideoError"));
+      return;
+    }
+    if (segments.length === 0) {
+      toast.warning(t("clips.noSelectedClips"));
+      return;
+    }
+
+    setIsQuickExportingClips(true);
+    try {
+      const preferences = restoreStoredSynthesisExecutionPreferences();
+      const effectivePreferences = {
+        ...preferences,
+        subtitleEnabled: preferences.subtitleEnabled && hasSubtitleContent,
+      };
+      const videoElement = videoRef.current;
+      const options = buildSynthesisOptionsFromPreferences(effectivePreferences, {
+        targetResolution: effectivePreferences.targetResolution.startsWith("sr_")
+          ? "original"
+          : effectivePreferences.targetResolution,
+        videoSize: videoElement
+          ? { w: videoElement.videoWidth, h: videoElement.videoHeight }
+          : null,
+      });
+      const watermarkPath = preferences.watermarkEnabled
+        ? await resolveSynthesisWatermarkPath(preferences)
+        : null;
+      await submitClipExport(segments, {
+        options,
+        outputRef: null,
+        outputDir: resolveVideoExportOutputDir(
+          videoRefForSubmission.path,
+          preferences.lastOutputDir,
+          "clips",
+        ),
+        watermarkPath,
+        subtitleEnabled: effectivePreferences.subtitleEnabled,
+        watermarkEnabled: preferences.watermarkEnabled,
+      });
+    } finally {
+      setIsQuickExportingClips(false);
+    }
+  };
+
+  const handleVideoExport = async (
+    submission: VideoExportSubmission,
+  ): Promise<boolean> => {
+    if (!exportScope) return false;
+    if (exportScope.kind === "clips") {
+      return await submitClipExport(exportScope.segments, submission);
+    }
+
+    const videoRefForSubmission = resolveCurrentVideoReference();
+    if (!videoRefForSubmission) {
+      toast.error(t("synthesis.missingFilesError"));
+      return false;
+    }
+
+    let subtitleRefForSubmission: ReturnType<typeof resolveSubtitleReferenceForSavedPath> | null = null;
+    if (submission.subtitleEnabled) {
+      let srtPath: string | false = false;
+      try {
+        srtPath = await saveSubtitleFile(regions);
+      } catch (error) {
+        console.error("[EditorPage] Failed to save subtitles before export", error);
+      }
+      const sourcePath = currentFilePath || videoRefForSubmission.path;
+      if (!srtPath || !sourcePath) {
+        toast.error(t("clips.exportSubtitleError"));
+        return false;
+      }
+      subtitleRefForSubmission = resolveSubtitleReferenceForSavedPath({
+        currentFilePath: sourcePath,
+        currentSubtitlePath,
+        currentSubtitleRef,
+        savedPath: srtPath,
+      });
+    }
+
+    try {
+      const executionResult = await executionService.synthesize({
+        video_ref: videoRefForSubmission,
+        srt_ref: subtitleRefForSubmission,
+        watermark_path: submission.watermarkPath,
+        output_ref: submission.outputRef,
+        options: submission.options,
+      });
       getExecutionSubmission(executionResult);
       addTask(
         createTaskFromExecutionOutcome({
           outcome: executionResult,
-          type: "clip_export",
+          type: "synthesis",
           name: currentFilePath
-            ? `Export clips ${currentFilePath.split(/[\\/]/).pop()}`
-            : "Export clips",
-          request_params: exportPayload,
+            ? `Export ${currentFilePath.split(/[\\/]/).pop()}`
+            : "Export video",
+          request_params: {
+            video_ref: videoRefForSubmission,
+            srt_ref: subtitleRefForSubmission,
+            watermark_path: submission.watermarkPath,
+            output_ref: submission.outputRef ?? undefined,
+            options: submission.options,
+          },
         }),
       );
-      toast.success(t("clips.exportQueued", { count: selectedClips.length }));
+      return true;
     } catch (error) {
-      console.error("[EditorClips] Failed to export clips", error);
-      toast.error(t("clips.exportError"));
-    } finally {
-      setIsExportingClips(false);
+      console.error("[EditorPage] Failed to submit video export", error);
+      toast.error(t("synthesis.exportError"));
+      return false;
     }
   };
 
@@ -387,20 +624,7 @@ export function EditorPage() {
           {
             label: t("clips.contextCreateFromSelection"),
             onClick: () => {
-              const start = Number(regionData.start.toFixed(3));
-              const end = Number(regionData.end.toFixed(3));
-              const newClip: ClipCandidate = {
-                id,
-                start,
-                end,
-                title: t("clips.manualClipTitle", { index: clipCandidates.length + 1 }),
-                reason: t("clips.manualClipReason"),
-                score: 100,
-                transcript: null,
-                selected: true,
-              };
-              setClipCandidates((current) => [...current, newClip]);
-              setActiveClipId(id);
+              addManualClip(regionData.start, regionData.end, id);
             },
           },
           { separator: true, label: "", onClick: () => {} },
@@ -418,8 +642,12 @@ export function EditorPage() {
           label: t("clips.contextPlay"),
           onClick: () => {
             if (videoRef.current) {
-              videoRef.current.currentTime = clip.start;
-              videoRef.current.play();
+              const video = videoRef.current;
+              clipPlaybackEndRef.current = clip.end;
+              video.currentTime = clip.start;
+              void video.play().catch(() => {
+                clipPlaybackEndRef.current = null;
+              });
             }
           },
         },
@@ -432,7 +660,7 @@ export function EditorPage() {
         {
           label: t("clips.contextExportSelected"),
           onClick: () => {
-            void handleExportSelectedClips();
+            handleConfigureClipExport();
           },
         },
         { separator: true, label: "", onClick: () => {} },
@@ -455,11 +683,12 @@ export function EditorPage() {
             onOpenSubtitle={openSubtitle}
             onSave={handleSave}
             onSaveAs={() => saveSubtitleFile(regions, true)}
-            onSynthesize={() => setShowSynthesis(true)}
+            onExport={() => setExportScope({ kind: "full-video" })}
             onTranslate={handleTranslate}
             onDetectHighlights={handleDetectHighlights}
             isDetectingHighlights={isDetectingHighlights}
             canDetectHighlights={hasSubtitleContent}
+            canExport={Boolean(currentVideoSourcePath)}
         />
 
         <div className="flex-1 flex min-h-0 bg-[#0a0a0a] gap-[1px]">
@@ -493,11 +722,21 @@ export function EditorPage() {
                             candidates={clipCandidates}
                             activeClipId={activeClipId}
                             isDetecting={isDetectingHighlights}
-                            isExporting={isExportingClips}
+                            isExporting={isQuickExportingClips}
+                            exportTask={lastClipExportTask ? {
+                                status: lastClipExportTask.status,
+                                progress: lastClipExportTask.progress,
+                                message: lastClipExportTask.message,
+                                error: lastClipExportTask.error,
+                                outputCount: lastClipExportOutputCount,
+                                onOpenOutput: handleOpenLastClipExport,
+                            } : null}
                             canDetect={hasSubtitleContent}
+                            canCreate={Boolean(currentVideoSourcePath && waveformReady)}
                             onDetect={handleDetectHighlights}
-                            onExportSelected={handleExportSelectedClips}
-                            onExportSourceSelected={() => handleExportSelectedClips("source")}
+                            onCreateClip={handleCreateManualClip}
+                            onConfigureExport={handleConfigureClipExport}
+                            onQuickExport={handleQuickExportSelectedClips}
                             onClipClick={handleClipClick}
                             onToggleSelected={handleToggleClipSelected}
                             onDeleteClip={handleDeleteClip}
@@ -614,75 +853,16 @@ export function EditorPage() {
             setMatchCase={setMatchCase}
         />
 
-        {showSynthesis && (
+        {exportScope && (
             <Suspense fallback={null}>
-                <SynthesisDialog
-                    isOpen={showSynthesis}
-                    onClose={() => setShowSynthesis(false)}
+                <VideoExportDialog
+                    isOpen={Boolean(exportScope)}
+                    onClose={() => setExportScope(null)}
                     regions={regions}
                     videoPath={currentFilePath || (mediaUrl ? mediaUrl.replace('file:///', '') : null)}
                     mediaUrl={mediaUrl}
-                    onSynthesize={async (options, _unusedVideoPath, watermarkPath) => {
-                        let srtPath: string | false = false;
-                        try {
-                            srtPath = await saveSubtitleFile(regions);
-                        } catch (e) {
-                            console.error("[EditorPage] Failed to save subtitles before synthesis", e);
-                        }
-
-                        if (!srtPath) {
-                            if(!confirm(t('synthesis.confirmUnsavedMessage'))) return;
-                            if (currentFilePath) {
-                                srtPath = currentFilePath.replace(/\.[^.]+$/, '.srt');
-                            }
-                        }
-                        
-                        if (!srtPath || !currentFilePath) {
-                            alert(t('synthesis.missingFilesError'));
-                            return;
-                        }
-
-                        const { output_ref, ...restOptions } = options;
-                        const videoRefForSubmission = currentFileRef ?? normalizeMediaReference(currentFilePath, {
-                            type: "video/mp4",
-                            media_kind: "video",
-                            role: "source",
-                        });
-                        const subtitleRefForSubmission = resolveSubtitleReferenceForSavedPath({
-                            currentFilePath,
-                            currentSubtitlePath,
-                            currentSubtitleRef,
-                            savedPath: srtPath,
-                        });
-                        if (!videoRefForSubmission || !subtitleRefForSubmission) {
-                            alert(t('synthesis.missingFilesError'));
-                            return;
-                        }
-                        const executionResult = await executionService.synthesize({
-                            video_ref: videoRefForSubmission,
-                            srt_ref: subtitleRefForSubmission,
-                            watermark_path: watermarkPath,
-                            output_ref,
-                            options: restOptions,
-                        });
-                        getExecutionSubmission(executionResult);
-                        addTask(
-                            createTaskFromExecutionOutcome({
-                                outcome: executionResult,
-                                type: "synthesis",
-                                name: currentFilePath
-                                    ? `Synthesize ${currentFilePath.split(/[\\/]/).pop()}`
-                                    : "Synthesize video",
-                                request_params: {
-                                    video_ref: videoRefForSubmission,
-                                    subtitle_ref: subtitleRefForSubmission,
-                                    watermark_path: watermarkPath,
-                                    output_ref: output_ref ?? undefined,
-                                    options: restOptions,
-                                },
-                            }),
-                        );
-                    }}
+                    exportScope={exportScope}
+                    onExport={handleVideoExport}
                 />
             </Suspense>
         )}

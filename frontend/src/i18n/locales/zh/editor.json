@@ -17,8 +17,9 @@
     "detectHighlightsRequiresSubtitlesTooltip": "请先加载或生成字幕后再使用 AI 查找",
     "detectHighlightsButton": "找精彩",
     "detectingHighlightsButton": "查找中...",
-    "synthesizeTooltip": "导出带字幕的视频",
-    "synthesizeButton": "合成",
+    "exportTooltip": "打开视频导出面板",
+    "exportRequiresVideoTooltip": "请先打开一个视频",
+    "exportButton": "导出",
     "saveButton": "保存",
     "saveAsTooltip": "另存为..."
   },
@@ -53,24 +54,32 @@
     "requiresSubtitlesTooltip": "请先加载或生成字幕",
     "requiresSubtitlesMessage": "请先加载或生成字幕，再使用 AI 查找精彩片段",
     "detectingButton": "查找中...",
-    "exportSelectedButton": "导出成片 {{count}}",
-    "exportBurnedTooltip": "导出带字幕和水印的成片",
-    "exportSourceTooltip": "快速导出原片片段，不烧录字幕和水印",
-    "exportingButton": "导出中...",
+    "createButton": "新建片段",
+    "createTooltip": "从当前播放位置新建一个 15 秒片段",
+    "configureExportButton": "导出设置 {{count}}",
+    "configureExportTooltip": "设置字幕、水印、画质和输出目录",
+    "quickExportButton": "快速导出",
+    "quickExportTooltip": "沿用已保存的字幕、水印、画质、分辨率、编码器和目录设置直接提交（不沿用画面裁切）",
+    "submittingButton": "提交中...",
     "columnRange": "范围",
     "columnCandidate": "候选片段",
     "columnUse": "使用",
-    "emptyState": "还没有候选片段",
+    "emptyState": "还没有片段，可使用 AI 查找或手动新建",
     "untitled": "未命名片段",
     "noReason": "暂无判断说明",
     "toggleSelectedTooltip": "是否导出此片段",
     "deleteTooltip": "删除候选片段",
     "missingVideoError": "请先打开一个视频",
-    "detectNoCandidates": "没有找到候选片段",
-    "detectSuccess": "已生成 {{count}} 个候选片段",
+    "detectNoCandidates": "本次没有发现新候选，已有片段未改动",
+    "detectSuccess": "AI 已分析 {{count}} 个候选；已有片段和编辑已保留",
     "detectError": "精彩片段查找失败",
     "noSelectedClips": "请先选择至少一个候选片段",
-    "exportQueued": "已提交 {{count}} 个切片导出任务",
+    "exportQueued": "已提交 {{count}} 个切片，进度会显示在当前页面",
+    "exportInProgress": "正在导出切片...",
+    "exportCompleted": "已导出 {{count}} 个切片",
+    "exportPaused": "切片导出已暂停",
+    "exportCancelled": "切片导出已取消",
+    "openOutputFolder": "打开目录",
     "exportSubtitleError": "导出成片前保存字幕失败",
     "exportError": "导出切片失败",
     "detailTitle": "候选片段",
@@ -84,7 +93,9 @@
     "contextExportSelected": "导出选中片段",
     "contextDelete": "删除候选片段",
     "manualClipTitle": "手动片段 {{index}}",
-    "manualClipReason": "用户在时间线上手动选择"
+    "manualClipReason": "用户手动创建",
+    "manualCreateUnavailable": "视频尚未加载完成，暂时无法新建片段",
+    "manualCreateSuccess": "已从当前播放位置新建片段"
   },
   "waveform": {
     "title": "时间线",
@@ -106,7 +117,7 @@
     "replaceAllButton": "全部"
   },
   "synthesis": {
-    "confirmUnsavedMessage": "保存字幕失败。合成可能使用过期文件。继续吗？",
-    "missingFilesError": "无法合成：缺少视频或字幕文件。"
+    "missingFilesError": "无法导出：缺少视频文件。",
+    "exportError": "提交视频导出失败"
   }
 }

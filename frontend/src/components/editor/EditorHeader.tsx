@@ -12,11 +12,12 @@ interface EditorHeaderProps {
     onOpenSubtitle: () => void;
     onSave: () => void;
     onSaveAs: () => void;
-    onSynthesize: () => void;
+    onExport: () => void;
     onTranslate: () => void;
     onDetectHighlights: () => void;
     isDetectingHighlights?: boolean;
     canDetectHighlights?: boolean;
+    canExport?: boolean;
 }
 
 export function EditorHeader({
@@ -26,11 +27,12 @@ export function EditorHeader({
     onOpenSubtitle,
     onSave,
     onSaveAs,
-    onSynthesize,
+    onExport,
     onTranslate,
     onDetectHighlights,
     isDetectingHighlights = false,
     canDetectHighlights = false,
+    canExport = false,
 }: EditorHeaderProps) {
     const { t } = useTranslation('editor');
     return (
@@ -108,13 +110,14 @@ export function EditorHeader({
                     </span>
                 </ToolbarButton>
                 <ToolbarButton
-                    onClick={onSynthesize}
+                    onClick={onExport}
+                    disabled={!canExport}
                     icon={Download}
                     variant="success"
                     className="h-8 px-3 text-xs"
-                    title={t('header.synthesizeTooltip')}
+                    title={canExport ? t('header.exportTooltip') : t('header.exportRequiresVideoTooltip')}
                 >
-                    <span>{t('header.synthesizeButton')}</span>
+                    <span>{t('header.exportButton')}</span>
                 </ToolbarButton>
                 <div className="mx-2 h-6 w-px bg-white/10" />
                 <ToolbarButton

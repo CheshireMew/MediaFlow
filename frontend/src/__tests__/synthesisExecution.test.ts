@@ -7,6 +7,7 @@ const preferences: SynthesisExecutionPreferences = {
   watermarkEnabled: false,
   quality: "balanced",
   useGpu: false,
+  targetResolution: "original",
   lastOutputDir: null,
   subtitleStyle: {
     fontName: "Arial",

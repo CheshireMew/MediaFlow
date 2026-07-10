@@ -47,12 +47,15 @@ export function usePreviewMediaState({
     videoRef.current.load();
   }, [mediaUrl, videoRef]);
 
-  const bindVideoEvents = (url: string, onTimeUpdate: (time: number) => void) => ({
+  const bindVideoEvents = (
+    url: string,
+    onTimeUpdate: (time: number, video: HTMLVideoElement) => void,
+  ) => ({
     onLoadStart: () => {
       setMediaState(createPreviewMediaState(url));
     },
     onTimeUpdate: (event: React.SyntheticEvent<HTMLVideoElement>) => {
-      onTimeUpdate(event.currentTarget.currentTime);
+      onTimeUpdate(event.currentTarget.currentTime, event.currentTarget);
     },
     onLoadedMetadata: (event: React.SyntheticEvent<HTMLVideoElement>) => {
       const target = event.currentTarget;

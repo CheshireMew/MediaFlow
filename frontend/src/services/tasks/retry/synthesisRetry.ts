@@ -23,9 +23,7 @@ function normalizeSynthesisTaskParams(task: Task) {
           ![
             "task_id",
             "video_ref",
-            "subtitle_ref",
             "srt_ref",
-            "context_ref",
             "watermark_path",
             "output_ref",
             "options",
@@ -51,16 +49,17 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
   const videoRef = getTaskMediaReference(params, ["video_ref"], "video/mp4");
   const srtRef = getTaskMediaReference(
     params,
-    ["srt_ref", "subtitle_ref", "context_ref"],
+    ["srt_ref"],
     "application/x-subrip",
   );
-  if (!videoRef?.path || !srtRef?.path) {
+  const skipSubtitles = options.skip_subtitles === true;
+  if (!videoRef?.path || (!skipSubtitles && !srtRef?.path)) {
     return null;
   }
 
   const outcome = await executionService.synthesize({
     video_ref: videoRef,
-    srt_ref: srtRef,
+    srt_ref: srtRef ?? null,
     watermark_path: watermarkPath ?? null,
     output_ref: outputRef ?? null,
     options,
@@ -72,7 +71,7 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
       task.type,
       {
         video_ref: videoRef,
-        srt_ref: srtRef,
+        srt_ref: srtRef ?? null,
         ...(watermarkPath !== undefined
           ? { watermark_path: watermarkPath }
           : {}),

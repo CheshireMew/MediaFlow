@@ -1,7 +1,14 @@
 {
-  "title": "视频合成",
-  "successMessage": "合成任务已启动！请查看任务监控。",
-  "errorMessage": "启动合成失败。",
+  "title": "视频导出",
+  "clipExport": {
+    "title": "切片导出",
+    "summary": "{{count}} 个片段 · 总时长 {{duration}} 秒",
+    "untitled": "未命名片段",
+    "previewIndex": "片段 {{current}} / {{count}}",
+    "previousClip": "上一个片段",
+    "nextClip": "下一个片段",
+    "startExport": "导出 {{count}} 个片段"
+  },
   "style": {
     "sectionTitle": "字幕",
     "stylePreset": "样式预设",
@@ -33,7 +40,8 @@
     "topAligned": "顶部对齐",
     "dragHint": "在预览中拖动文字以调整位置。",
     "resetPosition": "复位位置",
-    "subtitleDisabledHint": "字幕渲染已关闭，合成时将不会烧录字幕"
+    "subtitleDisabledHint": "字幕渲染已关闭，导出时将不会烧录字幕",
+    "subtitleUnavailableHint": "当前视频没有可用字幕，字幕渲染已自动关闭"
   },
   "watermark": {
     "sectionTitle": "水印",
@@ -43,7 +51,7 @@
     "positionPreset": "位置预设",
     "scale": "缩放",
     "opacity": "不透明度",
-    "watermarkDisabledHint": "水印渲染已关闭，合成时将不会添加水印"
+    "watermarkDisabledHint": "水印渲染已关闭，导出时将不会添加水印"
   },
   "output": {
     "sectionTitle": "输出",
@@ -57,6 +65,8 @@
     "srNote": "AI 超分辨率：先放大原视频再烧字幕，处理时间较长。需要 Real-ESRGAN。",
     "filename": "文件名",
     "filenamePlaceholder": "video_synthesized.mp4",
+    "batchFiles": "将导出 {{count}} 个独立视频文件",
+    "batchNaming": "文件按片段序号和标题自动命名，并保存到唯一批次目录。",
     "saveFolder": "保存到文件夹",
     "changeFolder": "更改"
   },
@@ -77,9 +87,12 @@
     "setCurrent": "设为当前",
     "reset": "重置",
     "noMediaLoaded": "未加载媒体",
+    "togglePlayback": "播放或暂停视频预览",
+    "loadingMediaFrame": "正在加载视频画面...",
+    "mediaLoadError": "视频预览加载失败",
+    "mediaLoadErrorHint": "请重新打开导出面板或检查视频编码",
     "subtitlePosition": "（字幕位置）",
-    "startRender": "开始渲染",
-    "rendering": "正在渲染",
-    "preparingSynthesis": "准备合成..."
+    "startExport": "导出视频",
+    "submitting": "正在提交..."
   }
 }

@@ -30,14 +30,22 @@ interface Props {
   subtitleEnabled: boolean;
   watermarkEnabled: boolean;
   onClose: () => void;
-  onSynthesizeClick: () => void;
-  isSynthesizing: boolean;
-  synthesisProgress: number;
-  synthesisMessage: string;
+  onExportClick: () => void;
+  isSubmitting: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   setVideoSize: (v: { w: number; h: number }) => void;
   currentTime: number;
   onTimeUpdate: (time: number) => void;
+  previewRange?: { start: number; end: number } | null;
+  clipNavigator?: {
+    index: number;
+    count: number;
+    title: string;
+    onPrevious: () => void;
+    onNext: () => void;
+  } | null;
+  allowTrim?: boolean;
+  actionLabel?: string;
 }
 
 export const VideoPreview: React.FC<Props> = ({
@@ -49,14 +57,16 @@ export const VideoPreview: React.FC<Props> = ({
   subtitleEnabled,
   watermarkEnabled,
   onClose,
-  onSynthesizeClick,
-  isSynthesizing,
-  synthesisProgress,
-  synthesisMessage,
+  onExportClick,
+  isSubmitting,
   videoRef,
   setVideoSize,
   currentTime,
   onTimeUpdate,
+  previewRange = null,
+  clipNavigator = null,
+  allowTrim = true,
+  actionLabel,
 }) => {
   const frameRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation("synthesis");
@@ -95,12 +105,17 @@ export const VideoPreview: React.FC<Props> = ({
     }
 
     if (video.paused) {
+      if (previewRange &&
+          (video.currentTime < previewRange.start || video.currentTime >= previewRange.end)) {
+        video.currentTime = previewRange.start;
+        onTimeUpdate(previewRange.start);
+      }
       void video.play();
       return;
     }
 
     video.pause();
-  }, [dragging, frameReady, mediaState.hasError, videoRef]);
+  }, [dragging, frameReady, mediaState.hasError, onTimeUpdate, previewRange, videoRef]);
 
   const handlePreviewFrameClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -127,6 +142,17 @@ export const VideoPreview: React.FC<Props> = ({
     },
     [togglePreviewPlayback],
   );
+  const handlePreviewTimeUpdate = useCallback((time: number, video: HTMLVideoElement) => {
+    if (previewRange && time >= previewRange.end) {
+      video.pause();
+      if (Math.abs(video.currentTime - previewRange.end) > 0.01) {
+        video.currentTime = previewRange.end;
+      }
+      onTimeUpdate(previewRange.end);
+      return;
+    }
+    onTimeUpdate(time);
+  }, [onTimeUpdate, previewRange]);
 
   return (
     <div className="flex-1 flex flex-col bg-[#050505] relative min-w-0">
@@ -136,9 +162,11 @@ export const VideoPreview: React.FC<Props> = ({
         isTrimOpen={isTrimOpen}
         setIsTrimOpen={setIsTrimOpen}
         onClose={onClose}
+        showTrimButton={allowTrim}
+        clipNavigator={clipNavigator}
       />
 
-      {isTrimOpen && (
+      {allowTrim && isTrimOpen && (
         <PreviewTrimPanel
           output={output}
           currentTime={currentTime}
@@ -152,7 +180,7 @@ export const VideoPreview: React.FC<Props> = ({
             ref={frameRef}
             role="button"
             tabIndex={0}
-            aria-label="播放或暂停视频预览"
+            aria-label={t("preview.togglePlayback")}
             onClick={handlePreviewFrameClick}
             onKeyDown={handlePreviewFrameKeyDown}
             className="relative shadow-2xl shadow-black/50 border border-white/10 bg-black rounded-lg overflow-hidden ring-1 ring-white/5 max-w-full max-h-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/70"
@@ -171,14 +199,14 @@ export const VideoPreview: React.FC<Props> = ({
               videoRef={videoRef}
               isFrameReady={frameReady}
               viewportMetrics={previewViewportMetrics}
-              videoEvents={bindVideoEvents(mediaUrl, onTimeUpdate)}
+              videoEvents={bindVideoEvents(mediaUrl, handlePreviewTimeUpdate)}
             />
 
             {!frameReady && !mediaState.hasError && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-slate-300 pointer-events-none">
                 <div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-indigo-400 animate-spin" />
                 <span className="text-xs font-medium text-slate-400">
-                  {t("preview.loadingMediaFrame", "正在加载视频画面...")}
+                  {t("preview.loadingMediaFrame")}
                 </span>
               </div>
             )}
@@ -187,10 +215,10 @@ export const VideoPreview: React.FC<Props> = ({
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 text-slate-300 pointer-events-none">
                 <Play size={32} className="opacity-30" />
                 <span className="text-sm font-medium text-slate-300">
-                  {t("preview.mediaLoadError", "视频预览加载失败")}
+                  {t("preview.mediaLoadError")}
                 </span>
                 <span className="text-xs text-slate-500">
-                  {t("preview.mediaLoadErrorHint", "请重新打开合成界面或检查视频编码")}
+                  {t("preview.mediaLoadErrorHint")}
                 </span>
               </div>
             )}
@@ -237,10 +265,10 @@ export const VideoPreview: React.FC<Props> = ({
         currentTime={currentTime}
         duration={effectiveDuration}
         onTimeUpdate={onTimeUpdate}
-        onSynthesizeClick={onSynthesizeClick}
-        isSynthesizing={isSynthesizing}
-        synthesisProgress={synthesisProgress}
-        synthesisMessage={synthesisMessage}
+        onExportClick={onExportClick}
+        isSubmitting={isSubmitting}
+        playbackRange={previewRange}
+        actionLabel={actionLabel}
       />
     </div>
   );

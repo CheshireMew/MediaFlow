@@ -134,10 +134,8 @@ describe("synthesis VideoPreview interactions", () => {
         subtitleEnabled={false}
         watermarkEnabled={false}
         onClose={vi.fn()}
-        onSynthesizeClick={vi.fn()}
-        isSynthesizing={false}
-        synthesisProgress={0}
-        synthesisMessage=""
+        onExportClick={vi.fn()}
+        isSubmitting={false}
         videoRef={videoRef}
         setVideoSize={vi.fn()}
         currentTime={0}
@@ -175,5 +173,55 @@ describe("synthesis VideoPreview interactions", () => {
     fireEvent.click(video as HTMLVideoElement);
 
     expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it("previews only the active clip range and stops at its end", () => {
+    const videoRef = React.createRef<HTMLVideoElement>();
+    const onTimeUpdate = vi.fn();
+    const { container } = render(
+      <VideoPreview
+        mediaUrl="file:///D:/source.mp4"
+        style={createSubtitleStyleState()}
+        watermark={createWatermarkState()}
+        output={createOutputState()}
+        crop={createCropState()}
+        subtitleEnabled={false}
+        watermarkEnabled={false}
+        onClose={vi.fn()}
+        onExportClick={vi.fn()}
+        isSubmitting={false}
+        videoRef={videoRef}
+        setVideoSize={vi.fn()}
+        currentTime={12}
+        onTimeUpdate={onTimeUpdate}
+        previewRange={{ start: 10, end: 12 }}
+        allowTrim={false}
+      />,
+    );
+    const video = container.querySelector("video") as HTMLVideoElement;
+    const play = vi.fn(() => Promise.resolve());
+    const pause = vi.fn();
+    Object.defineProperties(video, {
+      paused: { configurable: true, value: true },
+      play: { configurable: true, value: play },
+      pause: { configurable: true, value: pause },
+      videoWidth: { configurable: true, value: 1280 },
+      videoHeight: { configurable: true, value: 720 },
+      duration: { configurable: true, value: 60 },
+    });
+    video.currentTime = 12;
+
+    fireEvent.loadedMetadata(video);
+    fireEvent.canPlay(video);
+    fireEvent.click(video);
+
+    expect(video.currentTime).toBe(10);
+    expect(play).toHaveBeenCalledOnce();
+
+    video.currentTime = 12.2;
+    fireEvent.timeUpdate(video);
+    expect(pause).toHaveBeenCalled();
+    expect(video.currentTime).toBe(12);
+    expect(onTimeUpdate).toHaveBeenCalledWith(12);
   });
 });

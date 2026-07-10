@@ -114,7 +114,7 @@ async def detect_highlight_candidates(req: HighlightDetectionRequest):
 @router.post("/clips/export", response_model=TaskResponse)
 async def export_clip_segments(req: ClipExportRequest):
     try:
-        validate_input_file(req.video_ref.path, label="video_ref.path")
+        source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
         subtitles_required = req.render_mode == "burned" and not (req.options or {}).get("skip_subtitles")
         if subtitles_required and req.srt_ref:
             validate_input_file(req.srt_ref.path, label="srt_ref.path")
@@ -125,11 +125,15 @@ async def export_clip_segments(req: ClipExportRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    if not req.segments:
-        raise HTTPException(status_code=400, detail="No clip segments selected")
-
     if subtitles_required and not req.srt_ref:
         raise HTTPException(status_code=400, detail="Burned clip export requires subtitles")
+
+    try:
+        from backend.application.clip_export_service import plan_clip_segments
+
+        await asyncio.to_thread(plan_clip_segments, source_path, req.segments)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     from backend.application.task_operations import submit_task_operation
 
@@ -145,11 +149,16 @@ async def start_synthesis_task(req: SynthesisRequest):
     """
     try:
         validate_input_file(req.video_ref.path, label="video_ref.path")
-        validate_input_file(req.srt_ref.path, label="srt_ref.path")
+        subtitles_required = not (req.options or {}).get("skip_subtitles")
+        if req.srt_ref:
+            validate_input_file(req.srt_ref.path, label="srt_ref.path")
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    if subtitles_required and not req.srt_ref:
+        raise HTTPException(status_code=400, detail="Synthesis requires subtitles unless disabled")
 
     # Determine output path if not provided
     if not req.output_ref:

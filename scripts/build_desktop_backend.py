@@ -10,6 +10,7 @@ def build() -> None:
     dist_path = root_dir / "dist-desktop-backend"
     work_path = root_dir / "build-desktop-backend"
     contracts_path = root_dir / "contracts"
+    pyinstaller_config_path = root_dir / ".tmp" / "pyinstaller"
 
     if not entry_path.exists():
         raise FileNotFoundError(f"Backend entrypoint not found: {entry_path}")
@@ -17,6 +18,10 @@ def build() -> None:
         raise FileNotFoundError(f"Runtime contracts not found: {contracts_path}")
 
     add_data_separator = ";" if os.name == "nt" else ":"
+    pyinstaller_config_path.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env.setdefault("PYINSTALLER_CONFIG_DIR", str(pyinstaller_config_path))
+
     subprocess.run(
         [
             sys.executable,
@@ -39,7 +44,7 @@ def build() -> None:
         ],
         cwd=root_dir,
         check=True,
-        env=os.environ.copy(),
+        env=env,
     )
 
 

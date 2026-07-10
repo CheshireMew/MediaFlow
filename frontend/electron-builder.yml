@@ -41,6 +41,8 @@ extraResources:
       - "!**/*.md"
       - "!**/*.rst"
       - "!**/*.txt"
+      - "!downloads/**"
+      - "!Faster-Whisper-XXL/**"
 
       # ── Exclude demo / sample files from realesrgan ──
       - "!realesrgan/*.mp4"
@@ -84,4 +86,7 @@ win:
   target:
     - portable
   icon: resources/icon.ico
+  signAndEditExecutable: false
+  signExts:
+    - "!.exe"
   artifactName: ${productName}-Portable-${version}.${ext}

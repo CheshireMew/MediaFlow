@@ -17,8 +17,9 @@
     "detectHighlightsRequiresSubtitlesTooltip": "Load or generate subtitles before using AI highlight detection",
     "detectHighlightsButton": "Find Clips",
     "detectingHighlightsButton": "Finding...",
-    "synthesizeTooltip": "Export Video with Subtitles",
-    "synthesizeButton": "Synthesize",
+    "exportTooltip": "Open video export settings",
+    "exportRequiresVideoTooltip": "Open a video before exporting",
+    "exportButton": "Export",
     "saveButton": "Save",
     "saveAsTooltip": "Save As..."
   },
@@ -53,24 +54,32 @@
     "requiresSubtitlesTooltip": "Load or generate subtitles first",
     "requiresSubtitlesMessage": "Load or generate subtitles before using AI highlight detection.",
     "detectingButton": "Finding...",
-    "exportSelectedButton": "Render {{count}}",
-    "exportBurnedTooltip": "Export rendered clips with subtitles and watermark",
-    "exportSourceTooltip": "Fast export source clips without burned subtitles or watermark",
-    "exportingButton": "Exporting...",
+    "createButton": "New clip",
+    "createTooltip": "Create a 15-second clip from the current playhead",
+    "configureExportButton": "Export settings {{count}}",
+    "configureExportTooltip": "Set subtitles, watermark, quality, and output folder",
+    "quickExportButton": "Quick export",
+    "quickExportTooltip": "Reuse saved subtitle, watermark, quality, resolution, encoder, and folder settings (crop is not reused)",
+    "submittingButton": "Submitting...",
     "columnRange": "Range",
     "columnCandidate": "Candidate",
     "columnUse": "Use",
-    "emptyState": "No clip candidates yet",
+    "emptyState": "No clips yet. Find highlights with AI or create one manually.",
     "untitled": "Untitled clip",
     "noReason": "No rationale yet",
     "toggleSelectedTooltip": "Toggle this clip for export",
     "deleteTooltip": "Delete candidate",
     "missingVideoError": "Open a video first",
-    "detectNoCandidates": "No clip candidates were found",
-    "detectSuccess": "Generated {{count}} clip candidates",
+    "detectNoCandidates": "No new candidates were found; existing clips were unchanged",
+    "detectSuccess": "AI analyzed {{count}} candidates; existing clips and edits were preserved",
     "detectError": "Failed to find highlight clips",
     "noSelectedClips": "Select at least one clip candidate",
-    "exportQueued": "Queued export for {{count}} clips",
+    "exportQueued": "Queued {{count}} clips; progress is shown here",
+    "exportInProgress": "Exporting clips...",
+    "exportCompleted": "Exported {{count}} clips",
+    "exportPaused": "Clip export paused",
+    "exportCancelled": "Clip export cancelled",
+    "openOutputFolder": "Open folder",
     "exportSubtitleError": "Failed to save subtitles before rendered export",
     "exportError": "Failed to export clips",
     "detailTitle": "Clip candidate",
@@ -84,7 +93,9 @@
     "contextExportSelected": "Export selected clips",
     "contextDelete": "Delete candidate",
     "manualClipTitle": "Manual clip {{index}}",
-    "manualClipReason": "Manually selected on the timeline"
+    "manualClipReason": "Created manually",
+    "manualCreateUnavailable": "The video has not finished loading, so a clip cannot be created yet",
+    "manualCreateSuccess": "Created a clip from the current playhead"
   },
   "waveform": {
     "title": "Timeline",
@@ -106,7 +117,7 @@
     "replaceAllButton": "All"
   },
   "synthesis": {
-    "confirmUnsavedMessage": "Failed to save subtitles. Synthesis might use an outdated file. Continue?",
-    "missingFilesError": "Cannot synthesize: Missing video or subtitle file."
+    "missingFilesError": "Cannot export: missing video file.",
+    "exportError": "Failed to submit video export"
   }
 }

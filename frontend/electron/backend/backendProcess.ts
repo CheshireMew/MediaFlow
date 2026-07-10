@@ -26,7 +26,11 @@ export type DesktopBackendRuntimeInfo = {
 
 const BACKEND_HOST = "127.0.0.1";
 
-function endpointInfo(status: DesktopBackendRuntimeInfo["status"], port: number | null, error?: string) {
+function endpointInfo(
+  status: DesktopBackendRuntimeInfo["status"],
+  port: number | null,
+  error?: string,
+): DesktopBackendRuntimeInfo {
   const resolvedPort = port ?? 8800;
   return {
     status,
