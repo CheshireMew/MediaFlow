@@ -1,0 +1,110 @@
+{
+  "tasks": { "extract": "提取文字", "enhance": "增强视频", "clean": "清理视频" },
+  "title": "预处理实验室",
+  "subtitle": "画质增强、字幕清除与 OCR 提取",
+  "importButton": "导入媒体",
+  "canvas": {
+    "previewAlt": "处理预览",
+    "noVideoMessage": "[ 未选择视频 ]",
+    "dragHelpText": "拖放文件到此处或点击「导入媒体」"
+  },
+  "roi": { "label": "ROI" },
+  "subtitleBar": { "noSubtitle": "当前位置无字幕" },
+  "player": {
+    "play": "播放视频",
+    "pause": "暂停视频",
+    "seek": "调整视频进度",
+    "mute": "静音",
+    "unmute": "取消静音",
+    "volume": "音量"
+  },
+  "tabs": {
+    "enhance": "画质",
+    "clean": "清除",
+    "extract": "OCR"
+  },
+  "toolbar": {
+    "selectionActive": "框选模式已启用",
+    "previewOnly": "仅预览模式"
+  },
+  "feedback": {
+    "completed": {
+      "enhance": "画质增强已完成",
+      "clean": "清除处理已完成",
+      "extract": "OCR 提取已完成"
+    },
+    "failed": "处理失败",
+    "cancelled": "处理已取消",
+    "paused": "处理已暂停，可在任务中心继续",
+    "openOutput": "打开输出位置",
+    "dismiss": "关闭提示"
+  },
+  "errors": {
+    "invalidROI": "请先在可见画面内框选有效区域。"
+  },
+  "button": {
+    "processingLabel": "处理中...",
+    "noMediaText": "请先导入媒体",
+    "noROIText": "请框选清除区域",
+    "enhanceText": "开始增强",
+    "cleanText": "开始清除",
+    "ocrROIText": "OCR 提取（区域）",
+    "ocrFullText": "OCR 提取（全屏）",
+    "defaultText": "开始处理"
+  },
+  "tools": {
+    "enhance": {
+      "title": "超分辨率",
+      "description": "使用面向真实画面训练的 AI 模型提升低分辨率素材。",
+      "method": "增强方法",
+      "methods": {
+        "realesrgan": "Real-ESRGAN（快速、稳定）",
+        "basicvsr": "BasicVSR++（需要 Python 3.10）"
+      },
+      "models": {
+        "basicvsrPlusPlus": "BasicVSR++（时序视频 AI，速度最慢、质量最高）",
+        "realesrganX4Plus": "RealESRGAN x4 Plus（通用、高质量）",
+        "realesrganX4PlusAnime": "RealESRGAN x4 Plus 动漫模型",
+        "realesrAnimeVideoV3": "RealESR AnimeVideo v3（动漫最快）",
+        "realesrGeneralX4V3": "RealESR General x4 v3（实拍画面最快）",
+        "realesrGeneralDenoiseX4V3": "RealESR General x4 v3（降噪）"
+      },
+      "model": "模型",
+      "performanceTitle": "需要高性能硬件",
+      "performanceDescription": "BasicVSR++ 需要独立 NVIDIA GPU（6GB+ 显存）和 CUDA，处理速度很慢（约 1-2 fps）。",
+      "scale": "放大倍率"
+    },
+    "clean": {
+      "title": "水印/字幕清除",
+      "description": "选择需要移除的区域，AI 会按时间维度修补选中区域。",
+      "drawSelection": "绘制选择框",
+      "regions": "区域",
+      "regionLabel": "区域 #{{index}}",
+      "noRegion": "请在预览画面上拖动以创建清除区域。",
+      "clearSelection": "清除选中区域",
+      "method": "清除方法",
+      "methods": {
+        "telea": "快速（OpenCV Telea）",
+        "navier": "快速（OpenCV Navier-Stokes）"
+      }
+    },
+    "ocr": {
+      "title": "文字提取（OCR）",
+      "description": "在画面上框选提取区域（ROI）。",
+      "roiCoordinates": "ROI 坐标",
+      "noSelection": "未选择区域",
+      "engine": "OCR 引擎",
+      "engines": {
+        "rapid": "RapidOCR（默认）",
+        "paddle": "PaddleOCR"
+      },
+      "results": "结果（{{count}}）",
+      "empty": "当前区域未发现文字"
+    }
+  },
+  "projectFiles": {
+    "title": "项目文件",
+    "emptyState": "未导入文件",
+    "removeTooltip": "从列表移除"
+  }
+}

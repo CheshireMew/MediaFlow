@@ -38,12 +38,11 @@ describe("taskSelectors transcribe media matching", () => {
       findActiveTranscribeTask(
         [task],
         { path: "E:/sample.mp4", name: "sample.mp4" },
-        null,
       )?.id,
     ).toBe("task-1");
   });
 
-  it("uses explicit audio refs instead of audio_path mirrors when matching active transcribe tasks", () => {
+  it("uses explicit audio refs when matching active transcribe tasks", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-1-ref",
@@ -72,7 +71,6 @@ describe("taskSelectors transcribe media matching", () => {
       findActiveTranscribeTask(
         [task],
         { path: "E:/canonical/sample.mp4", name: "sample.mp4" },
-        "E:/workspace/stale.mp4",
       )?.id,
     ).toBe("task-1-ref");
   });
@@ -100,6 +98,8 @@ describe("taskSelectors transcribe media matching", () => {
         ],
       },
       result: {
+        success: true,
+        artifacts: [],
         meta: {
           transcript: "hello",
         },
@@ -118,7 +118,7 @@ describe("taskSelectors transcribe media matching", () => {
     });
   });
 
-  it("does not synthesize source media refs from result file candidates", () => {
+  it("does not synthesize source media refs when the task publishes no artifacts", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-2",
@@ -131,10 +131,8 @@ describe("taskSelectors transcribe media matching", () => {
         steps: [{ step_name: "transcribe", params: {} }],
       },
       result: {
-        files: [
-          { type: "audio", path: "E:/sample.mp4" },
-          { type: "subtitle", path: "E:/sample.srt" },
-        ],
+        success: true,
+        artifacts: [],
         meta: {
           transcript: "hello",
           segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
@@ -151,7 +149,7 @@ describe("taskSelectors transcribe media matching", () => {
     });
   });
 
-  it("does not match a completed transcribe task from stale path mirrors when a ref is present", () => {
+  it("does not match a completed transcribe task when canonical refs differ", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-completed-ref",
@@ -180,7 +178,6 @@ describe("taskSelectors transcribe media matching", () => {
       findCompletedTranscribeTask(
         [task],
         { path: "E:/another/input.mp4", name: "input.mp4" },
-        "E:/workspace/stale.mp4",
       ),
     ).toBeUndefined();
   });
@@ -195,7 +192,6 @@ describe("taskSelectors transcribe media matching", () => {
       progress: 15,
       created_at: Date.now(),
       request_params: {
-        context_path: "E:/subs/demo.srt",
         context_ref: {
           path: "E:/subs/demo.srt",
           name: "demo.srt",
@@ -209,12 +205,11 @@ describe("taskSelectors transcribe media matching", () => {
       findActiveTranslationTask(
         [task],
         { path: "E:/subs/demo.srt", name: "demo.srt" },
-        null,
       )?.id,
     ).toBe("task-translate");
   });
 
-  it("prefers explicit media refs when matching translation tasks and mapping transcribe results", () => {
+  it("matches translation and transcription media from task artifacts", () => {
     const translateTask: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-ref",
@@ -224,8 +219,7 @@ describe("taskSelectors transcribe media matching", () => {
       progress: 15,
       created_at: Date.now(),
       request_params: {
-        context_path: "E:/workspace/demo.srt",
-        subtitle_ref: {
+        context_ref: {
           path: "E:/canonical/demo.srt",
           name: "demo.srt",
         },
@@ -244,13 +238,10 @@ describe("taskSelectors transcribe media matching", () => {
       created_at: Date.now(),
       request_params: {
         steps: [{ step_name: "transcribe", params: {} }],
-        video_ref: {
-          path: "E:/canonical/sample.mp4",
-          name: "sample.mp4",
-        },
       },
       result: {
-        files: [{ type: "subtitle", path: "E:/sample.srt" }],
+        success: true,
+        artifacts: [artifact("subtitle", "output", "E:/sample.srt", "sample.srt")],
         meta: {
           transcript: "hello",
         },
@@ -265,7 +256,6 @@ describe("taskSelectors transcribe media matching", () => {
       findActiveTranslationTask(
         [translateTask],
         { path: "E:/canonical/demo.srt", name: "demo.srt" },
-        "E:/workspace/demo.srt",
       )?.id,
     ).toBe(
       "task-translate-ref",
@@ -290,7 +280,11 @@ describe("taskSelectors transcribe media matching", () => {
       progress: 100,
       created_at: Date.now(),
       request_params: {},
-      result: { meta: {} },
+      result: {
+        success: true,
+        artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
+        meta: {},
+      },
       artifacts: [
         artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt"),
         artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
@@ -321,28 +315,19 @@ describe("taskSelectors transcribe media matching", () => {
     });
   });
 
-  it("does not fall back to stale path candidates when translation refs disagree", () => {
+  it("requires published task artifacts for translation media identity", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
-      id: "task-translate-mismatch",
+      id: "task-translate-no-artifacts",
       type: "translate",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {
-        context_ref: {
-          path: "E:/canonical/source.srt",
-          name: "source.srt",
-        },
-        context_path: "E:/stale/source.srt",
-      },
+      request_params: {},
       result: {
-        meta: {
-          subtitle_ref: {
-            path: "E:/canonical/output.srt",
-            name: "output.srt",
-          },
-        },
+        success: true,
+        artifacts: [],
+        meta: {},
       },
     };
 
@@ -350,97 +335,11 @@ describe("taskSelectors transcribe media matching", () => {
       findCompletedTranslationTask(
         [task],
         { path: "E:/another/source.srt", name: "source.srt" },
-        "E:/stale/source.srt",
       ),
     ).toBeUndefined();
-  });
-
-  it("no longer recovers translation targets from meta srt_path alone", () => {
-    const task: Task = {
-      ...BACKEND_TASK_CONTRACT_FIELDS,
-      id: "task-translate-path-mirrors",
-      type: "translate",
-      status: "completed",
-      progress: 100,
-      created_at: Date.now(),
-      request_params: {
-        context_path: "E:/stale/source.srt",
-      },
-      result: {
-        meta: {
-          srt_path: "E:/stale/output.srt",
-        },
-      },
-    };
-
     expect(getTranslationTaskMediaRefs(task)).toEqual({
       sourceSubtitleRef: null,
       targetSubtitleRef: null,
     });
-  });
-
-  it("does not synthesize translation target refs from result files", () => {
-    const task: Task = {
-      ...BACKEND_TASK_CONTRACT_FIELDS,
-      id: "task-translate-result-files",
-      type: "translate",
-      status: "completed",
-      progress: 100,
-      created_at: Date.now(),
-      request_params: {
-        context_path: "E:/stale/source.srt",
-      },
-      result: {
-        files: [{ type: "subtitle", path: "E:/canonical/output-from-files.srt" }],
-        meta: {
-          srt_path: "E:/stale/output-from-meta.srt",
-        },
-      },
-    };
-
-    expect(getTranslationTaskMediaRefs(task)).toEqual({
-      sourceSubtitleRef: null,
-      targetSubtitleRef: null,
-    });
-  });
-
-  it("does not use meta srt_path for translation task snapshots", () => {
-    const task: Task = {
-      ...BACKEND_TASK_CONTRACT_FIELDS,
-      id: "task-translate-current-contract",
-      type: "translate",
-      status: "completed",
-      progress: 100,
-      created_at: Date.now(),
-      task_contract_version: 2,
-      request_params: {},
-      result: {
-        meta: {
-          srt_path: "E:/current-contract/output-from-meta.srt",
-        },
-      },
-    };
-
-    expect(getTranslationTaskMediaRefs(task)).toEqual({
-      sourceSubtitleRef: null,
-      targetSubtitleRef: null,
-    });
-  });
-
-  it("does not match path-only translation tasks once source refs are required", () => {
-    const task: Task = {
-      ...BACKEND_TASK_CONTRACT_FIELDS,
-      id: "task-translate-path-only-active",
-      type: "translate",
-      status: "running",
-      progress: 10,
-      created_at: Date.now(),
-      request_params: {
-        context_path: "E:/stale/source.srt",
-      },
-    };
-
-    expect(findActiveTranslationTask([task], null, "E:/stale/source.srt")).toBeUndefined();
-    expect(getTranslationTaskMediaRefs(task).sourceSubtitleRef).toBeNull();
   });
 });

@@ -1,8 +1,9 @@
 import type { GlossaryTerm } from "../../types/api";
+import { apiClient } from "../../api/client";
 
 export const glossaryService = {
   async listTerms(): Promise<GlossaryTerm[]> {
-    return await import("../../api/client").then(({ apiClient }) => apiClient.listGlossaryTerms());
+    return await apiClient.listGlossaryTerms();
   },
 
   async addTerm(term: {
@@ -11,10 +12,10 @@ export const glossaryService = {
     note?: string;
     category?: string;
   }): Promise<GlossaryTerm> {
-    return await import("../../api/client").then(({ apiClient }) => apiClient.addGlossaryTerm(term));
+    return await apiClient.addGlossaryTerm(term);
   },
 
   async deleteTerm(termId: string): Promise<void> {
-    await import("../../api/client").then(({ apiClient }) => apiClient.deleteGlossaryTerm(termId));
+    await apiClient.deleteGlossaryTerm(termId);
   },
 };

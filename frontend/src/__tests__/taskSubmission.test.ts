@@ -4,6 +4,7 @@ import {
   createTaskFromSubmissionReceipt,
   createTaskExecutionSubmissionReceipt,
 } from "../services/domain/taskSubmission";
+import { TASK_CONTRACT_VERSION } from "../contracts/runtimeContracts";
 
 describe("taskSubmission", () => {
   it("builds backend task skeletons from submission metadata", () => {
@@ -11,9 +12,10 @@ describe("taskSubmission", () => {
       receipt: createTaskExecutionSubmissionReceipt({
         task_id: "backend-task-1",
         status: "running",
-        message: "Working",
+        message_code: "translation_starting",
+        message_params: {},
         task_source: "backend",
-        task_contract_version: 2,
+        task_contract_version: TASK_CONTRACT_VERSION,
         persistence_scope: "runtime",
         lifecycle: "resumable",
         queue_state: "running",
@@ -22,7 +24,10 @@ describe("taskSubmission", () => {
       }),
       type: "translate",
       request_params: {
-        context_path: "E:/video.srt",
+        context_ref: {
+          path: "E:/video.srt",
+          name: "video.srt",
+        },
       },
     });
 
@@ -35,7 +40,10 @@ describe("taskSubmission", () => {
       queue_state: "running",
       primary_operation: "translate",
       request_params: {
-        context_path: "E:/video.srt",
+        context_ref: {
+          path: "E:/video.srt",
+          name: "video.srt",
+        },
       },
     });
   });

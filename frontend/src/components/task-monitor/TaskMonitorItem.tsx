@@ -34,6 +34,9 @@ import { NavigationService } from "../../services/ui/navigation";
 import { clampProgress } from "../../utils/number";
 import { TaskTraceView } from "../TaskTraceView";
 import { formatTaskDisplayId } from "./taskIdDisplay";
+import { useConfirmation } from "../ui/confirmationContext";
+import { toast } from "../../utils/toast";
+import { translateTaskMessage } from "../../services/ui/taskMessage";
 
 type TaskWithDetails = Task & { result?: TaskResult };
 
@@ -79,23 +82,23 @@ function QueueBadge({ task }: { task: TaskWithDetails }) {
   const { t } = useTranslation("taskmonitor");
   if (task.persistence_scope === "history") {
     return (
-      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-emerald-400/10 text-emerald-300 border-emerald-400/20">
+      <span className="px-2 py-0.5 rounded-md text-xs font-medium border bg-emerald-400/10 text-emerald-300 border-emerald-400/20">
         {t("badges.history")}
       </span>
     );
   }
   if (task.queue_state === "queued" || task.status === "pending") {
     return (
-      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-amber-400/10 text-amber-300 border-amber-400/20">
+      <span className="px-2 py-0.5 rounded-md text-xs font-medium border bg-amber-400/10 text-amber-300 border-amber-400/20">
         {task.queue_position ? t("queue.position", { position: task.queue_position }) : t("queue.queued")}
       </span>
     );
   }
   if (task.queue_state === "running" || task.status === "running") {
-    return <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-indigo-400/10 text-indigo-300 border-indigo-400/20">{t("queue.running")}</span>;
+    return <span className="px-2 py-0.5 rounded-md text-xs font-medium border bg-indigo-400/10 text-indigo-300 border-indigo-400/20">{t("queue.running")}</span>;
   }
   if (task.queue_state === "paused" || task.status === "paused") {
-    return <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-slate-400/10 text-slate-300 border-slate-400/20">{t("queue.paused")}</span>;
+    return <span className="px-2 py-0.5 rounded-md text-xs font-medium border bg-slate-400/10 text-slate-300 border-slate-400/20">{t("queue.paused")}</span>;
   }
   return null;
 }
@@ -110,6 +113,7 @@ export function TaskMonitorItem({
   onResume,
 }: TaskMonitorItemProps) {
   const { t } = useTranslation("taskmonitor");
+  const confirmAction = useConfirmation();
   const typeInfo = useTaskTypeInfo(task);
   const hasVideo = task.status === "completed" && hasTaskVideoMedia(task);
   const hasTranscribableMedia = task.status === "completed" && hasTaskTranscribableMedia(task);
@@ -117,9 +121,13 @@ export function TaskMonitorItem({
   const canPauseTask =
     task.status === "pending" ||
     task.status === "running";
+  const traceId = `task-trace-${task.id}`;
 
   return (
-    <div className="p-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors group relative">
+    <article
+      aria-label={t("taskCardLabel", { type: typeInfo.label, name: task.name || task.type })}
+      className="p-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors group relative"
+    >
       <div className="flex items-start gap-4">
         <div className="bg-white/5 p-2 rounded-lg shrink-0 mt-0.5">
           <TaskStatusIcon status={task.status} />
@@ -128,21 +136,23 @@ export function TaskMonitorItem({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
-              <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium border ${typeInfo.bg} ${typeInfo.color} ${typeInfo.border}`}>
+              <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${typeInfo.bg} ${typeInfo.color} ${typeInfo.border}`}>
                 {typeInfo.icon}
                 <span className="uppercase tracking-wider">{typeInfo.label}</span>
               </div>
               <QueueBadge task={task} />
-              <span className="text-[10px] text-slate-600 font-mono tracking-wide">
+              <span className="text-xs text-slate-400 font-mono tracking-wide">
                 {formatTaskDisplayId(task.id)}
               </span>
             </div>
 
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
               {canPauseTask && (
                 <button
+                  type="button"
+                  aria-label={t("actions.pause.tooltip")}
                   onClick={() => onPause(task.id)}
-                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                   title={t("actions.pause.tooltip")}
                 >
                   <Pause size={14} />
@@ -151,8 +161,10 @@ export function TaskMonitorItem({
 
               {(task.status === "paused" || canRetryTask(task)) && (
                 <button
+                  type="button"
+                  aria-label={t("actions.resume.tooltip")}
                   onClick={() => onResume(task)}
-                  className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-500 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                   title={t("actions.resume.tooltip")}
                 >
                   <Play size={14} />
@@ -160,10 +172,23 @@ export function TaskMonitorItem({
               )}
 
               <button
-                onClick={() => {
-                  if (confirm(t("confirm.deleteTask"))) onDelete(task.id);
+                type="button"
+                aria-label={t("actions.delete.tooltip")}
+                onClick={async () => {
+                  const confirmed = await confirmAction({
+                    title: t("actions.delete.tooltip"),
+                    message: t("confirm.deleteTask"),
+                    tone: "danger",
+                  });
+                  if (!confirmed) return;
+                  try {
+                    await onDelete(task.id);
+                  } catch (error) {
+                    console.error(error);
+                    toast.error(t("messages.deleteFailed"));
+                  }
                 }}
-                className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-500 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                 title={t("actions.delete.tooltip")}
               >
                 <Trash2 size={14} />
@@ -171,32 +196,34 @@ export function TaskMonitorItem({
 
               {task.status === "completed" && (
                 <div className="flex items-center gap-1 ml-2">
-                  <div className="w-px h-3 bg-white/10 mx-1" />
+                  <div aria-hidden="true" className="w-px h-3 bg-white/10 mx-1" />
                   {(hasVideo || hasSubtitle) && (
                     <button
+                      type="button"
+                      aria-label={t("actions.showFolder.tooltip")}
                       onClick={() => {
                         void resolveTaskOutputPath(task).then((outputPath) => {
                           if (outputPath) return fileService.showInExplorer(outputPath);
                         });
                       }}
-                      className="p-1.5 rounded-lg hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-colors"
+                      className="p-1.5 rounded-lg hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                       title={t("actions.showFolder.tooltip")}
                     >
                       <FolderOpen size={14} />
                     </button>
                   )}
                   {hasTranscribableMedia && task.primary_operation !== "transcribe" && (
-                    <TaskNavigationButton task={task} destination="transcriber" title="Transcribe">
+                    <TaskNavigationButton task={task} destination="transcriber" title={t("actions.transcribe.tooltip")}>
                       <FileAudio size={14} />
                     </TaskNavigationButton>
                   )}
                   {hasSubtitle && task.primary_operation !== "translate" && (
-                    <TaskNavigationButton task={task} destination="translator" title="Translate">
+                    <TaskNavigationButton task={task} destination="translator" title={t("actions.translate.tooltip")}>
                       <Languages size={14} />
                     </TaskNavigationButton>
                   )}
                   {hasVideo && (
-                    <TaskNavigationButton task={task} destination="editor" title="Edit Video">
+                    <TaskNavigationButton task={task} destination="editor" title={t("actions.edit.tooltip")}>
                       <Video size={14} />
                     </TaskNavigationButton>
                   )}
@@ -205,8 +232,12 @@ export function TaskMonitorItem({
 
               {task.result?.meta?.execution_trace && (
                 <button
+                  type="button"
+                  aria-label={expanded ? t("actions.collapse.tooltip") : t("actions.expand.tooltip")}
+                  aria-expanded={expanded}
+                  aria-controls={traceId}
                   onClick={() => onToggleExpand(task.id)}
-                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 transition-colors ml-1"
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 transition-colors ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                 >
                   {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
@@ -227,20 +258,27 @@ export function TaskMonitorItem({
                     {task.error}
                   </span>
                 ) : (
-                  task.message || t("messages.initializing")
+                  translateTaskMessage(t, task)
                 )}
               </p>
             </div>
 
             {(task.status === "running" || task.progress > 0) && (
               <div className="w-48 flex items-center gap-3 shrink-0">
-                <div className="h-1.5 flex-1 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  role="progressbar"
+                  aria-label={t("progress.label")}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(clampProgress(task.progress))}
+                  className="h-1.5 flex-1 bg-slate-800 rounded-full overflow-hidden"
+                >
                   <div
                     className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300 ease-out"
                     style={{ width: `${clampProgress(task.progress)}%` }}
                   />
                 </div>
-                <div className="text-[10px] font-mono text-slate-400 w-8 text-right">
+                <div className="text-xs font-mono text-slate-400 w-8 text-right">
                   {Math.round(clampProgress(task.progress))}%
                 </div>
               </div>
@@ -248,7 +286,7 @@ export function TaskMonitorItem({
           </div>
 
           {import.meta.env.DEV && (
-            <details className="mt-2 text-[10px] text-slate-600 cursor-pointer">
+            <details className="mt-2 text-xs text-slate-400 cursor-pointer">
               <summary className="hover:text-slate-400">{t("debugInfo")}</summary>
               <pre className="mt-1 p-2 bg-black/50 rounded overflow-auto max-h-40 whitespace-pre-wrap">
                 {JSON.stringify(createTaskDiagnostic(task, executionSummary), null, 2)}
@@ -259,13 +297,13 @@ export function TaskMonitorItem({
       </div>
 
       {expanded && task.result?.meta?.execution_trace && (
-        <div className="mt-3 pl-[52px]">
+        <div id={traceId} className="mt-3 pl-[52px]">
           <div className="bg-black/30 rounded-lg overflow-hidden border border-white/5">
             <TaskTraceView trace={task.result.meta.execution_trace} />
           </div>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -282,6 +320,8 @@ function TaskNavigationButton({
 }) {
   return (
     <button
+      type="button"
+      aria-label={title}
       onClick={() => {
         void resolveTaskNavigationPayload(task).then((payload) => {
           const hasRequiredMedia =
@@ -293,7 +333,7 @@ function TaskNavigationButton({
           }
         });
       }}
-      className="p-1.5 rounded-lg hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 transition-colors"
+      className="p-1.5 rounded-lg hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
       title={title}
     >
       {children}

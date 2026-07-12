@@ -7,6 +7,7 @@ import { useTaskMonitorOverview } from "./task-monitor/useTaskMonitorOverview";
 import { canRetryTask, retryFailedTask } from "../services/tasks/retry";
 import { TaskMonitorHeader } from "./task-monitor/TaskMonitorHeader";
 import { TaskMonitorItem } from "./task-monitor/TaskMonitorItem";
+import { toast } from "../utils/toast";
 
 type TaskWithDetails = Task & { result?: TaskResult };
 
@@ -47,6 +48,17 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
     }
   }, [addTask, resumeTask]);
 
+  const runTaskAction = React.useCallback(
+    (action: () => void | Promise<void>, failureMessage: string) => {
+      void Promise.resolve()
+        .then(action)
+        .catch(() => {
+          toast.error(failureMessage);
+        });
+    },
+    [],
+  );
+
   return (
     <div className="bg-[#1a1a1a] border border-white/5 rounded-lg shadow-2xl overflow-hidden h-full flex flex-col">
       <TaskMonitorHeader
@@ -58,7 +70,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
       />
 
       {taskFeedDiagnostics.lastIssue && (
-        <div className="px-4 py-2 border-b border-amber-500/10 bg-amber-500/10 text-[11px] text-amber-200">
+        <div className="px-4 py-2 border-b border-amber-500/10 bg-amber-500/10 text-xs text-amber-200">
           {t("diagnostics.ignoredFeedItem", {
             reason: taskFeedDiagnostics.lastIssue.reason,
             expected: taskFeedDiagnostics.lastIssue.expected,
@@ -70,7 +82,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
 
       <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
         {filteredTasks.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-600 p-8">
+          <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
             <FolderOpen className="w-8 h-8 mb-2 opacity-20" />
             <p className="text-sm">{t("emptyState.message")}</p>
           </div>
@@ -83,13 +95,18 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
               executionSummary={executionSummary}
               onToggleExpand={toggleExpand}
               onPause={(taskId) => {
-                void pauseTask(taskId);
+                runTaskAction(() => pauseTask(taskId), t("messages.pauseFailed"));
               }}
               onDelete={(taskId) => {
-                void Promise.resolve(deleteTask(taskId)).catch((err) => console.error(err));
+                runTaskAction(() => deleteTask(taskId), t("messages.deleteFailed"));
               }}
               onResume={(nextTask) => {
-                void Promise.resolve(handleResumeAction(nextTask)).catch((err) => console.error(err));
+                runTaskAction(
+                  () => handleResumeAction(nextTask),
+                  t(nextTask.status === "failed"
+                    ? "messages.retryFailed"
+                    : "messages.resumeFailed"),
+                );
               }}
             />
           ))

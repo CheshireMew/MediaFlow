@@ -4,6 +4,7 @@ from typing import Any, Callable, List, Optional
 
 from backend.config import settings
 from backend.models.schemas import SubtitleSegment
+from backend.models.task_message import TaskProgressCallback
 from backend.services.translator.translation_models import TranslationBatch
 
 
@@ -72,7 +73,7 @@ def run_translation_batches(
     mode: str,
     max_concurrency: int,
     translate_batch: Callable[[TranslationBatch, str, str, Optional[Callable[[], None]]], List[SubtitleSegment]],
-    progress_callback: Optional[Callable[[int, str], None]] = None,
+    progress_callback: Optional[TaskProgressCallback] = None,
     cancel_check: Optional[Callable[[], None]] = None,
 ) -> List[SubtitleSegment]:
     total_batches = len(batches)
@@ -80,19 +81,18 @@ def run_translation_batches(
     completed_batches = 0
     progress_lock = threading.Lock()
 
-    def notify_progress(message: str) -> None:
+    def notify_progress() -> None:
         if not progress_callback:
             return
         with progress_lock:
             checkpoint(cancel_check)
             progress_callback(
                 int((completed_batches / total_batches) * 100),
-                message,
+                "translation_batch_progress",
+                {"completed": completed_batches, "total": total_batches},
             )
 
-    notify_progress(
-        f"Translating 0/{total_batches} batches ({mode}, concurrency={max_concurrency})..."
-    )
+    notify_progress()
 
     def store_batch_result(batch: TranslationBatch, result: List[SubtitleSegment]) -> None:
         nonlocal completed_batches
@@ -103,7 +103,8 @@ def run_translation_batches(
             if progress_callback:
                 progress_callback(
                     int((completed_batches / total_batches) * 100),
-                    f"Translated {completed_batches}/{total_batches} batches ({mode})...",
+                    "translation_batch_progress",
+                    {"completed": completed_batches, "total": total_batches},
                 )
 
     if max_concurrency == 1:

@@ -2,13 +2,20 @@
   "name": "mediaflow-ui",
   "private": true,
   "version": "0.1.0",
+  "description": "MediaFlow desktop media processing application",
+  "author": "MediaFlow Contributors",
   "main": "dist-electron/frontend/electron/main.js",
   "scripts": {
-    "build": "npm run electron:build && tsc -b && vite build && electron-builder",
+    "build": "npm run build:app && electron-builder",
+    "build:app": "npm run electron:build && tsc -b && vite build",
+    "build:smoke": "npm run build:app && electron-builder --win --dir --config electron-builder.smoke.yml && node scripts/verify-electron-smoke.mjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "electron:build": "tsc -p tsconfig.electron.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "npm run build:app && playwright test",
+    "test:e2e:update": "npm run build:app && playwright test --update-snapshots",
+    "typecheck": "tsc -p tsconfig.electron.json --noEmit && tsc -b"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
@@ -27,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.61.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@types/node": "^24.10.9",
@@ -35,7 +43,7 @@
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.23",
     "electron": "^40.0.0",
-    "electron-builder": "^26.4.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",

@@ -8,8 +8,6 @@ SPLIT_SOFT_CJK = 18
 SPLIT_SOFT_ENGLISH = 12
 HARD_CHAR_LIMIT_CJK = 28
 HARD_WORD_LIMIT_ENGLISH = 18
-MIN_SPLIT_UNIT_CJK = 8
-MIN_SPLIT_UNIT_ENGLISH = 4
 
 PREFIX_SPLIT_WORDS = {
     "and", "or", "but", "if", "then", "because", "as", "until", "while",
@@ -88,10 +86,6 @@ def count_text_units(text: str) -> int:
 
 def max_unit_count(text: str) -> int:
     return HARD_CHAR_LIMIT_CJK if is_mainly_cjk(text) else HARD_WORD_LIMIT_ENGLISH
-
-
-def min_split_unit(text: str) -> int:
-    return MIN_SPLIT_UNIT_CJK if is_mainly_cjk(text) else MIN_SPLIT_UNIT_ENGLISH
 
 
 def join_subtitle_text(left: str, right: str) -> str:
@@ -263,14 +257,6 @@ def _nearest_safe_midpoint(text: str) -> int | None:
         return None
     scored.sort()
     return scored[0][2]
-
-
-def candidate_split_score(text: str, split_at: int) -> int:
-    profile = _text_profile(text)
-    score = _candidate_score(text, split_at, "pause", profile)
-    if score == float("inf"):
-        return -10**9
-    return int(-score)
 
 
 def find_text_split_index(text: str) -> int | None:

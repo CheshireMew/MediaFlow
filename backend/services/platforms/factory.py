@@ -8,9 +8,6 @@ class PlatformFactory:
     def __init__(self, handlers: Optional[List[BasePlatform]] = None):
         self._handlers: List[BasePlatform] = handlers or []
 
-    def register_handler(self, handler: BasePlatform):
-        self._handlers.append(handler)
-
     async def get_handler(self, url: str) -> Optional[BasePlatform]:
         """Find the first handler that matches the URL."""
         url_str = str(url)  # Ensure url is a string (handles HttpUrl from Pydantic)

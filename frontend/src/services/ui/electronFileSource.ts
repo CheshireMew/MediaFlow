@@ -19,10 +19,6 @@ export function attachElectronFileSource<T extends ElectronFile>(
   };
 }
 
-export function getElectronFileSource(file: ElectronFile | null | undefined): ElectronFileSource {
-  return file?.__mediaflow_source ?? "unknown";
-}
-
 export function toNavigationFileSource(reference?: MediaReference | null): ElectronFileSource {
   if (reference?.origin === "task") {
     return "task_navigation";

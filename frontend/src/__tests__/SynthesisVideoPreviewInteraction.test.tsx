@@ -47,7 +47,7 @@ function createCropState(): CropState {
 
 function createWatermarkState(): WatermarkState {
   return {
-    watermarkPath: null,
+    watermarkRef: null,
     watermarkPreviewUrl: null,
     wmScale: 0.2,
     wmOpacity: 0.8,
@@ -223,5 +223,63 @@ describe("synthesis VideoPreview interactions", () => {
     expect(pause).toHaveBeenCalled();
     expect(video.currentTime).toBe(12);
     expect(onTimeUpdate).toHaveBeenCalledWith(12);
+  });
+
+  it("uses the crop rectangle as the subtitle and watermark output viewport", () => {
+    const videoRef = React.createRef<HTMLVideoElement>();
+    const crop = createCropState();
+    crop.isEnabled = true;
+    crop.crop = { x: 0.1, y: 0.2, w: 0.6, h: 0.5 };
+    const watermark = createWatermarkState();
+    watermark.watermarkPreviewUrl = "data:image/png;base64,AA==";
+    const style = createSubtitleStyleState();
+    style.currentSubtitle = "Preview subtitle";
+
+    const { container, getByTestId } = render(
+      <VideoPreview
+        mediaUrl="file:///D:/source.mp4"
+        style={style}
+        watermark={watermark}
+        output={createOutputState()}
+        crop={crop}
+        subtitleEnabled
+        watermarkEnabled
+        onClose={vi.fn()}
+        onExportClick={vi.fn()}
+        isSubmitting={false}
+        videoRef={videoRef}
+        setVideoSize={vi.fn()}
+        currentTime={0}
+        onTimeUpdate={vi.fn()}
+      />,
+    );
+    const video = container.querySelector("video") as HTMLVideoElement;
+    Object.defineProperties(video, {
+      videoWidth: { configurable: true, value: 1280 },
+      videoHeight: { configurable: true, value: 720 },
+      duration: { configurable: true, value: 60 },
+    });
+
+    fireEvent.loadedMetadata(video);
+    fireEvent.canPlay(video);
+
+    const outputViewport = getByTestId("synthesis-output-viewport");
+    Object.defineProperties(outputViewport, {
+      clientWidth: { configurable: true, value: 768 },
+      clientHeight: { configurable: true, value: 360 },
+    });
+    fireEvent(window, new Event("resize"));
+    expect(outputViewport).toHaveStyle({
+      left: "10%",
+      top: "20%",
+      width: "60%",
+      height: "50%",
+    });
+    expect(outputViewport).toContainElement(
+      container.querySelector('[aria-label="watermark.positionControl"]'),
+    );
+    expect(outputViewport).toContainElement(
+      container.querySelector('[aria-label="style.positionControl"]'),
+    );
   });
 });

@@ -1,40 +1,53 @@
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service
-from backend.core.task_runner import BackgroundTaskRunner
-from backend.models.schemas import SynthesisRequest
+from backend.models.schemas import SynthesisRequest, TaskArtifact, TaskResult
 from backend.services.media_refs import create_media_ref
 
 
-async def _synthesis_background(task_id: str, req: SynthesisRequest):
-    from loguru import logger
-    import json
+def build_synthesis_task_result(path: str, options: dict | None) -> dict:
+    return TaskResult(
+        success=True,
+        artifacts=[
+            TaskArtifact(
+                kind="video",
+                role="output",
+                ref=create_media_ref(path, "video/mp4", role="output"),
+            )
+        ],
+        meta={"options": options or {}},
+    ).model_dump(mode="json")
 
-    logger.info(f"Synthesis Options: {json.dumps(req.options, indent=2)}")
+
+async def _synthesis_background(
+    task_id: str,
+    req: SynthesisRequest,
+    *,
+    video_synthesis,
+    background_runner,
+):
+    from loguru import logger
+
+    logger.info(
+        "Synthesis request: option_fields={}, has_subtitles={}, "
+        "has_output={}, has_watermark={}",
+        sorted((req.options or {}).keys()),
+        req.srt_ref is not None,
+        req.output_ref is not None,
+        req.watermark_ref is not None,
+    )
     video_path = req.video_ref.path
     srt_path = req.srt_ref.path if req.srt_ref else None
     output_path = req.output_ref.path if req.output_ref else None
 
-    await BackgroundTaskRunner.run(
+    await background_runner.run(
         task_id=task_id,
-        worker_fn=runtime_service(Services.VIDEO_SYNTHESIS).synthesize,
+        worker_fn=video_synthesis.synthesize,
         worker_kwargs={
             "video_path": video_path,
             "srt_path": srt_path,
             "output_path": output_path,
-            "watermark_path": req.watermark_path,
+            "watermark_path": req.watermark_ref.path if req.watermark_ref else None,
             "options": req.options,
         },
-        start_message="Preparing video export...",
-        success_message="Video export completed!",
-        result_transformer=lambda path: {
-            "success": True,
-            "files": [{"type": "video", "path": path, "label": "synthesis_output"}],
-            "meta": {
-                "video_ref": create_media_ref(path, "video/mp4", role="output"),
-                "output_ref": create_media_ref(path, "video/mp4", role="output"),
-                "context_ref": req.srt_ref,
-                "subtitle_ref": req.srt_ref,
-                "options": req.options,
-            },
-        },
+        start_message_code="synthesis_preparing",
+        success_message_code="synthesis_completed",
+        result_transformer=lambda path: build_synthesis_task_result(path, req.options),
     )

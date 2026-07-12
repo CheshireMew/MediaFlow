@@ -9,28 +9,34 @@ import {
 } from "./testFixtures";
 import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
 import type { MockedElectronAPI } from "./testUtils/electronMock";
-import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
-import { ASR_EXECUTION_PREFERENCES } from "../contracts/runtimeContracts";
+import { readUiStateValue } from "../services/persistence/uiStateSettings";
+import {
+  readWorkspaceStateValue,
+  writeWorkspaceStateValue,
+} from "../services/persistence/workspaceState";
+import {
+  ASR_EXECUTION_PREFERENCES,
+  TASK_CONTRACT_VERSION,
+} from "../contracts/runtimeContracts";
 
 const useTaskContextMock = vi.fn();
 const addTaskMock = vi.fn();
 
+vi.spyOn(apiClient, "runPipeline");
+vi.spyOn(apiClient, "getSettings");
+vi.spyOn(apiClient, "prewarmFasterWhisperCli");
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: { name?: string }) =>
+      key === "feedback.taskName"
+        ? `Transcribe ${options?.name ?? "Media"}`
+        : key,
   }),
 }));
 
 vi.mock("../context/taskContext", () => ({
   useTaskContext: () => useTaskContextMock(),
-}));
-
-vi.mock("../api/client", () => ({
-  apiClient: {
-    runPipeline: vi.fn(),
-    getSettings: vi.fn(),
-    prewarmFasterWhisperCli: vi.fn(),
-  },
 }));
 
 describe("useTranscriber", () => {
@@ -73,7 +79,6 @@ describe("useTranscriber", () => {
       connected: true,
       remoteTasksReady: true,
       tasksSettled: true,
-      cancelTask: vi.fn(),
       addTask: addTaskMock,
     });
     addTaskMock.mockReset();
@@ -111,7 +116,8 @@ describe("useTranscriber", () => {
       status: "running",
       progress: 35,
       name: "Transcribe sample.mp4",
-      message: "Executing step: transcribe",
+      message_code: "pipeline_step_running",
+      message_params: { step: "transcribe" },
       request_params: {
         pipeline_id: "transcriber_tool",
         steps: [
@@ -137,7 +143,6 @@ describe("useTranscriber", () => {
       connected: true,
       remoteTasksReady: true,
       tasksSettled: true,
-      cancelTask: vi.fn(),
       addTask: vi.fn(),
     });
 
@@ -154,12 +159,14 @@ describe("useTranscriber", () => {
       task_id: "task-123",
       status: "pending",
       task_source: "backend",
-      task_contract_version: 2,
+      task_contract_version: TASK_CONTRACT_VERSION,
       persistence_scope: "runtime",
       lifecycle: "resumable",
       queue_state: "queued",
       queue_position: null,
       primary_operation: "transcribe",
+      message_code: "queued",
+      message_params: {},
     });
     clearElectronMock();
 
@@ -195,7 +202,6 @@ describe("useTranscriber", () => {
             engine: "builtin",
             model: "base",
             device: "cpu",
-            vad_filter: true,
           },
         },
       ],
@@ -205,7 +211,7 @@ describe("useTranscriber", () => {
         id: "task-123",
         type: "pipeline",
         task_source: "backend",
-        task_contract_version: 2,
+        task_contract_version: TASK_CONTRACT_VERSION,
         queue_state: "queued",
         request_params: expect.objectContaining({
           pipeline_id: "transcriber_tool",
@@ -239,12 +245,14 @@ describe("useTranscriber", () => {
       task_id: "backend-transcribe-task",
       status: "pending",
       task_source: "backend",
-      task_contract_version: 2,
+      task_contract_version: TASK_CONTRACT_VERSION,
       persistence_scope: "runtime",
       lifecycle: "resumable",
       queue_state: "queued",
       queue_position: null,
       primary_operation: "transcribe",
+      message_code: "queued",
+      message_params: {},
     });
 
     installElectronMock();
@@ -294,7 +302,7 @@ describe("useTranscriber", () => {
 
 
   it("restores transcriber state from the versioned snapshot only", async () => {
-    writeUiStateValue(
+    writeWorkspaceStateValue(
       "transcriber_snapshot",
       JSON.stringify({
         schema_version: 2,
@@ -326,7 +334,6 @@ describe("useTranscriber", () => {
       connected: true,
       remoteTasksReady: false,
       tasksSettled: false,
-      cancelTask: vi.fn(),
       addTask: vi.fn(),
     });
 
@@ -358,12 +365,12 @@ describe("useTranscriber", () => {
     });
 
     await waitFor(() => {
-      expect(readUiStateValue("transcriber_snapshot")).toBeTruthy();
+      expect(readWorkspaceStateValue("transcriber_snapshot")).toBeTruthy();
     });
 
-    expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"currentTranscriptionTaskId\"");
-    expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"model\"");
-    expect(readUiStateValue<string>("transcriber_snapshot")).not.toContain("\"device\"");
+    expect(readWorkspaceStateValue<string>("transcriber_snapshot")).not.toContain("\"currentTranscriptionTaskId\"");
+    expect(readWorkspaceStateValue<string>("transcriber_snapshot")).not.toContain("\"model\"");
+    expect(readWorkspaceStateValue<string>("transcriber_snapshot")).not.toContain("\"device\"");
     expect(readUiStateValue<string>(ASR_EXECUTION_PREFERENCES.key)).toBeNull();
   });
 
@@ -393,19 +400,15 @@ describe("useTranscriber", () => {
       status: "completed",
       progress: 100,
       name: "Transcribe sample.mp4",
-      message: "Pipeline completed",
+      message_code: "pipeline_completed",
+      message_params: {},
       request_params: {
         pipeline_id: "transcriber_tool",
         ...createTranscribeStepRequestParams(),
       },
       result: {
         success: true,
-        files: [
-          {
-            type: "subtitle",
-            path: "E:/sample.srt",
-          },
-        ],
+        artifacts: [artifact("subtitle", "output", "E:/sample.srt", "sample.srt")],
         meta: {
           text: "hello\nworld",
           language: "en",
@@ -422,7 +425,7 @@ describe("useTranscriber", () => {
       created_at: Date.now(),
     };
 
-    writeUiStateValue(
+    writeWorkspaceStateValue(
       "transcriber_snapshot",
       JSON.stringify({
         schema_version: 2,
@@ -451,7 +454,6 @@ describe("useTranscriber", () => {
       connected: true,
       remoteTasksReady: true,
       tasksSettled: true,
-      cancelTask: vi.fn(),
       addTask: vi.fn(),
     });
 
@@ -490,19 +492,15 @@ describe("useTranscriber", () => {
       status: "completed",
       progress: 100,
       name: "Transcribe sample.mp4",
-      message: "Pipeline completed",
+      message_code: "pipeline_completed",
+      message_params: {},
       request_params: {
         pipeline_id: "transcriber_tool",
         ...createTranscribeStepRequestParams(),
       },
       result: {
         success: true,
-        files: [
-          {
-            type: "subtitle",
-            path: "E:/sample.srt",
-          },
-        ],
+        artifacts: [artifact("subtitle", "output", "E:/sample.srt", "sample.srt")],
         meta: {
           transcript: "stored transcript",
           segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
@@ -515,7 +513,7 @@ describe("useTranscriber", () => {
       created_at: Date.now(),
     };
 
-    writeUiStateValue(
+    writeWorkspaceStateValue(
       "transcriber_snapshot",
       JSON.stringify({
         schema_version: 2,
@@ -544,7 +542,6 @@ describe("useTranscriber", () => {
       connected: true,
       remoteTasksReady: true,
       tasksSettled: true,
-      cancelTask: vi.fn(),
       addTask: vi.fn(),
     });
 
@@ -559,7 +556,7 @@ describe("useTranscriber", () => {
   });
 
   it("does not restore runtime-only currentTranscriptionTaskId during reload", async () => {
-    writeUiStateValue(
+    writeWorkspaceStateValue(
       "transcriber_snapshot",
       JSON.stringify({
         schema_version: 2,
@@ -589,7 +586,6 @@ describe("useTranscriber", () => {
       connected: true,
       remoteTasksReady: false,
       tasksSettled: false,
-      cancelTask: vi.fn(),
       addTask: vi.fn(),
     });
 
@@ -601,7 +597,7 @@ describe("useTranscriber", () => {
 
   it("writes smart-split output only through subtitle_ref path in desktop mode", async () => {
     const writeFile = vi.fn().mockResolvedValue(undefined);
-    writeUiStateValue(
+    writeWorkspaceStateValue(
       "transcriber_snapshot",
       JSON.stringify({
         schema_version: 2,
@@ -618,7 +614,6 @@ describe("useTranscriber", () => {
             text:
               "hello world this sentence is intentionally long enough to trigger smart split behavior, and the desktop runtime should persist the split output",
             language: "en",
-            srt_path: "E:/stale/sample.srt",
             subtitle_ref: {
               path: "E:/canonical/sample.srt",
               name: "sample.srt",

@@ -1,5 +1,5 @@
 import type { Task } from "../../../types/task";
-import { executionService } from "../../domain";
+import { executionService } from "../../domain/executionService";
 import type { RetryHandler, RetrySubmission } from "./types";
 import {
   createRetryDescriptor,
@@ -24,7 +24,7 @@ function normalizeSynthesisTaskParams(task: Task) {
             "task_id",
             "video_ref",
             "srt_ref",
-            "watermark_path",
+            "watermark_ref",
             "output_ref",
             "options",
           ].includes(key),
@@ -34,7 +34,7 @@ function normalizeSynthesisTaskParams(task: Task) {
   return {
     params,
     options,
-    watermarkPath: typeof params.watermark_path === "string" ? params.watermark_path : null,
+    watermarkRef: getTaskMediaReference(params, ["watermark_ref"], "image/png"),
     outputRef: getTaskMediaReference(params, ["output_ref"], "video/mp4"),
   };
 }
@@ -44,7 +44,7 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
   if (!normalized) {
     return null;
   }
-  const { params, options, watermarkPath, outputRef } = normalized;
+  const { params, options, watermarkRef, outputRef } = normalized;
 
   const videoRef = getTaskMediaReference(params, ["video_ref"], "video/mp4");
   const srtRef = getTaskMediaReference(
@@ -60,7 +60,7 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
   const outcome = await executionService.synthesize({
     video_ref: videoRef,
     srt_ref: srtRef ?? null,
-    watermark_path: watermarkPath ?? null,
+    watermark_ref: watermarkRef ?? null,
     output_ref: outputRef ?? null,
     options,
   });
@@ -72,9 +72,7 @@ async function submitSynthesizeRetry(task: Task): Promise<RetrySubmission | null
       {
         video_ref: videoRef,
         srt_ref: srtRef ?? null,
-        ...(watermarkPath !== undefined
-          ? { watermark_path: watermarkPath }
-          : {}),
+        watermark_ref: watermarkRef ?? null,
         ...(outputRef
           ? { output_ref: outputRef }
           : {}),

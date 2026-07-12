@@ -1,5 +1,8 @@
+import math
+import struct
 import subprocess
 import time
+import wave
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -12,12 +15,21 @@ from backend.utils.subtitle_text_splitter import (
     count_text_units,
     find_text_split_index,
 )
-from backend.models.schemas import FileRef, TaskResult
 from backend.models.schemas import SubtitleSegment
 from backend.core.task_control import TaskPauseRequested
 
 @pytest.fixture
-def asr_service():
+def asr_service(monkeypatch):
+    def prepare_fake_audio(source_path, output_path):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(Path(source_path).read_bytes())
+        return output_path
+
+    monkeypatch.setattr(
+        AudioProcessor,
+        "prepare_for_transcription",
+        prepare_fake_audio,
+    )
     return ASRService()
 
 def test_format_timestamp():
@@ -43,6 +55,23 @@ def test_asr_service_initializes_processing_dependencies(asr_service):
     assert asr_service.model_manager is not None
     assert asr_service.adapter is not None
     assert asr_service.core_strategies is not None
+
+
+def test_builtin_direct_strategy_forwards_vad_filter(asr_service):
+    model = MagicMock()
+    model.transcribe.return_value = (iter([]), None)
+
+    asr_service.core_strategies.transcribe_direct(
+        "sample.wav",
+        30.0,
+        model,
+        "en",
+        None,
+        False,
+        None,
+    )
+
+    assert model.transcribe.call_args.kwargs["vad_filter"] is False
 
 
 def test_cli_prewarm_runs_real_profile_once(asr_service, monkeypatch, tmp_path):
@@ -161,7 +190,7 @@ def test_cli_transcribe_waits_for_running_prewarm_for_same_profile(asr_service, 
             device="cuda",
             language="en",
             engine="cli",
-            generate_peaks=False,
+            vad_filter=False,
         )
     finally:
         ASRService._cli_prewarm_threads.pop(resolved_key, None)
@@ -224,6 +253,8 @@ def test_cli_prewarm_expires_completed_profile(asr_service, monkeypatch, tmp_pat
 def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypatch, tmp_path):
     audio_path = tmp_path / "sample.mp3"
     audio_path.write_bytes(b"fake-audio")
+    cli_path = tmp_path / "fw.exe"
+    cli_path.write_bytes(b"fake-cli")
 
     monkeypatch.setattr("backend.services.asr.service.os.path.exists", lambda path: True)
     monkeypatch.setattr("backend.services.asr.service.AudioProcessor.get_audio_duration", lambda path: 3.0)
@@ -232,7 +263,7 @@ def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypa
         lambda segments, path: tmp_path / "sample.srt",
     )
 
-    with patch("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(tmp_path / "fw.exe")), \
+    with patch("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path)), \
          patch.object(asr_service.model_manager, "ensure_model_downloaded", return_value="base"), \
          patch.object(
              asr_service.adapter,
@@ -246,12 +277,13 @@ def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypa
             language="en",
             initial_prompt=None,
             engine="cli",
-            generate_peaks=False,
+            vad_filter=False,
         )
 
     assert result.success is True
     config = mock_execute.call_args.args[0]
     assert config.initial_prompt is None
+    assert config.vad_filter is False
     cmd = asr_service.adapter.build_command(config)
     assert cmd[cmd.index("--initial_prompt") + 1] == "None"
 
@@ -293,19 +325,134 @@ def test_cli_transcribe_stages_input_with_short_temp_filename(asr_service, monke
         language="en",
         engine="cli",
         task_id="task:with-invalid-chars",
-        generate_peaks=False,
+        vad_filter=False,
     )
 
     assert result.success is True
     assert len(captured_configs) == 1
     config = captured_configs[0]
     output_dir = config.output_dir
-    assert output_dir.parent == temp_dir / "faster-whisper-cli"
+    assert output_dir.parent == temp_dir / "asr-work"
     assert config.audio_path.parent == output_dir
-    assert config.audio_path.name == "input.mp4"
+    assert config.audio_path.name == "input.wav"
     assert long_name not in output_dir.name
     assert long_name not in config.audio_path.name
     assert "task_with-invalid-chars" in output_dir.name
+
+
+def test_cli_transcribe_preserves_empty_transcript_without_disabling_vad(
+    asr_service, monkeypatch, tmp_path
+):
+    audio_path = tmp_path / "silence.wav"
+    audio_path.write_bytes(b"fake-audio")
+    cli_path = tmp_path / "faster-whisper-xxl.exe"
+    cli_path.write_bytes(b"fake-cli")
+
+    monkeypatch.setattr(
+        "backend.services.asr.service.AudioProcessor.get_audio_duration",
+        lambda path: 3.0,
+    )
+    monkeypatch.setattr(
+        "backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH",
+        str(cli_path),
+    )
+    monkeypatch.setattr(
+        "backend.services.asr.service.SubtitleWriter.save_srt",
+        lambda segments, path: tmp_path / "silence.srt",
+    )
+    monkeypatch.setattr(
+        asr_service.model_manager,
+        "ensure_model_downloaded",
+        lambda *args, **kwargs: "base",
+    )
+    execute = MagicMock(return_value=[])
+    monkeypatch.setattr(asr_service.adapter, "execute", execute)
+
+    result = asr_service.transcribe(
+        audio_path=str(audio_path),
+        model_name="base",
+        device="cpu",
+        engine="cli",
+        vad_filter=True,
+    )
+
+    assert result.success is True
+    assert result.meta["segments"] == []
+    execute.assert_called_once()
+
+
+def _write_stereo_tone(path: Path, *, inverted: bool) -> None:
+    sample_rate = 16000
+    amplitude = 12000
+    frames = bytearray()
+    for index in range(sample_rate):
+        left = int(amplitude * math.sin(2 * math.pi * 440 * index / sample_rate))
+        right = -left if inverted else left
+        frames.extend(struct.pack("<hh", left, right))
+    with wave.open(str(path), "wb") as wav_file:
+        wav_file.setnchannels(2)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(frames)
+
+
+def _read_pcm_rms(path: Path) -> float:
+    with wave.open(str(path), "rb") as wav_file:
+        samples = struct.iter_unpack("<h", wav_file.readframes(wav_file.getnframes()))
+        values = [sample[0] for sample in samples]
+    return math.sqrt(sum(value * value for value in values) / len(values))
+
+
+def test_prepare_for_transcription_recovers_antiphase_stereo(tmp_path):
+    source = tmp_path / "antiphase.wav"
+    output = tmp_path / "prepared.wav"
+    _write_stereo_tone(source, inverted=True)
+
+    prepared = AudioProcessor.prepare_for_transcription(str(source), output)
+
+    assert prepared == output
+    assert _read_pcm_rms(output) > 7000
+    with wave.open(str(output), "rb") as wav_file:
+        assert wav_file.getnchannels() == 1
+        assert wav_file.getframerate() == 16000
+
+
+def test_prepare_for_transcription_keeps_in_phase_stereo_audible(tmp_path):
+    source = tmp_path / "in-phase.wav"
+    output = tmp_path / "prepared.wav"
+    _write_stereo_tone(source, inverted=False)
+
+    AudioProcessor.prepare_for_transcription(str(source), output)
+
+    assert _read_pcm_rms(output) > 7000
+
+
+def test_stereo_phase_analysis_uses_bounded_windows_for_long_media(
+    monkeypatch, tmp_path
+):
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return MagicMock(stdout="lavfi.aphasemeter.phase=-0.900000\n")
+
+    monkeypatch.setattr(
+        "backend.utils.audio_processor.subprocess.run",
+        fake_run,
+    )
+
+    values = AudioProcessor._measure_stereo_phase(tmp_path / "long.wav", 3600.0)
+
+    assert values == [-0.9, -0.9, -0.9]
+    assert len(calls) == 3
+    assert [cmd[cmd.index("-t") + 1] for cmd in calls] == [
+        "30.000",
+        "30.000",
+        "30.000",
+    ]
+    assert "-ss" not in calls[0]
+    assert calls[1][calls[1].index("-ss") + 1] == "1785.000"
+    assert calls[2][calls[2].index("-ss") + 1] == "3570.000"
 
 
 def test_split_audio_physically_uses_precise_wav_chunks(monkeypatch, tmp_path):
@@ -369,8 +516,11 @@ def test_smart_split_uses_short_temp_chunk_paths(asr_service, monkeypatch, tmp_p
         chunk_path.write_bytes(b"chunk")
         return [(str(chunk_path), 0.0)]
 
+    transcribe_kwargs = []
+
     class FakeModel:
         def transcribe(self, *_args, **_kwargs):
+            transcribe_kwargs.append(_kwargs)
             return iter([]), None
 
     monkeypatch.setattr(
@@ -384,10 +534,20 @@ def test_smart_split_uses_short_temp_chunk_paths(asr_service, monkeypatch, tmp_p
         FakeModel(),
         "en",
         None,
+        False,
         None,
     )
 
     assert segments == []
+    assert transcribe_kwargs == [
+        {
+            "beam_size": 5,
+            "language": "en",
+            "vad_filter": False,
+            "initial_prompt": None,
+            "word_timestamps": True,
+        }
+    ]
     assert len(captured_chunk_dir) == 1
     chunk_dir = captured_chunk_dir[0]
     assert chunk_dir.parent == temp_dir / "asr-chunks"
@@ -417,6 +577,7 @@ def test_extract_segment_uses_precise_wav_trim(monkeypatch, tmp_path):
     assert output.endswith(".wav")
     assert calls
     assert "pcm_s16le" in calls[0]
+    assert "-ac" not in calls[0]
     assert "atrim=start=12.345:end=18.900,asetpts=PTS-STARTPTS" in calls[0]
 
 
@@ -545,12 +706,14 @@ def test_backend_text_splitter_prefers_safe_cjk_pause_before_amount():
 def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, monkeypatch, tmp_path):
     audio_path = tmp_path / "sample.mp4"
     audio_path.write_bytes(b"fake-audio")
+    cli_path = tmp_path / "fw.exe"
+    cli_path.write_bytes(b"fake-cli")
 
     monkeypatch.setattr("backend.services.asr.service.os.path.exists", lambda path: True)
     monkeypatch.setattr("backend.services.asr.service.AudioProcessor.get_audio_duration", lambda path: 120.0)
     monkeypatch.setattr(
         "backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH",
-        str(tmp_path / "fw.exe"),
+        str(cli_path),
     )
 
     pause_exc = TaskPauseRequested("Task paused by user")
@@ -571,7 +734,7 @@ def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, m
             model_name="base",
             device="cuda",
             engine="cli",
-            generate_peaks=False,
+            vad_filter=False,
         )
 
     assert load_calls["count"] == 0
@@ -608,19 +771,21 @@ def test_builtin_cuda_runtime_error_retries_on_cpu(asr_service, monkeypatch, tmp
     monkeypatch.setattr(asr_service.model_manager, "clear_loaded_model", MagicMock())
     monkeypatch.setattr(asr_service.core_strategies, "transcribe_direct", fake_transcribe_direct)
 
-    emitted: list[tuple[float, str]] = []
+    emitted: list[tuple[float, str, dict]] = []
     result = asr_service.transcribe(
         audio_path=str(audio_path),
         model_name="base",
         device="cuda",
         language="en",
         engine="builtin",
-        progress_callback=lambda progress, message: emitted.append((progress, message)),
-        generate_peaks=False,
+        progress_callback=lambda progress, code, params: emitted.append(
+            (progress, code, params)
+        ),
+        vad_filter=False,
     )
 
     assert result.success is True
     assert loaded_devices == ["cuda", "cpu"]
     assert calls["count"] == 2
-    assert any("Retrying transcription on CPU" in message for _progress, message in emitted)
+    assert any(code == "asr_cuda_cpu_fallback" for _progress, code, _params in emitted)
     asr_service.model_manager.clear_loaded_model.assert_called_once()

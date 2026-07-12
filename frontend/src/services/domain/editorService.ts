@@ -8,7 +8,7 @@ import type {
   ImagePreviewResponse,
   MediaVisibleStartResponse,
   TranscribeSegmentResponse,
-  TranslateRequest,
+  TranslationRequest,
   TranslateResponse,
 } from "../../types/api";
 import { executeBackendDirectCall, executeTaskSubmission } from "./executionExecutor";
@@ -17,6 +17,7 @@ import {
   ensureAiTranslationConfigured,
   ensureCliTranscriptionConfigured,
 } from "./executionAccess";
+import { apiClient } from "../../api/client";
 
 export const editorService = {
   async transcribeSegment(payload: {
@@ -37,32 +38,27 @@ export const editorService = {
         ...nextPayload,
         audio_ref: requireExecutionMediaReference(nextPayload.audio_ref, "Audio"),
       }),
-      backendCall: (normalizedPayload) =>
-        import("../../api/client").then(({ apiClient }) =>
-          apiClient.transcribeSegment(normalizedPayload),
-        ),
+      backendCall: (normalizedPayload) => apiClient.transcribeSegment(normalizedPayload),
     });
   },
 
-  async translateSegments(payload: TranslateRequest): Promise<TranslateResponse> {
+  async translateSegments(payload: TranslationRequest): Promise<TranslateResponse> {
     await ensureAiTranslationConfigured();
 
     return await executeBackendDirectCall({
       payload,
-      backendCall: (nextPayload) =>
-        import("../../api/client").then(({ apiClient }) => apiClient.translateSegments(nextPayload)),
+      backendCall: (nextPayload) => apiClient.translateSegments(nextPayload),
     });
   },
 
   async uploadWatermark(file: File): Promise<ImagePreviewResponse> {
-    return await import("../../api/client").then(({ apiClient }) => apiClient.uploadWatermark(file));
+    return await apiClient.uploadWatermark(file);
   },
 
   async getLatestWatermark(): Promise<ImagePreviewResponse | null> {
     return await executeBackendDirectCall({
       payload: undefined,
-      backendCall: () =>
-        import("../../api/client").then(({ apiClient }) => apiClient.getLatestWatermark()),
+      backendCall: () => apiClient.getLatestWatermark(),
     });
   },
 
@@ -75,10 +71,7 @@ export const editorService = {
         ...nextPayload,
         video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
       }),
-      backendCall: (normalizedPayload) =>
-        import("../../api/client").then(({ apiClient }) =>
-          apiClient.getMediaVisibleStart(normalizedPayload),
-        ),
+      backendCall: (normalizedPayload) => apiClient.getMediaVisibleStart(normalizedPayload),
     });
   },
 
@@ -92,9 +85,7 @@ export const editorService = {
         video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
       }),
       backendCall: (normalizedPayload) =>
-        import("../../api/client").then(({ apiClient }) =>
-          apiClient.resolveEditorPreviewMediaSource(normalizedPayload),
-        ),
+        apiClient.resolveEditorPreviewMediaSource(normalizedPayload),
     });
   },
 
@@ -110,9 +101,7 @@ export const editorService = {
         video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
       }),
       backendCall: (normalizedPayload) =>
-        import("../../api/client").then(({ apiClient }) =>
-          apiClient.detectHighlightCandidates(normalizedPayload),
-        ),
+        apiClient.detectHighlightCandidates(normalizedPayload),
     });
   },
 
@@ -124,11 +113,14 @@ export const editorService = {
       normalizePayload: (nextPayload) => ({
         ...nextPayload,
         video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
+        srt_ref: nextPayload.srt_ref
+          ? requireExecutionMediaReference(nextPayload.srt_ref, "Subtitle")
+          : null,
+        watermark_ref: nextPayload.watermark_ref
+          ? requireExecutionMediaReference(nextPayload.watermark_ref, "Watermark")
+          : null,
       }),
-      backendSubmit: (normalizedPayload) =>
-        import("../../api/client").then(({ apiClient }) =>
-          apiClient.exportClipSegments(normalizedPayload),
-        ),
+      backendSubmit: (normalizedPayload) => apiClient.exportClipSegments(normalizedPayload),
     });
   },
 };

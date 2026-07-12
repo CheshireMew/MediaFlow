@@ -450,15 +450,15 @@ const WaveformPlayerComponent: React.FC<WaveformPlayerProps> = ({
     return (
         <div className="w-full h-full flex flex-col relative bg-[#090909] border-t border-white/10">
             <div className="flex h-8 shrink-0 items-center justify-between border-b border-white/5 bg-[#141414] px-3">
-                <div className="flex items-center gap-2 text-[11px] font-medium text-slate-400">
+                <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
                     <AudioLines size={14} className="text-indigo-300" />
                     <span>{t('waveform.title')}</span>
-                    <span className="rounded-md border border-white/5 bg-white/[0.03] px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+                    <span className="rounded-md border border-white/5 bg-white/[0.03] px-1.5 py-0.5 font-mono text-xs text-slate-400">
                         {currentPlaybackRegionId ? t('waveform.currentSegment', { id: currentPlaybackRegionId }) : t('waveform.noCurrentSegment')}
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-slate-500">{Math.round(zoom)} px/s</span>
+                    <span className="text-xs font-mono text-slate-400">{Math.round(zoom)} px/s</span>
                     <button
                       onClick={handleZoomOut}
                       className="bg-black/30 p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 transition-all active:scale-95"

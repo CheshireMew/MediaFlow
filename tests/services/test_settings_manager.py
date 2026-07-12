@@ -1,4 +1,5 @@
 import json
+import threading
 
 import pytest
 
@@ -7,6 +8,8 @@ from backend.services.settings_manager import (
     LLMProvider,
     SMART_SPLIT_TEXT_LIMIT_DEFAULT,
     SettingsManager,
+    UiStatePatch,
+    UserPreferencesPatch,
     UserSettings,
 )
 
@@ -78,7 +81,7 @@ def test_settings_manager_atomic_save_keeps_previous_file_on_write_failure(tmp_p
     monkeypatch.setattr("backend.services.settings_manager.json.dump", failing_dump)
 
     with pytest.raises(RuntimeError, match="simulated partial write"):
-        manager.save(UserSettings(language="ja"))
+        manager._write_atomic(UserSettings(language="ja"))
 
     assert json.loads(settings_path.read_text(encoding="utf-8"))["language"] == "en"
     assert list(tmp_path.glob("*.tmp")) == []
@@ -189,3 +192,57 @@ def test_settings_manager_reads_plaintext_fallback_api_keys():
 
     assert restored["llm_providers"][0]["api_key"] == "secret"
     assert "api_key_encrypted" not in restored["llm_providers"][0]
+
+
+def test_preference_and_ui_state_patches_merge_latest_disk_state_atomically(
+    tmp_path,
+    monkeypatch,
+):
+    settings_path = tmp_path / "user_settings.json"
+    monkeypatch.setattr(SettingsManager, "_file_path", settings_path)
+    first_manager = SettingsManager()
+    second_manager = SettingsManager()
+    first_manager.patch_ui_state(UiStatePatch(updates={"editor": {"zoom": 1.0}}))
+
+    barrier = threading.Barrier(2)
+
+    def patch_preferences():
+        barrier.wait()
+        first_manager.patch_preferences(
+            UserPreferencesPatch(language="ja", auto_execute_flow=True)
+        )
+
+    def patch_ui_state():
+        barrier.wait()
+        second_manager.patch_ui_state(
+            UiStatePatch(
+                updates={"translator": {"target": "English"}},
+                remove=["editor"],
+            )
+        )
+
+    threads = [
+        threading.Thread(target=patch_preferences),
+        threading.Thread(target=patch_ui_state),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+
+    saved = first_manager.get_settings()
+    assert saved.language == "ja"
+    assert saved.auto_execute_flow is True
+    assert saved.ui_state == {"translator": {"target": "English"}}
+
+
+def test_preference_patch_can_explicitly_clear_nullable_path(tmp_path, monkeypatch):
+    settings_path = tmp_path / "user_settings.json"
+    monkeypatch.setattr(SettingsManager, "_file_path", settings_path)
+    manager = SettingsManager()
+    manager.patch_preferences(UserPreferencesPatch(default_download_path="D:/Media"))
+
+    manager.patch_preferences(UserPreferencesPatch(default_download_path=None))
+
+    assert manager.get_settings().default_download_path is None

@@ -24,7 +24,7 @@ export function SettingCard({
           {icon}
           {title}
         </h4>
-        <p className="text-sm text-slate-500">{description}</p>
+        <p className="text-sm text-slate-400">{description}</p>
         {children}
       </div>
       {actions && <div className="flex items-center gap-2 shrink-0 self-end">{actions}</div>}

@@ -44,18 +44,6 @@ extraResources:
       - "!downloads/**"
       - "!Faster-Whisper-XXL/**"
 
-      # ── Exclude demo / sample files from realesrgan ──
-      - "!realesrgan/*.mp4"
-      - "!realesrgan/*.jpg"
-      - "!realesrgan/*.png"
-      - "!realesrgan/README*.md"
-
-      - "!models/**/*.pth"
-
-      # ── Exclude realcugan docs ──
-      - "!realcugan/README.md"
-      - "!realcugan/LICENSE"
-
   # ── dist-desktop-backend/ ─────────────────────────────────
   # PyInstaller-compiled Python backend runtime
   - from: ../dist-desktop-backend/mediaflow-backend
@@ -73,10 +61,6 @@ extraResources:
       - "!**/torch/**"
       - "!**/torchaudio/**"
       - "!**/torchvision/**"
-      - "!**/mmcv/**"
-      - "!**/mmedit/**"
-      - "!**/basicsr/**"
-      - "!**/realesrgan/**"
       - "!**/_test*.pyd"
       - "!**/torch/bin/protoc.exe"
       - "!**/pytest-*.dist-info/**"

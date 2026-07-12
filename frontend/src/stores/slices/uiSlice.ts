@@ -23,15 +23,15 @@ export const createUISlice: StateCreator<EditorState, [], [], UISlice> = (
   selectSegment: (id, multi, range) => {
     const state = get();
     if (range && state.activeSegmentId) {
-      const startIdx = state.regions.findIndex(
+      const startIdx = state.document.regions.findIndex(
         (r) => r.id === state.activeSegmentId,
       );
-      const endIdx = state.regions.findIndex((r) => r.id === id);
+      const endIdx = state.document.regions.findIndex((r) => r.id === id);
 
       if (startIdx !== -1 && endIdx !== -1) {
         const min = Math.min(startIdx, endIdx);
         const max = Math.max(startIdx, endIdx);
-        const rangeIds = state.regions
+        const rangeIds = state.document.regions
           .slice(min, max + 1)
           .map((r) => String(r.id));
         set({ selectedIds: rangeIds, activeSegmentId: id });

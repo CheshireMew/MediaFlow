@@ -9,6 +9,7 @@
     "sourcePlaceholder": "Source",
     "targetPlaceholder": "Target",
     "addTerm": "Add Term",
+    "deleteTerm": "Delete {{term}}",
     "empty": "No terms yet."
   },
   "buttons": {
@@ -47,6 +48,25 @@
     "proofread": "Proofread"
   },
   "loading": { "message": "Translating..." },
+  "task": {
+    "translateName": "Translate {{name}}",
+    "proofreadName": "Proofread {{name}}",
+    "subtitleFallback": "subtitles"
+  },
+  "feedback": {
+    "exportSuccess": "Saved translated subtitles to {{path}}",
+    "exportFailed": "Failed to save the translated subtitles",
+    "subtitleFileFilter": "Subtitle files",
+    "textFileFilter": "Text files",
+    "relatedVideoMissing": "No matching video was found beside the subtitle. Tried: {{candidates}}. The editor will use a best-effort path.",
+    "editorAutoSaveFailed": "The translated subtitle could not be saved before opening the editor",
+    "unsupportedSubtitle": "Translation supports .srt, .vtt, .ass, and .ssa subtitle files",
+    "emptySubtitle": "No timed subtitle content was found in {{path}}",
+    "loadFailed": "Failed to load subtitle file: {{path}}",
+    "unknownError": "Unknown error",
+    "startTranslationFailed": "Failed to start translation: {{detail}}",
+    "startProofreadFailed": "Failed to start proofreading: {{detail}}"
+  },
   "uploader": {
     "dragText": "Drag & drop subtitle file",
     "supportedFormats": "Supports .srt, .vtt, .ass, .ssa",

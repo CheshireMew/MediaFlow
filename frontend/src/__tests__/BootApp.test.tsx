@@ -1,7 +1,8 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BootApp, resetBootAppStartupForTests } from "../components/startup/BootApp";
+import { BootApp } from "../components/startup/BootApp";
+import { resetBootAppStartupForTests } from "../components/startup/bootStartupCoordinator";
 import { resetDesktopRuntimeInfoCache } from "../services/desktop";
 import { installElectronMock, type MockedElectronAPI } from "./testUtils/electronMock";
 
@@ -9,25 +10,39 @@ const getSettingsMock = vi.fn();
 const changeLanguageMock = vi.fn();
 const probeBackendHealthMock = vi.fn();
 
+async function flushStartupMicrotasks() {
+  for (let index = 0; index < 20; index += 1) {
+    await Promise.resolve();
+  }
+}
+
 vi.mock("../App", () => ({
   default: ({
     appReady,
     remoteBackendReady,
     startupMessage,
+    startupStatus,
+    onRetryStartup,
   }: {
     appReady?: boolean;
     remoteBackendReady?: boolean;
     startupMessage?: string;
+    startupStatus?: string;
+    onRetryStartup?: () => void;
   }) => (
     <div>
       <div data-testid="app-ready">{String(appReady)}</div>
       <div data-testid="remote-backend-ready">{String(remoteBackendReady)}</div>
       <div data-testid="startup-message">{startupMessage}</div>
+      <div data-testid="startup-status">{startupStatus}</div>
+      {startupStatus === "retryable-error" && (
+        <button type="button" onClick={onRetryStartup}>retry</button>
+      )}
     </div>
   ),
 }));
 
-vi.mock("../services/domain/settingsService", () => ({
+vi.mock("../services/domain", () => ({
   settingsService: {
     getSettings: (...args: unknown[]) => getSettingsMock(...args),
   },
@@ -37,12 +52,16 @@ vi.mock("../startup/backendHealthProbe", () => ({
   probeBackendHealth: (...args: unknown[]) => probeBackendHealthMock(...args),
 }));
 
-vi.mock("../i18n", () => ({
-  default: {
-    t: (key: string) => key,
-    changeLanguage: (...args: unknown[]) => changeLanguageMock(...args),
-  },
-}));
+vi.mock("../i18n", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../i18n")>();
+  return {
+    getStartupStatusFallback: actual.getStartupStatusFallback,
+    default: {
+      t: (key: string) => key,
+      changeLanguage: (...args: unknown[]) => changeLanguageMock(...args),
+    },
+  };
+});
 
 describe("BootApp", () => {
   let electronMock: MockedElectronAPI;
@@ -78,6 +97,10 @@ describe("BootApp", () => {
       await vi.advanceTimersByTimeAsync(20);
       await Promise.resolve();
       await Promise.resolve();
+      await Promise.resolve();
+      await flushStartupMicrotasks();
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(screen.getByTestId("app-ready").textContent).toBe("true");
@@ -105,9 +128,9 @@ describe("BootApp", () => {
     await act(async () => {
       resolveRuntimeInfo({
         status: "pong",
-        contract_version: 1,
+        contract_version: 4,
         bridge_version: "test-bridge",
-        capabilities: ["getDesktopRuntimeInfo"],
+        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "writeWorkspaceStateSync"],
         backend: {
           status: "external",
           host: "127.0.0.1",
@@ -120,6 +143,11 @@ describe("BootApp", () => {
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
+      await flushStartupMicrotasks();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await flushStartupMicrotasks();
     });
 
     expect(screen.getByTestId("app-ready").textContent).toBe("true");
@@ -137,6 +165,9 @@ describe("BootApp", () => {
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(20);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -188,9 +219,9 @@ describe("BootApp", () => {
     vi.useFakeTimers();
     electronMock.getDesktopRuntimeInfo = vi.fn().mockResolvedValue({
       status: "pong",
-      contract_version: 1,
+      contract_version: 4,
       bridge_version: "test-bridge",
-      capabilities: ["getDesktopRuntimeInfo"],
+      capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "writeWorkspaceStateSync"],
       backend: {
         status: "managed",
         host: "127.0.0.1",
@@ -215,7 +246,7 @@ describe("BootApp", () => {
     expect(probeBackendHealthMock).not.toHaveBeenCalled();
   });
 
-  it("stays in bootstrap retry when desktop runtime handshake is incompatible", async () => {
+  it("shows a fatal state without retry when desktop runtime handshake is incompatible", async () => {
     vi.useFakeTimers();
     electronMock.getDesktopRuntimeInfo = vi.fn().mockResolvedValue({
       status: "pong",
@@ -242,9 +273,139 @@ describe("BootApp", () => {
 
     expect(screen.getByTestId("app-ready").textContent).toBe("false");
     expect(screen.getByTestId("remote-backend-ready").textContent).toBe("false");
-    expect(screen.getByTestId("startup-message").textContent).toBe(
-      "Desktop bridge contract mismatch. Required >= 1, received 0.",
+    expect(screen.getByTestId("startup-status").textContent).toBe("fatal-error");
+    expect(screen.getByTestId("startup-message").textContent).toContain(
+      "Desktop bridge contract mismatch. Required >= 4, received 0.",
     );
+    expect(screen.queryByRole("button", { name: "retry" })).toBeNull();
     expect(getSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a fatal state when the desktop bridge lacks workspace persistence", async () => {
+    vi.useFakeTimers();
+    electronMock.getDesktopRuntimeInfo = vi.fn().mockResolvedValue({
+      status: "pong",
+      contract_version: 4,
+      bridge_version: "incomplete-bridge",
+      capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState"],
+      backend: {
+        status: "managed",
+        host: "127.0.0.1",
+        port: 8800,
+        api_base_url: "http://127.0.0.1:8800/api/v1",
+        ws_base_url: "ws://127.0.0.1:8800/api/v1",
+        health_url: "http://127.0.0.1:8800/health",
+        health_status: "ready",
+      },
+    });
+
+    render(<BootApp />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
+      await flushStartupMicrotasks();
+    });
+
+    expect(screen.getByTestId("app-ready").textContent).toBe("false");
+    expect(screen.getByTestId("startup-status").textContent).toBe("fatal-error");
+    expect(screen.getByTestId("startup-message").textContent).toContain(
+      "Desktop bridge capability mismatch. Missing: writeWorkspaceStateSync.",
+    );
+    expect(screen.queryByRole("button", { name: "retry" })).toBeNull();
+    expect(getSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("performs a fresh desktop handshake when the user retries a transient failure", async () => {
+    vi.useFakeTimers();
+    electronMock.getDesktopRuntimeInfo = vi.fn()
+      .mockResolvedValueOnce({
+        status: "pong",
+        contract_version: 4,
+        bridge_version: "test-bridge",
+        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "writeWorkspaceStateSync"],
+        backend: {
+          status: "failed",
+          error: "Backend process exited",
+          host: "127.0.0.1",
+          port: 8800,
+          api_base_url: "http://127.0.0.1:8800/api/v1",
+          ws_base_url: "ws://127.0.0.1:8800/api/v1",
+          health_url: "http://127.0.0.1:8800/health",
+        },
+      })
+      .mockResolvedValueOnce({
+        status: "pong",
+        contract_version: 4,
+        bridge_version: "test-bridge",
+        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "writeWorkspaceStateSync"],
+        backend: {
+          status: "managed",
+          host: "127.0.0.1",
+          port: 8800,
+          api_base_url: "http://127.0.0.1:8800/api/v1",
+          ws_base_url: "ws://127.0.0.1:8800/api/v1",
+          health_url: "http://127.0.0.1:8800/health",
+          health_status: "ready",
+        },
+      });
+    getSettingsMock.mockResolvedValue({ language: "zh" });
+
+    render(<BootApp />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("startup-status").textContent).toBe("retryable-error");
+    fireEvent.click(screen.getByRole("button", { name: "retry" }));
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(electronMock.getDesktopRuntimeInfo).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("app-ready").textContent).toBe("true");
+    expect(screen.getByTestId("startup-status").textContent).toBe("loading");
+  });
+
+  it("automatically retries transient startup failures", async () => {
+    vi.useFakeTimers();
+    electronMock.getDesktopRuntimeInfo = vi.fn()
+      .mockRejectedValueOnce(new Error("IPC temporarily unavailable"))
+      .mockResolvedValueOnce({
+        status: "pong",
+        contract_version: 4,
+        bridge_version: "test-bridge",
+        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "writeWorkspaceStateSync"],
+        backend: {
+          status: "managed",
+          host: "127.0.0.1",
+          port: 8800,
+          api_base_url: "http://127.0.0.1:8800/api/v1",
+          ws_base_url: "ws://127.0.0.1:8800/api/v1",
+          health_url: "http://127.0.0.1:8800/health",
+          health_status: "ready",
+        },
+      });
+    getSettingsMock.mockResolvedValue({ language: "zh" });
+
+    render(<BootApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId("startup-status").textContent).toBe("retryable-error");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(electronMock.getDesktopRuntimeInfo).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("app-ready").textContent).toBe("true");
   });
 });

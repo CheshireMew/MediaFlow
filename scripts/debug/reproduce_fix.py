@@ -1,6 +1,5 @@
 
 import sys
-import os
 import logging
 from pathlib import Path
 
@@ -11,12 +10,9 @@ sys.path.append(str(repo_root))
 # Configure logging to capture logger output
 logging.basicConfig(level=logging.INFO)
 
-from backend.services.video_synthesizer import VideoSynthesizer
 
 def test_subtitle_scaling_logic():
     print("--- Testing Subtitle Scaling Logic (WYSIWYG + WrapStyle 0) ---")
-    synth = VideoSynthesizer()
-    
     def simulate_logic(target_resolution, original_w, original_h):
         options = {
             'target_resolution': target_resolution,

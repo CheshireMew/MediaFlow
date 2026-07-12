@@ -6,6 +6,8 @@ import { useEditorStore } from "../stores/editorStore";
 import { writePendingMediaNavigation } from "../services/ui/pendingMediaNavigation";
 import { resetEditorStoreForTests } from "./testFixtures";
 import { installElectronMock } from "./testUtils/electronMock";
+import { createEditorDocument } from "../stores/editorDocument";
+import { ConfirmationProvider } from "../components/ui/ConfirmationProvider";
 
 describe("Editor recovery", () => {
   const expectEditorMediaState = (expected: {
@@ -15,11 +17,11 @@ describe("Editor recovery", () => {
     subtitlePath?: string;
   }) => {
     const state = useEditorStore.getState();
-    expect(state.currentFileRef).toEqual(expected.videoRef);
-    expect(state.currentSubtitleRef).toEqual(expected.subtitleRef);
-    expect(state.currentFilePath).toBe(expected.videoPath ?? expected.videoRef.path);
-    expect(state.currentSubtitlePath).toBe(expected.subtitlePath ?? expected.subtitleRef.path);
-    expect(state.mediaUrl).toContain(expected.videoPath ?? expected.videoRef.path);
+    expect(state.document.video).toEqual(expected.videoRef);
+    expect(state.document.subtitle).toEqual(expected.subtitleRef);
+    expect(state.document.video?.path).toBe(expected.videoPath ?? expected.videoRef.path);
+    expect(state.document.subtitle?.path).toBe(expected.subtitlePath ?? expected.subtitleRef.path);
+    expect(state.document.previewUrl).toContain(expected.videoPath ?? expected.videoRef.path);
   };
 
   afterEach(() => {
@@ -32,14 +34,14 @@ describe("Editor recovery", () => {
 
   beforeEach(() => {
     useEditorStore.setState({
-      regions: [
-        { id: "old-1", start: 0, end: 1, text: "Old subtitle" },
-      ],
-      mediaUrl: "file:///E:/old-video.mp4",
-      currentFilePath: "E:/old-video.mp4",
-      currentSubtitlePath: "E:/old-video.srt",
-      currentFileRef: { path: "E:/old-video.mp4", name: "old-video.mp4" },
-      currentSubtitleRef: { path: "E:/old-video.srt", name: "old-video.srt" },
+      document: createEditorDocument({
+        video: { path: "E:/old-video.mp4", name: "old-video.mp4" },
+        subtitle: { path: "E:/old-video.srt", name: "old-video.srt" },
+        previewUrl: "file:///E:/old-video.mp4",
+        regions: [
+          { id: "old-1", start: 0, end: 1, text: "Old subtitle" },
+        ],
+      }),
       activeSegmentId: "old-1",
       selectedIds: ["old-1"],
       past: [],
@@ -66,7 +68,7 @@ describe("Editor recovery", () => {
       },
     });
 
-    renderHook(() => useEditorIO());
+    renderHook(() => useEditorIO(), { wrapper: ConfirmationProvider });
 
     await waitFor(() => {
       expectEditorMediaState({
@@ -79,7 +81,7 @@ describe("Editor recovery", () => {
           name: "canonical-new-video_ZH-CN.srt",
         },
       });
-      expect(useEditorStore.getState().regions).toEqual([
+      expect(useEditorStore.getState().document.regions).toEqual([
         { id: "1", start: 0, end: 1, text: "New subtitle" },
       ]);
     });
@@ -90,12 +92,12 @@ describe("Editor recovery", () => {
 
   it("preserves the selected subtitle when reloading the same editor subtitle", async () => {
     useEditorStore.setState({
-      regions: [{ id: "1", start: 0, end: 1, text: "Old subtitle" }],
-      mediaUrl: "file:///E:/old-video.mp4",
-      currentFilePath: "E:/old-video.mp4",
-      currentSubtitlePath: "E:/old-video.srt",
-      currentFileRef: { path: "E:/old-video.mp4", name: "old-video.mp4" },
-      currentSubtitleRef: { path: "E:/old-video.srt", name: "old-video.srt" },
+      document: createEditorDocument({
+        video: { path: "E:/old-video.mp4", name: "old-video.mp4" },
+        subtitle: { path: "E:/old-video.srt", name: "old-video.srt" },
+        previewUrl: "file:///E:/old-video.mp4",
+        regions: [{ id: "1", start: 0, end: 1, text: "Old subtitle" }],
+      }),
       activeSegmentId: "1",
       selectedIds: ["1"],
       past: [],
@@ -114,10 +116,10 @@ describe("Editor recovery", () => {
       },
     });
 
-    renderHook(() => useEditorIO());
+    renderHook(() => useEditorIO(), { wrapper: ConfirmationProvider });
 
     await waitFor(() => {
-      expect(useEditorStore.getState().regions).toEqual([
+      expect(useEditorStore.getState().document.regions).toEqual([
         { id: "1", start: 0, end: 1, text: "New subtitle" },
       ]);
       expect(useEditorStore.getState().activeSegmentId).toBe("1");

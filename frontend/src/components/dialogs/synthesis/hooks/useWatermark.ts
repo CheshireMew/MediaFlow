@@ -1,5 +1,6 @@
 // ── Watermark State + Upload + Load + Position Presets ──
 import { useRef, useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   editorService,
   resolveDefaultWatermarkLayout,
@@ -11,9 +12,14 @@ import {
   updateStoredSynthesisExecutionPreferences,
   type SynthesisExecutionPreferences,
 } from "../../../../services/persistence/synthesisExecutionPreferences";
+import { toast } from "../../../../utils/toast";
+import {
+  mediaReferenceFromPath,
+  type MediaReference,
+} from "../../../../services/ui/mediaReference";
 
 export interface WatermarkState {
-  watermarkPath: string | null;
+  watermarkRef: MediaReference | null;
   watermarkPreviewUrl: string | null;
   wmScale: number;
   wmOpacity: number;
@@ -31,7 +37,8 @@ export function useWatermark(
   outputSize: { w: number; h: number },
   persistedPreferences: SynthesisExecutionPreferences,
 ): WatermarkState {
-  const [watermarkPath, setWatermarkPath] = useState<string | null>(null);
+  const { t } = useTranslation("synthesis");
+  const [watermarkRef, setWatermarkRef] = useState<MediaReference | null>(null);
   const [watermarkPreviewUrl, setWatermarkPreviewUrl] = useState<string | null>(
     null,
   );
@@ -77,7 +84,12 @@ export function useWatermark(
       .then((res) => {
         if (res && res.data_url) {
           setWatermarkPreviewUrl(res.data_url);
-          setWatermarkPath(res.png_path);
+          setWatermarkRef(mediaReferenceFromPath(res.png_path, {
+            type: "image/png",
+            media_kind: "image",
+            role: "context",
+            origin: "watermark",
+          }));
           setWatermarkSize({ w: res.width, h: res.height });
         }
       })
@@ -104,26 +116,33 @@ export function useWatermark(
       outputSize.h,
       watermarkSize.w,
       watermarkSize.h,
-      watermarkPath ?? "__watermark__",
+      watermarkRef?.path ?? "__watermark__",
     ].join(":");
     if (layoutInitializedKey.current === nextKey) {
       return;
     }
 
-    const layout = resolveDefaultWatermarkLayout({
-      outputWidth: outputSize.w,
-      outputHeight: outputSize.h,
-      watermarkWidth: watermarkSize.w,
-      watermarkHeight: watermarkSize.h,
-    });
-    setWmScale(layout.wmScale);
-    setWmPos(layout.wmPos);
-    layoutInitializedKey.current = nextKey;
+    const timer = setTimeout(() => {
+      if (hasManualLayout.current) {
+        return;
+      }
+      const layout = resolveDefaultWatermarkLayout({
+        outputWidth: outputSize.w,
+        outputHeight: outputSize.h,
+        watermarkWidth: watermarkSize.w,
+        watermarkHeight: watermarkSize.h,
+      });
+      setWmScale(layout.wmScale);
+      setWmPos(layout.wmPos);
+      layoutInitializedKey.current = nextKey;
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [
     isOpen,
     outputSize.h,
     outputSize.w,
-    watermarkPath,
+    watermarkRef,
     watermarkSize.h,
     watermarkSize.w,
   ]);
@@ -141,7 +160,12 @@ export function useWatermark(
 
         // Set Preview & Path
         setWatermarkPreviewUrl(res.data_url);
-        setWatermarkPath(res.png_path);
+        setWatermarkRef(mediaReferenceFromPath(res.png_path, {
+          type: "image/png",
+          media_kind: "image",
+          role: "context",
+          origin: "watermark",
+        }));
 
         // Set Dimensions from Backend (Trimmed)
         const w = res.width;
@@ -152,7 +176,7 @@ export function useWatermark(
         layoutInitializedKey.current = null;
       } catch (err) {
         console.error("[Synthesis] Watermark Upload Failed", err);
-        alert("Failed to process watermark. Check console.");
+        toast.error(t("feedback.watermarkProcessingFailed"));
       }
     }
   };
@@ -209,7 +233,7 @@ export function useWatermark(
   };
 
   return {
-    watermarkPath,
+    watermarkRef,
     watermarkPreviewUrl,
     wmScale,
     wmOpacity,

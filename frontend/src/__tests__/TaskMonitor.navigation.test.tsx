@@ -6,6 +6,7 @@ import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
 import { installElectronMock } from "./testUtils/electronMock";
 
 const useTaskContextMock = vi.fn();
+const confirmActionMock = vi.fn().mockResolvedValue(true);
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -15,6 +16,10 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("../context/taskContext", () => ({
   useTaskContext: () => useTaskContextMock(),
+}));
+
+vi.mock("../components/ui/confirmationContext", () => ({
+  useConfirmation: () => confirmActionMock,
 }));
 
 vi.mock("../components/TaskTraceView", () => ({
@@ -66,26 +71,17 @@ describe("TaskMonitor navigation actions", () => {
           status: "completed",
           progress: 100,
           name: "Transcribe sample.mp4",
-          message: "Pipeline completed",
+          message_code: "pipeline_completed",
+          message_params: {},
           created_at: Date.now(),
           request_params: {},
           result: {
             success: true,
-            files: [
-              { type: "video", path: "E:/sample.mp4" },
-              { type: "subtitle", path: "E:/sample.srt" },
+            artifacts: [
+              artifact("video", "output", "E:/sample.mp4", "sample.mp4"),
+              artifact("subtitle", "output", "E:/sample.srt", "sample.srt"),
             ],
-            meta: {
-              video_ref: {
-                path: "E:/sample.mp4",
-                name: "sample.mp4",
-              },
-              subtitle_ref: {
-                path: "E:/sample.srt",
-                name: "sample.srt",
-              },
-              srt_path: "E:/sample.srt",
-            },
+            meta: {},
           },
           artifacts: [
             artifact("video", "output", "E:/sample.mp4", "sample.mp4"),
@@ -110,7 +106,7 @@ describe("TaskMonitor navigation actions", () => {
 
     render(<TaskMonitor />);
 
-    fireEvent.click(screen.getAllByTitle("Translate")[0]);
+    fireEvent.click(screen.getAllByTitle("actions.translate.tooltip")[0]);
 
     await waitFor(() => {
       expectNavigationPayload(
@@ -150,7 +146,7 @@ describe("TaskMonitor navigation actions", () => {
 
     render(<TaskMonitor />);
 
-    fireEvent.click(screen.getAllByTitle("Edit Video")[0]);
+    fireEvent.click(screen.getAllByTitle("actions.edit.tooltip")[0]);
 
     await waitFor(() => {
       expectNavigationPayload(
@@ -190,7 +186,7 @@ describe("TaskMonitor navigation actions", () => {
 
     render(<TaskMonitor />);
 
-    fireEvent.click(screen.getAllByTitle("Transcribe")[0]);
+    fireEvent.click(screen.getAllByTitle("actions.transcribe.tooltip")[0]);
 
     await waitFor(() => {
       expectNavigationPayload(
@@ -244,10 +240,18 @@ describe("TaskMonitor navigation actions", () => {
           status: "completed",
           progress: 100,
           name: "Synthesize source.mp4",
-          message: "Synthesis completed",
+          message_code: "synthesis_completed",
+          message_params: {},
           created_at: Date.now(),
           request_params: {},
-          result: { success: true, meta: {} },
+          result: {
+            success: true,
+            artifacts: [
+              artifact("subtitle", "output", "E:/source/source.srt", "source.srt"),
+              artifact("video", "output", "E:/renders/source_synthesized.mp4", "source_synthesized.mp4"),
+            ],
+            meta: {},
+          },
           artifacts: [
             artifact("video", "input", "E:/source/source.mp4", "source.mp4"),
             artifact("subtitle", "output", "E:/source/source.srt", "source.srt"),
@@ -276,7 +280,7 @@ describe("TaskMonitor navigation actions", () => {
     expect(electronMock.showInExplorer).not.toHaveBeenCalledWith("E:/source/source.srt");
   });
 
-  it("prefers an existing resolved media path over stale task memory when navigating", async () => {
+  it("navigates from the published video output artifact", async () => {
     const dispatchSpy = vi.spyOn(window, "dispatchEvent");
 
     useTaskContextMock.mockReturnValue({
@@ -289,19 +293,14 @@ describe("TaskMonitor navigation actions", () => {
           status: "completed",
           progress: 100,
           name: "Download sample.mp4",
-          message: "Pipeline completed",
+          message_code: "pipeline_completed",
+          message_params: {},
           created_at: Date.now(),
-          request_params: {
-            video_path: "E:/workspace/Patient Investor - 鈥淎I Won鈥檛 Replace Software!.mp4",
-          },
+          request_params: { url: "https://example.com/video" },
           result: {
             success: true,
-            files: [
-              { type: "video", path: "E:/sample.mp4" },
-            ],
-            meta: {
-              video_path: "E:/workspace/Patient Investor - 鈥淎I Won鈥檛 Replace Software!.mp4",
-            },
+            artifacts: [artifact("video", "output", "E:/sample.mp4", "sample.mp4")],
+            meta: {},
           },
           artifacts: [artifact("video", "output", "E:/sample.mp4", "sample.mp4")],
         },
@@ -319,7 +318,7 @@ describe("TaskMonitor navigation actions", () => {
 
     render(<TaskMonitor />);
 
-    fireEvent.click(screen.getAllByTitle("Transcribe")[0]);
+    fireEvent.click(screen.getAllByTitle("actions.transcribe.tooltip")[0]);
 
     await waitFor(() => {
       expectNavigationPayload(
@@ -348,7 +347,7 @@ describe("TaskMonitor navigation actions", () => {
     });
   });
 
-  it("uses explicit task media refs instead of workspace path mirrors when navigating", async () => {
+  it("navigates with the published video and subtitle artifacts", async () => {
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
@@ -359,36 +358,17 @@ describe("TaskMonitor navigation actions", () => {
           status: "completed",
           progress: 100,
           name: "Translate sample.mp4",
-          message: "Pipeline completed",
+          message_code: "pipeline_completed",
+          message_params: {},
           created_at: Date.now(),
-          request_params: {
-            video_path: "E:/workspace/sample.mp4",
-            subtitle_path: "E:/workspace/sample_ZH-CN.srt",
-            video_ref: {
-              path: "E:/canonical/sample.mp4",
-              name: "sample.mp4",
-            },
-            subtitle_ref: {
-              path: "E:/canonical/sample_ZH-CN.srt",
-              name: "sample_ZH-CN.srt",
-            },
-          },
+          request_params: {},
           result: {
             success: true,
-            files: [
-              { type: "video", path: "E:/workspace/sample.mp4" },
-              { type: "subtitle", path: "E:/workspace/sample_ZH-CN.srt" },
+            artifacts: [
+              artifact("video", "output", "E:/canonical/sample.mp4", "sample.mp4"),
+              artifact("subtitle", "output", "E:/canonical/sample_ZH-CN.srt", "sample_ZH-CN.srt"),
             ],
-            meta: {
-              video_ref: {
-                path: "E:/canonical/sample.mp4",
-                name: "sample.mp4",
-              },
-              subtitle_ref: {
-                path: "E:/canonical/sample_ZH-CN.srt",
-                name: "sample_ZH-CN.srt",
-              },
-            },
+            meta: {},
           },
           artifacts: [
             artifact("video", "output", "E:/canonical/sample.mp4", "sample.mp4"),
@@ -409,7 +389,7 @@ describe("TaskMonitor navigation actions", () => {
 
     render(<TaskMonitor />);
 
-    fireEvent.click(screen.getAllByTitle("Edit Video")[0]);
+    fireEvent.click(screen.getAllByTitle("actions.edit.tooltip")[0]);
 
     await waitFor(() => {
       expectNavigationPayload(
@@ -441,16 +421,18 @@ describe("TaskMonitor navigation actions", () => {
           persistence_scope: "history",
           progress: 100,
           name: "Download sample.mp4",
-          message: "Completed",
+          message_code: "completed",
+          message_params: {},
           created_at: Date.now(),
           request_params: {
             url: "https://example.com/video",
           },
           result: {
             success: true,
-            files: [{ type: "video", path: "E:/sample.mp4" }],
+            artifacts: [artifact("video", "output", "E:/sample.mp4", "sample.mp4")],
             meta: {},
           },
+          artifacts: [artifact("video", "output", "E:/sample.mp4", "sample.mp4")],
         },
       ],
       connected: true,

@@ -12,6 +12,7 @@ export const DEFAULT_SUBTITLE_POSITION: { x: number; y: number } = {
 // Subtitle style presets
 export interface SubtitlePreset {
   label: string;
+  translationKey?: string;
   fontName: string;
   fontSize: number;
   fontColor: string;
@@ -29,7 +30,8 @@ export interface SubtitlePreset {
 
 export const DEFAULT_PRESETS: SubtitlePreset[] = [
   {
-    label: "经典白字",
+    label: "classic-white",
+    translationKey: "style.presets.classicWhite",
     fontName: "Arial",
     fontSize: 24,
     fontColor: "#FFFFFF",
@@ -45,7 +47,8 @@ export const DEFAULT_PRESETS: SubtitlePreset[] = [
     isDefault: true,
   },
   {
-    label: "黄色字幕",
+    label: "yellow-bold",
+    translationKey: "style.presets.yellowBold",
     fontName: "Arial",
     fontSize: 24,
     fontColor: "#FFFF00",
@@ -61,7 +64,8 @@ export const DEFAULT_PRESETS: SubtitlePreset[] = [
     isDefault: true,
   },
   {
-    label: "电影风",
+    label: "cinematic",
+    translationKey: "style.presets.cinematic",
     fontName: "Microsoft YaHei",
     fontSize: 22,
     fontColor: "#FFFFFF",
@@ -77,7 +81,8 @@ export const DEFAULT_PRESETS: SubtitlePreset[] = [
     isDefault: true,
   },
   {
-    label: "纯净阴影",
+    label: "clean-shadow",
+    translationKey: "style.presets.cleanShadow",
     fontName: "Microsoft YaHei",
     fontSize: 24,
     fontColor: "#FFFFFF",
@@ -93,7 +98,8 @@ export const DEFAULT_PRESETS: SubtitlePreset[] = [
     isDefault: true,
   },
   {
-    label: "底板模式",
+    label: "background-panel",
+    translationKey: "style.presets.backgroundPanel",
     fontName: "Microsoft YaHei",
     fontSize: 22,
     fontColor: "#FFFFFF",

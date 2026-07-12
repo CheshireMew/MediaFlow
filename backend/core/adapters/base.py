@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, TypeVar, Optional
+from typing import Any, Generic, TypeVar, Optional
 from pydantic import BaseModel
 
 TInput = TypeVar("TInput", bound=BaseModel)

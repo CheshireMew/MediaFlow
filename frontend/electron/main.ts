@@ -5,27 +5,37 @@ import { registerDialogHandlers } from "./ipc/dialog-handlers";
 import { bindRendererReadyCallback, registerWindowHandlers } from "./ipc/window-handlers";
 import { registerCookieHandlers } from "./ipc/cookie-handlers";
 import { registerDesktopHandlers } from "./ipc/desktop-handlers";
+import { registerWorkspaceStateHandlers } from "./ipc/workspace-state-handlers";
 import { startBundledBackend, stopBundledBackend } from "./backend/backendProcess";
 import {
   isDesktopDevMode,
   resolveDesktopPreloadScript,
   resolveDesktopRendererTarget,
 } from "./desktopRuntime";
+import {
+  buildRendererLoadFailureDataUrl,
+  getElectronMessages,
+} from "./localization";
 
 function registerIpcHandlers() {
   registerDialogHandlers();
   registerWindowHandlers();
   registerCookieHandlers();
   registerDesktopHandlers();
+  registerWorkspaceStateHandlers();
 }
 
 function createWindow() {
   const isDev = isDesktopDevMode();
   const rendererTarget = resolveDesktopRendererTarget();
+  const systemLocale = app.getLocale();
+  const messages = getElectronMessages(systemLocale);
 
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 800,
+    minHeight: 600,
     backgroundColor: "#0a0a0a",
     frame: false,
     show: false,
@@ -62,70 +72,16 @@ function createWindow() {
 
     loadFailureHandled = true;
     console.error(
-      `[Desktop] Failed to load renderer (${errorCode}): ${errorDescription}. Target: ${validatedURL || rendererTarget.target}`,
+      `[Desktop] Failed to load renderer (${errorCode}): ${errorDescription || "Unknown error"}.`,
     );
     revealWindow();
 
-    const safeDescription = JSON.stringify(errorDescription);
-    const safeTarget = JSON.stringify(validatedURL || rendererTarget.target);
     void mainWindow.loadURL(
-      `data:text/html;charset=UTF-8,${encodeURIComponent(`
-        <!doctype html>
-        <html lang="zh-CN">
-          <head>
-            <meta charset="UTF-8" />
-            <title>MediaFlow Startup Error</title>
-            <style>
-              body {
-                margin: 0;
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: #111827;
-                color: #e5e7eb;
-                font-family: "Segoe UI", sans-serif;
-              }
-              main {
-                width: min(720px, calc(100vw - 48px));
-                padding: 32px;
-                border-radius: 20px;
-                background: rgba(17, 24, 39, 0.92);
-                border: 1px solid rgba(148, 163, 184, 0.18);
-                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-              }
-              h1 {
-                margin: 0 0 12px;
-                font-size: 24px;
-              }
-              p {
-                margin: 0 0 12px;
-                line-height: 1.6;
-                color: #cbd5e1;
-              }
-              code {
-                display: block;
-                margin-top: 16px;
-                padding: 14px 16px;
-                border-radius: 12px;
-                background: rgba(15, 23, 42, 0.9);
-                color: #f8fafc;
-                word-break: break-all;
-                white-space: pre-wrap;
-              }
-            </style>
-          </head>
-          <body>
-            <main>
-              <h1>MediaFlow 桌面端启动失败</h1>
-              <p>前端页面入口没有成功加载，已阻止继续停留在黑屏状态。</p>
-              <p>请把下面这段信息发给开发者定位：</p>
-              <code>Target: ${safeTarget}
-Error: ${safeDescription}</code>
-            </main>
-          </body>
-        </html>
-      `)}`,
+      buildRendererLoadFailureDataUrl(systemLocale, {
+        errorCode,
+        errorDescription,
+        target: validatedURL || rendererTarget.target,
+      }),
     );
   });
 
@@ -140,11 +96,11 @@ Error: ${safeDescription}</code>
 
   const template: Electron.MenuItemConstructorOptions[] = [
     {
-      label: "File",
+      label: messages.menuFile,
       submenu: [{ role: "quit" }],
     },
     {
-      label: "View",
+      label: messages.menuView,
       submenu: [
         { role: "reload" },
         { role: "forceReload" },
@@ -152,10 +108,10 @@ Error: ${safeDescription}</code>
       ],
     },
     {
-      label: "Help",
+      label: messages.menuHelp,
       submenu: [
         {
-          label: "Open Workspace",
+          label: messages.menuOpenWorkspace,
           click: async () => {
             await shell.openPath(app.getPath("userData"));
           },

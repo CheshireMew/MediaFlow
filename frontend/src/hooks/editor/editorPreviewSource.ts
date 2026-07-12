@@ -1,6 +1,5 @@
 import { editorService, isDesktopRuntime } from "../../services/domain";
 import {
-  normalizeMediaReference,
   type MediaReference,
 } from "../../services/ui/mediaReference";
 import { getMediaExtensionsWithDot } from "../../contracts/openFileContract";
@@ -20,16 +19,16 @@ export function canUseOriginalMediaUrlForEditorPreview(path: string): boolean {
 }
 
 export async function resolveEditorPreviewMediaUrl(
-  videoPath: string,
-  videoRef?: MediaReference | null,
+  video: MediaReference,
 ): Promise<string> {
+  const videoPath = video.path;
   if (!isDesktopRuntime() || canUseOriginalMediaUrlForEditorPreview(videoPath)) {
     return pathToFileURL(videoPath);
   }
 
   try {
     const preview = await editorService.resolvePreviewMediaSource({
-      video_ref: videoRef ?? normalizeMediaReference(videoPath)!,
+      video_ref: video,
     });
     return pathToFileURL(preview.media_ref.path);
   } catch (error) {

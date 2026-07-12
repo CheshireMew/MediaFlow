@@ -1,12 +1,14 @@
-import { getApiBase, getApiUrl } from "./runtime";
+import { getApiUrl } from "./runtime";
+import { ApiError } from "./errors";
+
+export { ApiError, isApiError } from "./errors";
 
 // Re-export all API types for consumers
 export type {
-  MessageResponse,
-  CountResponse,
-  StatusMessageResponse,
+  TaskCountActionResponse,
+  TaskDeleteActionResponse,
+  TaskStatusActionResponse,
   TaskResponse,
-  HealthResponse,
   PipelineStep,
   PipelineRequest,
   PlaylistItem,
@@ -16,6 +18,8 @@ export type {
   GlossaryTerm,
   LLMProvider,
   UserSettings,
+  UserPreferencesPatch,
+  UiStatePatch,
   ActiveProviderResponse,
   ProviderConnectionRequest,
   ProviderConnectionResponse,
@@ -36,27 +40,24 @@ export type {
   SynthesizeRequest,
   TranscribeSegmentRequest,
   TranscribeSegmentResponse,
-  TranslateRequest,
+  TranslationRequest,
   TranslateResponse,
-  TranslationTaskStatus,
-  OCRTextEvent,
-  OCRExtractRequest,
-  OCRExtractResponse,
 } from "../types/api";
 
 // Internal imports (used within this file)
 import type {
-  MessageResponse,
-  CountResponse,
-  StatusMessageResponse,
+  TaskCountActionResponse,
+  TaskDeleteActionResponse,
+  TaskStatusActionResponse,
   TaskResponse,
-  HealthResponse,
   PipelineRequest,
   AnalyzeResult,
   ElectronCookie,
   CookieStatusResponse,
   GlossaryTerm,
   UserSettings,
+  UserPreferencesPatch,
+  UiStatePatch,
   ActiveProviderResponse,
   ProviderConnectionRequest,
   ProviderConnectionResponse,
@@ -76,13 +77,8 @@ import type {
   SynthesizeRequest,
   TranscribeSegmentRequest,
   TranscribeSegmentResponse,
-  TranslateRequest,
+  TranslationRequest,
   TranslateResponse,
-  OCRExtractRequest,
-  OCRTextEvent,
-  MediaReference,
-  EnhanceVideoRequest,
-  CleanVideoRequest,
 } from "../types/api";
 import type { Task } from "../types/task";
 
@@ -105,13 +101,23 @@ async function request<T>(
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let didTimeout = false;
+  const handleCallerAbort = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) {
+    handleCallerAbort();
+  } else {
+    options.signal?.addEventListener("abort", handleCallerAbort, { once: true });
+  }
+  const timeout = setTimeout(() => {
+    didTimeout = true;
+    controller.abort();
+  }, timeoutMs);
 
   try {
     const res = await fetch(url, {
       ...options,
       headers,
-      signal: options.signal ?? controller.signal,
+      signal: controller.signal,
     });
     clearTimeout(timeout);
 
@@ -131,7 +137,11 @@ async function request<T>(
       } catch {
         // Ignore body parsing error
       }
-      throw new Error(errorMessage);
+      throw new ApiError(errorMessage, {
+        endpoint,
+        kind: "http",
+        status: res.status,
+      });
     }
 
     // Check content type before parsing json
@@ -142,23 +152,32 @@ async function request<T>(
     // For non-JSON responses (like void actions), return generic success if needed
     return {} as T;
   } catch (error: unknown) {
-    clearTimeout(timeout);
-    if (error instanceof DOMException && error.name === "AbortError") {
-      const msg = `Request to ${endpoint} timed out after ${timeoutMs}ms`;
-      console.error(msg);
-      import("../utils/toast").then(({ toast }) => {
-        toast.error(msg);
+    if (error instanceof ApiError) throw error;
+    if (controller.signal.aborted) {
+      if (didTimeout) {
+        throw new ApiError(`Request to ${endpoint} timed out after ${timeoutMs}ms`, {
+          endpoint,
+          kind: "timeout",
+          cause: error,
+        });
+      }
+      throw new ApiError(`Request to ${endpoint} was aborted`, {
+        endpoint,
+        kind: "aborted",
+        cause: error,
       });
-      throw new Error(msg);
     }
-    const errorMsg =
-      error instanceof Error ? error.message : "An unexpected error occurred";
-    console.error(`Status: Error requesting ${endpoint}`, error);
-    // Generic Error Toast via Event
-    import("../utils/toast").then(({ toast }) => {
-      toast.error(errorMsg);
-    });
-    throw error;
+    throw new ApiError(
+      error instanceof Error ? error.message : "An unexpected network error occurred",
+      {
+        endpoint,
+        kind: "network",
+        cause: error,
+      },
+    );
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", handleCallerAbort);
   }
 }
 
@@ -174,31 +193,11 @@ export const apiClient = {
     });
   },
 
-  translateSegments: (payload: TranslateRequest) => {
+  translateSegments: (payload: TranslationRequest) => {
     return request<TranslateResponse>("/translate/segment", {
       method: "POST",
       body: JSON.stringify(payload),
     });
-  },
-
-  extractText: (payload: OCRExtractRequest) => {
-    return request<TaskResponse>("/ocr/extract", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  getOcrResults: (videoRef: MediaReference) => {
-    return request<{ events: OCRTextEvent[] }>("/ocr/results", {
-      method: "POST",
-      body: JSON.stringify(videoRef),
-    });
-  },
-
-  checkHealth: () => {
-    // Health check might be on root URL, not /api/v1
-    const baseUrl = getApiBase().replace("/api/v1", "");
-    return request<HealthResponse>(`${baseUrl}/health`);
   },
 
   analyzeUrl: (url: string) => {
@@ -230,7 +229,7 @@ export const apiClient = {
     });
   },
 
-  startTranslation: (payload: TranslateRequest) => {
+  startTranslation: (payload: TranslationRequest) => {
     return request<TranslateResponse>("/translate/", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -253,39 +252,29 @@ export const apiClient = {
   },
 
   pauseAllTasks: () => {
-    return request<CountResponse>("/tasks/pause-all", { method: "POST" });
-  },
-
-  cancelAllTasks: () => {
-    return request<CountResponse>("/tasks/cancel-all", { method: "POST" });
+    return request<TaskCountActionResponse>("/tasks/pause-all", { method: "POST" });
   },
 
   pauseTask: (taskId: string) => {
-    return request<StatusMessageResponse>(`/tasks/${taskId}/pause`, {
-      method: "POST",
-    });
-  },
-
-  cancelTask: (taskId: string) => {
-    return request<StatusMessageResponse>(`/tasks/${taskId}/cancel`, {
+    return request<TaskStatusActionResponse>(`/tasks/${taskId}/pause`, {
       method: "POST",
     });
   },
 
   resumeTask: (taskId: string) => {
-    return request<StatusMessageResponse>(`/tasks/${taskId}/resume`, {
+    return request<TaskStatusActionResponse>(`/tasks/${taskId}/resume`, {
       method: "POST",
     });
   },
 
   deleteTask: (taskId: string) => {
-    return request<MessageResponse & { task_id: string }>(`/tasks/${taskId}`, {
+    return request<TaskDeleteActionResponse>(`/tasks/${taskId}`, {
       method: "DELETE",
     });
   },
 
   deleteAllTasks: () => {
-    return request<CountResponse>("/tasks/", { method: "DELETE" });
+    return request<TaskCountActionResponse>("/tasks/", { method: "DELETE" });
   },
 
   // Cookie management
@@ -296,19 +285,23 @@ export const apiClient = {
     });
   },
 
-  checkCookieStatus: (domain: string) => {
-    return request<CookieStatusResponse>(`/cookies/status/${domain}`);
-  },
-
   // Settings API
   getSettings: () => {
     return request<UserSettings>("/settings/");
   },
 
-  updateSettings: (settings: UserSettings) => {
-    return request<UserSettings>("/settings/", {
-      method: "POST",
-      body: JSON.stringify(settings),
+  updatePreferences: (patch: UserPreferencesPatch) => {
+    return request<UserSettings>("/settings/preferences", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  },
+
+  patchUiState: (patch: UiStatePatch, options?: { keepalive?: boolean }) => {
+    return request<UserSettings>("/settings/ui-state", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+      keepalive: options?.keepalive,
     });
   },
 
@@ -399,18 +392,4 @@ export const apiClient = {
     });
   },
 
-  // ─── Preprocessing ───────────────────────────────────────────────
-  enhanceVideo: (payload: EnhanceVideoRequest) => {
-    return request<TaskResponse>("/preprocessing/enhance", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  cleanVideo: (payload: CleanVideoRequest) => {
-    return request<TaskResponse>("/preprocessing/clean", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
 };

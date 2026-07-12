@@ -9,6 +9,7 @@
     "sourcePlaceholder": "原文",
     "targetPlaceholder": "訳文",
     "addTerm": "用語を追加",
+    "deleteTerm": "{{term}} を削除",
     "empty": "用語はまだありません"
   },
   "buttons": {
@@ -47,6 +48,25 @@
     "proofread": "校正"
   },
   "loading": { "message": "翻訳中..." },
+  "task": {
+    "translateName": "{{name}}を翻訳",
+    "proofreadName": "{{name}}を校正",
+    "subtitleFallback": "字幕"
+  },
+  "feedback": {
+    "exportSuccess": "翻訳字幕を {{path}} に保存しました",
+    "exportFailed": "翻訳字幕を保存できませんでした",
+    "subtitleFileFilter": "字幕ファイル",
+    "textFileFilter": "テキストファイル",
+    "relatedVideoMissing": "字幕の隣に一致する動画が見つかりませんでした。試行：{{candidates}}。エディターでは推定パスを使用します。",
+    "editorAutoSaveFailed": "エディターを開く前に翻訳字幕を保存できませんでした",
+    "unsupportedSubtitle": "翻訳では .srt、.vtt、.ass、.ssa 字幕ファイルを使用できます",
+    "emptySubtitle": "{{path}} にタイムライン付き字幕がありません",
+    "loadFailed": "字幕ファイルを読み込めませんでした：{{path}}",
+    "unknownError": "不明なエラー",
+    "startTranslationFailed": "翻訳を開始できませんでした：{{detail}}",
+    "startProofreadFailed": "校正を開始できませんでした：{{detail}}"
+  },
   "uploader": {
     "dragText": "字幕ファイルをドラッグ＆ドロップ",
     "supportedFormats": ".srt, .vtt, .ass, .ssa 対応",

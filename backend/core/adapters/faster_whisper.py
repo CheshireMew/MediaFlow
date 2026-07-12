@@ -1,17 +1,28 @@
 import os
 import subprocess
 import re
-import shutil
 import time
 from pathlib import Path
-from typing import Optional, List, Callable, Any
+from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator
 
 from loguru import logger
 from backend.core.adapters.base import BaseAdapter
 from backend.config import settings
 from backend.utils.subtitle_parser import SubtitleParser
-from backend.models.schemas import SubtitleSegment
+from backend.models.schemas import DEFAULT_ASR_VAD_FILTER, SubtitleSegment
+from backend.models.task_message import TaskProgressCallback
+
+
+WINDOWS_SHUTDOWN_CRASH_EXIT_CODES = frozenset(
+    {
+        3221226505,  # 0xC0000409 (STATUS_STACK_BUFFER_OVERRUN)
+        3221225477,  # 0xC0000005 (STATUS_ACCESS_VIOLATION)
+        -1073740791,
+        -1073741819,
+    }
+)
+
 
 class FasterWhisperConfig(BaseModel):
     """
@@ -23,7 +34,7 @@ class FasterWhisperConfig(BaseModel):
     model_dir: Path
     language: Optional[str] = "auto"
     initial_prompt: Optional[str] = None
-    vad_filter: bool = True
+    vad_filter: bool = DEFAULT_ASR_VAD_FILTER
     max_line_width: Optional[int] = Field(default=None, ge=10, le=200)
     max_line_count: Optional[int] = 1
     device: str = "cpu"
@@ -118,7 +129,11 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
 
         return name
 
-    def execute(self, config: FasterWhisperConfig, progress_callback: Optional[Callable[[int, str], None]] = None) -> List[SubtitleSegment]:
+    def execute(
+        self,
+        config: FasterWhisperConfig,
+        progress_callback: Optional[TaskProgressCallback] = None,
+    ) -> List[SubtitleSegment]:
         self.validate(config)
         
         # Ensure output dir exists
@@ -128,7 +143,7 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         logger.info(f"Adapter executing: {' '.join(cmd)}")
         
         if progress_callback:
-            progress_callback(0, "Starting transcription...")
+            progress_callback(0, "transcription_starting", {})
 
         return self._run_subprocess(cmd, config, progress_callback)
 
@@ -186,7 +201,11 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
                         logger.info("Faster-Whisper CLI first progress after {:.3f}s", now - started_at)
                     p = max(0, min(100, int(match.group(1))))
                     if "MB" not in line and "kB" not in line and progress_callback: 
-                        progress_callback(10 + int(p * 0.8), f"Transcribing... {p}%")
+                        progress_callback(
+                            10 + int(p * 0.8),
+                            "transcription_progress",
+                            {"percent": p},
+                        )
                 
                 if not any(x in line for x in ["items/s", "it/s", "MB/s", ".bin", ".json"]) and line.strip():
                      logger.debug(f"CLI: {line}")
@@ -201,21 +220,26 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         )
 
         # Post-process: Find SRT first to see if work was actually done
-        srt_files = list(config.output_dir.glob("*.srt"))
-        has_output = len(srt_files) > 0 and srt_files[0].stat().st_size > 0
+        srt_files = sorted(config.output_dir.glob("*.srt"))
+        srt_path = next((path for path in srt_files if path.stat().st_size > 0), None)
+        has_output = srt_path is not None
 
         if process.returncode != 0:
-            # 3221226505 = 0xC0000409 (STATUS_STACK_BUFFER_OVERRUN)
-            # 3221225477 = 0xC0000005 (Access Violation)
-            known_exit_crashes = [3221226505, 3221225477, -1073740791, -1073741819]
-            
-            if has_output:
+            if (
+                has_output
+                and process.returncode in WINDOWS_SHUTDOWN_CRASH_EXIT_CODES
+            ):
                 logger.warning(f"CLI succeeded (output found) but process crashed on exit with code {process.returncode}. This is likely a Windows-specific shutdown issue and can be ignored.")
             else:
                 detail = self._summarize_cli_failure(notable_output)
+                output_state = (
+                    "Partial SRT output was generated but is not trusted."
+                    if has_output
+                    else "No output generated."
+                )
                 raise RuntimeError(
                     f"CLI process failed with code {process.returncode}. "
-                    f"No output generated. {detail}"
+                    f"{output_state} {detail}"
                 )
 
         unknown_model_line = next(
@@ -225,13 +249,13 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         if unknown_model_line:
             raise RuntimeError(unknown_model_line)
 
-        if not has_output:
-             hint = notable_output[-1] if notable_output else "No CLI details captured."
-             raise RuntimeError(f"CLI process exited successfully but no SRT output was generated. Last detail: {hint}")
-             
-        srt_path = srt_files[0]
-             
-        srt_path = srt_files[0]
+        if srt_path is None:
+            logger.info(
+                "Faster-Whisper CLI completed without speech segments: vad_filter={}",
+                config.vad_filter,
+            )
+            return []
+
         content = srt_path.read_text(encoding='utf-8')
         
         return SubtitleParser.parse_srt(content)

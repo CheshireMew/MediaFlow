@@ -1,65 +1,55 @@
-import inspect
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TYPE_CHECKING
 from loguru import logger
 
 from backend.core.task_control import TaskCancelRequested, TaskPauseRequested
-from backend.models.schemas import PipelineStepRequest, TaskResult, FileRef
+from backend.models.schemas import MediaReference, PipelineStepRequest, TaskResult
 from backend.core.context import PipelineContext
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service, TaskRuntimeContext
-from backend.core.steps import StepRegistry
+from backend.core.task_runtime import TaskRuntimeContext
+
+if TYPE_CHECKING:
+    from backend.services.task_manager import TaskManager
 
 
 class PipelineRunner:
-    def __init__(self, *, task_manager):
+    def __init__(self, *, task_manager: "TaskManager", step_registry):
         self.task_manager = task_manager
-
-    async def _raise_if_control_requested(self, task_id: str | None) -> None:
-        if not task_id:
-            return
-
-        is_cancelled = getattr(self.task_manager, "is_cancelled", None)
-        if callable(is_cancelled) and is_cancelled(task_id):
-            raise TaskCancelRequested("Pipeline cancelled")
-
-        checker = getattr(self.task_manager, "raise_if_control_requested", None)
-        if callable(checker):
-            result = checker(task_id)
-            if inspect.isawaitable(result):
-                await result
-            return
+        self._step_registry = step_registry
 
     async def run(self, steps: List[PipelineStepRequest], task_id: str = None) -> Dict[str, Any]:
         ctx = PipelineContext()
-        runtime = TaskRuntimeContext.for_task(task_id, task_manager=self.task_manager)
+        runtime = TaskRuntimeContext(task_id, task_manager=self.task_manager)
         logger.info(f"Starting pipeline with {len(steps)} steps. TaskID: {task_id}")
 
         try:
             if task_id:
-                await runtime.update(status="running", cancelled=False, message="Starting pipeline...")
+                await runtime.update(
+                    status="running",
+                    cancelled=False,
+                    message_code="pipeline_starting",
+                    message_params={},
+                )
 
             for i, step_req in enumerate(steps):
                 logger.info(f"Executing step {i+1}: {step_req.step_name}")
 
                 if task_id:
-                    await self._raise_if_control_requested(task_id)
+                    runtime.checkpoint()
 
                 try:
                     if task_id:
-                        await runtime.update(message=f"Executing step: {step_req.step_name}")
+                        await runtime.update(
+                            message_code="pipeline_step_running",
+                            message_params={"step": step_req.step_name},
+                        )
 
                     start_time = time.time()
                     status = "success"
                     error_msg = None
 
                     try:
-                        step_instance = StepRegistry.get_step(step_req.step_name)
-                        params_dict = (
-                            step_req.params.model_dump(mode="json")
-                            if hasattr(step_req.params, "model_dump")
-                            else dict(step_req.params)
-                        )
+                        step_instance = self._step_registry.get_step(step_req.step_name)
+                        params_dict = step_req.params.model_dump(mode="json")
                         await step_instance.execute(ctx, params_dict, task_id)
                         ctx.history.append(step_req.step_name)
                     except Exception as step_err:
@@ -78,42 +68,32 @@ class PipelineRunner:
                         await runtime.update(
                             status="failed",
                             error=str(e),
-                            message=f"Failed at {step_req.step_name}",
+                            message_code="pipeline_step_failed",
+                            message_params={"step": step_req.step_name},
                         )
                     raise e
 
             if task_id:
-                await self._raise_if_control_requested(task_id)
-                files = []
-                meta = {}
-
-                for k, v in ctx.data.items():
-                    val_str = str(v) if hasattr(v, "as_posix") else v
-                    if k.endswith("_path") and isinstance(val_str, str):
-                        ftype = "file"
-                        if "video" in k:
-                            ftype = "video"
-                        elif "audio" in k:
-                            ftype = "audio"
-                        elif "subtitle" in k or "srt" in k:
-                            ftype = "subtitle"
-                        elif "image" in k:
-                            ftype = "image"
-
-                        files.append(FileRef(type=ftype, path=val_str, label=k))
-                        meta[k] = val_str
-                    else:
-                        meta[k] = val_str
-
+                runtime.checkpoint()
+                meta = {
+                    key: value
+                    for key, value in ctx.data.items()
+                    if not isinstance(value, MediaReference)
+                }
                 meta["execution_trace"] = ctx.trace
 
-                task_result = TaskResult(success=True, files=files, meta=meta)
+                task_result = TaskResult(
+                    success=True,
+                    artifacts=ctx.artifacts,
+                    meta=meta,
+                )
 
                 await runtime.update(
                     status="completed",
                     cancelled=False,
                     progress=100.0,
-                    message="Pipeline completed",
+                    message_code="pipeline_completed",
+                    message_params={},
                     result=task_result.model_dump(mode="json"),
                 )
 
@@ -122,13 +102,13 @@ class PipelineRunner:
                 "history": ctx.history,
                 "final_data": ctx.data,
             }
-        except TaskPauseRequested as e:
+        except TaskPauseRequested:
             if task_id:
-                await runtime.mark_controlled_stop("pause", str(e))
+                await runtime.mark_controlled_stop("pause", "paused", {})
             return {"status": "paused", "history": ctx.history, "final_data": ctx.data}
-        except TaskCancelRequested as e:
+        except TaskCancelRequested:
             if task_id:
-                await runtime.mark_controlled_stop("cancel", str(e))
+                await runtime.mark_controlled_stop("cancel", "cancelled", {})
             return {"status": "cancelled", "history": ctx.history, "final_data": ctx.data}
 
 # Note: PipelineRunner is registered via container in main.py.

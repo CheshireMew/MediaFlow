@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useEditorStore } from "../../stores/editorStore";
-import {
-  normalizeMediaReference,
-} from "../../services/ui/mediaReference";
+import type { MediaReference } from "../../services/ui/mediaReference";
 import {
   consumePendingMediaNavigation,
   clearPendingMediaNavigation,
@@ -18,28 +17,29 @@ import { resolveEditorPreviewMediaUrl } from "./editorPreviewSource";
 import { useEditorFileLoader } from "./useEditorFileLoader";
 import { useEditorSubtitleActions } from "./useEditorSubtitleActions";
 import { useEditorDocumentWriters } from "./useEditorDocumentWriters";
+import { toast } from "../../utils/toast";
 
 export { isSupportedEditorSubtitlePath } from "./editorFileHelpers";
 
 export function useEditorIO() {
-  const mediaUrl = useEditorStore((state) => state.mediaUrl);
-  const currentFilePath = useEditorStore((state) => state.currentFilePath);
-  const currentSubtitlePath = useEditorStore((state) => state.currentSubtitlePath);
+  const { t } = useTranslation("editor");
+  const mediaUrl = useEditorStore((state) => state.document.previewUrl);
+  const currentFilePath = useEditorStore((state) => state.document.video?.path ?? null);
+  const currentSubtitlePath = useEditorStore(
+    (state) => state.document.subtitle?.path ?? null,
+  );
   const currentSubtitlePathRef = useRef(currentSubtitlePath);
   const {
     replaceEditorDocument,
-    setMediaUrl,
-    setCurrentFilePath,
-    setCurrentSubtitlePath,
-    setCurrentFileRef,
-    setCurrentSubtitleRef,
+    setDocumentPreviewUrl,
   } = useEditorDocumentWriters();
   const {
     handleOpenFile,
     handleOpenSubtitle,
     loadMediaAndResources,
     loadSubtitleFromPath,
-    tryLoadRelatedSubtitle,
+    findRelatedSubtitle,
+    confirmDocumentSwitch,
   } =
     useEditorFileLoader();
   const { saveSubtitleFile } = useEditorSubtitleActions();
@@ -50,9 +50,11 @@ export function useEditorIO() {
 
   useEffect(() => {
     const applyEditorPayload = async (payload?: NavigationPayload | null) => {
-      const { videoPath, subtitlePath, videoRef, subtitleRef } = resolveNavigationMediaPayload(payload);
+      const { videoRef, subtitleRef } = resolveNavigationMediaPayload(payload);
+      const videoPath = videoRef?.path ?? null;
+      const subtitlePath = subtitleRef?.path ?? null;
 
-      if (!videoPath) {
+      if (!videoRef || !videoPath) {
         return false;
       }
 
@@ -61,32 +63,51 @@ export function useEditorIO() {
           subtitlePath && subtitlePath === currentSubtitlePathRef.current,
         );
 
-        setCurrentFilePath(videoPath);
-        const resolvedVideoRef = videoRef ?? normalizeMediaReference(videoPath);
-        setCurrentFileRef(resolvedVideoRef);
-        setCurrentSubtitlePath(null);
-        setCurrentSubtitleRef(null);
-        setMediaUrl(await resolveEditorPreviewMediaUrl(videoPath, resolvedVideoRef));
+        const resolvedVideoRef = videoRef;
+        const currentDocument = useEditorStore.getState().document;
+        const targetSubtitlePath = subtitlePath ?? null;
+        const isSameDocument =
+          currentDocument.video?.path === videoPath &&
+          currentDocument.subtitle?.path === targetSubtitlePath;
+        if (!isSameDocument && !(await confirmDocumentSwitch())) {
+          return false;
+        }
 
-        if (subtitlePath) {
+        let loadedSubtitle: {
+          regions: Awaited<ReturnType<typeof loadEditorSubtitle>>;
+          subtitle: MediaReference;
+        } | null = null;
+
+        if (subtitleRef && subtitlePath) {
           try {
             const parsed = await loadEditorSubtitle(subtitlePath);
             if (parsed.length > 0) {
-              replaceEditorDocument(parsed, {
-                preserveSelection: shouldPreserveSelection,
-              });
-              setCurrentSubtitlePath(subtitlePath);
-              setCurrentSubtitleRef(
-                subtitleRef ??
-                  normalizeMediaReference(subtitlePath),
-              );
+              loadedSubtitle = {
+                regions: parsed,
+                subtitle: subtitleRef,
+              };
+            } else {
+              toast.error(t("document.invalidSubtitle"));
+              return false;
             }
           } catch (e) {
             console.error("[EditorIO] Failed to load pending subtitle", e);
+            toast.error(t("document.loadSubtitleError"));
+            return false;
           }
         } else {
-          await tryLoadRelatedSubtitle(videoPath);
+          loadedSubtitle = await findRelatedSubtitle(videoPath);
         }
+        const previewUrl = await resolveEditorPreviewMediaUrl(resolvedVideoRef);
+        replaceEditorDocument(
+          {
+            video: resolvedVideoRef,
+            subtitle: loadedSubtitle?.subtitle ?? null,
+            previewUrl,
+            regions: loadedSubtitle?.regions ?? [],
+          },
+          { preserveSelection: shouldPreserveSelection },
+        );
         return true;
       } catch (e) {
         console.error("Failed to apply navigation payload for editor", e);
@@ -107,7 +128,10 @@ export function useEditorIO() {
       }
 
       if (currentFilePath) {
-        setMediaUrl(await resolveEditorPreviewMediaUrl(currentFilePath));
+        const document = useEditorStore.getState().document;
+        if (document.video) {
+          setDocumentPreviewUrl(await resolveEditorPreviewMediaUrl(document.video));
+        }
       }
     };
     void restoreSession();
@@ -124,13 +148,11 @@ export function useEditorIO() {
     return cleanup;
   }, [
     currentFilePath,
+    confirmDocumentSwitch,
+    findRelatedSubtitle,
     replaceEditorDocument,
-    setCurrentFilePath,
-    setCurrentFileRef,
-    setCurrentSubtitlePath,
-    setCurrentSubtitleRef,
-    setMediaUrl,
-    tryLoadRelatedSubtitle,
+    setDocumentPreviewUrl,
+    t,
   ]);
 
   return {

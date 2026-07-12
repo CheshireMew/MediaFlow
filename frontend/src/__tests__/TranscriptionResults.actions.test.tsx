@@ -184,7 +184,7 @@ describe("TranscriptionResults actions", () => {
     );
 
     fireEvent.contextMenu(screen.getByText(createSampleTranscriptionResult().segments[0].text));
-    fireEvent.click(screen.getByRole("button", { name: "Open subtitle folder" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open subtitle folder" }));
 
     expect(electronMock.showInExplorer).toHaveBeenCalledWith("E:/sample.srt");
   });
@@ -216,8 +216,6 @@ describe("TranscriptionResults actions", () => {
       },
     });
     expect(resolveNavigationMediaPayload(payload)).toEqual({
-      videoPath: "E:/canonical/sample.mp4",
-      subtitlePath: "E:/canonical/sample.srt",
       videoRef: {
         path: "E:/canonical/sample.mp4",
         name: "sample.mp4",
@@ -277,8 +275,6 @@ describe("TranscriptionResults actions", () => {
       },
     });
     expect(resolveNavigationMediaPayload(payload)).toEqual({
-      videoPath: "E:/workspace/sample.mp4",
-      subtitlePath: "E:/canonical/sample.srt",
       videoRef: {
         path: "E:/workspace/sample.mp4",
         name: "sample.mp4",

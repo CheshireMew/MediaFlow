@@ -5,17 +5,30 @@ Converted from tests/verify_auto_flow.py (Issue #7).
 Verifies that all catalogued pipeline steps are registered in the StepRegistry.
 """
 
-import pytest
+from backend.core.steps.download import DownloadStep
+from backend.core.steps.registry import StepRegistry
+from backend.core.steps.synthesize import SynthesizeStep
+from backend.core.steps.transcribe import TranscribeStep
+from backend.core.steps.translate import TranslateStep
+
+
+def _registry() -> StepRegistry:
+    dependency = object()
+    return StepRegistry(
+        [
+            DownloadStep(downloader=dependency, task_manager=dependency),
+            TranscribeStep(asr_service=dependency, task_manager=dependency),
+            TranslateStep(translator=dependency, task_manager=dependency),
+            SynthesizeStep(synthesis=dependency, task_manager=dependency),
+        ]
+    )
 
 
 def test_all_pipeline_steps_registered():
     """All required auto-execute flow steps must be registered."""
-    from backend.core.steps.registry import StepRegistry
     from backend.core.task_catalog import pipeline_step_names
-    # Trigger step module imports so decorators register the steps
-    from backend.core.steps import download, transcribe, translate, synthesize  # noqa: F401
 
-    registered = StepRegistry.list_steps()
+    registered = _registry().list_steps()
 
     required = sorted(pipeline_step_names())
     missing = [s for s in required if s not in registered]
@@ -25,8 +38,5 @@ def test_all_pipeline_steps_registered():
 
 def test_step_registry_returns_step_class():
     """StepRegistry.get_step() must return a valid step class for known steps."""
-    from backend.core.steps.registry import StepRegistry
-    from backend.core.steps import download  # noqa: F401
-
-    step_cls = StepRegistry.get_step("download")
+    step_cls = _registry().get_step("download")
     assert step_cls is not None, "StepRegistry.get_step('download') returned None"

@@ -187,12 +187,21 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
         return (
             <div 
                 key={idStr}
+                role="listitem"
+                tabIndex={0}
+                aria-current={isActive ? "true" : undefined}
                 style={{ height: ITEM_HEIGHT, position: 'absolute', top: index * ITEM_HEIGHT, width: '100%' }}
                 onClick={(e) => onSegmentClick(idStr, e.ctrlKey || e.metaKey, e.shiftKey)}
+                onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    onSegmentClick(idStr, event.ctrlKey || event.metaKey, event.shiftKey);
+                }}
                 onDoubleClick={() => onSegmentDoubleClick(idStr)}
                 onContextMenu={(e) => onContextMenu(e, idStr)}
                 className={`
-                    group flex items-center border-b border-white/[0.035] transition-colors cursor-pointer
+                    group flex items-center border-b border-white/[0.035] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400
                     ${isActive ? 'bg-indigo-500/15 shadow-[inset_3px_0_0_rgba(129,140,248,0.95)]' : 'hover:bg-white/[0.025]'}
                     ${isSelected && !isActive ? 'bg-indigo-500/[0.07] shadow-[inset_2px_0_0_rgba(129,140,248,0.45)]' : ''}
                     ${(hasError || hasWarning) && !isActive && !isSelected ? 'bg-yellow-500/5' : ''}
@@ -203,8 +212,8 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
 
                 {/* Timestamp & Status */}
                 <div 
-                    className={`w-[52px] text-center py-2 font-mono text-[10px] select-none flex flex-col items-center justify-center shrink-0 h-full min-h-[2rem]
-                        ${isActive ? 'text-indigo-300' : 'text-slate-500'}
+                    className={`w-[52px] text-center py-2 font-mono text-xs select-none flex flex-col items-center justify-center shrink-0 h-full min-h-[2rem]
+                        ${isActive ? 'text-indigo-300' : 'text-slate-400'}
                         ${(hasError || hasWarning) ? 'bg-amber-500/10 text-amber-500' : ''}
                     `}
                     title={validationTooltip}
@@ -221,7 +230,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                 <div className="flex-1 py-1 px-3 select-none min-w-0 flex items-center h-full">
                     <div
                         title={seg.text || undefined}
-                        className={`w-full truncate whitespace-nowrap overflow-hidden text-[13px] font-medium leading-relaxed ${!seg.text ? 'text-slate-600 italic' : isActive ? 'text-white' : 'text-slate-300'}`}
+                        className={`w-full truncate whitespace-nowrap overflow-hidden text-[13px] font-medium leading-relaxed ${!seg.text ? 'text-slate-400 italic' : isActive ? 'text-white' : 'text-slate-300'}`}
                     >
                         {!seg.text ? t('subtitleList.emptySegmentLabel') : (
                             searchTerm ? highlightSubtitleText(seg.text, searchTerm, matchCase) : seg.text
@@ -230,10 +239,11 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                 </div>
                 
                 {/* Actions */}
-                <div className="w-8 pr-1 flex justify-end shrink-0 opacity-0 group-hover:opacity-100 transition-all">
+                <div className="flex w-8 shrink-0 justify-end pr-1 opacity-100 transition-all md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                     <button 
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); onSegmentDelete(idStr); }}
-                        className="p-1 hover:bg-red-500/10 rounded-md text-slate-600 hover:text-red-400 transition-colors"
+                        className="rounded-md p-1 text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                         title={t('subtitleList.deleteTooltip')}
                     >
                         <Trash2 size={12} />
@@ -288,7 +298,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                         onClick={onSmartSplit}
                         disabled={segments.length === 0 || isSmartSplitting}
                         title={t('subtitleList.smartSplitTooltip')}
-                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.035] hover:bg-amber-500/10 disabled:bg-white/5 text-slate-300 hover:text-amber-300 disabled:text-slate-500 border border-white/10 hover:border-amber-500/20 disabled:border-white/5 text-xs font-medium transition-colors whitespace-nowrap"
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.035] hover:bg-amber-500/10 disabled:bg-white/5 text-slate-300 hover:text-amber-300 disabled:text-slate-400 border border-white/10 hover:border-amber-500/20 disabled:border-white/5 text-xs font-medium transition-colors whitespace-nowrap"
                     >
                         <Scissors className="w-3.5 h-3.5" />
                         {isSmartSplitting
@@ -299,7 +309,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
              </div>
 
              {/* Header */}
-             <div className="flex bg-[#111] border-b border-white/[0.04] text-[10px] uppercase tracking-wider text-slate-500 font-bold shadow-sm shrink-0 sticky top-0 z-10">
+             <div className="flex bg-[#111] border-b border-white/[0.04] text-xs uppercase tracking-wider text-slate-400 font-bold shadow-sm shrink-0 sticky top-0 z-10">
                   <div className="w-[52px] text-center py-1.5">{t('subtitleList.columnStart')}</div>
                   <div className="flex-1 py-1.5 px-3">{t('subtitleList.columnText')}</div>
                   <div className="w-8 py-1.5"></div>
@@ -308,7 +318,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
             {/* Native List Container -> Virtualized */}
             <div className="flex-1 min-h-0 w-full bg-[#090909]">
                 {segments.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-600/50 text-sm gap-2">
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-2">
                          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
                             <span className="text-2xl opacity-20">T</span>
                          </div>
@@ -317,6 +327,7 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                 ) : (
                     <div
                         ref={listRef}
+                        role="list"
                         className="w-full h-full relative overflow-y-auto custom-scrollbar"
                         onScroll={handleScroll}
                     >

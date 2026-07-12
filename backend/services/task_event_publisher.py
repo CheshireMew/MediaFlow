@@ -14,9 +14,6 @@ class TaskEventPublisher:
     def __init__(self, notifier: Optional["WebSocketNotifier"] = None):
         self._notifier = notifier
 
-    def set_notifier(self, notifier: "WebSocketNotifier") -> None:
-        self._notifier = notifier
-
     async def publish_update(self, task_payload: TaskView) -> None:
         if self._notifier:
             await self._notifier.broadcast({"type": "update", "task": _task_payload(task_payload)})

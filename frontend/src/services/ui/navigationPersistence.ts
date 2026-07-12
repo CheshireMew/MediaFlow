@@ -1,5 +1,8 @@
 import type { NavigationDestination } from "./navigation";
-import { readUiStateValue, writeUiStateValue } from "../persistence/uiStateSettings";
+import {
+  readWorkspaceStateValue,
+  writeWorkspaceStateValue,
+} from "../persistence/workspaceState";
 
 const LAST_ROUTE_KEY = "mediaflow:last-route";
 
@@ -9,7 +12,6 @@ const RESTORABLE_DESTINATIONS = new Set<NavigationDestination>([
   "transcriber",
   "translator",
   "editor",
-  "preprocessing",
   "settings",
 ]);
 
@@ -32,7 +34,9 @@ export function normalizeRestorableDestination(
 }
 
 export function readLastNavigationDestination(): NavigationDestination | null {
-  return normalizeRestorableDestination(readUiStateValue<string>(LAST_ROUTE_KEY));
+  return normalizeRestorableDestination(
+    readWorkspaceStateValue<string>(LAST_ROUTE_KEY),
+  );
 }
 
 export function readHashNavigationDestination(
@@ -108,5 +112,5 @@ export function persistNavigationDestination(pathname: string) {
     return;
   }
 
-  writeUiStateValue(LAST_ROUTE_KEY, destination);
+  writeWorkspaceStateValue(LAST_ROUTE_KEY, destination);
 }

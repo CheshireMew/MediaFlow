@@ -2,18 +2,22 @@ import { getDesktopApi } from "./bridge";
 
 export const windowService = {
   minimize() {
-    getDesktopApi()?.minimize?.();
+    const api = getDesktopApi();
+    if (api) api.minimize();
   },
 
   maximize() {
-    getDesktopApi()?.maximize?.();
+    const api = getDesktopApi();
+    if (api) api.maximize();
   },
 
   close() {
-    getDesktopApi()?.close?.();
+    const api = getDesktopApi();
+    if (api) api.close();
   },
 
   notifyRendererReady() {
-    getDesktopApi()?.notifyRendererReady?.();
+    const api = getDesktopApi();
+    if (api) api.notifyRendererReady();
   },
 };

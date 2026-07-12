@@ -31,13 +31,8 @@ export function useTranscriberNavigation(params: {
   const { setFile, setResult, setCurrentTranscriptionTaskId } = params;
 
   const applyNavigationPayload = useCallback(
-    async (
-      videoPath: string | null | undefined,
-      videoRef?: MediaReference | null,
-    ) => {
-      if (!videoPath) return;
-
-      const resolvedVideoPath = videoPath;
+    async (videoRef: MediaReference) => {
+      const resolvedVideoPath = videoRef.path;
       let fileSize = 0;
       if (isDesktopRuntime()) {
         try {
@@ -53,7 +48,7 @@ export function useTranscriberNavigation(params: {
         attachElectronFileSource(
           toElectronFile(
             normalizeMediaReference(
-              videoRef ? { ...videoRef, path: resolvedVideoPath } : resolvedVideoPath,
+              { ...videoRef, size: fileSize, type: videoRef.type ?? "video/mp4" },
               { size: fileSize, type: "video/mp4" },
             )!,
           ),
@@ -66,16 +61,16 @@ export function useTranscriberNavigation(params: {
 
   const consumeNavigation = useCallback(
     async (payload?: NavigationPayload | null) => {
-      const { videoPath, videoRef } = resolveNavigationMediaPayload(payload);
-      if (!videoPath) return;
-      await applyNavigationPayload(videoPath, videoRef);
+      const { videoRef } = resolveNavigationMediaPayload(payload);
+      if (!videoRef) return;
+      await applyNavigationPayload(videoRef);
     },
     [applyNavigationPayload],
   );
 
   useEffect(() => {
     const pending = readPendingMediaNavigation();
-    if (pending?.target === "transcriber" && resolveNavigationMediaPayload(pending).videoPath) {
+    if (pending?.target === "transcriber" && resolveNavigationMediaPayload(pending).videoRef) {
       void consumeNavigation(pending).finally(() => {
         clearPendingMediaNavigation();
       });

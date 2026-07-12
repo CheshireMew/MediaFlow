@@ -7,7 +7,7 @@ import re
 
 from loguru import logger
 
-from backend.models.schemas import FileRef
+from backend.models.schemas import MediaReference, TaskArtifact
 from backend.services.media_extensions import MEDIA_EXTENSIONS, media_kind_from_extension
 from backend.utils.subtitle_parser import SubtitleParser
 
@@ -43,45 +43,37 @@ class DownloadArtifacts:
     warnings: list[str] = field(default_factory=list)
     recovery: list[dict[str, str]] = field(default_factory=list)
 
-    def to_files(self) -> list[FileRef]:
-        files = [
-            FileRef(
-                type=self.media_type,
-                path=str(self.media_path),
-                label="source",
-                mime_type=infer_media_mime_type(str(self.media_path)),
+    def to_artifacts(self) -> list[TaskArtifact]:
+        artifacts = [
+            TaskArtifact(
+                kind=self.media_type,
+                role="output",
+                ref=MediaReference(
+                    path=str(self.media_path),
+                    name=self.media_path.name,
+                    type=infer_media_mime_type(str(self.media_path)),
+                    media_kind=self.media_type,
+                    role="output",
+                    origin="task",
+                ),
             )
         ]
         if self.subtitle_path:
-            files.append(
-                FileRef(
-                    type="subtitle",
-                    path=str(self.subtitle_path),
-                    label="downloaded",
-                    mime_type="application/x-subrip",
+            artifacts.append(
+                TaskArtifact(
+                    kind="subtitle",
+                    role="output",
+                    ref=MediaReference(
+                        path=str(self.subtitle_path),
+                        name=self.subtitle_path.name,
+                        type="application/x-subrip",
+                        media_kind="subtitle",
+                        role="output",
+                        origin="task",
+                    ),
                 )
             )
-        return files
-
-    def to_meta(self) -> dict[str, Any]:
-        return {
-            "primary": {
-                "path": str(self.media_path),
-                "type": self.media_type,
-                "mime_type": infer_media_mime_type(str(self.media_path)),
-            },
-            "subtitle": (
-                {
-                    "path": str(self.subtitle_path),
-                    "type": "subtitle",
-                    "mime_type": "application/x-subrip",
-                }
-                if self.subtitle_path
-                else None
-            ),
-            "warnings": list(self.warnings),
-            "recovery": list(self.recovery),
-        }
+        return artifacts
 
 
 class DownloadArtifactResolver:

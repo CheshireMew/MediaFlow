@@ -32,7 +32,12 @@ class GlossaryService:
     def _save_terms(self):
         try:
             with open(GLOSSARY_FILE, "w", encoding="utf-8") as f:
-                json.dump([t.dict() for t in self.terms], f, ensure_ascii=False, indent=2)
+                json.dump(
+                    [term.model_dump(mode="json") for term in self.terms],
+                    f,
+                    ensure_ascii=False,
+                    indent=2,
+                )
         except Exception as e:
             logger.error(f"Failed to save glossary: {e}")
 
@@ -82,5 +87,4 @@ class GlossaryService:
             if term.source.lower() in text_lower:
                 relevant.append(term)
         return relevant
-
 

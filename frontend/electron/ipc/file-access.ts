@@ -24,7 +24,7 @@ class DesktopFileAccessRegistry {
     requireLocalPath(directoryPath, "Renderer read directory grant");
   }
 
-  grantRendererWriteDirectory(directoryPath: string, _options?: { persist?: boolean }) {
+  grantRendererWriteDirectory(directoryPath: string) {
     requireLocalPath(directoryPath, "Renderer write directory grant");
   }
 
@@ -36,9 +36,6 @@ class DesktopFileAccessRegistry {
     requireLocalPath(filePath, operation);
   }
 
-  assertWorkerPayloadAccess(_payload: unknown) {
-    return;
-  }
 }
 
 export const desktopFileAccess = new DesktopFileAccessRegistry();

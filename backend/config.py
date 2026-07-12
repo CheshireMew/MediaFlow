@@ -3,7 +3,6 @@ import json
 import os
 import sys
 
-from backend.contracts import RUNTIME_CONTRACT
 
 
 DEFAULT_ASR_MODELS = {
@@ -70,6 +69,15 @@ def _parse_int(value: str | None, default: int) -> int:
         return default
 
 
+def _parse_log_level(value: str | None, default: str) -> str:
+    if value is None:
+        return default
+    normalized = value.strip().upper()
+    if normalized in {"TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"}:
+        return normalized
+    return default
+
+
 def _parse_json_dict(value: str | None, default: dict) -> dict:
     if value is None:
         return default.copy()
@@ -87,13 +95,13 @@ class Settings:
         self.APP_NAME = "MediaFlow Core"
         self.APP_VERSION = "0.1.0"
         self.DEBUG = False
-        self.ENABLE_EXPERIMENTAL_PREPROCESSING = bool(
-            RUNTIME_CONTRACT["features"]["preprocessing"]
-        )
+        self.LOG_LEVEL = "INFO"
+        self.ENABLE_DETAILED_LLM_LOGGING = False
 
         self.HOST = "127.0.0.1"
         self.PORT = 8800
         self.TASK_MAX_CONCURRENT = 2
+        self.TASK_HISTORY_LIMIT = 100
 
         self.RESOURCE_DIR = self._resolve_resource_dir()
         self.RUNTIME_DIR = self._resolve_runtime_dir()
@@ -115,7 +123,6 @@ class Settings:
         self.ASR_MAX_WORKERS = 2
         self.LLM_TRANSLATION_MAX_CONCURRENCY = 3
         self.ASR_MODEL_DIR = self.MODEL_DIR / "faster-whisper"
-        self.OCR_MODEL_DIR = self.MODEL_DIR / "ocr"
 
         self.LLM_MODEL = "gpt-4o-mini"
         self.ASR_MODELS = DEFAULT_ASR_MODELS.copy()
@@ -139,11 +146,23 @@ class Settings:
         self.APP_NAME = env.get("APP_NAME", self.APP_NAME)
         self.APP_VERSION = env.get("APP_VERSION", self.APP_VERSION)
         self.DEBUG = _parse_bool(env.get("DEBUG"), self.DEBUG)
+        self.LOG_LEVEL = _parse_log_level(
+            env.get("LOG_LEVEL"),
+            "DEBUG" if self.DEBUG else self.LOG_LEVEL,
+        )
+        self.ENABLE_DETAILED_LLM_LOGGING = _parse_bool(
+            env.get("ENABLE_DETAILED_LLM_LOGGING"),
+            self.ENABLE_DETAILED_LLM_LOGGING,
+        )
         self.HOST = env.get("HOST", self.HOST)
         self.PORT = _parse_int(env.get("PORT"), self.PORT)
         self.TASK_MAX_CONCURRENT = _parse_int(
             env.get("TASK_MAX_CONCURRENT"),
             self.TASK_MAX_CONCURRENT,
+        )
+        self.TASK_HISTORY_LIMIT = max(
+            1,
+            _parse_int(env.get("TASK_HISTORY_LIMIT"), self.TASK_HISTORY_LIMIT),
         )
 
         self.FFMPEG_PATH = env.get("FFMPEG_PATH", self.FFMPEG_PATH)
@@ -237,7 +256,6 @@ class Settings:
             self.TOOL_DIR,
             self.TOOL_DOWNLOAD_DIR,
             self.PYTHON_TOOL_PACKAGES_DIR,
-            self.OCR_MODEL_DIR,
         ]:
             path.mkdir(parents=True, exist_ok=True)
 

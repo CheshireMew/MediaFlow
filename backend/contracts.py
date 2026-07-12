@@ -26,8 +26,15 @@ TASK_STATUSES = set(RUNTIME_CONTRACT["task_statuses"])
 TASK_SOURCES = set(RUNTIME_CONTRACT["task_sources"])
 TASK_PERSISTENCE_SCOPES = set(RUNTIME_CONTRACT["task_persistence_scopes"])
 TASK_QUEUE_STATES = set(RUNTIME_CONTRACT["task_queue_states"])
+TASK_MESSAGE_CODES = set(RUNTIME_CONTRACT["task_message_codes"])
 TASK_STATUS_PROJECTION = RUNTIME_CONTRACT["task_status_projection"]
 ASR_EXECUTION_PREFERENCES = RUNTIME_CONTRACT["asr_execution_preferences"]
+
+
+def require_task_message_code(code: str) -> str:
+    if code not in TASK_MESSAGE_CODES:
+        raise ValueError(f"Unknown task message code: {code}")
+    return code
 
 
 def task_status_projection(status: str) -> dict[str, Any]:
@@ -47,11 +54,3 @@ def task_lifecycle(status: str) -> str:
 
 def task_queue_state(status: str) -> str:
     return str(task_status_projection(status)["queue_state"])
-
-
-def task_is_active(status: str) -> bool:
-    return bool(task_status_projection(status)["is_active"])
-
-
-def task_is_running(status: str) -> bool:
-    return bool(task_status_projection(status)["is_running"])

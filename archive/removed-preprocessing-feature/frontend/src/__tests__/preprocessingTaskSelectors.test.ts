@@ -1,0 +1,88 @@
+import { describe, expect, it } from "vitest";
+import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
+import {
+  findRecoverablePreprocessingTask,
+  getActivePreprocessingTask,
+} from "../hooks/preprocessing/taskSelectors";
+import type { Task } from "../types/task";
+
+describe("preprocessing task selectors", () => {
+  it("treats the current preprocessing task as active when canonical refs match", () => {
+    const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
+      id: "task-own",
+      type: "extract",
+      status: "running",
+      progress: 50,
+      created_at: 1,
+    };
+
+    expect(
+      getActivePreprocessingTask(
+        [task],
+        "task-own",
+        {
+          path: "E:/canonical/video-a.mp4",
+          name: "video-a.mp4",
+        },
+        {
+          path: "E:/canonical/video-a.mp4",
+          name: "video-a.mp4",
+        },
+      ),
+    ).toBe(task);
+  });
+
+  it("hides the task when canonical refs differ", () => {
+    const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
+      id: "task-own",
+      type: "extract",
+      status: "running",
+      progress: 50,
+      created_at: 1,
+    };
+
+    expect(
+      getActivePreprocessingTask(
+        [task],
+        "task-own",
+        {
+          path: "E:/canonical/video-a.mp4",
+          name: "video-a.mp4",
+        },
+        {
+          path: "E:/canonical/video-b.mp4",
+          name: "video-b.mp4",
+        },
+      ),
+    ).toBeNull();
+  });
+
+  it("finds a recoverable completed preprocessing task by canonical video identity", () => {
+    const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
+      id: "task-history",
+      type: "extract",
+      status: "completed",
+      progress: 100,
+      created_at: 1,
+      request_params: {
+        video_ref: {
+          path: "E:/canonical/video-a.mp4",
+          name: "video-a.mp4",
+        },
+      },
+    };
+
+    expect(
+      findRecoverablePreprocessingTask(
+        [task],
+        {
+          path: "E:/canonical/video-a.mp4",
+          name: "video-a.mp4",
+        },
+      ),
+    ).toBe(task);
+  });
+});

@@ -11,6 +11,7 @@ import {
     Subtitles,
 } from "lucide-react";
 import React, { type RefObject, useState, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
     resolveContainedViewportFrame,
     resolvePreviewViewportMetrics,
@@ -27,8 +28,8 @@ interface VideoPreviewProps {
 
 const EDITOR_PLAYBACK_RATES = [1, 1.25, 1.5, 1.75, 2, 2.5, 3] as const;
 
-function formatPlaybackRate(rate: number) {
-    return rate === 1 ? "正常" : `${rate}`;
+function formatPlaybackRate(rate: number, normalLabel: string) {
+    return rate === 1 ? normalLabel : `${rate}`;
 }
 
 function VideoPreviewComponent({
@@ -37,6 +38,7 @@ function VideoPreviewComponent({
     regions,
     onLoadedMetadata
 }: VideoPreviewProps) {
+    const { t } = useTranslation("editor");
     // 内部管理时间状态，不传递给父组件
     const [currentTime, setCurrentTime] = useState(0);
     const panelRef = React.useRef<HTMLDivElement>(null);
@@ -55,6 +57,7 @@ function VideoPreviewComponent({
     const [subtitleBackgroundAlpha, setSubtitleBackgroundAlpha] = useState(0.6);
     const [isDraggingSubtitle, setIsDraggingSubtitle] = useState(false);
     const videoFrameRef = React.useRef<HTMLDivElement>(null);
+    const subtitlePointerIdRef = React.useRef<number | null>(null);
 
     const handleTimeUpdate = useCallback(() => {
         if (videoRef.current) {
@@ -92,6 +95,12 @@ function VideoPreviewComponent({
         }
 
         const handlePointerMove = (event: PointerEvent) => {
+            if (
+                subtitlePointerIdRef.current !== null &&
+                event.pointerId !== subtitlePointerIdRef.current
+            ) {
+                return;
+            }
             const frame = videoFrameRef.current;
             if (!frame) {
                 return;
@@ -105,17 +114,48 @@ function VideoPreviewComponent({
             });
         };
 
-        const handlePointerUp = () => {
+        const handlePointerEnd = (event: PointerEvent) => {
+            if (
+                subtitlePointerIdRef.current !== null &&
+                event.pointerId !== subtitlePointerIdRef.current
+            ) {
+                return;
+            }
+            subtitlePointerIdRef.current = null;
             setIsDraggingSubtitle(false);
         };
 
         window.addEventListener("pointermove", handlePointerMove);
-        window.addEventListener("pointerup", handlePointerUp);
+        window.addEventListener("pointerup", handlePointerEnd);
+        window.addEventListener("pointercancel", handlePointerEnd);
         return () => {
             window.removeEventListener("pointermove", handlePointerMove);
-            window.removeEventListener("pointerup", handlePointerUp);
+            window.removeEventListener("pointerup", handlePointerEnd);
+            window.removeEventListener("pointercancel", handlePointerEnd);
         };
     }, [isDraggingSubtitle]);
+
+    const handleSubtitlePositionKeyDown = useCallback(
+        (event: React.KeyboardEvent<HTMLButtonElement>) => {
+            const directions: Record<string, { x: number; y: number }> = {
+                ArrowLeft: { x: -1, y: 0 },
+                ArrowRight: { x: 1, y: 0 },
+                ArrowUp: { x: 0, y: -1 },
+                ArrowDown: { x: 0, y: 1 },
+            };
+            const direction = directions[event.key];
+            if (!direction) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            const step = event.shiftKey ? 5 : 1;
+            setSubtitlePosition((position) => ({
+                x: Math.min(88, Math.max(12, position.x + direction.x * step)),
+                y: Math.min(88, Math.max(20, position.y + direction.y * step)),
+            }));
+        },
+        [],
+    );
 
     React.useEffect(() => {
         const video = videoRef.current;
@@ -359,7 +399,7 @@ function VideoPreviewComponent({
                             ref={videoFrameRef}
                             role="button"
                             tabIndex={0}
-                            aria-label={isPlaying ? "暂停视频画面" : "播放视频画面"}
+                            aria-label={isPlaying ? t("videoPreview.pauseFrame") : t("videoPreview.playFrame")}
                             onClick={handlePlayPause}
                             onKeyDown={handleVideoFrameKeyDown}
                             className="relative overflow-hidden bg-black shadow-2xl max-w-full max-h-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/70"
@@ -378,12 +418,12 @@ function VideoPreviewComponent({
                                onLoadedMetadata={handleLoadedMetadata}
                                onError={handleError}
                             />
-                            <div className="absolute left-3 top-3 flex items-center gap-2 rounded-lg border border-white/10 bg-black/55 px-2 py-1 text-[10px] font-medium text-slate-300">
+                            <div className="absolute left-3 top-3 flex items-center gap-2 rounded-lg border border-white/10 bg-black/55 px-2 py-1 text-xs font-medium text-slate-300">
                                 <Subtitles size={12} className="text-indigo-300" />
                                 {currentSubtitleIndex >= 0 ? `${currentSubtitleIndex + 1} / ${regions.length}` : `0 / ${regions.length}`}
                             </div>
 
-                            <div className="absolute right-3 top-3 flex items-center gap-1 rounded-lg border border-white/10 bg-black/75 p-1 text-[10px] font-medium text-slate-300 shadow-lg">
+                            <div className="absolute right-3 top-3 flex items-center gap-1 rounded-lg border border-white/10 bg-black/75 p-1 text-xs font-medium text-slate-300 shadow-lg">
                                 {[0.35, 0.6, 0.85].map((alpha) => (
                                     <button
                                         key={alpha}
@@ -392,6 +432,7 @@ function VideoPreviewComponent({
                                             event.stopPropagation();
                                             setSubtitleBackgroundAlpha(alpha);
                                         }}
+                                        aria-label={t("videoPreview.subtitleBackgroundOpacity", { value: Math.round(alpha * 100) })}
                                         className={`h-6 rounded-md px-2 transition-colors ${
                                             Math.abs(subtitleBackgroundAlpha - alpha) < 0.01
                                                 ? "bg-indigo-500/30 text-indigo-100"
@@ -412,20 +453,28 @@ function VideoPreviewComponent({
                                         top: `${subtitlePosition.y}%`,
                                     }}
                                 >
-                                    <span
+                                    <button
+                                        type="button"
                                         data-testid="editor-preview-subtitle"
+                                        aria-label={t("videoPreview.subtitlePosition")}
                                         onPointerDown={(event) => {
                                             event.stopPropagation();
+                                            subtitlePointerIdRef.current = event.pointerId;
+                                            event.currentTarget.setPointerCapture?.(event.pointerId);
                                             setIsDraggingSubtitle(true);
                                         }}
                                         onClick={(event) => event.stopPropagation()}
-                                        className={`pointer-events-auto inline-block w-auto max-w-full cursor-move select-none rounded-lg text-white/95 font-medium shadow-lg leading-snug whitespace-normal break-words ring-1 ${
+                                        onKeyDown={handleSubtitlePositionKeyDown}
+                                        className={`pointer-events-auto inline-block w-auto max-w-full cursor-move select-none rounded-lg border-0 text-white/95 font-medium shadow-lg leading-snug whitespace-normal break-words ring-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${
                                             isDraggingSubtitle ? "ring-indigo-300/70" : "ring-transparent"
                                         } ${isFullscreen ? "px-6 py-2.5 text-3xl" : "px-4 py-1.5 text-lg"}`}
-                                        style={{ backgroundColor: `rgba(0, 0, 0, ${subtitleBackgroundAlpha})` }}
+                                        style={{
+                                            backgroundColor: `rgba(0, 0, 0, ${subtitleBackgroundAlpha})`,
+                                            touchAction: "none",
+                                        }}
                                     >
                                         {currentSubtitle}
-                                    </span>
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -440,8 +489,8 @@ function VideoPreviewComponent({
                         <div className="flex items-center gap-2.5">
                             <button
                                 type="button"
-                                title={isPlaying ? "暂停" : "播放"}
-                                aria-label={isPlaying ? "暂停" : "播放"}
+                                title={isPlaying ? t("videoPreview.pause") : t("videoPreview.play")}
+                                aria-label={isPlaying ? t("videoPreview.pause") : t("videoPreview.play")}
                                 onClick={handlePlayPause}
                                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10"
                             >
@@ -452,7 +501,7 @@ function VideoPreviewComponent({
                             </span>
                             <input
                                 type="range"
-                                aria-label="播放进度"
+                                aria-label={t("videoPreview.seek")}
                                 min={0}
                                 max={duration || 0}
                                 step={0.01}
@@ -467,20 +516,20 @@ function VideoPreviewComponent({
                             >
                                 <button
                                     type="button"
-                                    title="播放速度"
-                                    aria-label="播放速度"
+                                    title={t("videoPreview.playbackRate")}
+                                    aria-label={t("videoPreview.playbackRate")}
                                     aria-haspopup="menu"
                                     aria-expanded={isRateMenuOpen}
                                     onClick={() => setIsRateMenuOpen((open) => !open)}
                                     className="flex h-7 min-w-14 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/10"
                                 >
                                     <Gauge size={14} />
-                                    <span>{formatPlaybackRate(playbackRate)}</span>
+                                    <span>{formatPlaybackRate(playbackRate, t("videoPreview.normalSpeed"))}</span>
                                 </button>
                                 {isRateMenuOpen && (
                                     <div
                                         role="menu"
-                                        aria-label="播放速度"
+                                        aria-label={t("videoPreview.playbackRate")}
                                         className="absolute bottom-full right-0 z-50 mb-2 w-28 overflow-hidden rounded-lg border border-white/10 bg-zinc-950/95 py-1 text-sm text-slate-100 shadow-2xl backdrop-blur-md"
                                     >
                                         {EDITOR_PLAYBACK_RATES.map((rate) => {
@@ -498,7 +547,7 @@ function VideoPreviewComponent({
                                                             : "text-slate-300 hover:bg-white/10 hover:text-white"
                                                     }`}
                                                 >
-                                                    <span>{formatPlaybackRate(rate)}</span>
+                                                    <span>{formatPlaybackRate(rate, t("videoPreview.normalSpeed"))}</span>
                                                     {isActive && <Check size={14} />}
                                                 </button>
                                             );
@@ -508,8 +557,8 @@ function VideoPreviewComponent({
                             </div>
                             <button
                                 type="button"
-                                title={isMuted ? "取消静音" : "静音"}
-                                aria-label={isMuted ? "取消静音" : "静音"}
+                                title={isMuted ? t("videoPreview.unmute") : t("videoPreview.mute")}
+                                aria-label={isMuted ? t("videoPreview.unmute") : t("videoPreview.mute")}
                                 onClick={handleMuteToggle}
                                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10"
                             >
@@ -517,7 +566,7 @@ function VideoPreviewComponent({
                             </button>
                             <input
                                 type="range"
-                                aria-label="音量"
+                                aria-label={t("videoPreview.volume")}
                                 min={0}
                                 max={1}
                                 step={0.01}
@@ -527,8 +576,8 @@ function VideoPreviewComponent({
                             />
                             <button
                                 type="button"
-                                title={isFullscreen ? "缩小" : "全屏"}
-                                aria-label={isFullscreen ? "缩小" : "全屏"}
+                                title={isFullscreen ? t("videoPreview.exitFullscreen") : t("videoPreview.fullscreen")}
+                                aria-label={isFullscreen ? t("videoPreview.exitFullscreen") : t("videoPreview.fullscreen")}
                                 onClick={handleFullscreenToggle}
                                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10"
                             >
@@ -538,12 +587,12 @@ function VideoPreviewComponent({
                     </div>
                 </div>
             ) : (
-                <div className="text-slate-500/50 flex flex-col items-center gap-4">
+                <div className="text-slate-400 flex flex-col items-center gap-4">
                     <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 shadow-inner">
                         <Clapperboard size={64} className="opacity-20" />
                     </div>
-                    <p className="text-sm font-medium tracking-wide opacity-60">
-                        {hasError ? "Media failed to load" : "No media loaded"}
+                    <p className="text-sm font-medium tracking-wide">
+                        {hasError ? t("videoPreview.mediaFailed") : t("videoPreview.noMedia")}
                     </p>
                 </div>
             )}

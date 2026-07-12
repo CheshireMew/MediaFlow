@@ -1,5 +1,6 @@
 import React from 'react';
 import { useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTaskContext } from '../../context/taskContext';
 import { getExecutionModeDisplay } from '../../services/ui/executionModeDisplay';
 import type { ExecutionMode } from '../../services/domain';
@@ -23,6 +24,7 @@ const matchesFilterType = (task: Task, filterTypes?: string[]) => {
 };
 
 export const useTaskMonitorOverview = (filterTypes?: string[]) => {
+    const { t } = useTranslation('common');
     const {
         tasks,
         connected,
@@ -72,11 +74,12 @@ export const useTaskMonitorOverview = (filterTypes?: string[]) => {
                 ? {
                     key: 'task_submission',
                     count: executionSummary.taskSubmission,
-                    ...getExecutionModeDisplay('task_submission'),
+                    className: getExecutionModeDisplay('task_submission').className,
+                    label: t(getExecutionModeDisplay('task_submission').labelKey),
                 }
                 : null,
         ].filter((item): item is NonNullable<typeof item> => item !== null);
-    }, [executionSummary.taskSubmission]);
+    }, [executionSummary.taskSubmission, t]);
 
     return {
         connected,

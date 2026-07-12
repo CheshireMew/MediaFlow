@@ -4,6 +4,10 @@ import {
   createTranslatorEditorNavigationPayload,
   useTranslatorOutputActions,
 } from "../hooks/translator/useTranslatorOutputActions";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 import { resolveNavigationMediaPayload } from "../services/ui/navigation";
 import { useTranslatorStore } from "../stores/translatorStore";
 import { installElectronMock } from "./testUtils/electronMock";
@@ -15,7 +19,6 @@ describe("useTranslatorOutputActions", () => {
       sourceSegments: [{ id: "1", start: 0, end: 1, text: "hello" }],
       targetSegments: [{ id: "1", start: 0, end: 1, text: "你好" }],
       glossary: [],
-      sourceFilePath: "E:/subs/demo.srt",
       sourceFileRef: { path: "E:/subs/demo.srt", name: "demo.srt" },
       targetSubtitleRef: {
         path: "E:/subs/demo_ZH-CN.srt",
@@ -84,7 +87,6 @@ describe("useTranslatorOutputActions", () => {
 
   it("uses a transport stream sibling when the subtitle keeps the media suffix", async () => {
     useTranslatorStore.setState({
-      sourceFilePath: "E:/subs/demo.ts.srt",
       sourceFileRef: { path: "E:/subs/demo.ts.srt", name: "demo.ts.srt" },
     });
     const dispatchSpy = vi.spyOn(window, "dispatchEvent");
@@ -117,9 +119,8 @@ describe("useTranslatorOutputActions", () => {
   it("builds editor navigation payloads with canonical subtitle refs", () => {
     expect(
       createTranslatorEditorNavigationPayload({
-        videoPath: "E:/workspace/demo.mp4",
-        subtitlePath: "E:/workspace/demo_ZH-CN.srt",
-        targetSubtitleRef: {
+        video: { path: "E:/workspace/demo.mp4", name: "demo.mp4" },
+        subtitle: {
           path: "E:/canonical/demo_ZH-CN.srt",
           name: "demo_ZH-CN.srt",
           type: "application/x-subrip",
@@ -150,9 +151,8 @@ describe("useTranslatorOutputActions", () => {
     expect(
       resolveNavigationMediaPayload(
         createTranslatorEditorNavigationPayload({
-          videoPath: "E:/workspace/demo.mp4",
-          subtitlePath: "E:/workspace/demo_ZH-CN.srt",
-          targetSubtitleRef: {
+          video: { path: "E:/workspace/demo.mp4", name: "demo.mp4" },
+          subtitle: {
             path: "E:/canonical/demo_ZH-CN.srt",
             name: "demo_ZH-CN.srt",
             type: "application/x-subrip",
@@ -160,8 +160,6 @@ describe("useTranslatorOutputActions", () => {
         }),
       ),
     ).toEqual({
-      videoPath: "E:/workspace/demo.mp4",
-      subtitlePath: "E:/canonical/demo_ZH-CN.srt",
       videoRef: {
         path: "E:/workspace/demo.mp4",
         name: "demo.mp4",

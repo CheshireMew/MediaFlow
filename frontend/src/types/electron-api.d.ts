@@ -24,8 +24,7 @@ export interface DesktopRuntimeInfo {
 export interface ElectronAPI {
   openFile: (
     request: import("../contracts/openFileContract").OpenFileDialogRequest,
-  ) => Promise<{ path: string; name: string; size: number } | null>;
-  openSubtitleFile: () => Promise<{ path: string; name: string } | null>;
+  ) => Promise<import("../contracts/openFileContract").OpenFileDialogResult>;
   readFile: (filePath: string) => Promise<string | null>;
   showSaveDialog: (
     options: SaveFileDialogRequest,
@@ -36,9 +35,20 @@ export interface ElectronAPI {
   getPathForFile: (file: File) => string;
   writeFile: (filePath: string, content: string) => Promise<boolean>;
   getFileSize: (filePath: string) => Promise<number>;
-  getDesktopRuntimeInfo?: () => Promise<DesktopRuntimeInfo>;
+  readWorkspaceState: (sessionId: string) => Promise<string | null>;
+  writeWorkspaceState: (
+    content: string,
+    sessionId: string,
+    revision: number,
+  ) => Promise<boolean>;
+  writeWorkspaceStateSync: (
+    content: string,
+    sessionId: string,
+    revision: number,
+  ) => boolean;
+  getDesktopRuntimeInfo: () => Promise<DesktopRuntimeInfo>;
   minimize: () => void;
   maximize: () => void;
   close: () => void;
-  notifyRendererReady?: () => void;
+  notifyRendererReady: () => void;
 }

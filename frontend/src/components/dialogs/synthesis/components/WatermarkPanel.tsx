@@ -1,5 +1,5 @@
 // ── Watermark Settings Panel (Left sidebar section) ──
-import React from 'react';
+import React, { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Image as ImageIcon } from 'lucide-react';
 import type { WatermarkPositionPreset } from '../../../../services/domain';
@@ -21,11 +21,13 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark, enabled, onToggle }
         handleWatermarkSelect,
         applyWmPositionPreset,
     } = watermark;
+    const scaleId = useId();
+    const opacityId = useId();
 
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                     <ImageIcon size={12}/> {t('watermark.sectionTitle')}
                 </h3>
                 <PanelToggle
@@ -36,8 +38,8 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark, enabled, onToggle }
                 />
             </div>
             {!enabled && (
-                <p className="text-[10px] text-slate-600 bg-white/[0.02] border border-white/5 rounded-lg p-3 text-center">
-                    {t('watermark.watermarkDisabledHint', '水印渲染已关闭，合成时将不会添加水印')}
+                <p className="text-xs text-slate-400 bg-white/[0.02] border border-white/5 rounded-lg p-3 text-center">
+                    {t('watermark.watermarkDisabledHint')}
                 </p>
             )}
             {enabled && (
@@ -52,24 +54,26 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark, enabled, onToggle }
                         type="file" 
                         accept="image/png,image/jpeg,.psd"
                         onChange={handleWatermarkSelect}
-                        className="hidden"
+                        className="sr-only"
                     />
                 </label>
 
                 {watermarkPreviewUrl && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                         <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
-                            <span className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px]">✓</span>
+                            <span className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs">✓</span>
                             {t('watermark.active')}
                         </div>
                         
                         {/* Position Grid */}
                         <div className="space-y-2">
-                            <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('watermark.positionPreset')}</label>
-                            <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-black/20 rounded-lg border border-white/5">
+                            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('watermark.positionPreset')}</label>
+                            <div role="group" aria-label={t('watermark.positionPreset')} className="grid grid-cols-3 gap-1.5 p-1.5 bg-black/20 rounded-lg border border-white/5">
                                 {(['TL', 'TC', 'TR', 'LC', 'C', 'RC', 'BL', 'BC', 'BR'] as WatermarkPositionPreset[]).map(p => (
                                     <button 
                                         key={p}
+                                        type="button"
+                                        aria-label={`${t('watermark.positionPreset')} ${p}`}
                                         onClick={() => applyWmPositionPreset(p)}
                                         className="p-2 rounded hover:bg-white/10 flex justify-center items-center bg-white/5 aspect-square transition-all active:scale-95 group"
                                         title={p}
@@ -85,10 +89,11 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark, enabled, onToggle }
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <div className="flex justify-between">
-                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('watermark.scale')}</label>
-                                    <span className="text-[10px] font-mono text-indigo-400">{Math.round(wmScale * 100)}%</span>
+                                    <label htmlFor={scaleId} className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('watermark.scale')}</label>
+                                    <span className="text-xs font-mono text-indigo-400">{Math.round(wmScale * 100)}%</span>
                                 </div>
                                 <input 
+                                    id={scaleId}
                                     type="range" min="0.05" max="1.0" step="0.05"
                                     value={wmScale}
                                     onChange={e => setWmScale(parseFloat(e.target.value))}
@@ -97,10 +102,11 @@ export const WatermarkPanel: React.FC<Props> = ({ watermark, enabled, onToggle }
                             </div>
                             <div className="space-y-1.5">
                                 <div className="flex justify-between">
-                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('watermark.opacity')}</label>
-                                    <span className="text-[10px] font-mono text-indigo-400">{Math.round(wmOpacity * 100)}%</span>
+                                    <label htmlFor={opacityId} className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('watermark.opacity')}</label>
+                                    <span className="text-xs font-mono text-indigo-400">{Math.round(wmOpacity * 100)}%</span>
                                 </div>
                                 <input 
+                                    id={opacityId}
                                     type="range" min="0.1" max="1.0" step="0.1"
                                     value={wmOpacity}
                                     onChange={e => setWmOpacity(parseFloat(e.target.value))}

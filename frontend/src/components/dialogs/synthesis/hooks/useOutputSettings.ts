@@ -52,7 +52,7 @@ export function useOutputSettings(
   const [trimEnd, setTrimEnd] = useState(0);
   const [useGpu, setUseGpuState] = useState(() => persistedPreferences.useGpu);
   const [targetResolution, setTargetResolutionState] = useState<SynthesisTargetResolution>(
-    () => resolveInitialTargetResolution(persistedPreferences.targetResolution, exportKind),
+    () => persistedPreferences.targetResolution,
   );
   const isInitialized = useRef(false);
 
@@ -66,9 +66,7 @@ export function useOutputSettings(
     const timer = setTimeout(() => {
       setQualityState(persistedPreferences.quality);
       setUseGpuState(persistedPreferences.useGpu);
-      setTargetResolutionState(
-        resolveInitialTargetResolution(persistedPreferences.targetResolution, exportKind),
-      );
+      setTargetResolutionState(persistedPreferences.targetResolution);
       isInitialized.current = true;
     }, 0);
     return () => clearTimeout(timer);
@@ -183,13 +181,4 @@ function resolveInitialOutput(
     dir,
     filename: defaultPath.split(/[\\/]/).pop() || "video_synthesized.mp4",
   };
-}
-
-function resolveInitialTargetResolution(
-  targetResolution: SynthesisTargetResolution,
-  exportKind: "full-video" | "clips",
-): SynthesisTargetResolution {
-  return exportKind === "clips" && targetResolution.startsWith("sr_")
-    ? "original"
-    : targetResolution;
 }

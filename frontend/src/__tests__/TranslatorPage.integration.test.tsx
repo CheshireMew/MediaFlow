@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TranslatorPage } from "../pages/TranslatorPage";
+import { installElectronMock, type MockedElectronAPI } from "./testUtils/electronMock";
 
 const proofreadSubtitleMock = vi.fn();
 const startTranslationMock = vi.fn();
@@ -16,7 +17,8 @@ let translatorState = {
   sourceSegments: [{ id: "1", start: 0, end: 1, text: "hello" }],
   targetSegments: [] as Array<{ id: string; start: number; end: number; text: string }>,
   glossary: [],
-  sourceFilePath: "E:/subs/demo.srt",
+  sourceFileRef: { path: "E:/subs/demo.srt", name: "demo.srt" },
+  targetSubtitleRef: null,
   targetLang: "SimplifiedChinese",
   mode: "intelligent" as const,
   activeMode: null as "standard" | "intelligent" | "proofread" | null,
@@ -92,16 +94,21 @@ vi.mock("react-i18next", () => ({
 }));
 
 describe("TranslatorPage integration", () => {
+  let electronMock: MockedElectronAPI;
+
   beforeEach(() => {
     proofreadSubtitleMock.mockReset();
     startTranslationMock.mockReset();
     setModeMock.mockReset();
     setTargetLangMock.mockReset();
+    handleFileUploadMock.mockReset();
+    electronMock = installElectronMock();
     translatorState = {
       sourceSegments: [{ id: "1", start: 0, end: 1, text: "hello" }],
       targetSegments: [],
       glossary: [],
-      sourceFilePath: "E:/subs/demo.srt",
+      sourceFileRef: { path: "E:/subs/demo.srt", name: "demo.srt" },
+      targetSubtitleRef: null,
       targetLang: "SimplifiedChinese",
       mode: "intelligent",
       activeMode: null,
@@ -112,6 +119,28 @@ describe("TranslatorPage integration", () => {
       taskError: null,
       isTranslating: false,
     };
+  });
+
+  it("opens imports through the generic subtitle dialog profile", async () => {
+    electronMock.openFile = vi.fn().mockResolvedValue({
+      path: "E:/subs/imported.srt",
+      name: "imported.srt",
+      size: 42,
+    });
+
+    render(<TranslatorPage />);
+    fireEvent.click(screen.getByRole("button", { name: /导入/i }));
+
+    await waitFor(() => {
+      expect(electronMock.openFile).toHaveBeenCalledWith({ profile: "subtitle" });
+      expect(handleFileUploadMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: "E:/subs/imported.srt",
+          name: "imported.srt",
+          size: 42,
+        }),
+      );
+    });
   });
 
   it("keeps the selected mode unchanged while proofread runs", async () => {

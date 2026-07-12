@@ -10,7 +10,6 @@ export type NavigationDestination =
   | "transcriber"
   | "translator"
   | "editor"
-  | "preprocessing"
   | "settings"
   | "home";
 
@@ -31,7 +30,6 @@ const NAVIGATION_DESTINATIONS: NavigationDestination[] = [
   "transcriber",
   "translator",
   "editor",
-  "preprocessing",
   "settings",
   "home",
 ];
@@ -75,32 +73,12 @@ export function resolveNavigationPath(detail: NavigationEventDetail): string {
 }
 
 export function createNavigationMediaPayload(params: {
-  videoPath?: string | null;
-  subtitlePath?: string | null;
   videoRef?: MediaReference | null;
   subtitleRef?: MediaReference | null;
-  videoMeta?: Partial<Pick<MediaReference, "name" | "size" | "type">>;
-  subtitleMeta?: Partial<Pick<MediaReference, "name" | "size" | "type">>;
 }): NavigationPayload {
-  const {
-    videoPath,
-    subtitlePath,
-    videoRef,
-    subtitleRef,
-    videoMeta,
-    subtitleMeta,
-  } = params;
-
-  const resolvedVideoRef =
-    normalizeMediaReference(videoRef) ??
-    normalizeMediaReference(videoPath, videoMeta);
-  const resolvedSubtitleRef =
-    normalizeMediaReference(subtitleRef) ??
-    normalizeMediaReference(subtitlePath, subtitleMeta);
-
   return {
-    video_ref: resolvedVideoRef,
-    subtitle_ref: resolvedSubtitleRef,
+    video_ref: normalizeMediaReference(params.videoRef),
+    subtitle_ref: normalizeMediaReference(params.subtitleRef),
   };
 }
 
@@ -111,8 +89,6 @@ export function resolveNavigationMediaPayload(
   const subtitleRef = normalizeMediaReference(payload?.subtitle_ref);
 
   return {
-    videoPath: videoRef?.path ?? null,
-    subtitlePath: subtitleRef?.path ?? null,
     videoRef,
     subtitleRef,
   };
@@ -129,8 +105,7 @@ function persistNavigationPayload(
   if (
     destination === "editor" ||
     destination === "translator" ||
-    destination === "transcriber" ||
-    destination === "preprocessing"
+    destination === "transcriber"
   ) {
     writePendingMediaNavigation({
       target: destination,

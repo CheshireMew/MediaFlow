@@ -6,8 +6,8 @@ import {
   FileAudio,
   Globe,
   Pencil,
+  RefreshCw,
   Settings,
-  Wand2,
 } from "lucide-react";
 import { resolvePagePresentation } from "../../services/ui/pagePresentation";
 import { PageContent, PageHeader, PageShell } from "../ui/PageChrome";
@@ -18,12 +18,18 @@ type StartupVariant =
   | "downloader"
   | "transcriber"
   | "translator"
-  | "preprocessing"
   | "settings";
+
+export type StartupPresentationStatus =
+  | "loading"
+  | "retryable-error"
+  | "fatal-error";
 
 interface StartupPlaceholderPageProps {
   variant: StartupVariant;
   message: string;
+  status?: StartupPresentationStatus;
+  onRetry?: () => void;
 }
 
 interface VariantConfig {
@@ -51,10 +57,6 @@ const VARIANT_CONFIG: Record<StartupVariant, VariantConfig> = {
   translator: {
     icon: <Globe className="w-6 h-6 text-indigo-400" />,
     accent: "from-indigo-500/20 to-blue-500/20",
-  },
-  preprocessing: {
-    icon: <Wand2 className="w-6 h-6 text-indigo-400" />,
-    accent: "from-indigo-500/20 to-teal-500/20",
   },
   settings: {
     icon: <Settings className="w-6 h-6 text-amber-400" />,
@@ -209,34 +211,6 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
     );
   }
 
-  if (variant === "preprocessing") {
-    return (
-      <div className="flex-1 min-h-0 flex flex-col">
-        <div className="h-14 rounded-t-2xl bg-[#1a1a1a] border border-white/5 px-5 flex items-center justify-between">
-          <SkeletonBar width="w-32" />
-          <div className="w-28 h-9 rounded-lg bg-white/[0.03] border border-white/5" />
-        </div>
-        <div className="flex-1 min-h-0 flex">
-          <div className="w-72 border-x border-b border-white/5 bg-[#141414] p-4 space-y-3">
-            <SkeletonBar width="w-24" />
-            <SkeletonBar width="w-full" height="h-14" />
-            <SkeletonBar width="w-[88%]" height="h-14" />
-          </div>
-          <div className="flex-1 border-r border-b border-white/5 bg-[#0a0a0a] p-6">
-            <div className="h-full rounded-lg bg-[#1a1a1a] border border-white/5 flex items-center justify-center">
-              <div className="w-[72%] aspect-video rounded-xl border border-dashed border-white/10 bg-white/[0.02]" />
-            </div>
-          </div>
-          <div className="w-80 border-r border-b border-white/5 bg-[#141414] p-4 space-y-3">
-            <SkeletonBar width="w-28" />
-            <SkeletonBar width="w-full" height="h-20" />
-            <SkeletonBar width="w-full" height="h-20" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 min-h-0 rounded-lg bg-[#1a1a1a] border border-white/5 p-5 grid grid-cols-1 xl:grid-cols-[320px,1fr] gap-5">
       <div className="space-y-4">
@@ -255,10 +229,15 @@ function StartupBody({ variant }: { variant: StartupVariant }) {
 export function StartupPlaceholderPage({
   variant,
   message,
+  status = "loading",
+  onRetry,
 }: StartupPlaceholderPageProps) {
   const config = VARIANT_CONFIG[variant];
   const presentation = resolvePagePresentation(variant);
   const { t } = useTranslation(presentation.namespace);
+  const { t: tCommon } = useTranslation("common");
+  const isFatal = status === "fatal-error";
+  const isRetryable = status === "retryable-error";
 
   return (
     <PageShell padded={false} className="flex flex-col">
@@ -269,12 +248,52 @@ export function StartupPlaceholderPage({
       />
 
       <PageContent className="flex flex-col">
-      <div className="flex items-center gap-3 mb-5 px-4 py-3 rounded-lg border border-indigo-500/20 bg-indigo-500/8 text-sm text-slate-300">
-        <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse shrink-0" />
-        <span>{message}</span>
-      </div>
+        <div
+          role={isFatal ? "alert" : "status"}
+          className={`mb-5 flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
+            isFatal
+              ? "border-rose-500/30 bg-rose-500/10 text-rose-100"
+              : isRetryable
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                : "border-indigo-500/20 bg-indigo-500/8 text-slate-300"
+          }`}
+        >
+          <div
+            className={`h-2 w-2 shrink-0 rounded-full ${
+              isFatal
+                ? "bg-rose-400"
+                : isRetryable
+                  ? "bg-amber-400"
+                  : "bg-indigo-400 animate-pulse"
+            }`}
+          />
+          <span className="min-w-0 flex-1">{message}</span>
+          {isRetryable && onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 font-semibold text-amber-100 transition-colors hover:bg-amber-400/20 focus:outline-none focus:ring-2 focus:ring-amber-300/70"
+            >
+              <RefreshCw size={15} />
+              {tCommon("startup.action.retry")}
+            </button>
+          )}
+        </div>
 
-      <StartupBody variant={variant} />
+        {isFatal ? (
+          <div className="flex flex-1 items-center justify-center p-6">
+            <div className="max-w-xl rounded-xl border border-rose-500/20 bg-[#161111] p-8 text-center shadow-2xl">
+              <h2 className="text-xl font-semibold text-white">
+                {tCommon("startup.fatal.title")}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-slate-400">
+                {tCommon("startup.fatal.help")}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <StartupBody variant={variant} />
+        )}
       </PageContent>
     </PageShell>
   );

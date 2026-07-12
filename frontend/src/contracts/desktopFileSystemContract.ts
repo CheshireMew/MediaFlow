@@ -1,12 +1,14 @@
 export const DESKTOP_FILE_SYSTEM_CHANNELS = {
   openFile: "dialog:openFile",
-  openSubtitleFile: "dialog:openSubtitleFile",
   saveFileDialog: "dialog:saveFile",
   selectDirectory: "dialog:selectDirectory",
   readTextFile: "fs:readTextFile",
   writeTextFile: "fs:writeTextFile",
   getFileSize: "fs:getFileSize",
   rememberRendererFile: "fs:rememberRendererFile",
+  readWorkspaceState: "workspace:readState",
+  writeWorkspaceState: "workspace:writeState",
+  writeWorkspaceStateSync: "workspace:writeStateSync",
 } as const;
 
 export type SaveFileDialogRequest = {

@@ -1,19 +1,20 @@
 import type { SubtitleSegment } from "../../types/task";
+import { useTranslation } from "react-i18next";
 import type { TranslatorMode } from "../../stores/translatorStore";
 import { useTaskContext } from "../../context/taskContext";
 import {
   applyExecutionOutcome,
   enqueueExecutionTask,
-  executionService,
   isAiTranslationSetupRequiredError,
   type NullableExecutionMode,
+  type TranslationTargetLanguage,
 } from "../../services/domain";
-import type { TranslationTargetLanguage } from "../../services/domain/translationTargetLanguages";
-import { normalizeMediaReference, type MediaReference } from "../../services/ui/mediaReference";
+import { executionService } from "../../services/domain/executionService";
+import type { MediaReference } from "../../services/ui/mediaReference";
+import { toast } from "../../utils/toast";
 
 type UseTranslationCommandsParams = {
   sourceSegments: SubtitleSegment[];
-  sourceFilePath: string | null;
   sourceFileRef: MediaReference | null;
   targetLang: TranslationTargetLanguage;
   mode: TranslatorMode;
@@ -32,7 +33,6 @@ type UseTranslationCommandsParams = {
 
 export function useTranslationCommands({
   sourceSegments,
-  sourceFilePath,
   sourceFileRef,
   targetLang,
   mode,
@@ -48,8 +48,9 @@ export function useTranslationCommands({
   activeTaskModeRef,
   previousTranslateModeRef,
 }: UseTranslationCommandsParams) {
+  const { t } = useTranslation("translator");
   const { addTask } = useTaskContext();
-  const contextRef = sourceFileRef ?? normalizeMediaReference(sourceFilePath);
+  const contextRef = sourceFileRef;
 
   const startTranslation = async () => {
     if (sourceSegments.length === 0) return;
@@ -84,7 +85,7 @@ export function useTranslationCommands({
         outcome: executionResult,
         descriptor: {
           type: "translate",
-          name: contextRef ? `Translate ${contextRef.name}` : "Translate subtitles",
+          name: t("task.translateName", { name: contextRef?.name ?? t("task.subtitleFallback") }),
           request_params: {
             context_ref: contextRef,
             target_language: targetLang,
@@ -112,8 +113,9 @@ export function useTranslationCommands({
       }
       setExecutionMode(null);
       setTaskStatus("failed");
-      setTaskError(e instanceof Error ? e.message : "Failed to start translation");
-      alert(`Failed to start translation.\n${e instanceof Error ? e.message : ""}`.trim());
+      const detail = e instanceof Error ? e.message : t("feedback.unknownError");
+      setTaskError(detail);
+      toast.error(t("feedback.startTranslationFailed", { detail }));
     }
   };
 
@@ -149,7 +151,7 @@ export function useTranslationCommands({
         outcome: executionResult,
         descriptor: {
           type: "translate",
-          name: contextRef ? `Proofread ${contextRef.name}` : "Proofread subtitles",
+          name: t("task.proofreadName", { name: contextRef?.name ?? t("task.subtitleFallback") }),
           request_params: {
             context_ref: contextRef,
             target_language: targetLang,
@@ -178,8 +180,9 @@ export function useTranslationCommands({
       setActiveMode(null);
       setExecutionMode(null);
       setTaskStatus("failed");
-      setTaskError(e instanceof Error ? e.message : "Failed to start proofreading");
-      alert(`Failed to start proofreading.\n${e instanceof Error ? e.message : ""}`.trim());
+      const detail = e instanceof Error ? e.message : t("feedback.unknownError");
+      setTaskError(detail);
+      toast.error(t("feedback.startProofreadFailed", { detail }));
     }
   };
 

@@ -88,7 +88,7 @@ export function EditorHeader({
                     disabled={mode !== "subtitles"}
                     icon={Languages}
                     variant="subtle"
-                    className="h-8 px-2.5 text-xs text-purple-300 hover:text-purple-200"
+                    className="h-8 px-2.5 text-xs text-purple-300 hover:text-purple-200 max-[900px]:hidden"
                     title={t('header.translateTooltip')}
                 >
                     <span className="hidden 2xl:inline">{t('header.translateButton')}</span>
@@ -98,7 +98,7 @@ export function EditorHeader({
                     disabled={isDetectingHighlights || !canDetectHighlights}
                     icon={Sparkles}
                     variant="warning"
-                    className="h-8 px-2.5 text-xs"
+                    className="h-8 px-2.5 text-xs max-[900px]:hidden"
                     title={
                         canDetectHighlights
                             ? t('header.detectHighlightsTooltip')

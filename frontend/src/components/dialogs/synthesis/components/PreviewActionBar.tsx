@@ -31,6 +31,8 @@ export function PreviewActionBar({
   return (
     <div className="h-16 bg-[#1a1a1a] border-t border-white/5 px-6 flex items-center gap-6 shrink-0 relative z-20">
       <button
+        type="button"
+        aria-label={t("preview.togglePlayback")}
         onClick={() => {
           const video = videoRef.current;
           if (!video) return;
@@ -52,6 +54,7 @@ export function PreviewActionBar({
 
       <div className="flex-1 flex flex-col justify-center gap-1.5 pt-1">
         <input
+          aria-label={t("preview.seek")}
           type="range"
           min={playbackRange?.start ?? 0}
           max={playbackRange?.end ?? (duration || 100)}
@@ -64,10 +67,10 @@ export function PreviewActionBar({
           className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400"
         />
         <div className="flex justify-between px-0.5">
-          <span className="text-[10px] text-slate-500 font-mono">
+          <span className="text-xs text-slate-400 font-mono">
             {formatMediaPlaybackTime(currentTime)}
           </span>
-          <span className="text-[10px] text-slate-600 font-mono">
+          <span className="text-xs text-slate-400 font-mono">
             {formatOptionalMediaPlaybackTime(playbackRange?.end ?? duration)}
           </span>
         </div>
@@ -77,6 +80,7 @@ export function PreviewActionBar({
 
       <div className="flex items-center gap-3 min-w-[260px] justify-end">
         <button
+          type="button"
           onClick={onExportClick}
           disabled={isSubmitting}
           className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all active:scale-95"

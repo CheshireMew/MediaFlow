@@ -11,7 +11,6 @@ from backend.models.schemas import ClipExportSegment, MediaReference
 from backend.services.video.encoder_config import EncoderConfigResolver
 from backend.services.video.ffmpeg_runner import FfmpegRunner
 from backend.services.video.filter_graph_builder import FilterGraphBuilder
-from backend.services.video.super_resolution_stage import SuperResolutionStage
 from backend.services.video.synthesis import SynthesisOrchestrator
 
 
@@ -23,7 +22,7 @@ class _FakeSynthesis:
         self.calls.append(kwargs)
         Path(kwargs["output_path"]).write_bytes(b"rendered")
         if kwargs.get("progress_callback"):
-            kwargs["progress_callback"](100, "done")
+            kwargs["progress_callback"](100, "synthesis_completed", {})
         return kwargs["output_path"]
 
 
@@ -40,25 +39,24 @@ def test_export_clips_burned_uses_synthesis_timeline(monkeypatch, tmp_path):
     srt_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nHi\n", encoding="utf-8")
     watermark_path.write_bytes(b"png")
     fake_synthesis = _FakeSynthesis()
+    progress_events = []
     monkeypatch.setattr(
         clip_export_service.MediaProber,
         "get_duration",
         lambda path: 60.0 if Path(path) == video_path else 17.8,
     )
-    monkeypatch.setattr(
-        clip_export_service,
-        "runtime_service",
-        lambda _service: fake_synthesis,
-    )
-
     files = clip_export_service.export_clips(
+        video_synthesis=fake_synthesis,
         video_ref=_media_ref(video_path),
         segments=[ClipExportSegment(id="clip-1", start=12.2, end=30.0, title="核心反转")],
         render_mode="burned",
         srt_ref=_media_ref(srt_path, "application/x-subrip"),
-        watermark_path=str(watermark_path),
+        watermark_ref=_media_ref(watermark_path, "image/png"),
         options={"font_size": 30, "wm_opacity": 0.8},
         output_dir=str(output_dir),
+        progress_callback=lambda progress, code, params: progress_events.append(
+            (progress, code, params)
+        ),
     )
 
     assert len(files) == 1
@@ -72,6 +70,11 @@ def test_export_clips_burned_uses_synthesis_timeline(monkeypatch, tmp_path):
     assert call["options"]["trim_end"] == 30.0
     assert call["options"]["disable_auto_trim"] is True
     assert call["options"]["font_size"] == 30
+    assert progress_events == [
+        (0.0, "clip_exporting", {"current": 1, "total": 1}),
+        (90.0, "synthesis_completed", {}),
+        (100, "clip_export_completed", {}),
+    ]
 
 
 def test_export_clips_source_uses_exact_render_without_subtitles_or_watermark(monkeypatch, tmp_path):
@@ -79,7 +82,6 @@ def test_export_clips_source_uses_exact_render_without_subtitles_or_watermark(mo
     output_dir = tmp_path / "clips"
     video_path.write_bytes(b"video")
     fake_synthesis = _FakeSynthesis()
-    monkeypatch.setattr(clip_export_service, "runtime_service", lambda _service: fake_synthesis)
     monkeypatch.setattr(
         clip_export_service.MediaProber,
         "get_duration",
@@ -87,11 +89,12 @@ def test_export_clips_source_uses_exact_render_without_subtitles_or_watermark(mo
     )
 
     files = clip_export_service.export_clips(
+        video_synthesis=fake_synthesis,
         video_ref=_media_ref(video_path),
         segments=[ClipExportSegment(id="clip-1", start=1.0, end=2.5, title="raw")],
         render_mode="source",
         srt_ref=None,
-        watermark_path=None,
+        watermark_ref=None,
         options=None,
         output_dir=str(output_dir),
     )
@@ -126,11 +129,12 @@ def test_export_clips_rejects_range_beyond_media_before_creating_output(monkeypa
 
     with pytest.raises(ValueError, match="exceeds video duration"):
         clip_export_service.export_clips(
+            video_synthesis=_FakeSynthesis(),
             video_ref=_media_ref(video_path),
             segments=[ClipExportSegment(id="clip-1", start=1.0, end=3.0)],
             render_mode="source",
             srt_ref=None,
-            watermark_path=None,
+            watermark_ref=None,
             options=None,
             output_dir=str(output_dir),
         )
@@ -154,7 +158,6 @@ def test_export_clips_publishes_batch_only_after_every_clip_succeeds(monkeypatch
             Path(kwargs["output_path"]).write_bytes(b"rendered")
 
     synthesis = _FailsSecondSynthesis()
-    monkeypatch.setattr(clip_export_service, "runtime_service", lambda _service: synthesis)
     monkeypatch.setattr(
         clip_export_service.MediaProber,
         "get_duration",
@@ -163,6 +166,7 @@ def test_export_clips_publishes_batch_only_after_every_clip_succeeds(monkeypatch
 
     with pytest.raises(RuntimeError, match="second clip failed"):
         clip_export_service.export_clips(
+            video_synthesis=synthesis,
             video_ref=_media_ref(video_path),
             segments=[
                 ClipExportSegment(id="clip-1", start=1.0, end=2.0),
@@ -170,7 +174,7 @@ def test_export_clips_publishes_batch_only_after_every_clip_succeeds(monkeypatch
             ],
             render_mode="source",
             srt_ref=None,
-            watermark_path=None,
+            watermark_ref=None,
             options=None,
             output_dir=str(output_dir),
         )
@@ -184,18 +188,18 @@ def test_repeated_exports_publish_to_distinct_batch_directories(monkeypatch, tmp
     output_dir = tmp_path / "clips"
     video_path.write_bytes(b"video")
     fake_synthesis = _FakeSynthesis()
-    monkeypatch.setattr(clip_export_service, "runtime_service", lambda _service: fake_synthesis)
     monkeypatch.setattr(
         clip_export_service.MediaProber,
         "get_duration",
         lambda path: 10.0 if Path(path) == video_path else 1.0,
     )
     export_kwargs = {
+        "video_synthesis": fake_synthesis,
         "video_ref": _media_ref(video_path),
         "segments": [ClipExportSegment(id="clip-1", start=1.0, end=2.0)],
         "render_mode": "source",
         "srt_ref": None,
-        "watermark_path": None,
+        "watermark_ref": None,
         "options": None,
         "output_dir": str(output_dir),
     }
@@ -263,19 +267,17 @@ def test_source_export_is_exact_and_ignores_incompatible_mkv_attachments(monkeyp
     )
 
     synthesis = SynthesisOrchestrator(
-        super_resolution_stage=SuperResolutionStage(),
         filter_graph_builder=FilterGraphBuilder(),
         encoder_config_resolver=EncoderConfigResolver(),
         ffmpeg_runner=FfmpegRunner(),
     )
-    monkeypatch.setattr(clip_export_service, "runtime_service", lambda _service: synthesis)
-
     files = clip_export_service.export_clips(
+        video_synthesis=synthesis,
         video_ref=_media_ref(mkv_path, "video/x-matroska"),
         segments=[ClipExportSegment(id="clip-1", start=3.2, end=4.2, title="exact")],
         render_mode="source",
         srt_ref=None,
-        watermark_path=str(mp4_path),
+        watermark_ref=_media_ref(mp4_path),
         options={"use_gpu": False, "preset": "ultrafast"},
         output_dir=str(tmp_path / "clips"),
     )

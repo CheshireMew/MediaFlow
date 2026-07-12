@@ -18,6 +18,7 @@ export function LanguageSetting({ controller, t }: LanguageSettingProps) {
       description={t("general.languageDesc")}
       actions={
         <select
+          aria-label={t("general.language")}
           value={settings?.language || "zh"}
           onChange={(event) => void changeLanguage(event.target.value)}
           className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"

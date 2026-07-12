@@ -28,10 +28,8 @@ import {
 } from "../services/domain";
 import {
   resolveSubtitleReferenceForSavedPath,
-  resolveSubtitleReferenceForTranslation,
-  resolveSubtitlePathForTranslation,
-  resolveTranslationNavigationPayload,
 } from "../hooks/editor/useEditorActions";
+import { createNavigationMediaPayload } from "../services/ui/navigation";
 import { isSupportedEditorSubtitlePath } from "../hooks/editor/editorFileHelpers";
 import {
   DEFAULT_SMART_SPLIT_TEXT_LIMIT,
@@ -381,111 +379,41 @@ describe("editor subtitle behaviors", () => {
     expect(getTranslatorAutoloadSuffixes("SimplifiedChinese", "proofread")[0]).toBe("_PR");
   });
 
-  test("translator navigation keeps the actual saved subtitle path", () => {
-    expect(
-      resolveSubtitlePathForTranslation(
-        "E:/video/demo.mp4",
-        "E:/subs/demo_ZH-CN.srt",
-        null,
-        "E:/exports/demo_final.srt",
-      ),
-    ).toBe("E:/exports/demo_final.srt");
+  test("saved subtitle reference is derived from the canonical document", () => {
+    const video = { path: "E:/video/demo.ts", name: "demo.ts" };
+    const subtitle = {
+      path: "E:/canonical/demo.ts_ZH-CN.srt",
+      name: "demo.ts_ZH-CN.srt",
+    };
 
-    expect(
-      resolveSubtitlePathForTranslation(
-        "E:/video/demo.mp4",
-        "E:/subs/demo_ZH-CN.srt",
-        null,
-        false,
-      ),
-    ).toBe("E:/subs/demo_ZH-CN.srt");
-
-    expect(
-      resolveSubtitlePathForTranslation(
-        "E:/video/demo.mp4",
-        "E:/workspace/demo_ZH-CN.srt",
-        {
-          path: "E:/canonical/demo_ZH-CN.srt",
-          name: "demo_ZH-CN.srt",
-        },
-        false,
-      ),
-    ).toBe("E:/canonical/demo_ZH-CN.srt");
-  });
-
-  test("editor translation subtitle adapter keeps canonical refs as the single source", () => {
-    expect(
-      resolveSubtitleReferenceForTranslation({
-        currentFilePath: "E:/video/demo.mp4",
-        currentSubtitlePath: "E:/workspace/demo_ZH-CN.srt",
-        currentSubtitleRef: {
-          path: "E:/canonical/demo_ZH-CN.srt",
-          name: "demo_ZH-CN.srt",
-        },
-        savedPath: false,
-      }),
-    ).toEqual({
-      path: "E:/canonical/demo_ZH-CN.srt",
-      name: "demo_ZH-CN.srt",
-    });
-
-    expect(
-      resolveSubtitleReferenceForTranslation({
-        currentFilePath: "E:/video/demo.mp4",
-        currentSubtitlePath: "E:/workspace/demo_ZH-CN.srt",
-        currentSubtitleRef: {
-          path: "E:/canonical/demo_ZH-CN.srt",
-          name: "demo_ZH-CN.srt",
-        },
-        savedPath: "E:/exports/demo_final.srt",
-      }),
-    ).toEqual({
-      path: "E:/exports/demo_final.srt",
-      name: "demo_final.srt",
-    });
-  });
-
-  test("saved subtitle path wins over stale subtitle refs for synthesis", () => {
     expect(
       resolveSubtitleReferenceForSavedPath({
-        currentFilePath: "E:/video/demo.ts",
-        currentSubtitlePath: "E:/workspace/demo.ts_ZH-CN.srt",
-        currentSubtitleRef: {
-          path: "E:/missing/demo.ts_ZH-CN.srt",
-          name: "demo.ts_ZH-CN.srt",
-        },
+        video,
+        subtitle,
         savedPath: "E:/workspace/demo.ts_ZH-CN.srt",
       }),
     ).toEqual({
       path: "E:/workspace/demo.ts_ZH-CN.srt",
       name: "demo.ts_ZH-CN.srt",
     });
-  });
-
-  test("editor translation navigation preserves canonical media refs", () => {
     expect(
-      resolveTranslationNavigationPayload({
-        currentFilePath: "E:/workspace/demo.mp4",
-        currentSubtitlePath: "E:/workspace/demo_ZH-CN.srt",
-        currentFileRef: {
-          path: "E:/canonical/demo.mp4",
-          name: "demo.mp4",
-        },
-        currentSubtitleRef: {
-          path: "E:/canonical/demo_ZH-CN.srt",
-          name: "demo_ZH-CN.srt",
-        },
+      resolveSubtitleReferenceForSavedPath({
+        video,
+        subtitle,
         savedPath: false,
       }),
-    ).toMatchObject({
-      video_ref: {
-        path: "E:/canonical/demo.mp4",
-        name: "demo.mp4",
-      },
-      subtitle_ref: {
-        path: "E:/canonical/demo_ZH-CN.srt",
-        name: "demo_ZH-CN.srt",
-      },
+    ).toEqual(subtitle);
+    expect(
+      resolveSubtitleReferenceForSavedPath({
+        video,
+        subtitle: null,
+        savedPath: false,
+      }).path,
+    ).toBe("E:/video/demo.srt");
+
+    expect(createNavigationMediaPayload({ videoRef: video, subtitleRef: subtitle })).toEqual({
+      video_ref: video,
+      subtitle_ref: subtitle,
     });
   });
 
@@ -680,9 +608,9 @@ describe("editor subtitle behaviors", () => {
     expect(source.marginV).toBe(86);
   });
 
-  test("subtitle export font size compensates for ass rendering being smaller than css", () => {
-    expect(computeSubtitleExportFontSize(24)).toBe(30);
-    expect(computeSubtitleExportFontSize(40)).toBe(50);
+  test("subtitle export font size uses the authored preview size", () => {
+    expect(computeSubtitleExportFontSize(24)).toBe(24);
+    expect(computeSubtitleExportFontSize(40)).toBe(40);
   });
 
   test("default subtitle font size adapts to the constrained output edge", () => {

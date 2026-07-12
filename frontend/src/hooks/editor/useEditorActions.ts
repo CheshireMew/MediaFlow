@@ -2,13 +2,12 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SubtitleSegment } from "../../types/task";
 import {
-  normalizeMediaReference,
+  mediaReferenceFromPath,
   type MediaReference,
 } from "../../services/ui/mediaReference";
 import {
   createNavigationMediaPayload,
   NavigationService,
-  type NavigationPayload,
 } from "../../services/ui/navigation";
 import { settingsService } from "../../services/domain";
 import { smartSplitSubtitleSegments } from "../../utils/subtitleSmartSplit";
@@ -16,10 +15,8 @@ import { toast } from "../../utils/toast";
 
 // ─── Types ──────────────────────────────────────────────────────
 interface UseEditorActionsArgs {
-  currentFilePath: string | null;
-  currentSubtitlePath: string | null;
-  currentFileRef: MediaReference | null;
-  currentSubtitleRef: MediaReference | null;
+  video: MediaReference | null;
+  subtitle: MediaReference | null;
   regions: SubtitleSegment[];
   saveSubtitleFile: (
     regions: SubtitleSegment[],
@@ -36,90 +33,30 @@ interface UseEditorActionsReturn {
 }
 
 export function resolveSubtitleReferenceForSavedPath(params: {
-  currentFilePath: string;
-  currentSubtitlePath: string | null;
-  currentSubtitleRef: MediaReference | null;
+  video: MediaReference;
+  subtitle: MediaReference | null;
   savedPath: string | boolean;
 }): MediaReference {
-  const {
-    currentFilePath,
-    currentSubtitlePath,
-    currentSubtitleRef,
-    savedPath,
-  } = params;
+  const { video, subtitle, savedPath } = params;
 
   if (typeof savedPath === "string" && savedPath) {
-    return currentSubtitleRef?.path === savedPath
-      ? currentSubtitleRef
-      : normalizeMediaReference(savedPath)!;
+    return subtitle?.path === savedPath
+      ? subtitle
+      : mediaReferenceFromPath(savedPath)!;
   }
 
-  if (currentSubtitleRef?.path) {
-    return currentSubtitleRef;
+  if (subtitle?.path) {
+    return subtitle;
   }
 
-  const subtitlePath = currentSubtitlePath ?? currentFilePath.replace(/\.[^.]+$/, ".srt");
-  return normalizeMediaReference(subtitlePath)!;
-}
-
-export function resolveSubtitleReferenceForTranslation(params: {
-  currentFilePath: string;
-  currentSubtitlePath: string | null;
-  currentSubtitleRef: MediaReference | null;
-  savedPath: string | boolean;
-}): MediaReference {
-  return resolveSubtitleReferenceForSavedPath(params);
-}
-
-export function resolveSubtitlePathForTranslation(
-  currentFilePath: string,
-  currentSubtitlePath: string | null,
-  currentSubtitleRef: MediaReference | null,
-  savedPath: string | boolean,
-): string {
-  return resolveSubtitleReferenceForTranslation({
-    currentFilePath,
-    currentSubtitlePath,
-    currentSubtitleRef,
-    savedPath,
-  }).path;
-}
-
-export function resolveTranslationNavigationPayload(params: {
-  currentFilePath: string;
-  currentSubtitlePath: string | null;
-  currentFileRef: MediaReference | null;
-  currentSubtitleRef: MediaReference | null;
-  savedPath: string | boolean;
-}): NavigationPayload {
-  const {
-    currentFilePath,
-    currentSubtitlePath,
-    currentFileRef,
-    currentSubtitleRef,
-    savedPath,
-  } = params;
-  const subtitleRef = resolveSubtitleReferenceForTranslation({
-    currentFilePath,
-    currentSubtitlePath,
-    currentSubtitleRef,
-    savedPath,
-  });
-
-  return createNavigationMediaPayload({
-    videoPath: currentFilePath,
-    subtitlePath: subtitleRef.path,
-    videoRef: currentFileRef,
-    subtitleRef,
-  });
+  const subtitlePath = video.path.replace(/\.[^.]+$/, ".srt");
+  return mediaReferenceFromPath(subtitlePath)!;
 }
 
 // ─── Hook ───────────────────────────────────────────────────────
 export function useEditorActions({
-  currentFilePath,
-  currentSubtitlePath,
-  currentFileRef,
-  currentSubtitleRef,
+  video,
+  subtitle,
   regions,
   saveSubtitleFile,
   replaceRegionsWithUndo,
@@ -135,16 +72,16 @@ export function useEditorActions({
       );
       const savedPath = await saveSubtitleFile(regions);
       if (savedPath) {
-        alert(`Saved successfully to:\n${savedPath}`);
+        toast.success(t("document.saveSuccess", { path: savedPath }));
       }
     } catch (e) {
       console.error("[EditorActions] Save failed", e);
-      alert("Failed to save file. See console.");
+      toast.error(t("document.saveError"));
     }
-  }, [saveSubtitleFile, regions]);
+  }, [saveSubtitleFile, regions, t]);
 
   const handleTranslate = useCallback(async () => {
-    if (!currentFilePath) return;
+    if (!video) return;
 
     let savedPath: string | boolean = false;
 
@@ -154,27 +91,29 @@ export function useEditorActions({
       if (!savedPath) return;
     } catch (e) {
       console.error("Failed to save before translate", e);
-      if (!confirm("Failed to save subtitles. Continue with unsaved file?"))
-        return;
+      toast.error(t("document.saveBeforeTranslateError"));
+      return;
     }
+
+    const subtitleRef = resolveSubtitleReferenceForSavedPath({
+      video,
+      subtitle,
+      savedPath,
+    });
 
     NavigationService.navigate(
       "translator",
-      resolveTranslationNavigationPayload({
-        currentFilePath,
-        currentSubtitlePath,
-        currentFileRef,
-        currentSubtitleRef,
-        savedPath,
+      createNavigationMediaPayload({
+        videoRef: video,
+        subtitleRef,
       }),
     );
   }, [
-    currentFilePath,
-    currentSubtitlePath,
-    currentFileRef,
-    currentSubtitleRef,
     regions,
     saveSubtitleFile,
+    subtitle,
+    t,
+    video,
   ]);
 
   const handleSmartSplit = useCallback(async () => {

@@ -135,7 +135,7 @@ describe("FindReplaceDialog", () => {
     fireEvent.change(replaceInput, { target: { value: "Changed" } });
     expect(screen.getByDisplayValue("Changed")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText("Close"));
+    fireEvent.click(screen.getByLabelText("findReplace.closeButton"));
 
     await waitFor(() => {
       expect(container.querySelectorAll("mark")).toHaveLength(0);

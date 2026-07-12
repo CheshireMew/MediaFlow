@@ -1,28 +1,59 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from backend.core.pipeline import PipelineRunner
-from backend.models.schemas import DownloadParams, FileRef, PipelineStepRequest, TaskResult, TranscribeParams
-from backend.core.container import container, Services
+from backend.models.schemas import (
+    DownloadParams,
+    MediaReference,
+    PipelineStepRequest,
+    TaskArtifact,
+    TaskResult,
+    TranscribeParams,
+)
+from backend.core.steps.download import DownloadStep
+from backend.core.steps.registry import StepRegistry
+from backend.core.steps.transcribe import TranscribeStep
+
+
+def _pipeline_runner(*, task_manager, downloader=None, asr=None):
+    steps = []
+    if downloader is not None:
+        steps.append(DownloadStep(downloader=downloader, task_manager=task_manager))
+    if asr is not None:
+        steps.append(TranscribeStep(asr_service=asr, task_manager=task_manager))
+    return PipelineRunner(
+        task_manager=task_manager,
+        step_registry=StepRegistry(steps),
+    )
+
+
+def _artifact(kind: str, path: str) -> TaskArtifact:
+    return TaskArtifact(
+        kind=kind,
+        role="output",
+        ref=MediaReference(
+            path=path,
+            name=path.rsplit("/", 1)[-1],
+            media_kind=kind,
+            role="output",
+        ),
+    )
 
 @pytest.mark.asyncio
 async def test_pipeline_orchestration_flow():
     downloader = MagicMock()
     asr = MagicMock()
     mock_tm = AsyncMock()
-    mock_tm.is_cancelled = MagicMock(return_value=False)
-    container.override(Services.TASK_MANAGER, mock_tm)
-    container.override(Services.DOWNLOADER, downloader)
-    container.override(Services.ASR, asr)
-    runner = PipelineRunner(task_manager=mock_tm)
+    mock_tm.raise_if_control_requested = MagicMock(return_value=None)
+    runner = _pipeline_runner(task_manager=mock_tm, downloader=downloader, asr=asr)
 
     downloader.download = AsyncMock(return_value=TaskResult(
         success=True,
-        files=[FileRef(type="video", path="/tmp/video.mp4", label="source")],
+        artifacts=[_artifact("video", "/tmp/video.mp4")],
         meta={"filename": "video.mp4", "title": "Test Video"}
     ))
     asr.transcribe.return_value = TaskResult(
         success=True,
-        files=[FileRef(type="subtitle", path="/tmp/video.srt", label="transcription")],
+        artifacts=[_artifact("subtitle", "/tmp/video.srt")],
         meta={"text": "Transcribed Text", "segments": []}
     )
 
@@ -46,21 +77,16 @@ async def test_pipeline_orchestration_flow():
     assert last_update.kwargs["result"]["meta"]["text"] == "Transcribed Text"
     assert last_update.kwargs["result"]["meta"]["transcript"] == "Transcribed Text"
 
-    container.reset()
-
-
 @pytest.mark.asyncio
 async def test_pipeline_transcribe_step_forwards_cli_engine():
     asr = MagicMock()
     mock_tm = AsyncMock()
-    mock_tm.is_cancelled = MagicMock(return_value=False)
-    container.override(Services.TASK_MANAGER, mock_tm)
-    container.override(Services.ASR, asr)
-    runner = PipelineRunner(task_manager=mock_tm)
+    mock_tm.raise_if_control_requested = MagicMock(return_value=None)
+    runner = _pipeline_runner(task_manager=mock_tm, asr=asr)
 
     asr.transcribe.return_value = TaskResult(
         success=True,
-        files=[FileRef(type="subtitle", path="/tmp/video.srt", label="transcription")],
+        artifacts=[_artifact("subtitle", "/tmp/video.srt")],
         meta={"text": "Transcribed Text", "segments": []},
     )
 
@@ -91,30 +117,24 @@ async def test_pipeline_transcribe_step_forwards_cli_engine():
     assert last_update.kwargs["result"]["meta"]["text"] == "Transcribed Text"
     assert last_update.kwargs["result"]["meta"]["transcript"] == "Transcribed Text"
 
-    container.reset()
-
-
 @pytest.mark.asyncio
 async def test_pipeline_orchestration_with_audio_download():
     downloader = MagicMock()
     asr = MagicMock()
     mock_tm = AsyncMock()
-    mock_tm.is_cancelled = MagicMock(return_value=False)
-    container.override(Services.TASK_MANAGER, mock_tm)
-    container.override(Services.DOWNLOADER, downloader)
-    container.override(Services.ASR, asr)
-    runner = PipelineRunner(task_manager=mock_tm)
+    mock_tm.raise_if_control_requested = MagicMock(return_value=None)
+    runner = _pipeline_runner(task_manager=mock_tm, downloader=downloader, asr=asr)
 
     downloader.download = AsyncMock(
         return_value=TaskResult(
             success=True,
-            files=[FileRef(type="audio", path="/tmp/audio.m4a", label="source")],
+            artifacts=[_artifact("audio", "/tmp/audio.m4a")],
             meta={"filename": "audio.m4a", "title": "Test Audio"},
         )
     )
     asr.transcribe.return_value = TaskResult(
         success=True,
-        files=[FileRef(type="subtitle", path="/tmp/audio.srt", label="transcription")],
+        artifacts=[_artifact("subtitle", "/tmp/audio.srt")],
         meta={"text": "Transcribed Audio", "segments": []},
     )
 
@@ -137,7 +157,5 @@ async def test_pipeline_orchestration_with_audio_download():
     last_update = mock_tm.update_task.call_args_list[-1]
     assert last_update.kwargs["status"] == "completed"
     assert last_update.kwargs["result"]["meta"]["text"] == "Transcribed Audio"
-    result_files = last_update.kwargs["result"]["files"]
-    assert any(f["type"] == "audio" for f in result_files)
-
-    container.reset()
+    result_artifacts = last_update.kwargs["result"]["artifacts"]
+    assert any(artifact["kind"] == "audio" for artifact in result_artifacts)

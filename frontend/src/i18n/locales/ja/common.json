@@ -6,19 +6,50 @@
   "edit": "編集",
   "add": "追加",
   "close": "閉じる",
+  "contextMenu": "コンテキストメニュー",
   "loading": "読み込み中...",
   "success": "成功",
   "failed": "失敗",
   "active": "有効",
+  "enable": "有効にする",
+  "disable": "無効にする",
   "setActive": "有効にする",
+  "setup": {
+    "aiRequired": "先に設定で AI プロバイダーを追加して有効にしてください",
+    "cliRequired": "先に設定で faster-whisper CLI のパスを指定してください"
+  },
+  "windowControls": {
+    "minimize": "ウィンドウを最小化",
+    "maximize": "ウィンドウを最大化または復元",
+    "close": "ウィンドウを閉じる"
+  },
+  "errorBoundary": {
+    "title": "問題が発生しました",
+    "reload": "アプリを再読み込み"
+  },
+  "executionMode": { "taskSubmission": "キュー済みタスク" },
+  "persistence": {
+    "workspaceReadFailed": "保存済みワークスペースを読み込めませんでした。利用可能な代替状態で MediaFlow を起動しました。",
+    "workspaceWriteFailed": "ワークスペースの変更を保存できていません。アプリを閉じる前にディスクアクセスを確認してください。",
+    "preferencesWriteFailed": "設定の変更を保存できていません。アプリを閉じる前にバックエンド接続を確認してください。",
+    "recovered": "保存機能が復旧し、最新の状態を保存しました。"
+  },
   "startup": {
     "status": {
       "waitingConfig": "バックエンド設定を待機しています...",
       "checkingHealth": "バックエンドを検出しました。ヘルスチェック中です...",
       "retryingHealth": "バックエンドを起動中です。ヘルスチェックを再試行しています...",
-      "retryingGeneric": "起動確認に失敗しました。再試行しています...",
+      "retryingGeneric": "起動確認に失敗しました。今すぐ再試行するか、自動再試行をお待ちください。",
+      "fatalContract": "デスクトップランタイムとフロントエンドのバージョンに互換性がありません。MediaFlow を更新または再インストールしてください。",
       "ready": "バックエンドの準備ができました。",
       "webMode": "Electron バックエンドのブートストラップなしで実行中です。"
+    },
+    "action": {
+      "retry": "今すぐ再試行"
+    },
+    "fatal": {
+      "title": "起動を続行できません",
+      "help": "これは恒久的なバージョン不一致のため、再試行では解決しません。このフロントエンドに対応するデスクトップ版をインストールしてから MediaFlow を再起動してください。"
     }
   }
 }

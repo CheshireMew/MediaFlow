@@ -129,35 +129,6 @@ export function registerDialogHandlers() {
     },
   );
 
-  ipcMain.handle(DESKTOP_FILE_SYSTEM_CHANNELS.openSubtitleFile, async () => {
-    ensureLoaded();
-
-    const options: OpenDialogOptions = {
-      properties: ["openFile"],
-      defaultPath: getDefaultStartPath(),
-      filters: [
-        {
-          name: "Subtitle Files",
-          extensions: ["srt", "vtt", "ass", "ssa", "txt", "sub", "sbv", "lrc"],
-        },
-        { name: "All Files", extensions: ["*"] },
-      ],
-    };
-    const { canceled, filePaths } = await dialog.showOpenDialog(options);
-    if (canceled || filePaths.length === 0) {
-      return null;
-    }
-
-    const selectedPath = filePaths[0];
-    desktopFileAccess.grantRendererReadFile(selectedPath);
-    const filePath = selectedPath;
-    rememberFile(filePath);
-    return {
-      path: filePath,
-      name: path.basename(filePath),
-    };
-  });
-
   ipcMain.handle(
     DESKTOP_FILE_SYSTEM_CHANNELS.selectDirectory,
     async (_event: IpcMainInvokeEvent, request?: SelectDirectoryRequest) => {
@@ -173,7 +144,7 @@ export function registerDialogHandlers() {
 
       const dirPath = filePaths[0];
       if (request?.access === "write") {
-        desktopFileAccess.grantRendererWriteDirectory(dirPath, { persist: true });
+        desktopFileAccess.grantRendererWriteDirectory(dirPath);
       } else {
         desktopFileAccess.grantRendererReadDirectory(dirPath);
       }

@@ -1,142 +1,183 @@
+import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
-import React, { useState, useEffect, useRef } from 'react';
+type CropRect = { x: number; y: number; w: number; h: number };
+type CropDragMode = "move" | "nw" | "ne" | "sw" | "se";
+
+const MIN_CROP_SIZE = 0.05;
+
+function clamp(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function applyCropDelta(
+    crop: CropRect,
+    mode: CropDragMode,
+    dx: number,
+    dy: number,
+): CropRect {
+    if (mode === "move") {
+        return {
+            ...crop,
+            x: clamp(crop.x + dx, 0, 1 - crop.w),
+            y: clamp(crop.y + dy, 0, 1 - crop.h),
+        };
+    }
+
+    const right = crop.x + crop.w;
+    const bottom = crop.y + crop.h;
+    let nextLeft = crop.x;
+    let nextRight = right;
+    let nextTop = crop.y;
+    let nextBottom = bottom;
+
+    if (mode.includes("w")) {
+        nextLeft = clamp(crop.x + dx, 0, right - MIN_CROP_SIZE);
+    }
+    if (mode.includes("e")) {
+        nextRight = clamp(right + dx, crop.x + MIN_CROP_SIZE, 1);
+    }
+    if (mode.includes("n")) {
+        nextTop = clamp(crop.y + dy, 0, bottom - MIN_CROP_SIZE);
+    }
+    if (mode.includes("s")) {
+        nextBottom = clamp(bottom + dy, crop.y + MIN_CROP_SIZE, 1);
+    }
+
+    return {
+        x: nextLeft,
+        y: nextTop,
+        w: nextRight - nextLeft,
+        h: nextBottom - nextTop,
+    };
+}
 
 interface Props {
-    crop: { x: number; y: number; w: number; h: number };
-    setCrop: (v: { x: number; y: number; w: number; h: number }) => void;
+    crop: CropRect;
+    setCrop: (v: CropRect) => void;
     containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export const CropOverlay: React.FC<Props> = ({ crop, setCrop, containerRef }) => {
-    const [dragMode, setDragMode] = useState<'move' | 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null>(null);
-    const startPos = useRef<{ x: number; y: number } | null>(null);
-    const startRect = useRef<{ width: number; height: number } | null>(null);
-    const startCrop = useRef(crop);
+    const { t } = useTranslation("synthesis");
+    const [dragState, setDragState] = useState<{
+        mode: CropDragMode;
+        pointerId: number;
+        startX: number;
+        startY: number;
+        width: number;
+        height: number;
+        crop: CropRect;
+    } | null>(null);
 
     useEffect(() => {
-        if (!dragMode) return;
+        if (!dragState) return;
 
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!containerRef.current || !startPos.current || !startRect.current) return;
-
-            const dx = ((e.clientX - startPos.current.x) / startRect.current.width) * startCrop.current.w;
-            const dy = ((e.clientY - startPos.current.y) / startRect.current.height) * startCrop.current.h;
-
-            const next = { ...startCrop.current };
-
-            // Helper to clamp
-            const clamp = (v: number) => Math.max(0, Math.min(1, v));
-
-            switch (dragMode) {
-                case 'move': {
-                    // Clamp movement
-                    const maxX = 1 - next.w;
-                    const maxY = 1 - next.h;
-                    next.x = Math.max(0, Math.min(maxX, next.x + dx));
-                    next.y = Math.max(0, Math.min(maxY, next.y + dy));
-                    break;
-                }
-                
-                case 'nw': { // Top-Left
-                    next.x = Math.min(next.x + next.w - 0.05, Math.max(0, next.x + dx));
-                    next.w = startCrop.current.w - (next.x - startCrop.current.x);
-                    next.y = Math.min(next.y + next.h - 0.05, Math.max(0, next.y + dy));
-                    next.h = startCrop.current.h - (next.y - startCrop.current.y);
-                    break;
-                }
-                    
-                case 'ne': { // Top-Right
-                    next.w = clamp(startCrop.current.w + dx);
-                    if (next.x + next.w > 1) next.w = 1 - next.x;
-                    
-                    next.y = Math.min(next.y + next.h - 0.05, Math.max(0, next.y + dy));
-                    next.h = startCrop.current.h - (next.y - startCrop.current.y);
-                    break;
-                }
-                    
-                case 'sw': { // Bottom-Left
-                    next.x = Math.min(next.x + next.w - 0.05, Math.max(0, next.x + dx));
-                    next.w = startCrop.current.w - (next.x - startCrop.current.x);
-                    
-                    next.h = clamp(startCrop.current.h + dy);
-                    if (next.y + next.h > 1) next.h = 1 - next.y;
-                    break;
-                }
-                    
-                case 'se': { // Bottom-Right
-                    next.w = clamp(startCrop.current.w + dx);
-                    if (next.x + next.w > 1) next.w = 1 - next.x;
-                    
-                    next.h = clamp(startCrop.current.h + dy);
-                    if (next.y + next.h > 1) next.h = 1 - next.y;
-                    break;
-                }
-                    
-                // (Simplified: edges invoke corners logic or just expansion)
-                // For MVP, just corners are usually enough, but let's add edges if needed.
-                // Or map edges to nearest logic.
-            }
-            
-            setCrop(next);
+        const handlePointerMove = (event: PointerEvent) => {
+            if (event.pointerId !== dragState.pointerId) return;
+            const dx = (event.clientX - dragState.startX) / dragState.width;
+            const dy = (event.clientY - dragState.startY) / dragState.height;
+            setCrop(applyCropDelta(dragState.crop, dragState.mode, dx, dy));
         };
 
-        const handleMouseUp = () => {
-            setDragMode(null);
+        const handlePointerEnd = (event: PointerEvent) => {
+            if (event.pointerId === dragState.pointerId) setDragState(null);
         };
 
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerEnd);
+        window.addEventListener("pointercancel", handlePointerEnd);
         return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerEnd);
+            window.removeEventListener("pointercancel", handlePointerEnd);
         };
-    }, [dragMode, containerRef, setCrop]);
+    }, [dragState, setCrop]);
 
-    const handleMouseDown = (e: React.MouseEvent, mode: typeof dragMode) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragMode(mode);
-        startPos.current = { x: e.clientX, y: e.clientY };
-        startCrop.current = crop;
-        if (containerRef.current) {
-            const rect = containerRef.current.getBoundingClientRect();
-            startRect.current = {
-                width: Math.max(1, rect.width),
-                height: Math.max(1, rect.height),
-            };
-        }
+    const startPointerDrag = (event: React.PointerEvent, mode: CropDragMode) => {
+        const container = containerRef.current;
+        if (!container) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        const rect = container.getBoundingClientRect();
+        setDragState({
+            mode,
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            width: Math.max(1, rect.width),
+            height: Math.max(1, rect.height),
+            crop,
+        });
     };
 
-    const handleStyle = {
-        position: 'absolute' as const,
-        width: 10,
-        height: 10,
-        backgroundColor: 'white',
-        border: '1px solid #6366f1',
-        borderRadius: '50%',
-        zIndex: 50
+    const handleKeyboardDelta = (
+        event: React.KeyboardEvent,
+        mode: CropDragMode,
+    ) => {
+        const directions: Record<string, { x: number; y: number }> = {
+            ArrowLeft: { x: -1, y: 0 },
+            ArrowRight: { x: 1, y: 0 },
+            ArrowUp: { x: 0, y: -1 },
+            ArrowDown: { x: 0, y: 1 },
+        };
+        const direction = directions[event.key];
+        if (!direction) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const step = event.shiftKey ? 0.05 : 0.01;
+        setCrop(applyCropDelta(crop, mode, direction.x * step, direction.y * step));
     };
+
+    const handles: Array<{
+        mode: Exclude<CropDragMode, "move">;
+        positionClass: string;
+        cursorClass: string;
+        label: string;
+    }> = [
+        { mode: "nw", positionClass: "-left-3 -top-3", cursorClass: "cursor-nw-resize", label: t("preview.cropHandleTopLeft") },
+        { mode: "ne", positionClass: "-right-3 -top-3", cursorClass: "cursor-ne-resize", label: t("preview.cropHandleTopRight") },
+        { mode: "sw", positionClass: "-bottom-3 -left-3", cursorClass: "cursor-sw-resize", label: t("preview.cropHandleBottomLeft") },
+        { mode: "se", positionClass: "-bottom-3 -right-3", cursorClass: "cursor-se-resize", label: t("preview.cropHandleBottomRight") },
+    ];
 
     return (
-        <div 
-            className="absolute z-40"
+        <div
+            className="pointer-events-none absolute z-40 border border-indigo-500"
             style={{
-                inset: 0,
-                border: '1px solid #6366f1'
+                left: `${crop.x * 100}%`,
+                top: `${crop.y * 100}%`,
+                width: `${crop.w * 100}%`,
+                height: `${crop.h * 100}%`,
             }}
-            onMouseDown={(e) => handleMouseDown(e, 'move')}
         >
-            {/* Grid Lines */}
-            <div className="absolute inset-0 border-r border-white/20 ml-[33%]" />
-            <div className="absolute inset-0 border-r border-white/20 ml-[66%]" />
-            <div className="absolute inset-0 border-t border-white/20 mt-[33%]" />
-            <div className="absolute inset-0 border-t border-white/20 mt-[66%]" />
+            <button
+                type="button"
+                aria-label={t("preview.cropRegionControl")}
+                className="pointer-events-auto absolute inset-0 cursor-move border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                style={{ touchAction: "none" }}
+                onPointerDown={(event) => startPointerDrag(event, "move")}
+                onKeyDown={(event) => handleKeyboardDelta(event, "move")}
+            />
+            <div className="pointer-events-none absolute inset-y-0 left-1/3 border-r border-white/20" />
+            <div className="pointer-events-none absolute inset-y-0 left-2/3 border-r border-white/20" />
+            <div className="pointer-events-none absolute inset-x-0 top-1/3 border-t border-white/20" />
+            <div className="pointer-events-none absolute inset-x-0 top-2/3 border-t border-white/20" />
 
-            {/* Handles */}
-            <div style={{...handleStyle, top: -5, left: -5, cursor: 'nw-resize'}} onMouseDown={(e) => handleMouseDown(e, 'nw')} />
-            <div style={{...handleStyle, top: -5, right: -5, cursor: 'ne-resize'}} onMouseDown={(e) => handleMouseDown(e, 'ne')} />
-            <div style={{...handleStyle, bottom: -5, left: -5, cursor: 'sw-resize'}} onMouseDown={(e) => handleMouseDown(e, 'sw')} />
-            <div style={{...handleStyle, bottom: -5, right: -5, cursor: 'se-resize'}} onMouseDown={(e) => handleMouseDown(e, 'se')} />
+            {handles.map(({ mode, positionClass, cursorClass, label }) => (
+                <button
+                    key={mode}
+                    type="button"
+                    aria-label={label}
+                    className={`pointer-events-auto absolute z-50 flex h-6 w-6 items-center justify-center rounded-full border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${positionClass} ${cursorClass}`}
+                    style={{ touchAction: "none" }}
+                    onPointerDown={(event) => startPointerDrag(event, mode)}
+                    onKeyDown={(event) => handleKeyboardDelta(event, mode)}
+                >
+                    <span className="h-2.5 w-2.5 rounded-full border border-indigo-500 bg-white" />
+                </button>
+            ))}
         </div>
     );
 };

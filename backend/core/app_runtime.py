@@ -1,5 +1,4 @@
 from backend.core.container import Services
-from backend.core.runtime_access import configure_runtime_services, reset_runtime_services
 from loguru import logger
 
 
@@ -12,31 +11,61 @@ class ApplicationRuntime:
 
         return register_all_services(self._container)
 
-    def register_task_runners(self) -> None:
-        from backend.core.tasks.registry import (
-            register_all_task_runners,
-            validate_required_task_runners,
-        )
-
-        register_all_task_runners()
-        validate_required_task_runners()
+    def validate_runtime_contracts(self) -> None:
+        task_runners = self._container.get(Services.TASK_RUNNER_REGISTRY)
+        task_runners.validate()
         from backend.models.schemas import PIPELINE_STEP_PARAM_MODELS
         from backend.core.task_catalog import pipeline_step_names
 
-        configured_steps = pipeline_step_names()
+        configured_steps = set(
+            self._container.get(Services.PIPELINE_STEPS).list_steps()
+        )
+        catalog_steps = pipeline_step_names()
         model_steps = set(PIPELINE_STEP_PARAM_MODELS)
-        if configured_steps != model_steps:
+        if configured_steps != catalog_steps or configured_steps != model_steps:
             raise RuntimeError(
                 "Pipeline step model/catalog mismatch: "
-                f"catalog={sorted(configured_steps)}, models={sorted(model_steps)}"
+                f"registered={sorted(configured_steps)}, "
+                f"catalog={sorted(catalog_steps)}, models={sorted(model_steps)}"
             )
 
     async def start(self) -> int:
         registered_count = self.register_services()
-        self.register_task_runners()
-        configure_runtime_services(self._container)
+        self.validate_runtime_contracts()
         self._start_asr_cli_prewarm()
         return registered_count
+
+    def build_api_dependencies(self):
+        from backend.application.download_service import DownloadApplicationService
+        from backend.application.glossary_service import GlossaryApplicationService
+        from backend.application.highlight_service import HighlightApplicationService
+        from backend.application.settings_service import SettingsApplicationService
+        from backend.application.task_operations import TaskOperationService
+        from backend.core.api_dependencies import ApiDependencies
+
+        task_orchestrator = self._container.get(Services.TASK_ORCHESTRATOR)
+        task_executor = self._container.get(Services.TASK_OPERATION_EXECUTOR)
+        settings_manager = self._container.get(Services.SETTINGS_MANAGER)
+        return ApiDependencies(
+            download=DownloadApplicationService(
+                task_orchestrator=task_orchestrator,
+                analyzer=self._container.get(Services.ANALYZER),
+                cookie_manager=self._container.get(Services.COOKIE_MANAGER),
+            ),
+            task_operations=TaskOperationService(
+                executor=task_executor,
+                orchestrator=task_orchestrator,
+            ),
+            task_manager=self._container.get(Services.TASK_MANAGER),
+            task_orchestrator=task_orchestrator,
+            websocket_notifier=self._container.get(Services.WS_NOTIFIER),
+            settings=SettingsApplicationService(settings_manager),
+            glossary=GlossaryApplicationService(
+                self._container.get(Services.GLOSSARY)
+            ),
+            highlight=HighlightApplicationService(settings_manager),
+            asr_service=self._container.get(Services.ASR),
+        )
 
     def _start_asr_cli_prewarm(self) -> None:
         if not self._container.has(Services.SETTINGS_MANAGER) or not self._container.has(Services.ASR):
@@ -66,5 +95,4 @@ class ApplicationRuntime:
         from backend.core.database import shutdown_db
 
         await shutdown_db()
-        reset_runtime_services()
         self._container.reset()

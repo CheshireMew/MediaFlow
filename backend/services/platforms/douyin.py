@@ -2,7 +2,7 @@ import re
 from typing import Optional
 from loguru import logger
 from backend.services.platforms.base import BasePlatform
-from backend.models.schemas import AnalyzeResult, PlaylistItem
+from backend.models.schemas import AnalyzeResult
 
 
 class DouyinPlatform(BasePlatform):

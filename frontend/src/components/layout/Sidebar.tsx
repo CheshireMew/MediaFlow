@@ -7,11 +7,9 @@ import {
   Languages, 
   Settings, 
   Pencil,
-  type LucideIcon,
-  Wand2
+  type LucideIcon
 } from 'lucide-react';
 import { useTaskSummaryContext } from '../../context/useTaskSummaryContext';
-import { ENABLE_EXPERIMENTAL_PREPROCESSING } from '../../config/features';
 import mediaflowMark from '../../assets/mediaflow-mark.svg';
 
 interface SidebarItemProps {
@@ -24,8 +22,10 @@ interface SidebarItemProps {
 
 function SidebarItem({ icon: Icon, label, isActive, onClick, badge }: SidebarItemProps) {
   return (
-    <div 
+    <button
+      type="button"
       onClick={onClick}
+      aria-current={isActive ? 'page' : undefined}
       className={`
         w-full h-16 rounded-lg cursor-pointer transition-all duration-200 group relative
         flex flex-col items-center justify-center gap-1
@@ -39,7 +39,7 @@ function SidebarItem({ icon: Icon, label, isActive, onClick, badge }: SidebarIte
       <div className={`p-1.5 rounded-lg transition-transform duration-300 group-hover:scale-110 ${isActive ? 'bg-indigo-500 shadow-lg shadow-indigo-500/30' : ''}`}>
         <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'} />
       </div>
-      <span className={`max-w-full whitespace-nowrap text-[10px] font-medium tracking-wide ${isActive ? 'text-indigo-200' : 'text-slate-500 group-hover:text-slate-300'}`}>
+      <span className={`max-w-full whitespace-nowrap text-xs font-medium tracking-wide ${isActive ? 'text-indigo-200' : 'text-slate-400 group-hover:text-slate-300'}`}>
         {label}
       </span>
       
@@ -50,11 +50,11 @@ function SidebarItem({ icon: Icon, label, isActive, onClick, badge }: SidebarIte
       
       {/* Notification Badge */}
       {badge !== undefined && badge > 0 && (
-         <div className="absolute top-2 right-2 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-sm ring-1 ring-slate-900/10 animate-pulse">
+         <div className="absolute top-2 right-2 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white shadow-sm ring-1 ring-slate-900/10 animate-pulse">
             {badge > 9 ? '9+' : badge}
          </div>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -76,14 +76,6 @@ export function Sidebar() {
     { id: 'settings', labelKey: 'settings', icon: Settings },
   ];
 
-  if (ENABLE_EXPERIMENTAL_PREPROCESSING) {
-    menuItems.splice(5, 0, {
-      id: 'preprocessing',
-      labelKey: 'preprocess',
-      icon: Wand2,
-    });
-  }
-
   return (
     <div className="w-24 bg-[#1a1a1a] border-r border-[#333] flex flex-col items-center py-4 h-full select-none z-50 shadow-2xl">
         {/* App Logo/Brand */}
@@ -91,7 +83,7 @@ export function Sidebar() {
             <img src={mediaflowMark} alt="MediaFlow" className="w-11 h-11 rounded-xl shadow-lg shadow-indigo-500/20" />
         </div>
 
-        <div className="flex-1 w-full px-2 space-y-1 overflow-hidden">
+        <nav aria-label="MediaFlow" className="flex-1 w-full px-2 space-y-1 overflow-hidden">
             {menuItems.map((item) => (
                 <SidebarItem
                     key={item.id}
@@ -102,7 +94,7 @@ export function Sidebar() {
                     badge={item.badge}
                 />
             ))}
-        </div>
+        </nav>
 
          {/* Bottom Actions - Exit Button Removed */}
          <div className="mt-auto px-2 w-full pt-3 border-t border-white/5 space-y-2">

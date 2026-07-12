@@ -1,8 +1,7 @@
 from collections.abc import Awaitable, Callable
-from importlib import import_module
 from typing import TYPE_CHECKING
 
-from backend.core.task_catalog import required_task_types, task_types
+from backend.core.task_catalog import task_types
 
 if TYPE_CHECKING:
     from backend.models.task_model import Task
@@ -12,58 +11,35 @@ TaskRunner = Callable[[], Awaitable[None]]
 TaskRunnerFactory = Callable[["Task"], TaskRunner]
 
 
-REQUIRED_TASK_TYPES = required_task_types()
+class TaskRunnerRegistry:
+    def __init__(self) -> None:
+        self._factories: dict[str, TaskRunnerFactory] = {}
 
+    def register(self, task_type: str, factory: TaskRunnerFactory) -> None:
+        if task_type not in task_types():
+            raise RuntimeError(f"Task runner is not in task catalog: '{task_type}'")
+        if task_type in self._factories:
+            raise RuntimeError(f"Task runner already registered for '{task_type}'")
+        self._factories[task_type] = factory
 
-_TASK_RUNNER_FACTORIES: dict[str, TaskRunnerFactory] = {}
-_definitions_loaded = False
+    def validate(self) -> None:
+        unknown = set(self._factories) - task_types()
+        if unknown:
+            raise RuntimeError(
+                f"Task runner definitions outside task catalog: {', '.join(sorted(unknown))}"
+            )
+        missing = task_types() - set(self._factories)
+        if missing:
+            raise RuntimeError(
+                f"Missing task runner definitions for: {', '.join(sorted(missing))}"
+            )
 
+    def build(self, task: "Task") -> TaskRunner:
+        factory = self._factories.get(task.type)
+        if factory is None:
+            raise ValueError(f"No task runner definition found for task type: {task.type}")
+        return factory(task)
 
-def register_task_runner(task_type: str, factory: TaskRunnerFactory) -> None:
-    if task_type not in task_types():
-        raise RuntimeError(f"Task runner is not in task catalog: '{task_type}'")
-    existing = _TASK_RUNNER_FACTORIES.get(task_type)
-    if existing is not None and existing is not factory:
-        raise RuntimeError(f"Task runner already registered for '{task_type}'")
-    _TASK_RUNNER_FACTORIES[task_type] = factory
-
-
-def register_all_task_runners() -> None:
-    global _definitions_loaded
-    if _definitions_loaded:
-        return
-    import_module("backend.application.task_definitions")
-    _definitions_loaded = True
-
-
-def validate_required_task_runners() -> None:
-    unknown = set(_TASK_RUNNER_FACTORIES) - task_types()
-    if unknown:
-        raise RuntimeError(
-            f"Task runner definitions outside task catalog: {', '.join(sorted(unknown))}"
-        )
-    missing = REQUIRED_TASK_TYPES - set(_TASK_RUNNER_FACTORIES)
-    if missing:
-        raise RuntimeError(
-            f"Missing task runner definitions for: {', '.join(sorted(missing))}"
-        )
-
-
-def build_task_runner(task: "Task") -> TaskRunner:
-    register_all_task_runners()
-    factory = _TASK_RUNNER_FACTORIES.get(task.type)
-    if factory is None:
-        raise ValueError(f"No task runner definition found for task type: {task.type}")
-    return factory(task)
-
-
-def registered_task_types() -> set[str]:
-    register_all_task_runners()
-    validate_required_task_runners()
-    return set(_TASK_RUNNER_FACTORIES)
-
-
-def clear_task_runners() -> None:
-    global _definitions_loaded
-    _TASK_RUNNER_FACTORIES.clear()
-    _definitions_loaded = False
+    def registered_task_types(self) -> set[str]:
+        self.validate()
+        return set(self._factories)

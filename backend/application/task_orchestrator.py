@@ -1,17 +1,17 @@
-from loguru import logger
+from typing import TYPE_CHECKING
 
 from backend.models.schemas import PipelineRequest
+from backend.models.task_message import TaskMessageParams
 from backend.services.settings_manager import UserSettings
-from backend.application.pipeline_submission_service import PipelineSubmissionService
-from backend.application.task_request_deduplicator import TaskRequestDeduplicator
-from backend.application.task_resume_service import TaskResumeService
-from backend.core.tasks.registry import build_task_runner
+
+if TYPE_CHECKING:
+    from backend.services.task_manager import TaskManager
 
 
 class TaskOrchestrator:
     def __init__(
         self,
-        task_manager,
+        task_manager: "TaskManager",
         settings_manager,
         *,
         download_workflow_service,
@@ -19,6 +19,7 @@ class TaskOrchestrator:
         task_request_deduplicator,
         task_resume_service,
         pipeline_submission_service,
+        task_runner_registry,
     ):
         self._task_manager = task_manager
         self._settings_manager = settings_manager
@@ -27,6 +28,7 @@ class TaskOrchestrator:
         self._task_request_deduplicator = task_request_deduplicator
         self._task_resume_service = task_resume_service
         self._pipeline_submission_service = pipeline_submission_service
+        self._task_runner_registry = task_runner_registry
 
     def prepare_pipeline_request(self, req: PipelineRequest) -> PipelineRequest:
         if req.pipeline_id not in {"downloader_tool", "transcriber_tool"} or not req.steps:
@@ -62,35 +64,43 @@ class TaskOrchestrator:
         return self._task_manager.serialize_task(task)
 
     async def wait_until_task_state_ready(self) -> None:
-        waiter = getattr(self._task_manager, "wait_until_tasks_loaded", None)
-        if callable(waiter):
-            await waiter()
+        await self._task_manager.wait_until_tasks_loaded()
 
-    async def enqueue_existing_task(self, task_id: str, queued_message: str = "Queued") -> None:
+    async def enqueue_existing_task(
+        self,
+        task_id: str,
+        queued_message_code: str = "queued",
+        queued_message_params: TaskMessageParams | None = None,
+    ) -> None:
         task = self.get_task(task_id)
         if not task:
             raise ValueError("Task not found")
         await self._task_manager.enqueue_task(
             task_id,
             self.build_resume_runner(task),
-            queued_message=queued_message,
+            queued_message_code=queued_message_code,
+            queued_message_params=queued_message_params,
         )
 
     async def reset_task_for_reuse(
         self,
         task_id: str,
-        message: str = "Resuming...",
+        message_code: str = "resumed",
+        message_params: TaskMessageParams | None = None,
         request_params: dict | None = None,
     ) -> None:
         await self._task_resume_service.reset_task_for_reuse(
             self._task_manager,
             task_id,
-            message=message,
+            message_code=message_code,
+            message_params=message_params,
             request_params=request_params,
         )
 
     def build_resume_runner(self, task) -> callable:
-        return self._task_resume_service.build_resume_runner(task)
+        if not task.request_params:
+            raise ValueError("Cannot resume task: Missing parameters")
+        return self._task_runner_registry.build(task)
 
     async def submit_pipeline(self, req: PipelineRequest) -> dict:
         await self.wait_until_task_state_ready()
@@ -110,13 +120,16 @@ class TaskOrchestrator:
         task_type: str,
         task_name: str,
         request_params: dict,
-        initial_message: str = "Queued",
-        queued_message: str = "Queued",
+        initial_message_code: str = "queued",
+        initial_message_params: TaskMessageParams | None = None,
+        queued_message_code: str = "queued",
+        queued_message_params: TaskMessageParams | None = None,
     ) -> dict:
         await self.wait_until_task_state_ready()
         task_id = await self._task_manager.create_task(
             task_type=task_type,
-            initial_message=initial_message,
+            initial_message_code=initial_message_code,
+            initial_message_params=initial_message_params,
             task_name=task_name,
             request_params=request_params,
         )
@@ -125,14 +138,16 @@ class TaskOrchestrator:
             raise ValueError(f"Task not found after creation: {task_id}")
         await self._task_manager.enqueue_task(
             task_id,
-            build_task_runner(task),
-            queued_message=queued_message,
+            self._task_runner_registry.build(task),
+            queued_message_code=queued_message_code,
+            queued_message_params=queued_message_params,
         )
         from backend.application.pipeline_submission_service import task_submission_response
 
         return task_submission_response(
             self.serialize_task(self.get_task(task_id)),
-            queued_message,
+            queued_message_code,
+            queued_message_params,
         )
 
     async def resume_task(self, task_id: str) -> dict:
@@ -143,8 +158,12 @@ class TaskOrchestrator:
         if not task.request_params:
             raise ValueError("Cannot resume task: Missing parameters")
         if task.status == "running":
-            return {"message": "Task is already running", "status": "running"}
+            return {
+                "message_code": "already_running",
+                "message_params": {},
+                "status": "running",
+            }
 
         await self.reset_task_for_reuse(task_id)
-        await self.enqueue_existing_task(task_id, queued_message="Queued")
-        return {"message": "Task resumed", "status": "pending"}
+        await self.enqueue_existing_task(task_id, queued_message_code="queued")
+        return {"message_code": "resumed", "message_params": {}, "status": "pending"}

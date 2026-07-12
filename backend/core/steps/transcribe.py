@@ -1,45 +1,47 @@
 from loguru import logger
 
 from backend.core.steps.base import PipelineStep
-from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service, TaskRuntimeContext
+from backend.core.task_runtime import TaskRuntimeContext
+from backend.models.schemas import DEFAULT_ASR_VAD_FILTER, MediaReference
 
 
 class TranscribeStep(PipelineStep):
+    def __init__(self, *, asr_service, task_manager):
+        self._asr_service = asr_service
+        self._task_manager = task_manager
+
     @property
     def name(self) -> str:
         return "transcribe"
 
     async def execute(self, ctx: PipelineContext, params: dict, task_id: str = None):
-        # Try to get path from previous step (download) or params
-        audio_path = (
-            ctx.get_media_path("audio_ref", "audio_path", "video_path")
-            or params.get("audio_path")
-            or (params.get("audio_ref") or {}).get("path")
-        )
-        if not audio_path:
-            raise ValueError("Transcribe step requires 'audio_path' (or result from download step)")
+        input_ref = ctx.get_media("audio_ref", "video_ref")
+        if input_ref is None and params.get("audio_ref"):
+            input_ref = MediaReference.model_validate(params["audio_ref"])
+        if input_ref is None:
+            raise ValueError("Transcribe step requires audio_ref or a downloaded media reference")
+        audio_path = input_ref.path
 
         model = params.get("model", "base")
         device = params.get("device", "cpu")
         engine = params.get("engine", "builtin")
         language = params.get("language")
+        vad_filter = params.get("vad_filter", DEFAULT_ASR_VAD_FILTER)
         initial_prompt = params.get("initial_prompt")
         
         # Also run transcribe in executor because it blocks!
-        runtime = TaskRuntimeContext.for_task(task_id)
-        asr_service = runtime_service(Services.ASR)
+        runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
         progress_cb = runtime.build_progress_callback()
         
         result = await runtime.run_blocking(
-            lambda: asr_service.transcribe(
+            lambda: self._asr_service.transcribe(
                 audio_path=audio_path,
                 model_name=model,
                 device=device,
                 engine=engine,
                 language=language,
+                vad_filter=vad_filter,
                 initial_prompt=initial_prompt,
                 task_id=task_id,
                 progress_callback=progress_cb
@@ -60,31 +62,28 @@ class TranscribeStep(PipelineStep):
         ctx.set("segments", segments)
         
         # Extract SRT path
-        srt_file = next((f for f in result.files if f.type == "subtitle"), None)
-        if srt_file:
+        subtitle_artifact = next(
+            (artifact for artifact in result.artifacts if artifact.kind == "subtitle"),
+            None,
+        )
+        if subtitle_artifact:
             ctx.set_media(
-                path_key="srt_path",
-                ref_key="subtitle_ref",
-                path=srt_file.path,
-                media_type="application/x-subrip",
-                extra_ref_keys=("context_ref", "output_ref"),
+                "subtitle_ref",
+                subtitle_artifact.ref,
+                kind="subtitle",
             )
 
-        input_ref = params.get("audio_ref") or {}
-        input_kind = str(input_ref.get("media_kind") or "").lower() if isinstance(input_ref, dict) else ""
-        input_type = str(input_ref.get("type") or "").lower() if isinstance(input_ref, dict) else ""
-        if not ctx.get("video_path") and audio_path and (
+        input_kind = str(input_ref.media_kind or "").lower()
+        input_type = str(input_ref.type or "").lower()
+        if ctx.get_media("video_ref") is None and (
             input_kind == "video" or input_type.startswith("video/")
         ):
             ctx.set_media(
-                path_key="video_path",
-                ref_key="video_ref",
-                path=audio_path,
-                media_type=input_type or "video/mp4",
+                "video_ref",
+                input_ref,
+                kind="video",
+                role="input",
+                track_artifact=False,
             )
              
         logger.success(f"Step Transcribe finished. Text len: {len(text)}")
-
-
-# Register at module level
-StepRegistry.register(TranscribeStep())

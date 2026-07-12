@@ -16,9 +16,6 @@ from backend.models.schemas import (
 from backend.services.video.media_prober import MediaProber
 from backend.utils.path_validator import validate_input_file, validate_output_file
 
-router = APIRouter(prefix="/editor", tags=["Editor"])
-
-@router.post("/preview/upload-watermark")
 async def upload_watermark_for_preview(file: UploadFile):
     """
     Upload a watermark file and return the generated preview.
@@ -31,7 +28,6 @@ async def upload_watermark_for_preview(file: UploadFile):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/preview/watermark/latest")
 async def get_current_watermark():
     """
     Retrieve the last uploaded watermark (if exists).
@@ -42,7 +38,6 @@ async def get_current_watermark():
     return get_latest_watermark_preview()
 
 
-@router.post("/preview/media/visible-start", response_model=MediaVisibleStartResponse)
 async def get_media_visible_start(req: MediaVisibleStartRequest):
     try:
         validate_input_file(req.video_ref.path, label="video_ref.path")
@@ -58,7 +53,6 @@ async def get_media_visible_start(req: MediaVisibleStartRequest):
     )
 
 
-@router.post("/preview/media/source", response_model=EditorPreviewMediaResponse)
 async def resolve_preview_media_source(req: EditorPreviewMediaRequest):
     try:
         source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
@@ -80,8 +74,7 @@ async def resolve_preview_media_source(req: EditorPreviewMediaRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/highlights/detect", response_model=HighlightDetectionResponse)
-async def detect_highlight_candidates(req: HighlightDetectionRequest):
+async def detect_highlight_candidates(req: HighlightDetectionRequest, *, highlight_application):
     try:
         source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
     except FileNotFoundError as e:
@@ -90,10 +83,8 @@ async def detect_highlight_candidates(req: HighlightDetectionRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
-        from backend.application.highlight_service import detect_highlights
-
         candidates, source, duration = await asyncio.to_thread(
-            detect_highlights,
+            highlight_application.detect,
             video_path=str(source_path),
             subtitle_segments=req.subtitle_segments,
             max_candidates=req.max_candidates,
@@ -111,15 +102,14 @@ async def detect_highlight_candidates(req: HighlightDetectionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/clips/export", response_model=TaskResponse)
-async def export_clip_segments(req: ClipExportRequest):
+async def export_clip_segments(req: ClipExportRequest, *, task_operations):
     try:
         source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
         subtitles_required = req.render_mode == "burned" and not (req.options or {}).get("skip_subtitles")
         if subtitles_required and req.srt_ref:
             validate_input_file(req.srt_ref.path, label="srt_ref.path")
-        if req.watermark_path:
-            validate_input_file(req.watermark_path, label="watermark_path")
+        if req.watermark_ref:
+            validate_input_file(req.watermark_ref.path, label="watermark_ref.path")
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
@@ -135,14 +125,11 @@ async def export_clip_segments(req: ClipExportRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    from backend.application.task_operations import submit_task_operation
-
-    response = await submit_task_operation("clip_export", req)
+    response = await task_operations.submit("clip_export", req)
     return TaskResponse(**response)
 
 
-@router.post("/synthesize", response_model=TaskResponse)
-async def start_synthesis_task(req: SynthesisRequest):
+async def start_synthesis_task(req: SynthesisRequest, *, task_operations):
     """
     Start a video synthesis task (burn-in subtitles/watermark).
     This is a long-running process, so we offload it.
@@ -152,6 +139,8 @@ async def start_synthesis_task(req: SynthesisRequest):
         subtitles_required = not (req.options or {}).get("skip_subtitles")
         if req.srt_ref:
             validate_input_file(req.srt_ref.path, label="srt_ref.path")
+        if req.watermark_ref:
+            validate_input_file(req.watermark_ref.path, label="watermark_ref.path")
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
@@ -176,7 +165,63 @@ async def start_synthesis_task(req: SynthesisRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    from backend.application.task_operations import submit_task_operation
-
-    response = await submit_task_operation("synthesis", req)
+    response = await task_operations.submit("synthesis", req)
     return TaskResponse(**response)
+
+
+def create_router(*, task_operations, highlight_application) -> APIRouter:
+    router = APIRouter(prefix="/editor", tags=["Editor"])
+    router.add_api_route(
+        "/preview/upload-watermark",
+        upload_watermark_for_preview,
+        methods=["POST"],
+    )
+    router.add_api_route(
+        "/preview/watermark/latest",
+        get_current_watermark,
+        methods=["GET"],
+    )
+    router.add_api_route(
+        "/preview/media/visible-start",
+        get_media_visible_start,
+        methods=["POST"],
+        response_model=MediaVisibleStartResponse,
+    )
+    router.add_api_route(
+        "/preview/media/source",
+        resolve_preview_media_source,
+        methods=["POST"],
+        response_model=EditorPreviewMediaResponse,
+    )
+
+    async def detect(req: HighlightDetectionRequest):
+        return await detect_highlight_candidates(
+            req,
+            highlight_application=highlight_application,
+        )
+
+    async def export(req: ClipExportRequest):
+        return await export_clip_segments(req, task_operations=task_operations)
+
+    async def synthesize(req: SynthesisRequest):
+        return await start_synthesis_task(req, task_operations=task_operations)
+
+    router.add_api_route(
+        "/highlights/detect",
+        detect,
+        methods=["POST"],
+        response_model=HighlightDetectionResponse,
+    )
+    router.add_api_route(
+        "/clips/export",
+        export,
+        methods=["POST"],
+        response_model=TaskResponse,
+    )
+    router.add_api_route(
+        "/synthesize",
+        synthesize,
+        methods=["POST"],
+        response_model=TaskResponse,
+    )
+    return router

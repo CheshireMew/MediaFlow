@@ -1,10 +1,7 @@
 import pytest
-import asyncio
 import threading
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from backend.core.container import container, Services
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service
 from backend.services.browser_service import BrowserService
 from backend.services.sniffer import NetworkSniffer
 
@@ -54,7 +51,7 @@ def local_server():
     yield base_url
     
 async def _ensure_clean_browser():
-    browser_service = runtime_service(Services.BROWSER)
+    browser_service = container.get(Services.BROWSER)
     try:
         if browser_service._browser or browser_service._playwright:
             await browser_service.stop()
@@ -67,9 +64,12 @@ async def _ensure_clean_browser():
 async def test_browser_sniffing(local_server):
     container.clear()
     container.register(Services.BROWSER, BrowserService)
-    container.register(Services.SNIFFER, lambda: NetworkSniffer(runtime_service(Services.BROWSER)))
-    browser_service = runtime_service(Services.BROWSER)
-    sniffer = runtime_service(Services.SNIFFER)
+    container.register(
+        Services.SNIFFER,
+        lambda: NetworkSniffer(container.get(Services.BROWSER)),
+    )
+    browser_service = container.get(Services.BROWSER)
+    sniffer = container.get(Services.SNIFFER)
     await _ensure_clean_browser()
     try:
         # Test Sniffing Logic

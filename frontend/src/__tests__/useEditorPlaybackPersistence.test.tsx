@@ -1,28 +1,25 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useEditorPlaybackPersistence } from "../hooks/editor/useEditorPlaybackPersistence";
-import { readUiStateValue, writeUiStateValue } from "../services/persistence/uiStateSettings";
+import {
+  readWorkspaceStateValue,
+  resetWorkspaceStateForTests,
+  writeWorkspaceStateValue,
+} from "../services/persistence/workspaceState";
 
 describe("useEditorPlaybackPersistence", () => {
   beforeEach(() => {
     localStorage.clear();
+    resetWorkspaceStateForTests();
     vi.useFakeTimers();
   });
 
   it("restores the saved playback time from the versioned snapshot on metadata load", () => {
     const filePath = "C:\\video.mp4";
-    writeUiStateValue(
-      `editor_playback_snapshot_${filePath}`,
-      JSON.stringify({
-        schema_version: 1,
-        lifecycle: {
-          currentTime: "history-only",
-        },
-        payload: {
-          currentTime: 18.4,
-        },
-      }),
-    );
+    const video = { path: filePath, name: "video.mp4" };
+    writeWorkspaceStateValue("editor-playback-history", {
+      [filePath]: { currentTime: 18.4, updatedAt: 1 },
+    });
 
     const videoElement = {
       currentTime: 0,
@@ -36,7 +33,7 @@ describe("useEditorPlaybackPersistence", () => {
 
     const { result, unmount } = renderHook(() =>
       useEditorPlaybackPersistence({
-        currentFilePath: filePath,
+        video,
         videoRef,
       }),
     );
@@ -51,8 +48,9 @@ describe("useEditorPlaybackPersistence", () => {
     vi.useRealTimers();
   });
 
-  it("persists playback progress as a versioned snapshot", () => {
+  it("persists playback progress in the bounded workspace history", () => {
     const filePath = "C:\\video.mp4";
+    const video = { path: filePath, name: "video.mp4" };
     let pauseHandler: (() => void) | null = null;
     const videoElement = {
       currentTime: 24.6,
@@ -70,7 +68,7 @@ describe("useEditorPlaybackPersistence", () => {
 
     const { unmount } = renderHook(() =>
       useEditorPlaybackPersistence({
-        currentFilePath: filePath,
+        video,
         videoRef,
       }),
     );
@@ -81,7 +79,9 @@ describe("useEditorPlaybackPersistence", () => {
     });
 
     expect(
-      readUiStateValue(`editor_playback_snapshot_${filePath}`),
+      readWorkspaceStateValue<Record<string, unknown>>("editor-playback-history")?.[
+        filePath
+      ],
     ).toBeTruthy();
 
     unmount();
@@ -90,6 +90,7 @@ describe("useEditorPlaybackPersistence", () => {
 
   it("binds playback rate persistence when the video element appears after the hook mounts", () => {
     const filePath = "C:\\late-video.mp4";
+    const video = { path: filePath, name: "late-video.mp4" };
     let rateChangeHandler: (() => void) | null = null;
     const videoElement = {
       currentTime: 0,
@@ -108,7 +109,7 @@ describe("useEditorPlaybackPersistence", () => {
 
     const { result, unmount } = renderHook(() =>
       useEditorPlaybackPersistence({
-        currentFilePath: filePath,
+        video,
         videoRef,
       }),
     );
@@ -121,7 +122,9 @@ describe("useEditorPlaybackPersistence", () => {
       rateChangeHandler?.();
     });
 
-    expect(readUiStateValue("editor_playback_rate")).toContain("\"playbackRate\":2.5");
+    expect(readWorkspaceStateValue<string>("editor_playback_rate")).toContain(
+      "\"playbackRate\":2.5",
+    );
 
     unmount();
     vi.useRealTimers();

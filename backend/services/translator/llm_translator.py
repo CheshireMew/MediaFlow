@@ -398,6 +398,6 @@ class LLMTranslator:
         logger.info(f"[Translate] Done. Total segments: {len(translated_segments)}")
 
         if progress_callback:
-            progress_callback(100, "Translation completed")
+            progress_callback(100, "translation_completed", {})
 
         return translated_segments

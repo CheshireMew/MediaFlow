@@ -9,9 +9,16 @@ import {
     overviewCardClassName,
     overviewInnerPanelClassName,
 } from '../components/task-monitor/overviewCardPrimitives';
+import { useTaskContext } from '../context/taskContext';
 
 export const DashboardPage = () => {
     const { t } = useTranslation('dashboard');
+    const { connected, remoteTasksReady } = useTaskContext();
+    const connectionState = connected
+        ? 'online'
+        : remoteTasksReady
+            ? 'offline'
+            : 'connecting';
     return (
         <PageShell padded={false} className="flex flex-col">
             <PageHeader
@@ -33,8 +40,17 @@ export const DashboardPage = () => {
                     <div className="space-y-2">
                         <div className={`${overviewInnerPanelClassName} flex items-center justify-between min-h-[60px]`}>
                             <span className="text-xs text-slate-400">{t('stats.backendConnection')}</span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20">
-                                {t('stats.online')}
+                            <span
+                                aria-live="polite"
+                                className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
+                                    connected
+                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                        : remoteTasksReady
+                                            ? 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                                            : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                }`}
+                            >
+                                {t(`stats.${connectionState}`)}
                             </span>
                         </div>
                         <div className={`${overviewInnerPanelClassName} flex items-center justify-between min-h-[60px]`}>

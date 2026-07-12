@@ -1,44 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { executionService } from "../services/domain/executionService";
-import { preprocessingService } from "../services/domain/preprocessingService";
 import { createMockUserSettings } from "./testUtils/mockUserSettings";
 import {
   normalizeTranscribeResultMediaReferences,
 } from "../services/tasks/resultMediaReferences";
 import { normalizeTranscribeResult } from "../services/ui/transcribeResult";
+import { apiClient } from "../api/client";
+import type { TaskResponse } from "../types/api";
+import { TASK_CONTRACT_VERSION } from "../contracts/runtimeContracts";
 
-const apiClientMock = vi.hoisted(() => ({
-  getSettings: vi.fn(),
-  runPipeline: vi.fn(),
-  startTranslation: vi.fn(),
-  synthesizeVideo: vi.fn(),
-  extractText: vi.fn(),
-  getOcrResults: vi.fn(),
-  getPeaks: vi.fn(),
-  enhanceVideo: vi.fn(),
-  cleanVideo: vi.fn(),
-}));
-
-vi.mock("../api/client", () => ({
-  apiClient: apiClientMock,
-}));
+const apiClientMock = {
+  getSettings: vi.spyOn(apiClient, "getSettings"),
+  runPipeline: vi.spyOn(apiClient, "runPipeline"),
+  startTranslation: vi.spyOn(apiClient, "startTranslation"),
+  synthesizeVideo: vi.spyOn(apiClient, "synthesizeVideo"),
+};
 
 vi.mock("../services/desktop", () => ({
   isDesktopRuntime: vi.fn(() => false),
   requireDesktopApiMethod: vi.fn(),
 }));
 
-const backendReceipt = (task_id: string) => ({
+const backendReceipt = (task_id: string): TaskResponse => ({
   task_id,
   status: "pending",
   task_source: "backend",
-  task_contract_version: 2,
+  task_contract_version: TASK_CONTRACT_VERSION,
   persistence_scope: "runtime",
   lifecycle: "resumable",
   queue_state: "queued",
   queue_position: null,
   primary_operation: "pipeline",
+  message_code: "queued",
+  message_params: {},
 });
 
 describe("service media contract", () => {
@@ -48,13 +43,6 @@ describe("service media contract", () => {
     apiClientMock.synthesizeVideo.mockResolvedValue(backendReceipt("task-synthesize"));
     apiClientMock.runPipeline.mockResolvedValue(backendReceipt("task-transcribe"));
     apiClientMock.startTranslation.mockResolvedValue(backendReceipt("task-translate"));
-    apiClientMock.extractText.mockResolvedValue(backendReceipt("task-extract"));
-    apiClientMock.getOcrResults.mockResolvedValue({
-      events: [],
-    });
-    apiClientMock.getPeaks.mockResolvedValue(new ArrayBuffer(8));
-    apiClientMock.enhanceVideo.mockResolvedValue(backendReceipt("task-enhance"));
-    apiClientMock.cleanVideo.mockResolvedValue(backendReceipt("task-clean"));
   });
 
   it("keeps video and subtitle refs in backend synthesis submissions", async () => {
@@ -73,7 +61,12 @@ describe("service media contract", () => {
         role: "context",
         origin: "task",
       },
-      watermark_path: null,
+      watermark_ref: {
+        path: "E:/canonical/watermark.png",
+        name: "watermark.png",
+        media_kind: "image",
+        role: "context",
+      },
       output_ref: {
         path: "E:/out/burned.mp4",
         name: "burned.mp4",
@@ -97,7 +90,12 @@ describe("service media contract", () => {
         role: "context",
         origin: "task",
       }),
-      watermark_path: null,
+      watermark_ref: expect.objectContaining({
+        path: "E:/canonical/watermark.png",
+        name: "watermark.png",
+        media_kind: "image",
+        role: "context",
+      }),
       output_ref: expect.objectContaining({
         path: "E:/out/burned.mp4",
         name: "burned.mp4",
@@ -118,7 +116,7 @@ describe("service media contract", () => {
         role: "source",
       },
       srt_ref: null,
-      watermark_path: null,
+      watermark_ref: null,
       output_ref: {
         path: "E:/out/exported.mp4",
         name: "exported.mp4",
@@ -133,31 +131,6 @@ describe("service media contract", () => {
     }));
   });
 
-  it("keeps structured video refs in preprocessing submissions", async () => {
-    await preprocessingService.extractText({
-      video_ref: {
-        path: "E:/canonical/source.mp4",
-        name: "source.mp4",
-        media_kind: "video",
-        role: "source",
-        origin: "navigation",
-      },
-      engine: "rapid",
-    });
-
-    expect(apiClientMock.extractText).toHaveBeenCalledWith(expect.objectContaining({
-      video_ref: expect.objectContaining({
-        path: "E:/canonical/source.mp4",
-        name: "source.mp4",
-        media_kind: "video",
-        role: "source",
-        origin: "navigation",
-      }),
-      engine: "rapid",
-    }));
-    expect(apiClientMock.extractText.mock.calls[0]?.[0]).not.toHaveProperty("video_path");
-  });
-
   it("keeps ref-first transcribe and translate submissions until the execution adapter resolves paths", async () => {
     await executionService.transcribe({
       audio_ref: {
@@ -167,6 +140,7 @@ describe("service media contract", () => {
         role: "source",
         origin: "navigation",
       },
+      task_name: "Transcribe source.mp4",
       model: "base",
       device: "cpu",
     });
@@ -188,7 +162,6 @@ describe("service media contract", () => {
             engine: "builtin",
             model: "base",
             device: "cpu",
-            vad_filter: true,
           },
         },
       ],
@@ -223,20 +196,39 @@ describe("service media contract", () => {
     }));
   });
 
-  it("resolves canonical refs for query-style media lookups", async () => {
-    await preprocessingService.getOcrResults({
-      video_ref: {
-        path: "E:/canonical/source.mp4",
-        name: "source.mp4",
-        media_kind: "video",
-        role: "source",
-        origin: "navigation",
+  it("preserves typed download params when applying execution settings", async () => {
+    await executionService.download(
+      {
+        pipeline_id: "downloader_tool",
+        steps: [
+          {
+            step_name: "download",
+            params: {
+              url: "https://example.com/video",
+              resolution: "1080",
+            },
+          },
+        ],
       },
-    });
-
-    expect(apiClientMock.getOcrResults).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "E:/canonical/source.mp4" }),
+      {
+        default_download_path: "D:/MediaFlow Downloads",
+        auto_execute_flow: false,
+      },
     );
+
+    expect(apiClientMock.runPipeline).toHaveBeenCalledWith({
+      pipeline_id: "downloader_tool",
+      steps: [
+        {
+          step_name: "download",
+          params: {
+            url: "https://example.com/video",
+            resolution: "1080",
+            output_dir: "D:/MediaFlow Downloads",
+          },
+        },
+      ],
+    });
   });
 
   it("normalizes task results into structured media refs before UI consumption", () => {

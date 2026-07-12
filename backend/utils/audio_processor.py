@@ -1,4 +1,6 @@
+import json
 import re
+import statistics
 import subprocess
 from pathlib import Path
 from typing import List, Tuple
@@ -6,6 +8,9 @@ from loguru import logger
 from backend.config import settings
 
 class AudioProcessor:
+    STRONG_ANTIPHASE_MEDIAN_THRESHOLD = -0.75
+    STRONG_ANTIPHASE_FRAME_RATIO = 0.60
+
     @staticmethod
     def get_audio_duration(audio_path: str) -> float:
         """Get audio duration using ffprobe."""
@@ -117,6 +122,160 @@ class AudioProcessor:
         return split_points
 
     @staticmethod
+    def prepare_for_transcription(audio_path: str, output_path: Path) -> Path:
+        """Create the canonical 16 kHz mono PCM input consumed by every ASR engine."""
+        source_path = Path(audio_path)
+        if not source_path.exists():
+            raise FileNotFoundError(f"Audio file not found: {source_path}")
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        channel_count, duration = AudioProcessor._probe_audio_stream(source_path)
+        audio_filter = None
+
+        if channel_count == 2:
+            phase_values = AudioProcessor._measure_stereo_phase(source_path, duration)
+            if AudioProcessor._is_strongly_antiphase(phase_values):
+                audio_filter = "pan=mono|c0=0.5*c0-0.5*c1"
+                logger.warning(
+                    "Strong stereo phase inversion detected; using phase-corrected ASR downmix."
+                )
+            else:
+                audio_filter = "pan=mono|c0=0.5*c0+0.5*c1"
+
+        cmd = [
+            settings.FFMPEG_PATH,
+            "-y",
+            "-i",
+            str(source_path),
+            "-map",
+            "0:a:0",
+            "-vn",
+        ]
+        if audio_filter:
+            cmd.extend(["-af", audio_filter])
+        else:
+            cmd.extend(["-ac", "1"])
+        cmd.extend(
+            [
+                "-ar",
+                "16000",
+                "-c:a",
+                "pcm_s16le",
+                str(output_path),
+            ]
+        )
+
+        subprocess.run(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+            shell=False,
+        )
+        return output_path
+
+    @staticmethod
+    def _probe_audio_stream(audio_path: Path) -> tuple[int, float]:
+        result = subprocess.run(
+            [
+                settings.FFPROBE_PATH,
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "stream=channels:format=duration",
+                "-of",
+                "json",
+                str(audio_path),
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+            shell=False,
+        )
+        probe = json.loads(result.stdout)
+        streams = probe.get("streams", [])
+        if not streams:
+            raise ValueError(f"Media has no audio stream: {audio_path}")
+        duration = float(probe.get("format", {}).get("duration") or 0.0)
+        return int(streams[0]["channels"]), duration
+
+    @staticmethod
+    def _measure_stereo_phase(audio_path: Path, duration: float) -> list[float]:
+        windows: list[tuple[float, float | None]]
+        if duration <= 90:
+            windows = [(0.0, None)]
+        else:
+            windows = [
+                (0.0, 30.0),
+                (max(duration / 2 - 15.0, 0.0), 30.0),
+                (max(duration - 30.0, 0.0), 30.0),
+            ]
+
+        phase_values: list[float] = []
+        for start, window_duration in windows:
+            cmd = [
+                settings.FFMPEG_PATH,
+                "-hide_banner",
+            ]
+            if start > 0:
+                cmd.extend(["-ss", f"{start:.3f}"])
+            cmd.extend(["-i", str(audio_path)])
+            if window_duration is not None:
+                cmd.extend(["-t", f"{window_duration:.3f}"])
+            cmd.extend(
+                [
+                    "-map",
+                    "0:a:0",
+                    "-vn",
+                    "-af",
+                    "aphasemeter=video=0,ametadata=print:key=lavfi.aphasemeter.phase:file=-",
+                    "-f",
+                    "null",
+                    "-",
+                ]
+            )
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True,
+                shell=False,
+            )
+            phase_values.extend(
+                float(match.group(1))
+                for match in re.finditer(
+                    r"lavfi\.aphasemeter\.phase=(-?\d+(?:\.\d+)?)",
+                    result.stdout,
+                )
+            )
+        return phase_values
+
+    @staticmethod
+    def _is_strongly_antiphase(phase_values: list[float]) -> bool:
+        if not phase_values:
+            return False
+        median_phase = statistics.median(phase_values)
+        negative_frame_ratio = sum(
+            value < AudioProcessor.STRONG_ANTIPHASE_MEDIAN_THRESHOLD
+            for value in phase_values
+        ) / len(phase_values)
+        logger.info(
+            "Stereo phase analysis: median={:.3f}, strong_negative_ratio={:.1%}",
+            median_phase,
+            negative_frame_ratio,
+        )
+        return (
+            median_phase < AudioProcessor.STRONG_ANTIPHASE_MEDIAN_THRESHOLD
+            and negative_frame_ratio >= AudioProcessor.STRONG_ANTIPHASE_FRAME_RATIO
+        )
+
+    @staticmethod
     def split_audio_physically(audio_path: str, split_points: List[float], output_dir: Path) -> List[Tuple[str, float]]:
         """
         Split audio into precisely trimmed PCM WAV chunks.
@@ -185,7 +344,6 @@ class AudioProcessor:
             "-i", audio_path,
             "-vn",
             "-af", trim_filter,
-            "-ac", "1",
             "-ar", "16000",
             "-c:a", "pcm_s16le",
             str(output_path_obj)

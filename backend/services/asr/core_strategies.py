@@ -19,16 +19,26 @@ class CoreStrategies:
         base_dir.mkdir(parents=True, exist_ok=True)
         return Path(tempfile.mkdtemp(prefix="chunks-", dir=base_dir))
 
-    def transcribe_direct(self, audio_path: str, duration: float, model: Any, language: str, initial_prompt: str, progress_callback) -> List[SubtitleSegment]:
+    def transcribe_direct(
+        self,
+        audio_path: str,
+        duration: float,
+        model: Any,
+        language: str | None,
+        initial_prompt: str | None,
+        vad_filter: bool,
+        progress_callback,
+    ) -> List[SubtitleSegment]:
         """Handle short audio files directly."""
         logger.info(f"Short audio ({duration:.2f}s). Direct transcription.")
-        if progress_callback: progress_callback(20, "Starting transcription...")
+        if progress_callback:
+            progress_callback(20, "transcription_starting", {})
         
         segments_gen, info = model.transcribe(
             audio_path, 
             beam_size=5, 
             language=language,
-            vad_filter=True,
+            vad_filter=vad_filter,
             initial_prompt=initial_prompt,
             word_timestamps=True,
             condition_on_previous_text=False
@@ -37,10 +47,20 @@ class CoreStrategies:
         segments_list = list(segments_gen)
         return SegmentRefiner.refine_segments(segments_list)
 
-    def transcribe_smart_split(self, audio_path: str, duration: float, model: Any, language: str, initial_prompt: str, progress_callback) -> List[SubtitleSegment]:
+    def transcribe_smart_split(
+        self,
+        audio_path: str,
+        duration: float,
+        model: Any,
+        language: str | None,
+        initial_prompt: str | None,
+        vad_filter: bool,
+        progress_callback,
+    ) -> List[SubtitleSegment]:
         """Handle long audio files by splitting them based on silence."""
         logger.info("Long audio detected. Using VAD Smart Splitting strategy.")
-        if progress_callback: progress_callback(10, "Splitting audio...")
+        if progress_callback:
+            progress_callback(10, "asr_audio_splitting", {})
 
         silence_intervals = AudioProcessor.detect_silence(audio_path)
         split_points = AudioProcessor.calculate_split_points(duration, silence_intervals)
@@ -52,7 +72,12 @@ class CoreStrategies:
         chunks = AudioProcessor.split_audio_physically(audio_path, split_points, chunk_dir)
         logger.info(f"Split into {len(chunks)} physical chunks.")
         
-        if progress_callback: progress_callback(20, f"Split into {len(chunks)} chunks. Starting transcription...")
+        if progress_callback:
+            progress_callback(
+                20,
+                "asr_chunks_progress",
+                {"completed": 0, "total": len(chunks)},
+            )
 
         all_segments = []
         total_chunks = len(chunks)
@@ -63,7 +88,7 @@ class CoreStrategies:
             for chunk in chunks:
                 future = self.executor.submit(
                     self._process_chunk, 
-                    chunk, model, language, initial_prompt
+                    chunk, model, language, initial_prompt, vad_filter
                 )
                 futures[future] = chunk
             
@@ -74,7 +99,11 @@ class CoreStrategies:
                 
                 if progress_callback:
                     progress = 20 + int((completed_chunks / total_chunks) * 70)
-                    progress_callback(progress, f"Transcribed {completed_chunks}/{total_chunks} chunks")
+                    progress_callback(
+                        progress,
+                        "asr_chunks_progress",
+                        {"completed": completed_chunks, "total": total_chunks},
+                    )
 
         except Exception as e:
             logger.error(f"Chunk transcription failed: {e}")
@@ -85,7 +114,14 @@ class CoreStrategies:
         
         return all_segments
 
-    def _process_chunk(self, chunk_info, model: Any, language: str, initial_prompt: str) -> List[SubtitleSegment]:
+    def _process_chunk(
+        self,
+        chunk_info,
+        model: Any,
+        language: str | None,
+        initial_prompt: str | None,
+        vad_filter: bool,
+    ) -> List[SubtitleSegment]:
         """Process a single audio chunk."""
         c_path, c_offset = chunk_info
         logger.info(f"Transcribing chunk starting at {c_offset:.1f}s...")
@@ -93,7 +129,7 @@ class CoreStrategies:
             c_path, 
             beam_size=5, 
             language=language, 
-            vad_filter=True,
+            vad_filter=vad_filter,
             initial_prompt=initial_prompt,
             word_timestamps=True 
         )

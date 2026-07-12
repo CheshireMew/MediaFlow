@@ -5,6 +5,8 @@
     "systemStatus": "System Status",
     "backendConnection": "Backend Connection",
     "online": "Online",
+    "offline": "Disconnected",
+    "connecting": "Connecting",
     "computeResources": "Compute Resources",
     "autoScaling": "Auto-Scaling"
   },

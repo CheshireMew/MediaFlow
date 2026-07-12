@@ -90,7 +90,7 @@ class SecurityManager:
             
             return decrypted_bytes.decode('utf-8')
             
-        except Exception as e:
+        except Exception:
             # logger.error(f"DPAPI Decryption failed: {e}")
             # Likely not encrypted or different user
             return encrypted_text

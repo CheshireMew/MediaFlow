@@ -4,6 +4,7 @@ import { executionService } from "../services/domain";
 import { createTaskExecutionOutcome } from "../services/domain/taskSubmission";
 import { synthesisRetryHandler } from "../services/tasks/retry/synthesisRetry";
 import type { Task } from "../types/task";
+import { TASK_CONTRACT_VERSION } from "../contracts/runtimeContracts";
 
 function createFailedSynthesisTask(options: Record<string, unknown>): Task {
   return {
@@ -11,7 +12,7 @@ function createFailedSynthesisTask(options: Record<string, unknown>): Task {
     type: "synthesis",
     status: "failed",
     task_source: "backend",
-    task_contract_version: 2,
+    task_contract_version: TASK_CONTRACT_VERSION,
     persistence_scope: "runtime",
     lifecycle: "resumable",
     queue_state: "failed",
@@ -19,6 +20,8 @@ function createFailedSynthesisTask(options: Record<string, unknown>): Task {
     primary_operation: "synthesis",
     progress: 0,
     created_at: 1,
+    message_code: "failed",
+    message_params: {},
     request_params: {
       video_ref: {
         path: "D:/media/source.mp4",
@@ -40,12 +43,14 @@ describe("synthesis retry", () => {
         task_id: "retry-synthesis",
         status: "pending",
         task_source: "backend",
-        task_contract_version: 2,
+        task_contract_version: TASK_CONTRACT_VERSION,
         persistence_scope: "runtime",
         lifecycle: "resumable",
         queue_state: "queued",
         queue_position: null,
         primary_operation: "synthesis",
+        message_code: "queued",
+        message_params: {},
       }),
     );
 

@@ -5,8 +5,9 @@ import "./App.css";
 import { Layout } from "./components/layout/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastContainer } from "./components/ui/ToastContainer";
+import { ConfirmationProvider } from "./components/ui/ConfirmationProvider";
 import { StartupPlaceholderPage } from "./components/startup/StartupPlaceholderPage";
-import { ENABLE_EXPERIMENTAL_PREPROCESSING } from "./config/features";
+import type { StartupPresentationStatus } from "./components/startup/StartupPlaceholderPage";
 import {
   consumeDeferredLaunchDestination,
   persistNavigationDestination,
@@ -68,12 +69,6 @@ const TranslatorPage = createLazyPage(
   (module) => module.TranslatorPage,
 );
 
-const PreprocessingPage = createLazyPage(
-  ROUTE_PAGE_MODULES.preprocessing.namespaces,
-  ROUTE_PAGE_MODULES.preprocessing.load,
-  (module) => module.PreprocessingPage,
-);
-
 const SettingsPage = createLazyPage(
   ROUTE_PAGE_MODULES.settings.namespaces,
   ROUTE_PAGE_MODULES.settings.load,
@@ -84,6 +79,8 @@ interface AppProps {
   appReady?: boolean;
   remoteBackendReady?: boolean;
   startupMessage?: string;
+  startupStatus?: StartupPresentationStatus;
+  onRetryStartup?: () => void;
 }
 
 function ExternalNavListener() {
@@ -171,6 +168,8 @@ function routeElement(
   appReady: boolean,
   remoteBackendReady: boolean,
   startupMessage: string,
+  startupStatus: StartupPresentationStatus,
+  onRetryStartup: (() => void) | undefined,
   page: ReactElement,
   variant:
     | "dashboard"
@@ -178,7 +177,6 @@ function routeElement(
     | "downloader"
     | "transcriber"
     | "translator"
-    | "preprocessing"
     | "settings",
 ) {
   const requiresBackend = true;
@@ -191,19 +189,29 @@ function routeElement(
     );
   }
 
-  return <StartupPlaceholderPage variant={variant} message={startupMessage} />;
+  return (
+    <StartupPlaceholderPage
+      variant={variant}
+      message={startupMessage}
+      status={startupStatus}
+      onRetry={onRetryStartup}
+    />
+  );
 }
 
 function App({
   appReady = true,
   remoteBackendReady = true,
   startupMessage = "",
+  startupStatus = "loading",
+  onRetryStartup,
 }: AppProps) {
   const taskProviderEnabled = appReady && remoteBackendReady;
 
   return (
-    <TaskProvider enabled={taskProviderEnabled}>
-      <TaskSummaryProvider enabled={appReady}>
+    <ConfirmationProvider>
+      <TaskProvider enabled={taskProviderEnabled}>
+        <TaskSummaryProvider enabled={appReady}>
         <HashRouter>
           <ExternalNavListener />
           <ToastContainer />
@@ -217,45 +225,40 @@ function App({
                 />
                 <Route
                   path="/editor"
-                  element={routeElement(appReady, remoteBackendReady, startupMessage, <EditorPage />, "editor")}
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, startupStatus, onRetryStartup, <EditorPage />, "editor")}
                 />
                 <Route
                   path="/dashboard"
-                  element={routeElement(appReady, remoteBackendReady, startupMessage, <DashboardPage />, "dashboard")}
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, startupStatus, onRetryStartup, <DashboardPage />, "dashboard")}
                 />
                 <Route
                   path="/downloader"
-                  element={routeElement(appReady, remoteBackendReady, startupMessage, <DownloaderPage />, "downloader")}
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, startupStatus, onRetryStartup, <DownloaderPage />, "downloader")}
                 />
                 <Route
                   path="/transcriber"
-                  element={routeElement(appReady, remoteBackendReady, startupMessage, <TranscriberPage />, "transcriber")}
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, startupStatus, onRetryStartup, <TranscriberPage />, "transcriber")}
                 />
                 <Route
                   path="/translator"
-                  element={routeElement(appReady, remoteBackendReady, startupMessage, <TranslatorPage />, "translator")}
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, startupStatus, onRetryStartup, <TranslatorPage />, "translator")}
                 />
-                {ENABLE_EXPERIMENTAL_PREPROCESSING && (
-                  <Route
-                    path="/preprocessing"
-                    element={routeElement(appReady, remoteBackendReady, startupMessage, <PreprocessingPage />, "preprocessing")}
-                  />
-                )}
                 <Route
                   path="/settings"
-                  element={routeElement(appReady, remoteBackendReady, startupMessage, <SettingsPage />, "settings")}
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, startupStatus, onRetryStartup, <SettingsPage />, "settings")}
                 />
                 <Route
                   path="*"
-                  element={routeElement(appReady, remoteBackendReady, startupMessage, <DownloaderPage />, "downloader")}
+                  element={routeElement(appReady, remoteBackendReady, startupMessage, startupStatus, onRetryStartup, <DownloaderPage />, "downloader")}
                 />
               </Routes>
             </ErrorBoundary>
           </Layout>
           <NavigationStateSync />
         </HashRouter>
-      </TaskSummaryProvider>
-    </TaskProvider>
+        </TaskSummaryProvider>
+      </TaskProvider>
+    </ConfirmationProvider>
   );
 }
 

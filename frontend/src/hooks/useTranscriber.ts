@@ -109,7 +109,6 @@ export function useTranscriber() {
     tasksSettled,
     currentTranscriptionTaskId,
     fileRef: normalizeMediaReference(file),
-    filePath: file?.path,
     currentResult: result,
     setCurrentTranscriptionTaskId,
     setResult,

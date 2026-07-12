@@ -2,8 +2,11 @@ import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import i18n from "i18next";
 import type { TFunction } from "i18next";
-import type { ToolUpdateResponse, UserSettings } from "../../types/api";
-import { settingsService } from "../../services/domain";
+import type { ToolUpdateResponse, UserPreferencesPatch } from "../../types/api";
+import {
+  settingsService,
+  type ResolvedUserSettings as UserSettings,
+} from "../../services/domain";
 import type { ShowSettingsNotification } from "./useSettingsData";
 
 type UseGeneralSettingsActionsArgs = {
@@ -12,7 +15,7 @@ type UseGeneralSettingsActionsArgs = {
   setSettings: Dispatch<SetStateAction<UserSettings | null>>;
   showNotification: ShowSettingsNotification;
   t: TFunction<"settings">;
-  updateSettingsField: (nextSettings: UserSettings, successMessage?: string) => Promise<UserSettings | null>;
+  updatePreferences: (patch: UserPreferencesPatch, successMessage?: string) => Promise<UserSettings | null>;
 };
 
 export function useGeneralSettingsActions({
@@ -21,7 +24,7 @@ export function useGeneralSettingsActions({
   setSettings,
   showNotification,
   t,
-  updateSettingsField,
+  updatePreferences,
 }: UseGeneralSettingsActionsArgs) {
   const [isUpdatingYtDlp, setIsUpdatingYtDlp] = useState(false);
   const [isInstallingFasterWhisperCli, setIsInstallingFasterWhisperCli] = useState(false);
@@ -78,7 +81,7 @@ export function useGeneralSettingsActions({
 
   const changeLanguage = async (language: string) => {
     if (!settings) return;
-    const res = await updateSettingsField({ ...settings, language });
+    const res = await updatePreferences({ language });
     if (res) {
       void i18n.changeLanguage(language);
     }

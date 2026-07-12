@@ -23,7 +23,7 @@ SMART_SPLIT_TEXT_LIMIT_DEFAULT = 24
 
 
 class UserSettings(BaseModel):
-    llm_providers: List[LLMProvider] = []
+    llm_providers: List[LLMProvider] = Field(default_factory=list)
     default_download_path: Optional[str] = None
     faster_whisper_cli_path: Optional[str] = None
     language: str = "zh"
@@ -33,6 +33,20 @@ class UserSettings(BaseModel):
         ge=1,
     )
     ui_state: dict[str, Any] = Field(default_factory=dict)
+
+
+class UserPreferencesPatch(BaseModel):
+    llm_providers: Optional[List[LLMProvider]] = None
+    default_download_path: Optional[str] = None
+    faster_whisper_cli_path: Optional[str] = None
+    language: Optional[str] = None
+    auto_execute_flow: Optional[bool] = None
+    smart_split_text_limit: Optional[int] = Field(default=None, ge=1)
+
+
+class UiStatePatch(BaseModel):
+    updates: dict[str, Any] = Field(default_factory=dict)
+    remove: list[str] = Field(default_factory=list)
 
 
 class AsrExecutionPreferences(BaseModel):
@@ -74,7 +88,7 @@ class SettingsManager:
             if self._file_path.exists():
                 return
 
-            self.save(
+            self._write_atomic(
                 UserSettings(
                     faster_whisper_cli_path=settings.FASTER_WHISPER_CLI_PATH or None,
                 )
@@ -102,7 +116,7 @@ class SettingsManager:
                     f"Failed to load settings from {self._file_path}: {e}"
                 ) from e
 
-    def save(self, user_settings: UserSettings) -> None:
+    def _write_atomic(self, user_settings: UserSettings) -> None:
         with self._io_lock:
             self._file_path.parent.mkdir(parents=True, exist_ok=True)
             temp_path = self._file_path.with_name(
@@ -129,10 +143,7 @@ class SettingsManager:
     def _serialize_settings_data(self, user_settings: UserSettings) -> dict:
         from backend.utils.security import SecurityManager
 
-        if hasattr(user_settings, "model_dump"):
-            data = user_settings.model_dump()
-        else:
-            data = user_settings.dict()
+        data = user_settings.model_dump(mode="json")
 
         for provider in data.get("llm_providers", []):
             api_key = provider.get("api_key")
@@ -205,11 +216,47 @@ class SettingsManager:
             else ASR_EXECUTION_PREFERENCES["defaults"]["device"],
         )
 
-    def update_settings(self, new_settings: UserSettings):
-        normalized_settings = self._normalize_settings(new_settings)
-        self._apply_runtime_settings(normalized_settings)
-        self.save(normalized_settings)
-        logger.info("Settings updated and saved.")
+    def patch_preferences(
+        self,
+        patch: UserPreferencesPatch | dict[str, Any],
+    ) -> UserSettings:
+        typed_patch = UserPreferencesPatch.model_validate(patch)
+        updates = typed_patch.model_dump(exclude_unset=True)
+        with self._io_lock:
+            current = self._load()
+            data = current.model_dump()
+            data.update(updates)
+            normalized_settings = self._normalize_settings(UserSettings.model_validate(data))
+            self._apply_runtime_settings(normalized_settings)
+            self._write_atomic(normalized_settings)
+        logger.info("User preferences patched and saved.")
+        return normalized_settings
+
+    def patch_ui_state(
+        self,
+        patch: UiStatePatch | dict[str, Any],
+    ) -> UserSettings:
+        typed_patch = UiStatePatch.model_validate(patch)
+        if any(not key for key in [*typed_patch.updates, *typed_patch.remove]):
+            raise ValueError("UI state keys must not be empty")
+        with self._io_lock:
+            current = self._load()
+            next_ui_state = dict(current.ui_state)
+            next_ui_state.update(typed_patch.updates)
+            for key in typed_patch.remove:
+                next_ui_state.pop(key, None)
+            normalized_settings = self._normalize_settings(
+                UserSettings.model_validate(
+                    {**current.model_dump(), "ui_state": next_ui_state}
+                )
+            )
+            self._write_atomic(normalized_settings)
+        logger.info(
+            "UI state patched and saved: updated={} removed={}",
+            len(typed_patch.updates),
+            len(typed_patch.remove),
+        )
+        return normalized_settings
 
     def get_active_llm_provider(self) -> Optional[LLMProvider]:
         for provider in self.get_settings().llm_providers:
@@ -218,16 +265,16 @@ class SettingsManager:
         return None
 
     def set_active_provider(self, provider_id: str):
-        current_settings = self.get_settings()
-        found = False
-        for provider in current_settings.llm_providers:
-            if provider.id == provider_id:
-                provider.is_active = True
-                found = True
-            else:
-                provider.is_active = False
+        with self._io_lock:
+            current_settings = self._load()
+            found = False
+            for provider in current_settings.llm_providers:
+                if provider.id == provider_id:
+                    provider.is_active = True
+                    found = True
+                else:
+                    provider.is_active = False
 
-        if found:
-            self.save(current_settings)
-        else:
-            raise ValueError(f"Provider {provider_id} not found")
+            if not found:
+                raise ValueError(f"Provider {provider_id} not found")
+            self._write_atomic(current_settings)

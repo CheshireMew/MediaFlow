@@ -2,11 +2,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { downloaderService } from "../services/domain/downloaderService";
-import { executionService } from "../services/domain/executionService";
+import { downloaderService, executionService } from "../services/domain";
 import { useDownloaderController } from "../hooks/useDownloaderController";
 import { useDownloaderStore } from "../stores/downloaderStore";
 import { clearElectronMock } from "./testUtils/electronMock";
+import { TASK_CONTRACT_VERSION } from "../contracts/runtimeContracts";
 
 const useTaskContextMock = vi.fn();
 const addTaskMock = vi.fn();
@@ -14,22 +14,17 @@ const { prewarmFasterWhisperCliFromStoredPreferencesMock } = vi.hoisted(() => ({
   prewarmFasterWhisperCliFromStoredPreferencesMock: vi.fn(),
 }));
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) =>
+      key === "feedback.queueFailed"
+        ? `Failed to queue ${String(values?.url)}: ${String(values?.detail)}`
+        : key,
+  }),
+}));
+
 vi.mock("../context/taskContext", () => ({
   useTaskContext: () => useTaskContextMock(),
-}));
-
-vi.mock("../services/domain/downloaderService", () => ({
-  downloaderService: {
-    analyzeUrl: vi.fn(),
-    saveCookies: vi.fn(),
-  },
-}));
-
-vi.mock("../services/domain/executionService", () => ({
-  executionService: {
-    download: vi.fn(),
-  },
-  isDesktopRuntime: vi.fn(() => false),
 }));
 
 vi.mock("../services/asrCliPrewarm", () => ({
@@ -43,13 +38,15 @@ describe("useDownloaderController", () => {
     sessionStorage.clear();
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(downloaderService, "analyzeUrl");
+    vi.spyOn(downloaderService, "saveCookies");
+    vi.spyOn(executionService, "download");
     useTaskContextMock.mockReturnValue({
       tasks: [],
       connected: true,
       remoteTasksReady: true,
       tasksSettled: true,
       pauseTask: vi.fn(),
-      cancelTask: vi.fn(),
       addTask: addTaskMock,
     });
 
@@ -81,9 +78,10 @@ describe("useDownloaderController", () => {
         execution_mode: "task_submission",
         task_id: "task-123",
         status: "pending",
-        message: "Task queued",
+        message_code: "queued",
+        message_params: {},
         task_source: "backend",
-        task_contract_version: 2,
+        task_contract_version: TASK_CONTRACT_VERSION,
         persistence_scope: "runtime",
         lifecycle: "resumable",
         queue_state: "queued",
@@ -144,7 +142,7 @@ describe("useDownloaderController", () => {
         id: "task-123",
         type: "download",
         task_source: "backend",
-        task_contract_version: 2,
+        task_contract_version: TASK_CONTRACT_VERSION,
         queue_state: "queued",
         request_params: expect.objectContaining({
           url: "https://example.com/video",
@@ -185,7 +183,6 @@ describe("useDownloaderController", () => {
       remoteTasksReady: true,
       tasksSettled: true,
       pauseTask: vi.fn(),
-      cancelTask: vi.fn(),
       addTask: vi.fn(),
     });
 

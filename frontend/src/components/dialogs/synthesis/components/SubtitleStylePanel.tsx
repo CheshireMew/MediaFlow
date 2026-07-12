@@ -31,7 +31,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                     <Type size={12}/> {t('style.sectionTitle')}
                 </h3>
                 <PanelToggle
@@ -43,13 +43,13 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                 />
             </div>
             {!available && (
-                <p className="text-[10px] text-amber-500/80 bg-amber-500/[0.06] border border-amber-500/10 rounded-lg p-3 text-center">
+                <p className="text-xs text-amber-500/80 bg-amber-500/[0.06] border border-amber-500/10 rounded-lg p-3 text-center">
                     {t('style.subtitleUnavailableHint')}
                 </p>
             )}
             {available && !enabled && (
-                <p className="text-[10px] text-slate-600 bg-white/[0.02] border border-white/5 rounded-lg p-3 text-center">
-                    {t('style.subtitleDisabledHint', '字幕渲染已关闭，合成时将不会烧录字幕')}
+                <p className="text-xs text-slate-400 bg-white/[0.02] border border-white/5 rounded-lg p-3 text-center">
+                    {t('style.subtitleDisabledHint')}
                 </p>
             )}
             {available && enabled && (
@@ -57,34 +57,36 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
             <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-4 hover:border-white/10 transition-colors">
                 {/* Style Presets */}
                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.stylePreset')}</label>
+                    <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.stylePreset')}</label>
                     <div className="flex flex-wrap gap-1.5">
                         {[...DEFAULT_PRESETS, ...customPresets].map(preset => (
-                            <button
-                                key={preset.label}
+                            <div key={preset.label} className="group/preset inline-flex items-stretch">
+                              <button
+                                type="button"
                                 onClick={() => applyPreset(preset)}
-                                className="group/preset relative px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all bg-black/20 border-white/10 text-slate-300 hover:bg-indigo-500/10 hover:border-indigo-500/30 hover:text-indigo-300 active:scale-95"
-                            >
-                                {preset.label}
+                                className={`relative border border-white/10 bg-black/20 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-all hover:border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-300 active:scale-95 ${preset.isDefault ? 'rounded-lg' : 'rounded-l-lg'}`}
+                              >
+                                {preset.translationKey ? t(preset.translationKey) : preset.label}
+                              </button>
                                 {!preset.isDefault && (
-                                    <span
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            deletePreset(preset.label);
-                                        }}
-                                        className="ml-1 inline-flex items-center opacity-0 group-hover/preset:opacity-100 transition-opacity text-slate-500 hover:text-red-400"
+                                    <button
+                                        type="button"
+                                        onClick={() => deletePreset(preset.label)}
+                                        aria-label={t('style.deletePresetNamed', { name: preset.label })}
+                                        className="inline-flex items-center rounded-r-lg border border-l-0 border-white/10 px-1.5 text-slate-400 opacity-100 transition-all hover:bg-rose-500/10 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 md:opacity-0 md:group-hover/preset:opacity-100 md:group-focus-within/preset:opacity-100"
                                         title={t('style.deletePreset')}
                                     >
                                         <Trash2 size={10} />
-                                    </span>
+                                    </button>
                                 )}
-                            </button>
+                            </div>
                         ))}
                         {/* Save Current as Preset */}
                         {presetNameInput === null ? (
                             <button
+                                type="button"
                                 onClick={() => setPresetNameInput('')}
-                                className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-dashed transition-all border-white/10 text-slate-500 hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300 active:scale-95 flex items-center gap-1"
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-dashed transition-all border-white/10 text-slate-400 hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300 active:scale-95 flex items-center gap-1"
                                 title={t('style.savePresetTooltip')}
                             >
                                 <Save size={10} /> {t('style.save')}
@@ -94,6 +96,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                                 <input
                                     autoFocus
                                     type="text"
+                                    aria-label={t('style.presetNamePlaceholder')}
                                     value={presetNameInput}
                                     onChange={e => setPresetNameInput(e.target.value)}
                                     onKeyDown={e => {
@@ -104,9 +107,11 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                                         if (e.key === 'Enter') confirmSavePreset();
                                     }}
                                     placeholder={t('style.presetNamePlaceholder')}
-                                    className="flex-1 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-indigo-500/50"
+                                    className="flex-1 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500/50"
                                 />
                                 <button
+                                    type="button"
+                                    aria-label={t('style.save')}
                                     onClick={confirmSavePreset}
                                     className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
                                     title={t('style.save')}
@@ -114,8 +119,10 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                                     <Save size={12} />
                                 </button>
                                 <button
+                                    type="button"
+                                    aria-label={t('common:cancel')}
                                     onClick={() => setPresetNameInput(null)}
-                                    className="p-1.5 rounded-lg bg-white/5 text-slate-500 hover:bg-white/10 hover:text-white transition-colors"
+                                    className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
                                     title={t('common:cancel')}
                                 >
                                     <X size={12} />
@@ -127,8 +134,9 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
 
                 {/* Font Selection */}
                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.font')}</label>
+                    <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.font')}</label>
                     <select
+                        aria-label={t('style.font')}
                         value={fontName}
                         onChange={e => setFontName(e.target.value)}
                         className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer appearance-none"
@@ -138,7 +146,7 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                         ))}
                     </select>
                     {!isFontAvailable && (
-                        <p className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
+                        <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
                             {fontAvailabilityMessage}
                         </p>
                     )}
@@ -147,23 +155,25 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                 {/* Size + Color */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.sizePx')}</label>
+                        <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.sizePx')}</label>
                         <input 
                             type="number" 
+                            aria-label={t('style.sizePx')}
                             value={fontSize} 
                             onChange={e => setFontSize(Number(e.target.value))}
                             className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono"
                         />
-                        <p className="text-[10px] leading-relaxed text-slate-500">
+                        <p className="text-xs leading-relaxed text-slate-400">
                             {t('style.sizeHint')}
                         </p>
                     </div>
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.color')}</label>
+                        <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.color')}</label>
                         <div className="flex gap-2 items-center h-[38px]">
                             <div className="relative overflow-hidden w-full h-full rounded-lg border border-white/10 cursor-pointer group">
                                 <input 
                                     type="color" 
+                                    aria-label={t('style.color')}
                                     value={fontColor}
                                     onChange={e => setFontColor(e.target.value)}
                                     className="absolute inset-0 w-[150%] h-[150%] -top-1/4 -left-1/4 cursor-pointer p-0 border-0"
@@ -177,6 +187,9 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                 {/* Bold / Italic + Alignment */}
                 <div className="flex items-center gap-2">
                     <button
+                        type="button"
+                        aria-label={t('style.bold')}
+                        aria-pressed={isBold}
                         onClick={() => setIsBold(!isBold)}
                         className={`p-2 rounded-lg border transition-all ${
                             isBold ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-black/20 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
@@ -186,6 +199,9 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                         <Bold size={14} />
                     </button>
                     <button
+                        type="button"
+                        aria-label={t('style.italic')}
+                        aria-pressed={isItalic}
                         onClick={() => setIsItalic(!isItalic)}
                         className={`p-2 rounded-lg border transition-all ${
                             isItalic ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-black/20 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
@@ -199,6 +215,9 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                     {([1, 2, 3] as const).map(a => (
                         <button
                             key={a}
+                            type="button"
+                            aria-label={a === 1 ? t('style.alignLeft') : a === 2 ? t('style.alignCenter') : t('style.alignRight')}
+                            aria-pressed={alignment === a}
                             onClick={() => setAlignment(a)}
                             className={`p-2 rounded-lg border transition-all ${
                                 alignment === a ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-black/20 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
@@ -214,10 +233,11 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                         <div className="flex justify-between">
-                            <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.outline')}</label>
-                            <span className="text-[10px] font-mono text-indigo-400">{outlineSize}</span>
+                            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.outline')}</label>
+                            <span className="text-xs font-mono text-indigo-400">{outlineSize}</span>
                         </div>
                         <input
+                            aria-label={t('style.outline')}
                             type="range" min="0" max="4" step="1"
                             value={outlineSize}
                             onChange={e => setOutlineSize(Number(e.target.value))}
@@ -226,10 +246,11 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                     </div>
                     <div className="space-y-1.5">
                         <div className="flex justify-between">
-                            <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.shadow')}</label>
-                            <span className="text-[10px] font-mono text-indigo-400">{shadowSize}</span>
+                            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.shadow')}</label>
+                            <span className="text-xs font-mono text-indigo-400">{shadowSize}</span>
                         </div>
                         <input
+                            aria-label={t('style.shadow')}
                             type="range" min="0" max="4" step="1"
                             value={shadowSize}
                             onChange={e => setShadowSize(Number(e.target.value))}
@@ -240,11 +261,12 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
 
                 {/* Outline Color */}
                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.outlineColor')}</label>
+                    <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.outlineColor')}</label>
                     <div className="flex gap-2 items-center h-[32px]">
                         <div className="relative overflow-hidden w-12 h-full rounded-lg border border-white/10 cursor-pointer">
                             <input
                                 type="color"
+                                aria-label={t('style.outlineColor')}
                                 value={outlineColor}
                                 onChange={e => setOutlineColor(e.target.value)}
                                 className="absolute inset-0 w-[150%] h-[150%] -top-1/4 -left-1/4 cursor-pointer p-0 border-0"
@@ -259,8 +281,12 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
             <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-3 hover:border-white/10 transition-colors">
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.backgroundPanel')}</label>
+                        <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.backgroundPanel')}</label>
                         <button
+                            type="button"
+                            role="switch"
+                            aria-checked={bgEnabled}
+                            aria-label={t('style.backgroundPanel')}
                             onClick={() => setBgEnabled(!bgEnabled)}
                             className={`relative w-9 h-5 rounded-full transition-colors ${
                                 bgEnabled ? 'bg-indigo-500' : 'bg-white/10'
@@ -275,11 +301,12 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                         <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.bgColor')}</label>
+                                    <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.bgColor')}</label>
                                     <div className="flex gap-2 items-center h-[32px]">
                                         <div className="relative overflow-hidden w-12 h-full rounded-lg border border-white/10 cursor-pointer">
                                             <input
                                                 type="color"
+                                                aria-label={t('style.bgColor')}
                                                 value={bgColor}
                                                 onChange={e => setBgColor(e.target.value)}
                                                 className="absolute inset-0 w-[150%] h-[150%] -top-1/4 -left-1/4 cursor-pointer p-0 border-0"
@@ -290,10 +317,11 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                                 </div>
                                 <div className="space-y-1.5">
                                     <div className="flex justify-between">
-                                        <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.opacity')}</label>
-                                        <span className="text-[10px] font-mono text-indigo-400">{Math.round(bgOpacity * 100)}%</span>
+                                        <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.opacity')}</label>
+                                        <span className="text-xs font-mono text-indigo-400">{Math.round(bgOpacity * 100)}%</span>
                                     </div>
                                     <input
+                                        aria-label={t('style.opacity')}
                                         type="range" min="0.1" max="1.0" step="0.1"
                                         value={bgOpacity}
                                         onChange={e => setBgOpacity(parseFloat(e.target.value))}
@@ -304,10 +332,11 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                             {/* Padding slider — controls ASS Outline in BorderStyle=3 */}
                             <div className="space-y-1.5">
                                 <div className="flex justify-between">
-                                    <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.padding')}</label>
-                                    <span className="text-[10px] font-mono text-indigo-400">{bgPadding}px</span>
+                                    <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.padding')}</label>
+                                    <span className="text-xs font-mono text-indigo-400">{bgPadding}px</span>
                                 </div>
                                 <input
+                                    aria-label={t('style.padding')}
                                     type="range" min="0" max="20" step="1"
                                     value={bgPadding}
                                     onChange={e => setBgPadding(parseInt(e.target.value))}
@@ -316,13 +345,15 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
                             </div>
                             {/* Multi-line Vertical Alignment */}
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{t('style.lineAlign')}</label>
+                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t('style.lineAlign')}</label>
                                 <div className="flex gap-1.5">
                                     {(['bottom', 'center', 'top'] as const).map(mode => (
                                         <button
                                             key={mode}
+                                            type="button"
+                                            aria-pressed={multilineAlign === mode}
                                             onClick={() => setMultilineAlign(mode)}
-                                            className={`flex-1 flex items-center justify-center gap-1.5 p-2 rounded-lg border text-[11px] font-medium transition-all ${
+                                            className={`flex-1 flex items-center justify-center gap-1.5 p-2 rounded-lg border text-xs font-medium transition-all ${
                                                 multilineAlign === mode
                                                     ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
                                                     : 'bg-black/20 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
@@ -341,13 +372,14 @@ export const SubtitleStylePanel: React.FC<Props> = ({ style, enabled, available 
             </div>
 
             <div className="flex items-center gap-2">
-                <p className="flex-1 text-[10px] text-slate-600 flex items-center gap-1.5 bg-indigo-500/5 p-2 rounded-lg border border-indigo-500/10">
+                <p className="flex-1 text-xs text-slate-400 flex items-center gap-1.5 bg-indigo-500/5 p-2 rounded-lg border border-indigo-500/10">
                     <MonitorPlay size={10} className="text-indigo-400"/>
                     {t('style.dragHint')}
                 </p>
                 <button
+                    type="button"
                     onClick={resetSubPos}
-                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 bg-black/20 text-[11px] font-medium text-slate-300 hover:text-white hover:border-white/20 hover:bg-white/5 transition-all"
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 bg-black/20 text-xs font-medium text-slate-300 hover:text-white hover:border-white/20 hover:bg-white/5 transition-all"
                     title={t('style.resetPosition')}
                 >
                     <RotateCcw size={12} />

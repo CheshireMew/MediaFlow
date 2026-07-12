@@ -3,26 +3,25 @@ import type { SubtitleSegment } from "../../types/task";
 import type { MediaReference } from "../../services/ui/mediaReference";
 import { splitSubtitleSegment } from "../../utils/subtitleSplit";
 import type { EditorState } from "../editorStore";
+import {
+  createEditorDocument,
+  createEditorDocumentId,
+  createEmptyEditorDocument,
+  type EditorDocument,
+  type EditorDocumentSource,
+} from "../editorDocument";
 
 export interface DataSlice {
-  regions: SubtitleSegment[];
-  mediaUrl: string | null;
-  currentFilePath: string | null;
-  currentSubtitlePath: string | null;
-  currentFileRef: MediaReference | null;
-  currentSubtitleRef: MediaReference | null;
+  document: EditorDocument;
+  revisionClock: number;
 
-  setRegions: (regions: SubtitleSegment[]) => void;
   replaceRegionsWithUndo: (regions: SubtitleSegment[]) => void;
   replaceEditorDocument: (
-    regions: SubtitleSegment[],
+    source: EditorDocumentSource,
     options?: { preserveSelection?: boolean },
   ) => void;
-  setMediaUrl: (url: string | null) => void;
-  setCurrentFilePath: (path: string | null) => void;
-  setCurrentSubtitlePath: (path: string | null) => void;
-  setCurrentFileRef: (reference: MediaReference | null) => void;
-  setCurrentSubtitleRef: (reference: MediaReference | null) => void;
+  setDocumentPreviewUrl: (url: string | null) => void;
+  markDocumentSaved: (subtitle: MediaReference) => void;
 
   // Complex Data Actions
   deleteSegments: (ids: string[]) => void;
@@ -37,24 +36,41 @@ export interface DataSlice {
   updateRegionText: (id: string, text: string) => void;
 }
 
+const TEXT_EDIT_COALESCE_MS = 750;
+let lastTextEdit: { segmentId: string; timestamp: number } | null = null;
+
+function withChangedRegions(
+  state: EditorState,
+  regions: SubtitleSegment[],
+) {
+  const revision = state.revisionClock + 1;
+  return {
+    document: {
+      ...state.document,
+      regions,
+      revision,
+    },
+    revisionClock: revision,
+  };
+}
+
 export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
   set,
   get,
 ) => ({
-  regions: [],
-  mediaUrl: null,
-  currentFilePath: null,
-  currentSubtitlePath: null,
-  currentFileRef: null,
-  currentSubtitleRef: null,
+  document: createEmptyEditorDocument(),
+  revisionClock: 0,
 
-  setRegions: (regions) => set({ regions }),
   replaceRegionsWithUndo: (regions) => {
     get().snapshot();
-    set({ regions });
+    set((state) => withChangedRegions(state, regions));
   },
-  replaceEditorDocument: (regions, options = {}) =>
+  replaceEditorDocument: (source, options = {}) => {
+    lastTextEdit = null;
     set((state) => {
+      const revision = state.revisionClock + 1;
+      const document = createEditorDocument(source, revision);
+      const regions = document.regions;
       const regionIds = new Set(regions.map((region) => String(region.id)));
       const selectedIds = options.preserveSelection
         ? state.selectedIds.filter((id) => regionIds.has(id))
@@ -67,24 +83,38 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
           : (selectedIds[0] ?? null);
 
       return {
-        regions,
+        document,
+        revisionClock: revision,
         activeSegmentId,
         selectedIds,
         past: [],
         future: [],
       };
-    }),
-  setMediaUrl: (url) => set({ mediaUrl: url }),
-  setCurrentFilePath: (path) => set({ currentFilePath: path }),
-  setCurrentSubtitlePath: (path) => set({ currentSubtitlePath: path }),
-  setCurrentFileRef: (reference) => set({ currentFileRef: reference }),
-  setCurrentSubtitleRef: (reference) => set({ currentSubtitleRef: reference }),
+    });
+  },
+  setDocumentPreviewUrl: (previewUrl) =>
+    set((state) => ({
+      document: { ...state.document, previewUrl },
+    })),
+  markDocumentSaved: (subtitle) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        documentId: createEditorDocumentId(
+          state.document.video,
+          subtitle,
+          state.document.previewUrl,
+        ),
+        subtitle,
+        savedRevision: state.document.revision,
+      },
+    })),
 
   deleteSegments: (ids) => {
     if (ids.length === 0) return;
     get().snapshot();
     set((state) => {
-      const newRegions = state.regions.filter(
+      const newRegions = state.document.regions.filter(
         (r) => !ids.includes(String(r.id)),
       );
       const newSelected = state.selectedIds.filter((id) => !ids.includes(id));
@@ -93,7 +123,7 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
           ? null
           : state.activeSegmentId;
       return {
-        regions: newRegions,
+        ...withChangedRegions(state, newRegions),
         selectedIds: newSelected,
         activeSegmentId: newActive,
       };
@@ -103,19 +133,16 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
   mergeSegments: (ids) => {
     if (ids.length < 2) return;
     const state = get();
-    const selected = state.regions.filter((r) => ids.includes(String(r.id)));
+    const selected = state.document.regions.filter((r) => ids.includes(String(r.id)));
     if (selected.length < 2) return;
 
     // Continuity Check
     const indices = selected
-      .map((s) => state.regions.findIndex((r) => r.id === s.id))
+      .map((s) => state.document.regions.findIndex((r) => r.id === s.id))
       .sort((a, b) => a - b);
 
     for (let i = 0; i < indices.length - 1; i++) {
       if (indices[i + 1] !== indices[i] + 1) {
-        alert(
-          "Cannot merge non-continuous segments. Please select adjacent subtitles.",
-        );
         return;
       }
     }
@@ -135,13 +162,13 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
     };
 
     set((state) => {
-      const filtered = state.regions.filter((r) => !ids.includes(String(r.id)));
+      const filtered = state.document.regions.filter((r) => !ids.includes(String(r.id)));
       const newRegions = [...filtered, newSegment].sort(
         (a, b) => a.start - b.start,
       );
       const newId = String(newSegment.id);
       return {
-        regions: newRegions,
+        ...withChangedRegions(state, newRegions),
         selectedIds: [newId],
         activeSegmentId: newId,
       };
@@ -153,7 +180,7 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
     const idToSplit = targetId || state.activeSegmentId;
     if (!idToSplit) return;
 
-    const segment = state.regions.find((r) => r.id === idToSplit);
+    const segment = state.document.regions.find((r) => r.id === idToSplit);
     if (!segment) return;
 
     const split = splitSubtitleSegment(segment, {
@@ -174,12 +201,12 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
     };
 
     set((state) => {
-      const filtered = state.regions.filter((r) => r.id !== idToSplit);
+      const filtered = state.document.regions.filter((r) => r.id !== idToSplit);
       const newRegions = [...filtered, part1, part2].sort(
         (a, b) => a.start - b.start,
       );
       return {
-        regions: newRegions,
+        ...withChangedRegions(state, newRegions),
         activeSegmentId: String(part2.id),
         selectedIds: [String(part2.id)],
       };
@@ -189,11 +216,11 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
   addSegment: (segment) => {
     get().snapshot();
     set((state) => {
-      const newRegions = [...state.regions, segment].sort(
+      const newRegions = [...state.document.regions, segment].sort(
         (a, b) => a.start - b.start,
       );
       return {
-        regions: newRegions,
+        ...withChangedRegions(state, newRegions),
         activeSegmentId: String(segment.id),
         selectedIds: [String(segment.id)],
       };
@@ -204,12 +231,12 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
     if (segments.length === 0) return;
     get().snapshot();
     set((state) => {
-      const newRegions = [...state.regions, ...segments].sort(
+      const newRegions = [...state.document.regions, ...segments].sort(
         (a, b) => a.start - b.start,
       );
       const newIds = segments.map((s) => String(s.id));
       return {
-        regions: newRegions,
+        ...withChangedRegions(state, newRegions),
         activeSegmentId: newIds[0],
         selectedIds: newIds,
       };
@@ -221,32 +248,42 @@ export const createDataSlice: StateCreator<EditorState, [], [], DataSlice> = (
     get().snapshot();
     set((state) => {
       const updateMap = new Map(segments.map((s) => [String(s.id), s]));
-      const newRegions = state.regions.map((r) => {
+      const newRegions = state.document.regions.map((r) => {
         const update = updateMap.get(String(r.id));
         return update ? { ...r, ...update } : r;
       });
-      return { regions: newRegions };
+      return withChangedRegions(state, newRegions);
     });
   },
 
   updateRegion: (id, updates) => {
-    set((state) => ({
-      regions: state.regions.map((r) =>
+    set((state) => withChangedRegions(
+      state,
+      state.document.regions.map((r) =>
         String(r.id) === String(id) ? { ...r, ...updates } : r,
       ),
-    }));
+    ));
   },
 
   updateRegionText: (id, text) => {
     const state = get();
-    const target = state.regions.find((r) => String(r.id) === String(id));
+    const target = state.document.regions.find((r) => String(r.id) === String(id));
     if (target && target.text !== text) {
-      state.snapshot();
-      set((currentState) => ({
-        regions: currentState.regions.map((r) =>
+      const now = Date.now();
+      if (
+        !lastTextEdit ||
+        lastTextEdit.segmentId !== String(id) ||
+        now - lastTextEdit.timestamp > TEXT_EDIT_COALESCE_MS
+      ) {
+        state.snapshot();
+      }
+      lastTextEdit = { segmentId: String(id), timestamp: now };
+      set((currentState) => withChangedRegions(
+        currentState,
+        currentState.document.regions.map((r) =>
           String(r.id) === String(id) ? { ...r, text } : r,
         ),
-      }));
+      ));
     }
   },
 });

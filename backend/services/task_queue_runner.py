@@ -59,10 +59,6 @@ class TaskQueueRunner:
         self._runtime_state.clear()
         self._execution_specs.clear()
 
-    async def enqueue(self, task_id: str, runner: TaskRunner) -> None:
-        self.prepare_enqueue(task_id, runner)
-        await self.dispatch(task_id)
-
     def prepare_enqueue(self, task_id: str, runner: TaskRunner) -> None:
         self.register_runner(task_id, runner)
         self._runtime_state.mark_queued(task_id)
@@ -96,8 +92,15 @@ class TaskQueueRunner:
                     continue
                 request = task_manager.get_stop_request(task_id)
                 if request and task.status != "running":
-                    message = "Paused in queue" if request == "pause" else "Cancelled in queue"
-                    await task_manager.mark_controlled_stop(task_id, request, message)
+                    message_code = (
+                        "paused_in_queue" if request == "pause" else "cancelled_in_queue"
+                    )
+                    await task_manager.mark_controlled_stop(
+                        task_id,
+                        request,
+                        message_code,
+                        {},
+                    )
                     continue
                 if task.status != "pending":
                     continue
@@ -108,7 +111,8 @@ class TaskQueueRunner:
                     await task_manager.update_task(
                         task_id,
                         status="failed",
-                        message="Task execution spec is missing",
+                        message_code="execution_spec_missing",
+                        message_params={},
                         error="Task execution spec is missing",
                     )
                     continue
@@ -126,7 +130,8 @@ class TaskQueueRunner:
                     await task_manager.update_task(
                         task_id,
                         status="failed",
-                        message=str(e),
+                        message_code="failed",
+                        message_params={},
                         error=str(e),
                     )
             finally:

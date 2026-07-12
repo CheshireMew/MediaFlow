@@ -59,31 +59,52 @@ def test_test_provider_connection_uses_openai_client(monkeypatch):
 
 
 def test_cuda_readiness_endpoint(client, monkeypatch):
-    class FakeSettingsApplication:
-        def get_cuda_readiness(self):
-            return CudaReadinessResponse(
+    readiness = CudaReadinessResponse(
+        status="ready",
+        summary="CUDA is ready.",
+        gpu_name="GPU",
+        driver_version="595.79",
+        driver_cuda_capability="13.2",
+        dependencies=[
+            RuntimeDependencyCheck(
+                key="cublas",
+                label="cuBLAS",
                 status="ready",
-                summary="CUDA is ready.",
-                gpu_name="GPU",
-                driver_version="595.79",
-                driver_cuda_capability="13.2",
-                dependencies=[
-                    RuntimeDependencyCheck(
-                        key="cublas",
-                        label="cuBLAS",
-                        status="ready",
-                        detail="ok",
-                    )
-                ],
-                install_guidance=["CUDA is ready."],
+                detail="ok",
             )
-
+        ],
+        install_guidance=["CUDA is ready."],
+    )
     monkeypatch.setattr(
-        "backend.api.v1.settings._settings_application",
-        lambda: FakeSettingsApplication(),
+        SettingsApplicationService,
+        "get_cuda_readiness",
+        lambda _self: readiness,
     )
 
     response = client.get("/api/v1/settings/cuda-readiness")
 
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
+
+
+def test_settings_writes_use_explicit_patch_endpoints(isolated_api_client):
+    preference_response = isolated_api_client.patch(
+        "/api/v1/settings/preferences",
+        json={"language": "ja", "auto_execute_flow": True},
+    )
+    assert preference_response.status_code == 200
+    assert preference_response.json()["language"] == "ja"
+
+    ui_state_response = isolated_api_client.patch(
+        "/api/v1/settings/ui-state",
+        json={"updates": {"editor": {"zoom": 1.25}}},
+    )
+    assert ui_state_response.status_code == 200
+    assert ui_state_response.json()["language"] == "ja"
+    assert ui_state_response.json()["ui_state"]["editor"] == {"zoom": 1.25}
+
+    full_replace_response = isolated_api_client.post(
+        "/api/v1/settings/",
+        json={"language": "zh"},
+    )
+    assert full_replace_response.status_code == 405

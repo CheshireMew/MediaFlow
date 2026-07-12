@@ -14,7 +14,7 @@ describe("editorPreviewSource", () => {
   it("uses original media URLs for browser-playable media", async () => {
     const previewSpy = vi.spyOn(editorService, "resolvePreviewMediaSource");
 
-    await expect(resolveEditorPreviewMediaUrl("E:/media/source.mp4")).resolves.toContain(
+    await expect(resolveEditorPreviewMediaUrl({ path: "E:/media/source.mp4", name: "source.mp4" })).resolves.toContain(
       "source.mp4",
     );
     expect(canUseOriginalMediaUrlForEditorPreview("E:/media/source.mp4")).toBe(true);
@@ -29,7 +29,7 @@ describe("editorPreviewSource", () => {
       remuxed: true,
     });
 
-    await expect(resolveEditorPreviewMediaUrl("E:/media/source.ts")).resolves.toContain(
+    await expect(resolveEditorPreviewMediaUrl({ path: "E:/media/source.ts", name: "source.ts" })).resolves.toContain(
       "source-preview.mp4",
     );
     expect(canUseOriginalMediaUrlForEditorPreview("E:/media/source.ts")).toBe(false);

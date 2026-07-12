@@ -1,14 +1,16 @@
-import type {
-  TaskFileRef as FileRef,
-  TaskMediaRef,
-  TaskResultShape,
-  TaskTraceItem,
-} from "../contracts/taskContract";
+import type { TaskTraceItem } from "../contracts/taskContract";
 import type { PipelineRequest } from "./generatedApi";
-import type { TaskView } from "./generatedApi";
+import type {
+  ClipCandidate as GeneratedClipCandidate,
+  MediaReference,
+  SubtitleSegment as GeneratedSubtitleSegment,
+  TaskResult as GeneratedTaskResult,
+  TaskView,
+} from "./generatedApi";
 import type { TaskType } from "../contracts/generatedTaskCatalog";
 import type {
   TaskLifecycle,
+  TaskMessageCode,
   TaskPersistenceScope,
   TaskQueueState,
   TaskSource,
@@ -17,27 +19,10 @@ import type {
 export type { TaskType } from "../contracts/generatedTaskCatalog";
 export type { TaskStatus } from "../contracts/runtimeContracts";
 
-export interface SubtitleSegment {
-  id: number | string;
-  start: number;
-  end: number;
-  text: string;
-}
+export type SubtitleSegment = GeneratedSubtitleSegment;
+export type ClipCandidate = GeneratedClipCandidate;
 
-export interface ClipCandidate {
-  id: string;
-  start: number;
-  end: number;
-  title?: string | null;
-  reason?: string | null;
-  score: number;
-  transcript?: string | null;
-  selected: boolean;
-}
-
-export type TaskStep = PipelineRequest["steps"][number];
-
-export type { FileRef, TaskMediaRef, TaskTraceItem };
+export type { TaskTraceItem };
 export type { TaskArtifact } from "./generatedApi";
 
 export interface TaskMeta {
@@ -45,29 +30,23 @@ export interface TaskMeta {
   text?: string;
   transcript?: string;
   language?: string;
-  video_ref?: TaskMediaRef | null;
-  subtitle_ref?: TaskMediaRef | null;
-  context_ref?: TaskMediaRef | null;
-  output_ref?: TaskMediaRef | null;
   execution_trace?: TaskTraceItem[];
   [key: string]: unknown;
 }
 
 export interface TaskRequestParams {
   steps?: PipelineRequest["steps"];
-  video_ref?: TaskMediaRef | null;
-  srt_ref?: TaskMediaRef | null;
-  subtitle_ref?: TaskMediaRef | null;
-  context_ref?: TaskMediaRef | null;
-  output_ref?: TaskMediaRef | null;
+  video_ref?: MediaReference | null;
+  srt_ref?: MediaReference | null;
+  subtitle_ref?: MediaReference | null;
+  context_ref?: MediaReference | null;
+  output_ref?: MediaReference | null;
   mode?: string;
   url?: string;
   [key: string]: unknown;
 }
 
-export interface TaskResult extends Omit<TaskResultShape, "segments" | "meta"> {
-  files?: FileRef[];
-  segments?: SubtitleSegment[];
+export interface TaskResult extends Omit<GeneratedTaskResult, "meta"> {
   meta?: TaskMeta;
 }
 
@@ -83,7 +62,8 @@ export interface Task extends Omit<
   | "request_params"
   | "queue_state"
   | "name"
-  | "message"
+  | "message_code"
+  | "message_params"
   | "error"
 > {
   type: TaskType;
@@ -93,7 +73,8 @@ export interface Task extends Omit<
   persistence_scope: TaskPersistenceScope;
   lifecycle: TaskLifecycle;
   name?: string;
-  message?: string;
+  message_code: TaskMessageCode;
+  message_params: Record<string, string | number | boolean | null>;
   error?: string | null;
   result?: TaskResult;
   request_params?: TaskRequestParams;

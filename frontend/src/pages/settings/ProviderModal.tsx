@@ -1,9 +1,11 @@
+import { useId } from "react";
 import { X } from "lucide-react";
 import {
   CUSTOM_LLM_PROVIDER_PRESET_KEY,
   LLM_PROVIDER_PRESETS,
 } from "../../config/llmProviderPresets";
 import type { SettingsController, SettingsT } from "./settingsTypes";
+import { Dialog } from "../../components/ui/Dialog";
 
 type ProviderModalProps = {
   controller: SettingsController;
@@ -12,6 +14,12 @@ type ProviderModalProps = {
 };
 
 export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps) {
+  const titleId = useId();
+  const reasoningLabelId = useId();
+  const displayNameId = useId();
+  const baseUrlId = useId();
+  const apiKeyId = useId();
+  const modelNameId = useId();
   const {
     applyProviderPreset,
     deepSeekReasoningMode,
@@ -29,13 +37,23 @@ export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps
   } = controller;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#1a1a1a] rounded-lg border border-white/10 shadow-2xl w-full max-w-md overflow-hidden ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
+    <Dialog
+      open
+      onClose={() => setOpenModal(false)}
+      ariaLabelledBy={titleId}
+      overlayClassName="z-50 bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      className="bg-[#1a1a1a] rounded-lg border border-white/10 shadow-2xl w-full max-w-md overflow-hidden ring-1 ring-white/5 animate-in zoom-in-95 duration-200"
+    >
         <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-          <h3 className="text-lg font-bold text-white">
+          <h2 id={titleId} className="text-lg font-bold text-white">
             {editingProvider ? t("llm.editProvider") : t("addProvider")}
-          </h3>
-          <button onClick={() => setOpenModal(false)} className="text-slate-500 hover:text-white transition-colors">
+          </h2>
+          <button
+            type="button"
+            aria-label={cancelLabel}
+            onClick={() => setOpenModal(false)}
+            className="text-slate-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+          >
             <X size={20} />
           </button>
         </div>
@@ -58,7 +76,7 @@ export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps
                   <div className="text-sm font-medium">
                     {t(`llm.presets.${preset.key}`)}
                   </div>
-                  <div className="mt-1 text-[10px] text-slate-500">
+                  <div className="mt-1 text-xs text-slate-400">
                     {preset.key === CUSTOM_LLM_PROVIDER_PRESET_KEY
                       ? t("llm.presetCustomDesc")
                       : preset.defaultModel}
@@ -71,8 +89,8 @@ export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps
           {selectedProviderPreset === "deepseek" && (
             <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-2">
               <div>
-                <div className="text-sm font-medium text-slate-200">{t("llm.reasoningMode")}</div>
-                <div className="text-[10px] text-slate-500">
+                <div id={reasoningLabelId} className="text-sm font-medium text-slate-200">{t("llm.reasoningMode")}</div>
+                <div className="text-xs text-slate-400">
                   {deepSeekReasoningMode ? "deepseek-reasoner" : "deepseek-chat"}
                 </div>
               </div>
@@ -80,6 +98,7 @@ export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps
                 type="button"
                 role="switch"
                 aria-checked={deepSeekReasoningMode}
+                aria-labelledby={reasoningLabelId}
                 onClick={() => setDeepSeekReasoning(!deepSeekReasoningMode)}
                 className={`relative h-6 w-11 rounded-full transition-colors ${
                   deepSeekReasoningMode ? "bg-indigo-500" : "bg-white/10"
@@ -95,43 +114,48 @@ export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps
           )}
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.displayName")}</label>
+            <label htmlFor={displayNameId} className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.displayName")}</label>
             <input
-              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all placeholder-slate-600"
+              id={displayNameId}
+              data-dialog-initial-focus
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all placeholder-slate-400"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. My DeepSeek"
+              placeholder={t("llm.displayNamePlaceholder")}
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.baseUrl")}</label>
+            <label htmlFor={baseUrlId} className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.baseUrl")}</label>
             <input
-              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-600"
+              id={baseUrlId}
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-400"
               value={formData.base_url}
               onChange={(e) => handleBaseUrlChange(e.target.value)}
-              placeholder="https://api.openai.com/v1"
+              placeholder={t("llm.baseUrlPlaceholder")}
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.apiKey")}</label>
+            <label htmlFor={apiKeyId} className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.apiKey")}</label>
             <input
-              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-600"
+              id={apiKeyId}
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-400"
               type="password"
               value={formData.api_key}
               onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
-              placeholder="sk-..."
+              placeholder={t("llm.apiKeyPlaceholder")}
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.modelName")}</label>
+            <label htmlFor={modelNameId} className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.modelName")}</label>
             <input
-              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-600"
+              id={modelNameId}
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-mono placeholder-slate-400"
               value={formData.model}
               onChange={(e) => handleModelChange(e.target.value)}
-              placeholder="e.g. gpt-4o, deepseek-chat"
+              placeholder={t("llm.modelNamePlaceholder")}
             />
           </div>
         </div>
@@ -157,7 +181,6 @@ export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps
             {t("llm.saveChanges")}
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

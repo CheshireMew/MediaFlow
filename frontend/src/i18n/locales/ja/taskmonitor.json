@@ -1,5 +1,6 @@
 {
   "title": "タスクモニター",
+  "taskCardLabel": "{{type}}：{{name}}",
   "status": {
     "ready": "準備完了",
     "waiting": "待機中",
@@ -10,6 +11,7 @@
     "clearAll": { "tooltip": "すべてのタスクを削除", "label": "全てクリア" }
   },
   "confirm": {
+    "pauseAllTasks": "実行中のタスクをすべて一時停止しますか？",
     "deleteAllTasks": "すべてのタスクを削除しますか？元に戻せません。",
     "deleteTask": "このタスクを削除しますか？"
   },
@@ -18,7 +20,18 @@
     "pause": { "tooltip": "タスクを一時停止" },
     "resume": { "tooltip": "タスクを再開" },
     "delete": { "tooltip": "タスクを削除" },
-    "showFolder": { "tooltip": "フォルダーに表示" }
+    "showFolder": { "tooltip": "フォルダーに表示" },
+    "transcribe": { "tooltip": "メディアを文字起こし" },
+    "translate": { "tooltip": "字幕を翻訳" },
+    "edit": { "tooltip": "エディターで開く" },
+    "expand": { "tooltip": "実行詳細を表示" },
+    "collapse": { "tooltip": "実行詳細を隠す" }
+  },
+  "progress": { "label": "タスク進捗" },
+  "trace": {
+    "title": "実行トレース",
+    "error": "エラー：{{error}}",
+    "status": { "success": "成功", "failed": "失敗", "cancelled": "キャンセル" }
   },
   "badges": {
     "history": "履歴"
@@ -42,7 +55,68 @@
     "generic": "タスク"
   },
   "messages": {
+    "pauseAllFailed": "実行中のタスクを一時停止できませんでした",
+    "pauseFailed": "タスクを一時停止できませんでした",
+    "resumeFailed": "タスクを再開できませんでした",
+    "retryFailed": "タスクを再試行できませんでした",
+    "clearAllFailed": "タスクをクリアできませんでした",
+    "deleteFailed": "タスクを削除できませんでした",
     "initializing": "初期化中...",
     "downloading": "ダウンロード中"
+  },
+  "taskMessages": {
+    "queued": "キューに追加しました",
+    "queued_long_segment": "長いセグメントをバックグラウンド処理キューに追加しました",
+    "starting": "開始しています…",
+    "running": "実行中…",
+    "completed": "完了しました",
+    "failed": "タスクに失敗しました",
+    "paused": "一時停止しました",
+    "cancelled": "キャンセルしました",
+    "deleted": "タスクを削除しました",
+    "deleted_count": "{{count}} 件のタスクを削除しました",
+    "pause_requested": "一時停止を要求しました",
+    "cancellation_requested": "キャンセルを要求しました",
+    "paused_in_queue": "キュー内で一時停止しました",
+    "cancelled_in_queue": "キュー内でキャンセルしました",
+    "interrupted_by_restart": "アプリの再起動後にタスクを一時停止しました",
+    "resumed": "タスクを再開しました",
+    "already_running": "タスクはすでに実行中です",
+    "already_active": "同じタスクがすでに処理中です",
+    "restarted": "タスクを再起動しました",
+    "execution_spec_missing": "タスク実行設定がありません",
+    "pipeline_starting": "処理フローを開始しています…",
+    "pipeline_step_running": "ステップを実行中：{{step}}",
+    "pipeline_step_failed": "ステップに失敗しました：{{step}}",
+    "pipeline_completed": "処理フローが完了しました",
+    "download_progress": "ダウンロード中… {{percent}}% {{speed}}",
+    "download_stage_completed": "ダウンロード段階が完了しました",
+    "download_subtitle_failed": "字幕のダウンロードに失敗しました。メディアは保持します",
+    "download_completed": "ダウンロードが完了しました",
+    "transcription_starting": "文字起こしを開始しています…",
+    "transcription_progress": "文字起こし中… {{percent}}%",
+    "transcription_completed": "文字起こしが完了しました",
+    "transcription_segment_processing": "音声セグメントを処理中…",
+    "transcription_segment_completed": "音声セグメントの文字起こしが完了しました",
+    "asr_cli_warmup_waiting": "文字起こしエンジンのウォームアップを待機中…",
+    "asr_audio_splitting": "音声を分割中…",
+    "asr_chunks_progress": "音声チャンク {{completed}} / {{total}} を文字起こししました",
+    "asr_model_preparing": "モデル {{model}} を準備中…",
+    "asr_model_downloading": "モデル {{model}} をダウンロード中… {{downloaded}} {{file}}",
+    "asr_model_source_fallback": "予備のモデル取得先に切り替えています…",
+    "asr_model_initializing": "{{device}} でモデル {{model}} を初期化中…",
+    "asr_model_loaded": "モデル {{model}} の準備ができました",
+    "asr_cuda_cpu_fallback": "GPU ランタイムを利用できないため CPU で再試行します…",
+    "asr_finalizing": "文字起こしセグメントを整理中…",
+    "translation_starting": "翻訳を開始しています…",
+    "translation_batch_progress": "{{completed}} / {{total}} バッチを翻訳しました",
+    "translation_completed": "翻訳が完了しました",
+    "synthesis_preparing": "動画の書き出しを準備中…",
+    "synthesis_starting": "動画合成を開始しています…",
+    "synthesis_encoding": "動画をエンコード中… {{percent}}% {{speed}}",
+    "synthesis_completed": "動画の書き出しが完了しました",
+    "clip_export_preparing": "クリップの書き出しを準備中…",
+    "clip_exporting": "クリップ {{current}} / {{total}} を書き出し中…",
+    "clip_export_completed": "クリップの書き出しが完了しました"
   }
 }

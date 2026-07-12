@@ -1,13 +1,13 @@
 import type { ExecutionMode } from "../domain/taskSubmission";
 
 type ExecutionModeDisplay = {
-  label: string;
+  labelKey: "executionMode.taskSubmission";
   className: string;
 };
 
 const EXECUTION_MODE_DISPLAY: Record<ExecutionMode, ExecutionModeDisplay> = {
   task_submission: {
-    label: "queued task",
+    labelKey: "executionMode.taskSubmission",
     className: "border-indigo-500/20 bg-indigo-500/10 text-indigo-300",
   },
 };

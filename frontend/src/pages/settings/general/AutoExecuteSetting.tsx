@@ -8,7 +8,7 @@ type AutoExecuteSettingProps = {
 };
 
 export function AutoExecuteSetting({ controller, t }: AutoExecuteSettingProps) {
-  const { settings, updateSettingsField } = controller;
+  const { settings, updatePreferences } = controller;
 
   return (
     <SettingCard
@@ -17,11 +17,15 @@ export function AutoExecuteSetting({ controller, t }: AutoExecuteSettingProps) {
       description={t("general.autoExecuteDesc")}
       actions={
         <button
+          type="button"
+          role="switch"
+          aria-checked={settings?.auto_execute_flow ?? false}
+          aria-label={t("general.autoExecute")}
           onClick={async () => {
             if (!settings) return;
             const newVal = !settings.auto_execute_flow;
-            await updateSettingsField(
-              { ...settings, auto_execute_flow: newVal },
+            await updatePreferences(
+              { auto_execute_flow: newVal },
               newVal ? t("general.autoExecuteEnabled") : t("general.autoExecuteDisabled"),
             );
           }}

@@ -2,58 +2,81 @@ import { create } from "zustand";
 import { createDataSlice, type DataSlice } from "./slices/dataSlice";
 import { createUISlice, type UISlice } from "./slices/uiSlice";
 import { createHistorySlice, type HistorySlice } from "./slices/historySlice";
-import type { MediaReference } from "../services/ui/mediaReference";
 import {
-  readUiStateValue,
-  subscribeUiStateSettingsInitialized,
-  writeUiStateValue,
-} from "../services/persistence/uiStateSettings";
+  normalizeMediaReference,
+} from "../services/ui/mediaReference";
+import {
+  readWorkspaceStateValue,
+  subscribeWorkspaceStateInitialized,
+  writeWorkspaceStateValue,
+} from "../services/persistence/workspaceState";
+import {
+  createEditorDocument,
+  createEmptyEditorDocument,
+  type EditorDocument,
+} from "./editorDocument";
 
 export type EditorState = DataSlice & UISlice & HistorySlice;
 
 const EDITOR_STORE_KEY = "editor-storage";
 
-type EditorSnapshot = Pick<
-  EditorState,
-  | "regions"
-  | "activeSegmentId"
-  | "selectedIds"
-  | "mediaUrl"
-  | "currentFilePath"
-  | "currentSubtitlePath"
-  | "currentFileRef"
-  | "currentSubtitleRef"
->;
+interface EditorSnapshot {
+  document: EditorDocument;
+  activeSegmentId: string | null;
+  selectedIds: string[];
+}
 
 function normalizeEditorSnapshot(
   payload: Partial<EditorSnapshot> | null | undefined,
 ): EditorSnapshot {
+  const rawDocument = payload?.document;
+  const emptyDocument = createEmptyEditorDocument();
+  const video = normalizeMediaReference(rawDocument?.video);
+  const subtitle = normalizeMediaReference(rawDocument?.subtitle);
+  const revision =
+    typeof rawDocument?.revision === "number" && rawDocument.revision >= 0
+      ? rawDocument.revision
+      : 0;
+  const savedRevision =
+    typeof rawDocument?.savedRevision === "number" &&
+    rawDocument.savedRevision >= 0
+      ? rawDocument.savedRevision
+      : revision;
+  const document = rawDocument
+    ? {
+        ...createEditorDocument(
+          {
+            video,
+            subtitle,
+            previewUrl:
+              typeof rawDocument.previewUrl === "string"
+                ? rawDocument.previewUrl
+                : null,
+            regions: Array.isArray(rawDocument.regions)
+              ? rawDocument.regions
+              : [],
+            documentId:
+              typeof rawDocument.documentId === "string"
+                ? rawDocument.documentId
+                : undefined,
+          },
+          revision,
+        ),
+        savedRevision,
+      }
+    : emptyDocument;
+
   return {
-    regions: Array.isArray(payload?.regions) ? payload.regions : [],
+    document,
     activeSegmentId:
       typeof payload?.activeSegmentId === "string" ? payload.activeSegmentId : null,
     selectedIds: Array.isArray(payload?.selectedIds) ? payload.selectedIds : [],
-    mediaUrl: typeof payload?.mediaUrl === "string" ? payload.mediaUrl : null,
-    currentFilePath:
-      typeof payload?.currentFilePath === "string" ? payload.currentFilePath : null,
-    currentSubtitlePath:
-      typeof payload?.currentSubtitlePath === "string"
-        ? payload.currentSubtitlePath
-        : null,
-    currentFileRef:
-      payload?.currentFileRef && typeof payload.currentFileRef === "object"
-        ? (payload.currentFileRef as MediaReference)
-        : null,
-    currentSubtitleRef:
-      payload?.currentSubtitleRef && typeof payload.currentSubtitleRef === "object"
-        ? (payload.currentSubtitleRef as MediaReference)
-        : null,
   };
 }
 
 function readEditorSnapshot() {
   return normalizeEditorSnapshot(
-    readUiStateValue<Partial<EditorSnapshot>>(EDITOR_STORE_KEY),
+    readWorkspaceStateValue<Partial<EditorSnapshot>>(EDITOR_STORE_KEY),
   );
 }
 
@@ -64,31 +87,56 @@ function persistEditorSnapshot(state: EditorState) {
     return;
   }
 
-  writeUiStateValue(EDITOR_STORE_KEY, {
-    regions: state.regions,
+  if (
+    state.document === lastPersistedDocument &&
+    state.activeSegmentId === lastPersistedActiveSegmentId &&
+    state.selectedIds === lastPersistedSelectedIds
+  ) {
+    return;
+  }
+  const snapshot = {
+    document: state.document,
     activeSegmentId: state.activeSegmentId,
     selectedIds: state.selectedIds,
-    mediaUrl: state.mediaUrl,
-    currentFilePath: state.currentFilePath,
-    currentSubtitlePath: state.currentSubtitlePath,
-    currentFileRef: state.currentFileRef,
-    currentSubtitleRef: state.currentSubtitleRef,
-  } satisfies EditorSnapshot);
+  } satisfies EditorSnapshot;
+  lastPersistedDocument = state.document;
+  lastPersistedActiveSegmentId = state.activeSegmentId;
+  lastPersistedSelectedIds = state.selectedIds;
+  writeWorkspaceStateValue(EDITOR_STORE_KEY, snapshot);
 }
 
 const initialEditorSnapshot = readEditorSnapshot();
+let lastPersistedDocument = initialEditorSnapshot.document;
+let lastPersistedActiveSegmentId = initialEditorSnapshot.activeSegmentId;
+let lastPersistedSelectedIds = initialEditorSnapshot.selectedIds;
 
 export const useEditorStore = create<EditorState>()((...a) => ({
   ...createDataSlice(...a),
   ...createUISlice(...a),
   ...createHistorySlice(...a),
   ...initialEditorSnapshot,
+  revisionClock: Math.max(
+    initialEditorSnapshot.document.revision,
+    initialEditorSnapshot.document.savedRevision,
+  ),
 }));
 
 useEditorStore.subscribe(persistEditorSnapshot);
 
-subscribeUiStateSettingsInitialized(() => {
+subscribeWorkspaceStateInitialized(() => {
+  const snapshot = readEditorSnapshot();
   isHydratingEditorSnapshot = true;
-  useEditorStore.setState(readEditorSnapshot());
+  useEditorStore.setState({
+    ...snapshot,
+    revisionClock: Math.max(
+      snapshot.document.revision,
+      snapshot.document.savedRevision,
+    ),
+    past: [],
+    future: [],
+  });
+  lastPersistedDocument = snapshot.document;
+  lastPersistedActiveSegmentId = snapshot.activeSegmentId;
+  lastPersistedSelectedIds = snapshot.selectedIds;
   isHydratingEditorSnapshot = false;
 });

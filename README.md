@@ -209,6 +209,17 @@ where cudnn64_9.dll
 - 可在设置页指定“默认下载目录”
 - 未设置时，下载任务默认保存到 `workspace/`
 
+### 诊断日志
+
+- 生产模式默认使用 `INFO` 级别，只记录 LLM 请求数量、角色、正文字符数和响应结构等摘要，不记录提示词、字幕或模型响应正文。
+- 临时排障时可设置 `ENABLE_DETAILED_LLM_LOGGING=true` 显式开启完整 LLM 请求/响应日志；排障结束后应立即关闭。
+- `LOG_LEVEL` 可设置为 `TRACE / DEBUG / INFO / SUCCESS / WARNING / ERROR / CRITICAL`。未显式设置时，普通模式使用 `INFO`，`DEBUG=true` 时使用 `DEBUG`。
+
+### 任务历史
+
+- 默认保留最近 100 条已完成、失败或取消的任务记录；超出数量时后端会记录明确的裁剪日志。
+- 可通过 `TASK_HISTORY_LIMIT` 环境变量调整保留数量，最小值为 1。运行中和暂停中的可恢复任务不受历史数量限制。
+
 ## 🔄 最近更新 (Architecture 2.0)
 
 - **UI/UX**: 修复了下载按钮样式、优化了合成对话框交互。

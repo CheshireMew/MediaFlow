@@ -33,10 +33,10 @@ export function DownloaderPage() {
     <PageShell padded={false} className="flex flex-col">
       <PageHeader icon={Download} title={t('title')} subtitle={t('subtitle')} />
 
-      <PageContent className="flex flex-col">
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-6 overflow-hidden">
+      <PageContent className="flex flex-col overflow-y-auto lg:overflow-hidden">
+      <div className="flex-none min-h-0 flex flex-col gap-6 overflow-visible lg:flex-1 lg:flex-row lg:overflow-hidden">
         {/* Left Column: Input & Controls */}
-        <WorkPanel className="w-full lg:w-[480px] flex-none flex flex-col h-full">
+        <WorkPanel className="flex min-h-[340px] w-full flex-none flex-col lg:h-full lg:min-h-0 lg:w-[480px]">
            <PanelHeader title={t('taskPanel.title')} />
            
            <div className="p-6 flex-1 flex flex-col min-h-0">
@@ -68,7 +68,7 @@ export function DownloaderPage() {
                 </div>
               )}
               <div className="mt-auto pt-6 border-t border-white/5">
-                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t('supportedPlatforms')}</h3>
+                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">{t('supportedPlatforms')}</h3>
                  <div className="flex flex-wrap gap-2">
                     {['YouTube', 'Bilibili', 'Douyin', 'TikTok', 'Twitter', 'Instagram'].map(p => (
                       <span key={p} className="px-2.5 py-1 rounded-md bg-white/5 text-slate-400 text-xs border border-white/5">
@@ -81,7 +81,7 @@ export function DownloaderPage() {
         </WorkPanel>
 
         {/* Right Column: Task Monitor */}
-        <div className="flex-1 min-w-0 h-full flex flex-col">
+        <div className="flex h-[360px] min-w-0 flex-none flex-col lg:h-full lg:flex-1">
             <TaskMonitor filterTypes={['download']} showHeaderOverview={false} />
         </div>
       </div>

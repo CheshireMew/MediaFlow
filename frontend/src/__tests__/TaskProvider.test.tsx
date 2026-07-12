@@ -3,12 +3,13 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTaskContext } from "../context/taskContext";
-import { SUPPORTED_TASK_CONTRACT_VERSION } from "../context/taskSources";
+import { SUPPORTED_TASK_CONTRACT_VERSION } from "../context/taskSources/shared";
 import type { TaskSocketMessage } from "../hooks/tasks/useTaskStore";
 
 let TaskProvider: typeof import("../context/TaskProvider").TaskProvider;
 
 const useTaskSocketMock = vi.fn();
+const pauseTaskMock = vi.fn();
 const pauseAllTasksMock = vi.fn();
 const resumeTaskMock = vi.fn();
 const deleteTaskMock = vi.fn();
@@ -23,6 +24,7 @@ vi.mock("../hooks/tasks/useTaskSocket", () => ({
 
 vi.mock("../api/client", () => ({
   apiClient: {
+    pauseTask: (...args: unknown[]) => pauseTaskMock(...args),
     pauseAllTasks: (...args: unknown[]) => pauseAllTasksMock(...args),
     resumeTask: (...args: unknown[]) => resumeTaskMock(...args),
     deleteTask: (...args: unknown[]) => deleteTaskMock(...args),
@@ -59,6 +61,8 @@ function backendContractFields() {
     lifecycle: "resumable",
     queue_state: "queued",
     queue_position: null,
+    message_code: "queued",
+    message_params: {},
   } as const;
 }
 
@@ -71,6 +75,8 @@ describe("TaskProvider", () => {
       connected: true,
       sendPause: sendPauseMock,
     });
+    sendPauseMock.mockReturnValue(true);
+    pauseTaskMock.mockResolvedValue(undefined);
     pauseAllTasksMock.mockResolvedValue(undefined);
     resumeTaskMock.mockResolvedValue(undefined);
     deleteTaskMock.mockResolvedValue(undefined);
@@ -171,7 +177,26 @@ describe("TaskProvider", () => {
     });
 
     expect(sendPauseMock).toHaveBeenCalledWith("remote-task");
+    expect(pauseTaskMock).not.toHaveBeenCalled();
     expect(pauseAllTasksMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the task HTTP endpoint when the task socket is unavailable", async () => {
+    sendPauseMock.mockReturnValue(false);
+
+    render(
+      <TaskProvider>
+        <Probe />
+      </TaskProvider>,
+    );
+
+    await act(async () => {
+      screen.getByTestId("pause-one").click();
+      await Promise.resolve();
+    });
+
+    expect(sendPauseMock).toHaveBeenCalledWith("remote-task");
+    expect(pauseTaskMock).toHaveBeenCalledWith("remote-task");
   });
 
   it("reconciles active socket tasks with backend task state by id", async () => {
@@ -189,7 +214,7 @@ describe("TaskProvider", () => {
       request_params: {
         steps: [{ step_name: "download", params: { url: "https://example.com" } }],
       },
-      result: { success: true, files: [], meta: {} },
+      result: { success: true, artifacts: [], meta: {} },
     };
     getTaskStatusMock.mockResolvedValue(completedTask);
     listTasksMock.mockResolvedValue([completedTask]);

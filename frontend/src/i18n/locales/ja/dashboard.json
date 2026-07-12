@@ -5,6 +5,8 @@
     "systemStatus": "システム状態",
     "backendConnection": "バックエンド接続",
     "online": "オンライン",
+    "offline": "切断",
+    "connecting": "接続中",
     "computeResources": "コンピューティングリソース",
     "autoScaling": "オートスケーリング"
   },

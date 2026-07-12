@@ -1,13 +1,20 @@
-from backend.core.tasks.registry import (
-    REQUIRED_TASK_TYPES,
-    registered_task_types,
-    register_all_task_runners,
-    validate_required_task_runners,
-)
+from backend.application.task_definitions import build_task_runner_registry
+from backend.core.task_catalog import task_types
 
 
-def test_register_all_task_runners_covers_required_task_types():
-    register_all_task_runners()
-    validate_required_task_runners()
+def test_composed_task_runner_registry_covers_catalog_task_types():
+    class FakePipelineRunner:
+        async def run(self, _steps, _task_id):
+            return None
 
-    assert REQUIRED_TASK_TYPES.issubset(registered_task_types())
+    class FakeOperationExecutor:
+        @staticmethod
+        def build_runner(_task):
+            return lambda: None
+
+    registry = build_task_runner_registry(
+        pipeline_runner=FakePipelineRunner(),
+        operation_executor=FakeOperationExecutor(),
+    )
+
+    assert task_types().issubset(registry.registered_task_types())

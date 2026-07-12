@@ -18,6 +18,17 @@
     }
   },
   "supportedPlatforms": "支持的平台",
+  "feedback": {
+    "desktopRequired": "需要登录验证，但浏览器访问仅在桌面应用中可用",
+    "openingBrowser": "正在打开浏览器窗口，请完成登录后关闭窗口以继续...",
+    "cookiesMissing": "未获取到 {{domain}} 的 Cookie，请在浏览器中登录后重试。",
+    "cookiesFailed": "Cookie 获取失败：{{detail}}",
+    "queueFailed": "无法将 {{url}} 加入队列：{{detail}}",
+    "analysisFailed": "视频分析失败",
+    "analysisFailedDetail": "视频分析失败：{{detail}}",
+    "currentItemUnknown": "请先选择一个播放列表项目，再仅下载当前视频",
+    "backendNotReady": "下载后端尚未就绪"
+  },
   "input": {
     "placeholder": "在此粘贴视频链接（如 YouTube、Bilibili...）",
     "pasteTooltip": "从剪贴板粘贴"

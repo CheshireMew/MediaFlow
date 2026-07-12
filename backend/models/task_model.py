@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any
 from sqlmodel import Field, SQLModel, JSON, Column
 import time
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict, field_validator, model_validator
 
 from backend.contracts import (
     TASK_CONTRACT_VERSION,
@@ -9,6 +9,7 @@ from backend.contracts import (
     TASK_PERSISTENCE_SCOPES,
     TASK_SOURCES,
     TASK_STATUSES,
+    require_task_message_code,
 )
 from backend.core.task_catalog import require_task_type
 
@@ -27,7 +28,11 @@ class Task(SQLModel, table=True):
     persistence_scope: str = Field(default="runtime")
     lifecycle: str = Field(default=TASK_LIFECYCLE["resumable"])
     progress: float = Field(default=0.0)
-    message: str = Field(default="")
+    message_code: str = Field(default="queued")
+    message_params: Dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON, nullable=False),
+    )
     created_at: int = Field(default_factory=task_timestamp_ms)
     
     # JSON Fields (Use explicit column type for SQLite compatibility)
@@ -79,3 +84,18 @@ class Task(SQLModel, table=True):
         if value not in set(TASK_LIFECYCLE.values()):
             raise ValueError(f"Unknown task lifecycle: {value}")
         return value
+
+    @field_validator("message_code")
+    @classmethod
+    def validate_message_code(cls, value: str) -> str:
+        return require_task_message_code(value)
+
+    @model_validator(mode="after")
+    def validate_message_descriptor(self):
+        from backend.models.task_message import validate_task_message
+
+        self.message_code, self.message_params = validate_task_message(
+            self.message_code,
+            self.message_params,
+        )
+        return self

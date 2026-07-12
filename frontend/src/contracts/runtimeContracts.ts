@@ -1,4 +1,9 @@
 import runtimeContract from "../../../contracts/runtime-contract.json";
+import {
+  TASK_MESSAGE_CODES,
+  type TaskMessageCode,
+} from "./generatedTaskMessageCatalog";
+export type { TaskMessageCode } from "./generatedTaskMessageCatalog";
 
 export type TaskLifecycle = "runtime-only" | "history-only" | "resumable" | "ephemeral-ui";
 export type TaskSource = "backend";
@@ -23,10 +28,9 @@ export type TaskStatus =
 type RuntimeContractShape = {
   task_contract_version: number;
   desktop_bridge_contract_version: number;
-  task_statuses: TaskStatus[];
-  task_sources: TaskSource[];
   task_persistence_scopes: TaskPersistenceScope[];
   task_queue_states: TaskQueueState[];
+  task_message_codes: TaskMessageCode[];
   task_status_projection: Record<
     TaskStatus,
     {
@@ -37,9 +41,6 @@ type RuntimeContractShape = {
       is_running: boolean;
     }
   >;
-  features: {
-    preprocessing: boolean;
-  };
   asr_execution_preferences: {
     key: string;
     schema_version: number;
@@ -59,19 +60,26 @@ type RuntimeContractShape = {
 
 const contract = runtimeContract as RuntimeContractShape;
 
+if (
+  contract.task_message_codes.length !== TASK_MESSAGE_CODES.length ||
+  contract.task_message_codes.some((code, index) => code !== TASK_MESSAGE_CODES[index])
+) {
+  throw new Error("Generated task message catalog is out of sync with runtime-contract.json");
+}
+
 export const TASK_CONTRACT_VERSION = contract.task_contract_version;
 export const DESKTOP_BRIDGE_CONTRACT_VERSION = contract.desktop_bridge_contract_version;
-export const TASK_STATUSES = contract.task_statuses;
-export const TASK_SOURCES = contract.task_sources;
 export const TASK_PERSISTENCE_SCOPES = contract.task_persistence_scopes;
 export const TASK_QUEUE_STATES = contract.task_queue_states;
+export { TASK_MESSAGE_CODES };
 export const TASK_STATUS_PROJECTION = contract.task_status_projection;
-export const RUNTIME_FEATURES = contract.features;
 export const ASR_EXECUTION_PREFERENCES = contract.asr_execution_preferences;
 export const TASK_LIFECYCLE = contract.task_lifecycle;
 
-export function getTaskLifecycle(args: { status: TaskStatus }): TaskLifecycle {
-  return TASK_STATUS_PROJECTION[args.status].lifecycle;
+const taskMessageCodeSet = new Set<string>(TASK_MESSAGE_CODES);
+
+export function isTaskMessageCode(value: unknown): value is TaskMessageCode {
+  return typeof value === "string" && taskMessageCodeSet.has(value);
 }
 
 export function getTaskQueueState(status: TaskStatus): TaskQueueState {

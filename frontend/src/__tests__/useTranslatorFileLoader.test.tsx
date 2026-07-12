@@ -2,6 +2,10 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { useTranslatorFileLoader } from "../hooks/translator/useTranslatorFileLoader";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 import { useTranslatorStore } from "../stores/translatorStore";
 import type { ElectronAPI } from "../types/electron-api";
 import { installElectronMock } from "./testUtils/electronMock";
@@ -12,7 +16,7 @@ describe("useTranslatorFileLoader", () => {
       sourceSegments: [],
       targetSegments: [],
       glossary: [],
-      sourceFilePath: null,
+      sourceFileRef: null,
       targetLang: "SimplifiedChinese",
       mode: "standard",
       activeMode: null,
@@ -29,11 +33,12 @@ describe("useTranslatorFileLoader", () => {
 
   test("does not restore stale translated subtitles when reloading the same path with changed content", async () => {
     const sourcePath = "E:/subs/demo.srt";
+    const sourceRef = { path: sourcePath, name: "demo.srt" };
     const translatedPath = "E:/subs/demo_ZH-CN.srt";
     const electronAPI = (window as unknown as Window & { electronAPI: ElectronAPI }).electronAPI;
 
     useTranslatorStore.setState({
-      sourceFilePath: sourcePath,
+      sourceFileRef: { path: sourcePath, name: "demo.srt" },
       sourceSegments: [
         { id: "1", start: 0, end: 1, text: "old line" },
       ],
@@ -56,7 +61,7 @@ describe("useTranslatorFileLoader", () => {
     const { result } = renderHook(() => useTranslatorFileLoader());
 
     await act(async () => {
-      await result.current.handleFileUpload(sourcePath);
+      await result.current.handleFileUpload(sourceRef);
     });
 
     await waitFor(() => {
@@ -75,11 +80,12 @@ describe("useTranslatorFileLoader", () => {
 
   test("keeps autoload behavior when reloading the same path with unchanged content", async () => {
     const sourcePath = "E:/subs/demo.srt";
+    const sourceRef = { path: sourcePath, name: "demo.srt" };
     const translatedPath = "E:/subs/demo_ZH-CN.srt";
     const electronAPI = (window as unknown as Window & { electronAPI: ElectronAPI }).electronAPI;
 
     useTranslatorStore.setState({
-      sourceFilePath: sourcePath,
+      sourceFileRef: { path: sourcePath, name: "demo.srt" },
       sourceSegments: [
         { id: "1", start: 0, end: 1, text: "same line" },
       ],
@@ -99,7 +105,7 @@ describe("useTranslatorFileLoader", () => {
     const { result } = renderHook(() => useTranslatorFileLoader());
 
     await act(async () => {
-      await result.current.handleFileUpload(sourcePath);
+      await result.current.handleFileUpload(sourceRef);
     });
 
     await waitFor(() => {

@@ -1,9 +1,8 @@
-import type { PipelineRequest } from "../../types/api";
+import type { DownloadParams, PipelineRequest } from "../../types/api";
 import type { SubtitleSegment } from "../../types/task";
 import type { MediaReference } from "../ui/mediaReference";
 import type { ExecutionOutcome } from "./taskSubmission";
 import {
-  getExecutionMediaDisplayName,
   requireExecutionMediaReference,
 } from "./executionPayload";
 import {
@@ -22,8 +21,10 @@ import {
 } from "../persistence/synthesisExecutionPreferences";
 import {
   buildSynthesisOptionsFromPreferences,
-  resolveSynthesisWatermarkPath,
+  resolveSynthesisWatermarkReference,
 } from "./synthesisExecution";
+import { apiClient } from "../../api/client";
+import { translationService } from "./translationService";
 
 export { isDesktopRuntime } from "../desktop";
 
@@ -32,29 +33,10 @@ type DownloadExecutionSettings = {
   auto_execute_flow: boolean;
 };
 
-type DownloadStepParams = {
-  url?: string;
-  [key: string]: unknown;
-};
-
 function omitUndefinedFields<T extends Record<string, unknown>>(payload: T) {
   return Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined),
   ) as T;
-}
-
-export function resolveDownloadStepParams(pipeline: PipelineRequest) {
-  const downloadStep = pipeline.steps.find((step) => step.step_name === "download");
-  if (!downloadStep || !downloadStep.params || typeof downloadStep.params !== "object") {
-    throw new Error("Download pipeline is missing a download step");
-  }
-
-  const params = downloadStep.params as DownloadStepParams;
-  if (typeof params.url !== "string" || !params.url.trim()) {
-    throw new Error("Download pipeline is missing a download url");
-  }
-
-  return params;
 }
 
 function appendAutoExecutionSteps(
@@ -75,7 +57,7 @@ async function buildSharedSynthesisExecutionPayload() {
   const synthesisPreferences = restoreStoredSynthesisExecutionPreferences();
   return {
     options: buildSynthesisOptionsFromPreferences(synthesisPreferences),
-    watermarkPath: await resolveSynthesisWatermarkPath(synthesisPreferences),
+    watermarkRef: await resolveSynthesisWatermarkReference(synthesisPreferences),
   };
 }
 
@@ -92,7 +74,6 @@ async function buildSharedAutoExecutionSteps(includeTranscription: boolean) {
         engine: asrPreferences.engine,
         model: asrPreferences.model,
         device: asrPreferences.device,
-        vad_filter: true,
       },
     });
   }
@@ -108,7 +89,7 @@ async function buildSharedAutoExecutionSteps(includeTranscription: boolean) {
     step_name: "synthesize",
     params: {
       options: synthesisPayload.options,
-      watermark_path: synthesisPayload.watermarkPath,
+      watermark_ref: synthesisPayload.watermarkRef,
     },
   });
 
@@ -123,6 +104,7 @@ async function buildSharedAutoExecutionSteps(includeTranscription: boolean) {
 export const executionService = {
   async transcribe(payload: {
     audio_ref: MediaReference;
+    task_name: string;
     engine?: "builtin" | "cli";
     model: string;
     device: string;
@@ -144,10 +126,7 @@ export const executionService = {
           : null;
         const basePipelineReq: PipelineRequest = {
           pipeline_id: "transcriber_tool",
-          task_name: `Transcribe ${getExecutionMediaDisplayName({
-            reference: normalizedPayload.audio_ref ?? null,
-            defaultName: "media",
-          })}`,
+          task_name: normalizedPayload.task_name,
           steps: [
             {
               step_name: "transcribe",
@@ -156,7 +135,6 @@ export const executionService = {
                 engine: normalizedPayload.engine ?? "builtin",
                 model: normalizedPayload.model,
                 device: normalizedPayload.device,
-                vad_filter: true,
                 language: normalizedPayload.language,
                 initial_prompt: normalizedPayload.initial_prompt,
               }),
@@ -168,9 +146,7 @@ export const executionService = {
             ? appendAutoExecutionSteps(basePipelineReq, () => autoExecution?.steps ?? [])
             : basePipelineReq;
 
-        return await import("../../api/client").then(({ apiClient }) =>
-          apiClient.runPipeline(pipelineReq),
-        );
+        return await apiClient.runPipeline(pipelineReq);
       },
     });
   },
@@ -190,7 +166,6 @@ export const executionService = {
         context_ref: nextPayload.context_ref ?? null,
       }),
       backendSubmit: async (normalizedPayload) => {
-        const { translationService } = await import("./translationService");
         return await translationService.startTranslation(normalizedPayload);
       },
     });
@@ -200,7 +175,7 @@ export const executionService = {
     task_id?: string;
     video_ref: MediaReference;
     srt_ref?: MediaReference | null;
-    watermark_path?: string | null;
+    watermark_ref?: MediaReference | null;
     output_ref?: MediaReference | null;
     options: Record<string, unknown>;
   }): Promise<ExecutionOutcome> {
@@ -212,18 +187,21 @@ export const executionService = {
         srt_ref: nextPayload.srt_ref
           ? requireExecutionMediaReference(nextPayload.srt_ref, "Synthesis subtitle")
           : null,
-        output_ref: nextPayload.output_ref ?? null,
+        watermark_ref: nextPayload.watermark_ref
+          ? requireExecutionMediaReference(nextPayload.watermark_ref, "Synthesis watermark")
+          : null,
+        output_ref: nextPayload.output_ref
+          ? requireExecutionMediaReference(nextPayload.output_ref, "Synthesis output")
+          : null,
       }),
       backendSubmit: (normalizedPayload) =>
-        import("../../api/client").then(({ apiClient }) =>
-          apiClient.synthesizeVideo(omitUndefinedFields({
+        apiClient.synthesizeVideo(omitUndefinedFields({
             video_ref: normalizedPayload.video_ref,
             srt_ref: normalizedPayload.srt_ref,
-            watermark_path: normalizedPayload.watermark_path || null,
+            watermark_ref: normalizedPayload.watermark_ref,
             output_ref: normalizedPayload.output_ref,
             options: normalizedPayload.options,
           })),
-        ),
     });
   },
 
@@ -241,13 +219,14 @@ export const executionService = {
     const pipelineWithDownloadSettings: PipelineRequest = {
       ...pipelineForSubmission,
       steps: pipelineForSubmission.steps.map((step) => {
-        if (step.step_name !== "download" || !step.params || typeof step.params !== "object") {
+        if (step.step_name !== "download") {
           return step;
         }
+        const downloadParams = step.params as DownloadParams;
         return {
           ...step,
           params: omitUndefinedFields({
-            ...(step.params as Record<string, unknown>),
+            ...downloadParams,
             output_dir: settings?.default_download_path || undefined,
           }),
         };
@@ -256,8 +235,7 @@ export const executionService = {
 
     return await executeTaskSubmission({
       payload: pipelineWithDownloadSettings,
-      backendSubmit: (nextPipeline) =>
-        import("../../api/client").then(({ apiClient }) => apiClient.runPipeline(nextPipeline)),
+      backendSubmit: (nextPipeline) => apiClient.runPipeline(nextPipeline),
     });
   },
 };

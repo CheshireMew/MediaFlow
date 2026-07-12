@@ -44,7 +44,7 @@ describe("buildSynthesisOptionsFromPreferences", () => {
     expect(options.margin_v).toBe(108);
     expect(options.margin_l).toBe(38);
     expect(options.margin_r).toBe(38);
-    expect(options.line_step).toBe(34);
+    expect(options.line_step).toBe(28);
     expect("subtitle_position_y" in options).toBe(false);
   });
 

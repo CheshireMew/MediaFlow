@@ -6,6 +6,7 @@ import {
 import type { SynthesizeOptions } from "../../types/api";
 import { editorService } from "./editorService";
 import type { SynthesisExecutionPreferences } from "../persistence/synthesisExecutionPreferences";
+import { mediaReferenceFromPath } from "../ui/mediaReference";
 
 type SynthesisExecutionOverrides = {
   targetResolution?: string;
@@ -113,7 +114,7 @@ export function buildSynthesisOptionsFromPreferences(
   return options;
 }
 
-export async function resolveSynthesisWatermarkPath(
+export async function resolveSynthesisWatermarkReference(
   preferences: SynthesisExecutionPreferences,
 ) {
   if (!preferences.watermarkEnabled) {
@@ -122,7 +123,14 @@ export async function resolveSynthesisWatermarkPath(
 
   try {
     const latestWatermark = await editorService.getLatestWatermark();
-    return latestWatermark?.png_path ?? null;
+    return latestWatermark
+      ? mediaReferenceFromPath(latestWatermark.png_path, {
+          type: "image/png",
+          media_kind: "image",
+          role: "context",
+          origin: "watermark",
+        })
+      : null;
   } catch {
     return null;
   }

@@ -7,9 +7,12 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service
-from backend.models.schemas import ClipExportSegment, MediaReference
+from backend.models.schemas import (
+    ClipExportSegment,
+    MediaReference,
+    TaskArtifact,
+    TaskResult,
+)
 from backend.services.media_refs import create_media_ref
 from backend.services.video.media_prober import MediaProber
 
@@ -19,11 +22,12 @@ CLIP_DURATION_TOLERANCE_SECONDS = 0.15
 
 def export_clips(
     *,
+    video_synthesis,
     video_ref: MediaReference,
     segments: list[ClipExportSegment],
     render_mode: str,
     srt_ref: MediaReference | None,
-    watermark_path: str | None,
+    watermark_ref: MediaReference | None,
     options: dict | None,
     output_dir: str | None,
     progress_callback=None,
@@ -53,13 +57,18 @@ def export_clips(
             filename = f"{source.stem}_clip_{index:02d}_{suffix}_{label}.mp4"
             staged_path = staging_dir / filename
             if progress_callback:
-                progress_callback(_segment_progress(index - 1, total), f"Exporting clip {index}/{total}...")
+                progress_callback(
+                    _segment_progress(index - 1, total),
+                    "clip_exporting",
+                    {"current": index, "total": total},
+                )
 
             _render_clip(
+                video_synthesis=video_synthesis,
                 source_path=str(source),
                 srt_path=srt_ref.path if srt_ref else None,
                 output_path=str(staged_path),
-                watermark_path=watermark_path,
+                watermark_ref=watermark_ref,
                 options=options or {},
                 segment=segment,
                 render_mode=render_mode,
@@ -81,29 +90,27 @@ def export_clips(
     ]
 
     if progress_callback:
-        progress_callback(100, "Clip export completed")
+        progress_callback(100, "clip_export_completed", {})
     return exported
 
 
 def build_clip_export_task_result(files: list[MediaReference]) -> dict:
-    return {
-        "success": True,
-        "files": [
-            {"type": "video", "path": file.path, "label": "clip_export", "name": file.name}
+    return TaskResult(
+        success=True,
+        artifacts=[
+            TaskArtifact(kind="video", role="output", ref=file)
             for file in files
         ],
-        "meta": {
-            "output_refs": [file.model_dump(mode="json") for file in files],
-        },
-    }
+    ).model_dump(mode="json")
 
 
 def _render_clip(
     *,
+    video_synthesis,
     source_path: str,
     srt_path: str | None,
     output_path: str,
-    watermark_path: str | None,
+    watermark_ref: MediaReference | None,
     options: dict,
     segment: ClipExportSegment,
     render_mode: str,
@@ -116,18 +123,20 @@ def _render_clip(
         "disable_auto_trim": True,
     }
     effective_srt_path = srt_path
-    effective_watermark_path = watermark_path
+    effective_watermark_ref = watermark_ref
     if render_mode == "source":
         render_options["skip_subtitles"] = True
         render_options["preserve_frame_rate"] = True
         effective_srt_path = None
-        effective_watermark_path = None
+        effective_watermark_ref = None
 
-    runtime_service(Services.VIDEO_SYNTHESIS).synthesize(
+    video_synthesis.synthesize(
         video_path=source_path,
         srt_path=effective_srt_path,
         output_path=output_path,
-        watermark_path=effective_watermark_path,
+        watermark_path=(
+            effective_watermark_ref.path if effective_watermark_ref else None
+        ),
         options=render_options,
         progress_callback=progress_callback,
     )
@@ -186,9 +195,13 @@ def _clip_progress_callback(parent_callback, index: int, total: int):
     start = _segment_progress(index - 1, total)
     span = 90 / max(total, 1)
 
-    def progress(progress_value: float, message: str) -> None:
+    def progress(progress_value: float, message_code: str, message_params=None) -> None:
         bounded = max(0.0, min(100.0, float(progress_value)))
-        parent_callback(min(99, start + (bounded / 100.0) * span), message)
+        parent_callback(
+            min(99, start + (bounded / 100.0) * span),
+            message_code,
+            message_params or {},
+        )
 
     return progress
 

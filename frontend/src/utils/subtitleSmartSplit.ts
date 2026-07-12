@@ -1,5 +1,4 @@
 import { splitSubtitleSegment } from "./subtitleSplit";
-import type { UserSettings } from "../types/api";
 
 type SubtitleSegmentLike = {
   id: string | number;
@@ -35,7 +34,7 @@ export function normalizeSmartSplitTextLimit(
 }
 
 export function resolveSmartSplitTextLimit(
-  settings?: Pick<UserSettings, "smart_split_text_limit"> | null,
+  settings?: { smart_split_text_limit?: number | null } | null,
 ): number {
   return normalizeSmartSplitTextLimit(settings?.smart_split_text_limit);
 }

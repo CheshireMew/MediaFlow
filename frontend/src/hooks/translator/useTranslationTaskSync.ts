@@ -17,7 +17,6 @@ import type { MediaReference } from "../../services/ui/mediaReference";
 type UseTranslationTaskSyncParams = {
   tasks: Task[];
   tasksSettled: boolean;
-  sourceFilePath: string | null;
   sourceFileRef: MediaReference | null;
   mode: TranslatorMode;
   taskId: string | null;
@@ -39,7 +38,6 @@ type UseTranslationTaskSyncParams = {
 export function useTranslationTaskSync({
   tasks,
   tasksSettled,
-  sourceFilePath,
   sourceFileRef,
   mode,
   taskId,
@@ -62,7 +60,7 @@ export function useTranslationTaskSync({
   useEffect(() => {
     if (taskId) return;
 
-    const runningTask = findActiveTranslationTask(tasks, sourceFileRef, sourceFilePath);
+    const runningTask = findActiveTranslationTask(tasks, sourceFileRef);
     if (!runningTask) return;
 
     const taskMode = getTranslationTaskMode(runningTask);
@@ -94,7 +92,6 @@ export function useTranslationTaskSync({
     setTaskId,
     setTaskStatus,
     setTargetSubtitleRef,
-    sourceFilePath,
     sourceFileRef,
     taskId,
     tasks,
@@ -105,7 +102,7 @@ export function useTranslationTaskSync({
       return;
     }
 
-    const completedTask = findCompletedTranslationTask(tasks, sourceFileRef, sourceFilePath);
+    const completedTask = findCompletedTranslationTask(tasks, sourceFileRef);
     if (!completedTask) {
       return;
     }
@@ -145,7 +142,6 @@ export function useTranslationTaskSync({
     setTargetSubtitleRef,
     setTaskError,
     setTaskStatus,
-    sourceFilePath,
     sourceFileRef,
     taskId,
     tasks,
@@ -223,7 +219,7 @@ export function useTranslationTaskSync({
 
     if (task.status === "failed" || task.status === "cancelled") {
       setTaskStatus(task.status);
-      setTaskError(task.error || task.message || null);
+      setTaskError(task.error || null);
       setActiveMode(null);
       setExecutionMode("task_submission");
       setTaskId(null);

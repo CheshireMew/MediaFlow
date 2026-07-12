@@ -1,5 +1,5 @@
 import { CheckCircle2, Cpu, RefreshCw, TriangleAlert } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { settingsService } from "../../../services/domain";
 import type { CudaReadinessResponse, RuntimeDependencyCheck } from "../../../types/api";
 import type { SettingsController, SettingsT } from "../settingsTypes";
@@ -28,7 +28,7 @@ export function CudaReadinessSetting({ controller, t }: CudaReadinessSettingProp
   const [readiness, setReadiness] = useState<CudaReadinessResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const loadReadiness = async () => {
+  const loadReadiness = useCallback(async () => {
     setIsLoading(true);
     try {
       setReadiness(await settingsService.getCudaReadiness());
@@ -38,11 +38,11 @@ export function CudaReadinessSetting({ controller, t }: CudaReadinessSettingProp
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [controller, t]);
 
   useEffect(() => {
     void loadReadiness();
-  }, []);
+  }, [loadReadiness]);
 
   const summaryTone = useMemo(() => {
     if (!readiness) return "text-slate-400";
@@ -100,7 +100,7 @@ export function CudaReadinessSetting({ controller, t }: CudaReadinessSettingProp
                     <span className="min-w-0">{item.detail}</span>
                   </div>
                   {item.path && (
-                    <div className="mt-2 break-all font-mono text-[11px] text-slate-500">
+                    <div className="mt-2 break-all font-mono text-xs text-slate-400">
                       {item.path}
                     </div>
                   )}
@@ -109,7 +109,7 @@ export function CudaReadinessSetting({ controller, t }: CudaReadinessSettingProp
             </div>
 
             {(readiness.gpu_name || readiness.driver_cuda_capability) && (
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-400">
                 {readiness.gpu_name && <span>{readiness.gpu_name}</span>}
                 {readiness.driver_version && <span> | Driver {readiness.driver_version}</span>}
                 {readiness.driver_cuda_capability && (

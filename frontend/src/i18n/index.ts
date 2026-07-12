@@ -17,21 +17,33 @@ const KNOWN_NAMESPACES = [
   "downloader",
   "transcriber",
   "translator",
-  "preprocessing",
   "taskmonitor",
   "synthesis",
 ] as const;
 
 const DEFAULT_BOOTSTRAP_NAMESPACES = ["common", "sidebar"] as const;
-const localeModules = import.meta.glob<{ default: Record<string, unknown> }>("./locales/*/*.json");
-const eagerZhResources = import.meta.glob<Record<string, unknown>>(
+const localeModules = import.meta.glob<{ default: Record<string, unknown> }>([
+  "./locales/en/*.json",
+  "./locales/ja/*.json",
   "./locales/zh/*.json",
+  "!./locales/zh/common.json",
+]);
+const eagerZhCommonResource = import.meta.glob<Record<string, unknown>>(
+  "./locales/zh/common.json",
   { eager: true, import: "default" },
 );
 const resourceCache = new Map<string, Record<string, unknown>>();
 
 type SupportedLanguageCode = (typeof SUPPORTED_LANGUAGES)[number]["code"];
 type I18nNamespace = (typeof KNOWN_NAMESPACES)[number];
+export type StartupStatusKey =
+  | "waitingConfig"
+  | "checkingHealth"
+  | "retryingHealth"
+  | "retryingGeneric"
+  | "fatalContract"
+  | "ready"
+  | "webMode";
 
 function isKnownNamespace(namespace: string): namespace is I18nNamespace {
   return KNOWN_NAMESPACES.includes(namespace as I18nNamespace);
@@ -63,7 +75,22 @@ function resolveLocaleLoader(language: string, namespace: string) {
 }
 
 function resolveEagerLocaleResource(language: string, namespace: string) {
-  return eagerZhResources[`./locales/${language}/${namespace}.json`];
+  return eagerZhCommonResource[`./locales/${language}/${namespace}.json`];
+}
+
+export function getStartupStatusFallback(key: StartupStatusKey) {
+  const commonResource = resolveEagerLocaleResource("zh", "common") as
+    | {
+        startup?: {
+          status?: Partial<Record<StartupStatusKey, unknown>>;
+        };
+      }
+    | undefined;
+  const fallback = commonResource?.startup?.status?.[key];
+  if (typeof fallback !== "string" || fallback.length === 0) {
+    throw new Error(`Missing zh/common startup fallback: ${key}`);
+  }
+  return fallback;
 }
 
 async function ensureResourceBundle(language: string, namespace: string) {
@@ -163,13 +190,6 @@ export async function ensureI18nNamespaces(
   await preloadNamespaces(language, resolveNamespaces(namespaces));
 }
 
-export function initI18n(language: string = "zh") {
-  const resolvedLanguage = normalizeLanguage(language);
-  const bootstrapNamespaces = DEFAULT_BOOTSTRAP_NAMESPACES;
-
-  return initI18nWithNamespaces(resolvedLanguage, bootstrapNamespaces);
-}
-
 export function initI18nWithNamespaces(
   language: string = "zh",
   namespaces: readonly I18nNamespace[] | readonly string[] = DEFAULT_BOOTSTRAP_NAMESPACES,
@@ -189,6 +209,7 @@ export function initI18nWithNamespaces(
           ),
           lng: resolvedLanguage,
           fallbackLng: false,
+          showSupportNotice: false,
           defaultNS: "common",
           ns: bootstrapNamespaces,
           partialBundledLanguages: true,

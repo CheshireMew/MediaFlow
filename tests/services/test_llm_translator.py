@@ -6,7 +6,6 @@ from backend.core.task_control import TaskCancelRequested
 from backend.services.translator.llm_translator import LLMTranslator
 from backend.services.translator.translation_batch_runner import build_translation_batches
 from backend.services.translator.translation_models import (
-    IntelligentTranslationResponse,
     TranslationOutcome,
     TranslationResponse,
     TranslatorSegment,
@@ -44,8 +43,8 @@ def test_translate_segments_empty():
 
 def test_llm_translator_init():
     """Test LLM translator initialization."""
-    from backend.config import settings
     llm_translator = make_translator()
+    from backend.config import settings
     # This might vary based on ENV, but we check if it handles config
     assert hasattr(llm_translator, "model")
     assert llm_translator.model == settings.LLM_MODEL
@@ -192,7 +191,6 @@ def test_translate_segments_parallel_batches_respect_cancel_check(monkeypatch):
 
 
 def test_validate_response_rejects_same_count_but_wrong_ids():
-    llm_translator = make_translator()
     segments = [
         SubtitleSegment(id="14", start=40.0, end=44.0, text="Line 14"),
         SubtitleSegment(id="15", start=44.0, end=45.0, text="Line 15"),
@@ -216,7 +214,6 @@ def test_validate_response_rejects_same_count_but_wrong_ids():
 
 
 def test_validate_response_rejects_duplicate_ids():
-    llm_translator = make_translator()
     segments = [
         SubtitleSegment(id="14", start=40.0, end=44.0, text="Line 14"),
         SubtitleSegment(id="15", start=44.0, end=45.0, text="Line 15"),
@@ -290,7 +287,6 @@ def test_translate_with_correction_falls_back_when_ids_do_not_match(monkeypatch)
 
 
 def test_validate_response_rejects_empty_translated_text():
-    llm_translator = make_translator()
     segments = [
         SubtitleSegment(id="14", start=40.0, end=44.0, text="Line 14"),
     ]
@@ -308,7 +304,6 @@ def test_validate_response_rejects_empty_translated_text():
 
 
 def test_validate_response_rejects_source_text_shift():
-    llm_translator = make_translator()
     segments = [
         SubtitleSegment(id="36", start=167.0, end=169.0, text="but, you know, it's a free world,"),
         SubtitleSegment(id="37", start=169.0, end=171.0, text="and everybody can invest in those sort of things,"),
@@ -336,7 +331,6 @@ def test_validate_response_rejects_source_text_shift():
 
 
 def test_validate_response_normalizes_casual_em_dash_for_chinese():
-    llm_translator = make_translator()
     segments = [
         SubtitleSegment(id="14", start=40.0, end=44.0, text="Line 14"),
     ]

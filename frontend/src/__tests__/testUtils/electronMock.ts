@@ -12,7 +12,6 @@ export type MockedElectronAPI = {
 function createBaseElectronMock(): MockedElectronAPI {
   return {
     openFile: vi.fn(),
-    openSubtitleFile: vi.fn(),
     readFile: vi.fn(),
     showSaveDialog: vi.fn(),
     selectDirectory: vi.fn(),
@@ -21,12 +20,18 @@ function createBaseElectronMock(): MockedElectronAPI {
     getPathForFile: vi.fn((file: File & { path?: string }) => file.path ?? ""),
     writeFile: vi.fn(),
     getFileSize: vi.fn(),
+    readWorkspaceState: vi.fn().mockResolvedValue(null),
+    writeWorkspaceState: vi.fn().mockResolvedValue(true),
+    writeWorkspaceStateSync: vi.fn().mockReturnValue(true),
     getDesktopRuntimeInfo: vi.fn().mockResolvedValue({
       status: "pong",
-      contract_version: 1,
+      contract_version: 4,
       bridge_version: "test-bridge",
       capabilities: [
         "getDesktopRuntimeInfo",
+        "readWorkspaceState",
+        "writeWorkspaceState",
+        "writeWorkspaceStateSync",
       ],
       backend: {
         status: "external",

@@ -1,0 +1,67 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend contracts, static checks, and tests
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the locked dependency manager
+        run: python -m pip install pdm==2.28.0
+      - name: Verify and install the Python lock
+        run: |
+          pdm lock --check
+          pdm sync -G dev --no-self --fail-fast
+      - name: Check Python for syntax, undefined names, and dead bindings
+        run: pdm run ruff check --select E9,F401,F63,F7,F811,F82,F841 backend scripts tests
+      - name: Check generated frontend contract drift
+        run: pdm run python scripts/generate_frontend_api_types.py --check
+      - name: Run backend tests
+        run: pdm run pytest
+
+  frontend:
+    name: Frontend lint, types, tests, E2E, and Electron smoke build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Lint frontend
+        run: npm run lint
+      - name: Check frontend types
+        run: npm run typecheck
+      - name: Run frontend tests
+        run: npm test
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}\playwright-browsers
+      - name: Run browser E2E and visual regression tests
+        run: npm run test:e2e
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}\playwright-browsers
+      - name: Build and inspect unpacked Electron package
+        run: npm run build:smoke

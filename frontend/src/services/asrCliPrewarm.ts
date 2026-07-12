@@ -1,4 +1,5 @@
 import { restoreStoredAsrExecutionPreferences } from "./persistence/asrExecutionPreferences";
+import { apiClient } from "../api/client";
 
 const inFlightProfiles = new Set<string>();
 
@@ -14,13 +15,11 @@ export function prewarmFasterWhisperCliFromStoredPreferences() {
   }
 
   inFlightProfiles.add(profileKey);
-  void import("../api/client")
-    .then(({ apiClient }) =>
-      apiClient.prewarmFasterWhisperCli({
-        model: preferences.model,
-        device: preferences.device,
-      }),
-    )
+  void apiClient
+    .prewarmFasterWhisperCli({
+      model: preferences.model,
+      device: preferences.device,
+    })
     .catch((error) => {
       console.warn("[ASR] Failed to prewarm Faster-Whisper CLI.", error);
     })

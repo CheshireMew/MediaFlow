@@ -1,13 +1,15 @@
 from loguru import logger
 
 from backend.core.steps.base import PipelineStep
-from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service, TaskRuntimeContext
+from backend.core.task_runtime import TaskRuntimeContext
 
 
 class DownloadStep(PipelineStep):
+    def __init__(self, *, downloader, task_manager):
+        self._downloader = downloader
+        self._task_manager = task_manager
+
     @property
     def name(self) -> str:
         return "download"
@@ -17,7 +19,7 @@ class DownloadStep(PipelineStep):
         if not url:
             raise ValueError("Download step requires 'url' param")
         
-        runtime = TaskRuntimeContext.for_task(task_id)
+        runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
         tm = runtime.task_manager
         
         # Callbacks for sync code
@@ -29,8 +31,7 @@ class DownloadStep(PipelineStep):
             return False
 
         # Run download async (it handles thread pool internally)
-        downloader = runtime_service(Services.DOWNLOADER)
-        result = await downloader.download(
+        result = await self._downloader.download(
             url, 
             proxy=params.get("proxy"),
             output_dir=params.get("output_dir"),
@@ -50,45 +51,42 @@ class DownloadStep(PipelineStep):
             runtime.checkpoint()
             raise Exception(result.error or "Download failed with unknown error")
 
-        media_file = next(
-            (f for f in result.files if f.type in {"video", "audio"}),
+        media_artifact = next(
+            (
+                artifact
+                for artifact in result.artifacts
+                if artifact.kind in {"video", "audio"}
+            ),
             None,
         )
-        if not media_file:
+        if not media_artifact:
             raise Exception("Download succeeded but no media file was returned")
 
-        # Store result in context
-        if media_file.type == "audio":
+        if media_artifact.kind == "audio":
             ctx.set_media(
-                path_key="audio_path",
-                ref_key="audio_ref",
-                path=media_file.path,
-                media_type="audio/mpeg",
+                "audio_ref",
+                media_artifact.ref,
+                kind="audio",
             )
         else:
             ctx.set_media(
-                path_key="video_path",
-                ref_key="video_ref",
-                path=media_file.path,
-                media_type="video/mp4",
-                extra_ref_keys=("output_ref",),
+                "video_ref",
+                media_artifact.ref,
+                kind="video",
             )
         ctx.set("media_filename", result.meta.get("filename", "unknown.mp4"))
         ctx.set("title", result.meta.get("title", "Unknown"))
         
         # Check for subtitles
-        subtitle_file = next((f for f in result.files if f.type == "subtitle"), None)
-        if subtitle_file:
+        subtitle_artifact = next(
+            (artifact for artifact in result.artifacts if artifact.kind == "subtitle"),
+            None,
+        )
+        if subtitle_artifact:
             ctx.set_media(
-                path_key="subtitle_path",
-                ref_key="subtitle_ref",
-                path=subtitle_file.path,
-                media_type="application/x-subrip",
-                extra_ref_keys=("context_ref",),
+                "subtitle_ref",
+                subtitle_artifact.ref,
+                kind="subtitle",
             )
             
-        logger.success(f"Step Download finished. Path: {media_file.path}")
-
-
-# Register at module level
-StepRegistry.register(DownloadStep())
+        logger.success(f"Step Download finished. Path: {media_artifact.ref.path}")

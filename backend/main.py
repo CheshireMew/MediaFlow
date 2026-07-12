@@ -56,11 +56,11 @@ async def lifespan(app: Starlette):
             log_file,
             rotation="10 MB",
             retention="7 days",
-            level="DEBUG",
+            level=settings.LOG_LEVEL,
             encoding="utf-8",
             enqueue=True,
-            backtrace=True,
-            diagnose=True
+            backtrace=settings.DEBUG,
+            diagnose=settings.DEBUG,
         )
     except PermissionError:
         logger.warning("Falling back to non-queued file logging due to restricted environment.")
@@ -68,11 +68,11 @@ async def lifespan(app: Starlette):
             log_file,
             rotation="10 MB",
             retention="7 days",
-            level="DEBUG",
+            level=settings.LOG_LEVEL,
             encoding="utf-8",
             enqueue=False,
-            backtrace=True,
-            diagnose=True
+            backtrace=settings.DEBUG,
+            diagnose=settings.DEBUG,
         )
     
     logger.info(f"Runtime directories initialized at {settings.RUNTIME_DIR}")
@@ -114,7 +114,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

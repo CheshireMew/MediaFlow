@@ -12,10 +12,3 @@ export interface ElectronFile extends File {
     | "task_navigation"
     | "unknown";
 }
-
-/**
- * Type guard: check if a File is an ElectronFile (has a path property).
- */
-export function isElectronFile(file: File): file is ElectronFile {
-  return "path" in file && typeof (file as ElectronFile).path === "string";
-}

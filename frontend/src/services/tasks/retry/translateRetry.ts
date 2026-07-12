@@ -1,10 +1,9 @@
-import type { TranslateRequest } from "../../../types/api";
 import type { Task } from "../../../types/task";
+import { executionService } from "../../domain/executionService";
 import {
   DEFAULT_TRANSLATION_TARGET_LANGUAGE,
-  executionService,
   normalizeTranslationTargetLanguage,
-} from "../../domain";
+} from "../../domain/translationTargetLanguages";
 import { fileService } from "../../fileService";
 import { parseSubtitleContent } from "../../../utils/subtitleParser";
 import type { RetryHandler, RetrySubmission } from "./types";
@@ -14,7 +13,7 @@ import {
   getTaskMediaReference,
 } from "./taskParams";
 
-type TranslateMode = NonNullable<TranslateRequest["mode"]>;
+type TranslateMode = "standard" | "intelligent" | "proofread";
 
 function isTranslateMode(value: unknown): value is TranslateMode {
   return value === "standard" || value === "intelligent" || value === "proofread";

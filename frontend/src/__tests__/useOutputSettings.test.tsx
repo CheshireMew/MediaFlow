@@ -4,7 +4,6 @@ import { useOutputSettings } from "../components/dialogs/synthesis/hooks/useOutp
 import {
   DEFAULT_SYNTHESIS_EXECUTION_PREFERENCES,
   restoreStoredSynthesisExecutionPreferences,
-  updateStoredSynthesisExecutionPreferences,
 } from "../services/persistence/synthesisExecutionPreferences";
 
 async function waitForHookTimers() {
@@ -40,17 +39,4 @@ describe("useOutputSettings", () => {
     expect(result.current.targetResolution).toBe("1080p");
   });
 
-  it("uses Original for clip batches without overwriting a full-video SR preference", async () => {
-    updateStoredSynthesisExecutionPreferences({ targetResolution: "sr_2x" });
-    const preferences = restoreStoredSynthesisExecutionPreferences();
-    const { result } = renderHook(() =>
-      useOutputSettings(true, "D:/media/source.mp4", preferences, "clips"),
-    );
-
-    await waitForHookTimers();
-
-    expect(result.current.targetResolution).toBe("original");
-    expect(result.current.outputDir).toBe("D:/media/source_clips");
-    expect(restoreStoredSynthesisExecutionPreferences().targetResolution).toBe("sr_2x");
-  });
 });

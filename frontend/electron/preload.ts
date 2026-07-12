@@ -9,7 +9,6 @@ import type { OpenFileDialogRequest } from "../src/contracts/openFileContract";
 contextBridge.exposeInMainWorld("electronAPI", {
   openFile: (request: OpenFileDialogRequest) =>
     ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.openFile, request),
-  openSubtitleFile: () => ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.openSubtitleFile),
   readFile: (filePath: string) => ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.readTextFile, filePath),
   showSaveDialog: (options: SaveFileDialogRequest) =>
     ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.saveFileDialog, options),
@@ -43,5 +42,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.writeTextFile, filePath, content),
   getFileSize: (filePath: string) =>
     ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.getFileSize, filePath),
+  readWorkspaceState: (sessionId: string) =>
+    ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.readWorkspaceState, sessionId),
+  writeWorkspaceState: (content: string, sessionId: string, revision: number) =>
+    ipcRenderer.invoke(
+      DESKTOP_FILE_SYSTEM_CHANNELS.writeWorkspaceState,
+      content,
+      sessionId,
+      revision,
+    ),
+  writeWorkspaceStateSync: (content: string, sessionId: string, revision: number) =>
+    ipcRenderer.sendSync(
+      DESKTOP_FILE_SYSTEM_CHANNELS.writeWorkspaceStateSync,
+      content,
+      sessionId,
+      revision,
+    ),
   getDesktopRuntimeInfo: () => ipcRenderer.invoke("desktop:get-runtime-info"),
 });

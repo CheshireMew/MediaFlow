@@ -69,7 +69,11 @@ describe("taskMedia", () => {
       progress: 100,
       created_at: Date.now(),
       request_params: {},
-      result: { success: true, files: [{ type: "video", path: "E:/stale.mp4" }] },
+      result: {
+        success: true,
+        artifacts: [artifact("subtitle", "output", "E:/canonical.srt", "canonical.srt")],
+        meta: {},
+      },
       artifacts: [
         artifact("video", "input", "E:/canonical.mp4", "canonical.mp4", {
           type: "video/mp4",
@@ -142,7 +146,7 @@ describe("taskMedia", () => {
     });
   });
 
-  it("includes explicit task media refs in candidate resolution before path fields", async () => {
+  it("resolves candidate media from task artifacts", async () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-3",
@@ -150,7 +154,7 @@ describe("taskMedia", () => {
       status: "running",
       progress: 10,
       created_at: Date.now(),
-      request_params: { context_path: "E:/workspace/demo.srt" },
+      request_params: {},
       artifacts: [artifact("subtitle", "input", "E:/canonical/demo.srt", "demo.srt")],
     };
 
@@ -171,7 +175,11 @@ describe("taskMedia", () => {
       progress: 100,
       created_at: Date.now(),
       request_params: {},
-      result: { success: true, meta: {} },
+      result: {
+        success: true,
+        artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
+        meta: {},
+      },
       artifacts: [
         artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt", {
           media_kind: "subtitle",
@@ -256,7 +264,6 @@ describe("taskMedia", () => {
       outputRef: {
         path: "E:/renders/source_synthesized.mp4",
       },
-      outputPath: "E:/renders/source_synthesized.mp4",
     });
     expect(getTaskMediaCandidates(task).output).toEqual([
       "E:/renders/source_synthesized.mp4",
@@ -264,7 +271,7 @@ describe("taskMedia", () => {
     ]);
   });
 
-  it("does not prioritize stale path fields when structured subtitle refs exist", () => {
+  it("builds translation candidates exclusively from published artifacts", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-6",
@@ -272,19 +279,15 @@ describe("taskMedia", () => {
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {
-        context_ref: {
-          path: "E:/canonical/source.srt",
-          name: "source.srt",
-        },
-        context_path: "E:/stale/source.srt",
-        srt_path: "E:/stale/request-output.srt",
+      request_params: {},
+      result: {
+        success: true,
+        artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
+        meta: {},
       },
-      result: { success: true, meta: { srt_path: "E:/stale/result-output.srt" } },
       artifacts: [
         artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
         artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt"),
-        artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
       ],
     };
 
@@ -292,15 +295,14 @@ describe("taskMedia", () => {
       video: [],
       subtitle: [
         "E:/canonical/output.srt",
-        "E:/canonical/output.srt",
         "E:/canonical/source.srt",
       ],
       context: ["E:/canonical/source.srt"],
-      output: ["E:/canonical/output.srt", "E:/canonical/output.srt"],
+      output: ["E:/canonical/output.srt"],
     });
   });
 
-  it("does not treat translation context paths as video media candidates", () => {
+  it("does not classify subtitle artifacts as video media", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-4",
@@ -308,23 +310,19 @@ describe("taskMedia", () => {
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {
-        context_path: "E:/workspace/demo.srt",
-        subtitle_ref: {
-          path: "E:/canonical/demo.srt",
-          name: "demo.srt",
-        },
-      },
+      request_params: {},
       result: {
         success: true,
-        files: [{ type: "subtitle", path: "E:/workspace/demo_ZH-CN.srt" }],
+        artifacts: [artifact("subtitle", "output", "E:/canonical/demo_ZH-CN.srt", "demo_ZH-CN.srt")],
+        meta: {},
       },
+      artifacts: [artifact("subtitle", "output", "E:/canonical/demo_ZH-CN.srt", "demo_ZH-CN.srt")],
     };
 
     expect(hasTaskVideoMedia(task)).toBe(false);
   });
 
-  it("does not keep stale result file_path as a dedicated context candidate", () => {
+  it("uses a download output artifact as the only media candidate", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-7",
@@ -335,9 +333,8 @@ describe("taskMedia", () => {
       request_params: {},
       result: {
         success: true,
-        meta: {
-          file_path: "E:/stale/stale-video.mp4",
-        },
+        artifacts: [artifact("video", "output", "E:/canonical/video.mp4", "video.mp4")],
+        meta: {},
       },
       artifacts: [artifact("video", "output", "E:/canonical/video.mp4", "video.mp4")],
     };
@@ -350,7 +347,7 @@ describe("taskMedia", () => {
     });
   });
 
-  it("does not treat request srt_path as a standalone subtitle identity candidate", () => {
+  it("returns no candidates for a task without artifacts", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-8",
@@ -358,12 +355,10 @@ describe("taskMedia", () => {
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {
-        srt_path: "E:/stale/request-only.srt",
-      },
+      request_params: {},
       result: {
         success: true,
-        files: [],
+        artifacts: [],
         meta: {},
       },
     };
@@ -376,7 +371,7 @@ describe("taskMedia", () => {
     });
   });
 
-  it("does not scan arbitrary request string fields for translated subtitle candidates", () => {
+  it("does not treat non-media request metadata as task media", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-9",
@@ -385,12 +380,11 @@ describe("taskMedia", () => {
       progress: 100,
       created_at: Date.now(),
       request_params: {
-        context_path: "E:/canonical/source.srt",
-        translated_subtitle_path: "E:/stale/derived-output.srt",
+        mode: "standard",
       },
       result: {
         success: true,
-        files: [],
+        artifacts: [],
         meta: {},
       },
     };
@@ -403,7 +397,7 @@ describe("taskMedia", () => {
     });
   });
 
-  it("does not treat translation context_path as a generic subtitle candidate without refs", () => {
+  it("keeps an empty translation task free of synthetic media", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-12",
@@ -411,12 +405,10 @@ describe("taskMedia", () => {
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {
-        context_path: "E:/stale/source-only.srt",
-      },
+      request_params: {},
       result: {
         success: true,
-        files: [],
+        artifacts: [],
         meta: {},
       },
     };
@@ -429,7 +421,7 @@ describe("taskMedia", () => {
     });
   });
 
-  it("does not use meta srt_path when subtitle files already exist", () => {
+  it("uses the published subtitle output artifact", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-10",
@@ -440,24 +432,23 @@ describe("taskMedia", () => {
       request_params: {},
       result: {
         success: true,
-        meta: {
-          srt_path: "E:/stale/output-from-meta.srt",
-        },
+        artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
+        meta: {},
       },
       artifacts: [
-        artifact("subtitle", "output", "E:/canonical/output-from-files.srt", "output-from-files.srt"),
+        artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
       ],
     };
 
     expect(getTaskMediaCandidates(task)).toEqual({
       video: [],
-      subtitle: ["E:/canonical/output-from-files.srt"],
+      subtitle: ["E:/canonical/output.srt"],
       context: [],
-      output: ["E:/canonical/output-from-files.srt"],
+      output: ["E:/canonical/output.srt"],
     });
   });
 
-  it("does not use meta srt_path for task snapshot subtitle recovery on path-mirror-shaped tasks", () => {
+  it("does not turn ordinary task metadata into media candidates", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-13",
@@ -469,9 +460,9 @@ describe("taskMedia", () => {
       request_params: {},
       result: {
         success: true,
-        files: [],
+        artifacts: [],
         meta: {
-          srt_path: "E:/current-contract/output-from-meta.srt",
+          language: "en",
         },
       },
     };
@@ -484,7 +475,7 @@ describe("taskMedia", () => {
     });
   });
 
-  it("does not keep request output_path as a context candidate when media files already exist", () => {
+  it("uses the published video output artifact", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-11",
@@ -492,11 +483,10 @@ describe("taskMedia", () => {
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {
-        output_path: "E:/stale/request-output.mp4",
-      },
+      request_params: {},
       result: {
         success: true,
+        artifacts: [artifact("video", "output", "E:/canonical/final-output.mp4", "final-output.mp4")],
         meta: {},
       },
       artifacts: [

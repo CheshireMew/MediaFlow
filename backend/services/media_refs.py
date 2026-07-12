@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from typing import Optional
 
+from backend.models.schemas import MediaReference
+
 
 def create_media_ref(
     file_path: Optional[str],
@@ -10,7 +12,7 @@ def create_media_ref(
     *,
     role: Optional[str] = None,
     origin: str = "task",
-) -> Optional[dict]:
+) -> Optional[MediaReference]:
     if not file_path or not isinstance(file_path, str):
         return None
 
@@ -25,11 +27,11 @@ def create_media_ref(
         elif media_type.startswith("image"):
             media_kind = "image"
 
-    return {
-        "path": file_path,
-        "name": os.path.basename(file_path),
-        "type": media_type,
-        "media_kind": media_kind,
-        "role": role,
-        "origin": origin,
-    }
+    return MediaReference(
+        path=file_path,
+        name=os.path.basename(file_path),
+        type=media_type,
+        media_kind=media_kind,
+        role=role,
+        origin=origin,
+    )

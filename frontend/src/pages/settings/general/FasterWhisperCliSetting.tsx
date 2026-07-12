@@ -15,7 +15,7 @@ export function FasterWhisperCliSetting({ controller, t }: FasterWhisperCliSetti
     isInstallingFasterWhisperCli,
     setSettings,
     settings,
-    updateSettingsField,
+    updatePreferences,
   } = controller;
 
   return (
@@ -43,7 +43,7 @@ export function FasterWhisperCliSetting({ controller, t }: FasterWhisperCliSetti
               if (!selected?.path) return;
               const nextSettings = { ...settings, faster_whisper_cli_path: selected.path };
               setSettings(nextSettings);
-              await updateSettingsField(nextSettings);
+              await updatePreferences({ faster_whisper_cli_path: selected.path });
             }}
             className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors"
           >
@@ -52,8 +52,7 @@ export function FasterWhisperCliSetting({ controller, t }: FasterWhisperCliSetti
           <button
             onClick={async () => {
               if (!settings) return;
-              await updateSettingsField({
-                ...settings,
+              await updatePreferences({
                 faster_whisper_cli_path: settings.faster_whisper_cli_path?.trim() || null,
               });
             }}
@@ -64,7 +63,7 @@ export function FasterWhisperCliSetting({ controller, t }: FasterWhisperCliSetti
           <button
             onClick={async () => {
               if (!settings) return;
-              await updateSettingsField({ ...settings, faster_whisper_cli_path: null });
+              await updatePreferences({ faster_whisper_cli_path: null });
             }}
             className="px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
           >
@@ -74,6 +73,7 @@ export function FasterWhisperCliSetting({ controller, t }: FasterWhisperCliSetti
       }
     >
       <input
+        aria-label={t("general.cliPathPlaceholder")}
         value={settings?.faster_whisper_cli_path || ""}
         onChange={(event) => {
           if (!settings) return;

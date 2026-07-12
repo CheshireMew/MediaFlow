@@ -197,6 +197,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 if cs == 100: cs = 99 # Clamp
                 return f"{h}:{m:02d}:{sec:02d}.{cs:02d}"
 
+            def positioned_line(line_text: str, line_margin_v: int) -> str:
+                """Pin split lines so libass cannot collision-reorder them."""
+                if alignment == 1:
+                    x = margin_l
+                elif alignment == 3:
+                    x = play_res_x - margin_r
+                else:
+                    x = play_res_x // 2
+
+                y = max(0, min(play_res_y, play_res_y - line_margin_v))
+                return f"{{\\pos({x},{y})}}{line_text}"
+
             for seg in segments:
                 # Apply time offset
                 seg_start = seg.start + time_offset
@@ -253,7 +265,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         # Ensure non-negative
                         line_margin_v = max(0, line_margin_v)
                         events.append(
-                            f"Dialogue: 0,{start_ts},{end_ts},Default,,0,0,{line_margin_v},,{line_text}"
+                            f"Dialogue: 0,{start_ts},{end_ts},Default,,0,0,0,,"
+                            f"{positioned_line(line_text, line_margin_v)}"
                         )
                 
             with open(ass_path, 'w', encoding='utf-8-sig') as f:

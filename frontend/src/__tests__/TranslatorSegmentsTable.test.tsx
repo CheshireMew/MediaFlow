@@ -61,7 +61,7 @@ describe("Translator SegmentsTable", () => {
     );
 
     fireEvent.contextMenu(screen.getByText("A"));
-    fireEvent.click(screen.getByRole("button", { name: "打开源语言字幕所在文件夹" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "打开源语言字幕所在文件夹" }));
 
     expect(electronMock.showInExplorer).toHaveBeenCalledWith("E:/subs/demo.srt");
   });
@@ -81,7 +81,7 @@ describe("Translator SegmentsTable", () => {
     );
 
     fireEvent.contextMenu(screen.getByDisplayValue("甲"));
-    fireEvent.click(screen.getByRole("button", { name: "打开译文字幕所在文件夹" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "打开译文字幕所在文件夹" }));
 
     expect(electronMock.showInExplorer).toHaveBeenCalledWith("E:/subs/demo_ZH-CN.srt");
   });

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 import json
 import sys
+from types import ModuleType
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -10,94 +12,65 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from pydantic import BaseModel
 
-from backend.api.v1.settings import (
-    ActiveProviderRequest,
-    FasterWhisperCliInstallResponse,
-    ProviderConnectionRequest,
-    ToolUpdateResponse,
+from backend.api.v1 import analyze, audio, cookies, settings as settings_api
+from backend.models import schemas
+from backend.models.translation_target_language import (
+    DEFAULT_TRANSLATION_TARGET_LANGUAGE,
+    TranslationTargetLanguage,
+    get_language_suffix,
 )
-from backend.application.glossary_service import (
-    CreateGlossaryTermRequest,
-    UpdateGlossaryTermRequest,
-)
-from backend.models.schemas import (
-    AnalyzeResult,
-    CleanRequest,
-    DownloadParams,
-    EnhanceRequest,
-    FileRef,
-    GlossaryTerm,
-    MediaVisibleStartRequest,
-    MediaVisibleStartResponse,
-    MediaReference,
-    OCRExtractRequest,
-    OCRExtractResponse,
-    PipelineRequest,
-    PlaylistItem,
-    PreprocessingResponse,
-    SynthesisRequest,
-    SynthesizeParams,
-    TaskResponse,
-    TaskArtifact,
-    TaskView,
-    TaskResult,
-    TextEvent,
-    TranscribeParams,
-    TranscribeRequest,
-    TranscribeSegmentRequest,
-    TranslateParams,
-    TranslateResponse,
-)
-from backend.services.runtime_diagnostics import CudaReadinessResponse, RuntimeDependencyCheck
-from backend.services.settings_manager import LLMProvider, UserSettings
+from backend.services import runtime_diagnostics, settings_manager
 
 OUTPUT = REPO_ROOT / "frontend" / "src" / "types" / "generatedApi.ts"
 TASK_CATALOG_OUTPUT = REPO_ROOT / "frontend" / "src" / "contracts" / "generatedTaskCatalog.ts"
+TASK_MESSAGE_CATALOG_OUTPUT = (
+    REPO_ROOT
+    / "frontend"
+    / "src"
+    / "contracts"
+    / "generatedTaskMessageCatalog.ts"
+)
+TRANSLATION_LANGUAGE_CATALOG_OUTPUT = (
+    REPO_ROOT
+    / "frontend"
+    / "src"
+    / "contracts"
+    / "generatedTranslationTargetLanguages.ts"
+)
+
+WIRE_MODEL_MODULES: tuple[ModuleType, ...] = (
+    schemas,
+    analyze,
+    audio,
+    cookies,
+    settings_api,
+    runtime_diagnostics,
+    settings_manager,
+)
 
 
-MODELS: list[type[BaseModel]] = [
-    MediaReference,
-    FileRef,
-    TaskResult,
-    TaskArtifact,
-    TaskResponse,
-    TaskView,
-    TranslateResponse,
-    DownloadParams,
-    TranscribeParams,
-    TranslateParams,
-    SynthesizeParams,
-    TranscribeRequest,
-    TranscribeSegmentRequest,
-    SynthesisRequest,
-    MediaVisibleStartRequest,
-    MediaVisibleStartResponse,
-    OCRExtractRequest,
-    OCRExtractResponse,
-    EnhanceRequest,
-    CleanRequest,
-    PreprocessingResponse,
-    TextEvent,
-    PlaylistItem,
-    AnalyzeResult,
-    GlossaryTerm,
-    LLMProvider,
-    UserSettings,
-    ActiveProviderRequest,
-    ProviderConnectionRequest,
-    ToolUpdateResponse,
-    FasterWhisperCliInstallResponse,
-    RuntimeDependencyCheck,
-    CudaReadinessResponse,
-    CreateGlossaryTermRequest,
-    UpdateGlossaryTermRequest,
-    PipelineRequest,
-]
+def _discover_wire_models() -> list[type[BaseModel]]:
+    discovered: dict[str, type[BaseModel]] = {}
+    for module in WIRE_MODEL_MODULES:
+        for value in vars(module).values():
+            if (
+                not isinstance(value, type)
+                or not issubclass(value, BaseModel)
+                or value is BaseModel
+                or value.__module__ != module.__name__
+            ):
+                continue
+            existing = discovered.get(value.__name__)
+            if existing is not None and existing is not value:
+                raise RuntimeError(
+                    f"Duplicate wire model name {value.__name__}: "
+                    f"{existing.__module__} and {value.__module__}"
+                )
+            discovered[value.__name__] = value
+    return list(discovered.values())
 
 
-TYPE_OVERRIDES = {
-    "SubtitleSegment": 'import("./task").SubtitleSegment',
-}
+MODELS = _discover_wire_models()
 
 
 def _optional(schema: dict[str, Any], name: str) -> bool:
@@ -108,16 +81,28 @@ def _string_literal(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _typescript_literal(value: Any) -> str:
+    if isinstance(value, str):
+        return _string_literal(value)
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return json.dumps(value)
+    raise TypeError(f"Unsupported JSON Schema literal: {value!r}")
+
+
 def _schema_type(schema: dict[str, Any]) -> str:
     if "$ref" in schema:
         name = str(schema["$ref"]).split("/")[-1]
-        return TYPE_OVERRIDES.get(name, name)
+        return name
 
     if "const" in schema:
-        return _string_literal(str(schema["const"]))
+        return _typescript_literal(schema["const"])
 
     if "enum" in schema:
-        return " | ".join(_string_literal(str(value)) for value in schema["enum"] if value is not None) or "null"
+        return " | ".join(_typescript_literal(value) for value in schema["enum"])
 
     if "anyOf" in schema:
         parts = [_schema_type(part) for part in schema["anyOf"]]
@@ -184,48 +169,131 @@ def _definition_interfaces() -> list[str]:
     output: list[str] = []
     model_names = {model.__name__ for model in MODELS}
     for name in sorted(definitions):
-        if name in model_names or name in TYPE_OVERRIDES:
+        if name in model_names:
             continue
         output.append(_interface_from_schema(name, definitions[name]))
     return output
 
 
-def _write_task_catalog() -> None:
+def _render_task_catalog() -> str:
     catalog = json.loads((REPO_ROOT / "contracts" / "task-catalog.json").read_text(encoding="utf-8"))
     task_types = ", ".join(_string_literal(item) for item in catalog["task_types"])
     step_names = ", ".join(_string_literal(item) for item in catalog["pipeline_steps"].keys())
-    TASK_CATALOG_OUTPUT.write_text(
-        "\n".join(
-            [
-                "// Generated by scripts/generate_frontend_api_types.py from contracts/task-catalog.json.",
-                "// Do not edit by hand.",
-                "",
-                f"export const TASK_TYPES = [{task_types}] as const;",
-                "export type TaskType = (typeof TASK_TYPES)[number];",
-                "",
-                f"export const PIPELINE_STEP_NAMES = [{step_names}] as const;",
-                "export type PipelineStepName = (typeof PIPELINE_STEP_NAMES)[number];",
-                "",
-            ]
-        ),
-        encoding="utf-8",
+    return "\n".join(
+        [
+            "// Generated by scripts/generate_frontend_api_types.py from contracts/task-catalog.json.",
+            "// Do not edit by hand.",
+            "",
+            f"export const TASK_TYPES = [{task_types}] as const;",
+            "export type TaskType = (typeof TASK_TYPES)[number];",
+            "",
+            f"export const PIPELINE_STEP_NAMES = [{step_names}] as const;",
+            "export type PipelineStepName = (typeof PIPELINE_STEP_NAMES)[number];",
+            "",
+        ]
     )
 
 
-def main() -> None:
-    interfaces = [*_definition_interfaces(), *[_interface_for_model(model) for model in MODELS]]
-    content = "\n".join(
+def _render_task_message_catalog() -> str:
+    contract = json.loads(
+        (REPO_ROOT / "contracts" / "runtime-contract.json").read_text(encoding="utf-8")
+    )
+    message_codes = ", ".join(
+        _string_literal(item) for item in contract["task_message_codes"]
+    )
+    return "\n".join(
         [
-            "// Generated by scripts/generate_frontend_api_types.py from backend.models.schemas.",
+            "// Generated by scripts/generate_frontend_api_types.py from contracts/runtime-contract.json.",
+            "// Do not edit by hand.",
+            "",
+            f"export const TASK_MESSAGE_CODES = [{message_codes}] as const;",
+            "export type TaskMessageCode = (typeof TASK_MESSAGE_CODES)[number];",
+            "",
+        ]
+    )
+
+
+def _render_translation_language_catalog() -> str:
+    options = []
+    for language in TranslationTargetLanguage:
+        options.append(
+            "  { "
+            f"value: {_string_literal(language.value)}, "
+            f"labelKey: {_string_literal(f'languages.{language.value}')}, "
+            f"suffix: {_string_literal(get_language_suffix(language))} "
+            "},"
+        )
+    return "\n".join(
+        [
+            "// Generated by scripts/generate_frontend_api_types.py from backend.models.translation_target_language.",
+            "// Do not edit by hand.",
+            "",
+            'import type { TranslationTargetLanguage } from "../types/generatedApi";',
+            'export type { TranslationTargetLanguage } from "../types/generatedApi";',
+            "",
+            "export const TRANSLATION_TARGET_LANGUAGES = [",
+            *options,
+            "] as const satisfies readonly {",
+            "  value: TranslationTargetLanguage;",
+            "  labelKey: string;",
+            "  suffix: string;",
+            "}[];",
+            "",
+            "export const DEFAULT_TRANSLATION_TARGET_LANGUAGE: TranslationTargetLanguage =",
+            f"  {_string_literal(DEFAULT_TRANSLATION_TARGET_LANGUAGE.value)};",
+            "",
+        ]
+    )
+
+
+def _render_api_types() -> str:
+    interfaces = [*_definition_interfaces(), *[_interface_for_model(model) for model in MODELS]]
+    return "\n".join(
+        [
+            "// Generated by scripts/generate_frontend_api_types.py from backend wire models.",
             "// Do not edit by hand.",
             "",
             *interfaces,
             "",
         ]
     )
-    OUTPUT.write_text(content, encoding="utf-8")
-    _write_task_catalog()
+
+
+def _write_or_check(path: Path, content: str, *, check: bool) -> bool:
+    if check:
+        current = path.read_text(encoding="utf-8") if path.exists() else None
+        if current != content:
+            print(f"Generated contract drift detected: {path.relative_to(REPO_ROOT)}")
+            return False
+        return True
+    path.write_text(content, encoding="utf-8")
+    return True
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Generate frontend wire contracts.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Fail when committed generated files differ from backend sources.",
+    )
+    args = parser.parse_args()
+
+    outputs = {
+        OUTPUT: _render_api_types(),
+        TASK_CATALOG_OUTPUT: _render_task_catalog(),
+        TASK_MESSAGE_CATALOG_OUTPUT: _render_task_message_catalog(),
+        TRANSLATION_LANGUAGE_CATALOG_OUTPUT: _render_translation_language_catalog(),
+    }
+    valid = all(
+        _write_or_check(path, content, check=args.check)
+        for path, content in outputs.items()
+    )
+    if not valid:
+        print("Run `python scripts/generate_frontend_api_types.py` and commit the results.")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

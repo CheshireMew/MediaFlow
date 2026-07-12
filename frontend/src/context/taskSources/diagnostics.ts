@@ -1,7 +1,7 @@
 export type TaskSourceDiagnostic = {
   ignoredTaskCount: number;
   lastIssue: {
-    reason: "contract_version" | "task_source";
+    reason: "contract_version" | "task_source" | "message_code" | "message_params";
     source: string;
     taskId: string;
     expected: string;

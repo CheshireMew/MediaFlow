@@ -1,18 +1,21 @@
 import { useState, useCallback } from "react";
-import { downloaderService, isDesktopRuntime } from "../services/domain";
-import { desktopBrowserService } from "../services/desktop";
-import type { AnalyzeResult } from "../api/client";
-import { useTaskContext } from "../context/taskContext";
+import { useTranslation } from "react-i18next";
 import {
+  downloaderService,
+  isDesktopRuntime,
   queueDownloadItems,
   type DownloadExtraInfo,
   type DownloadQueueItem,
-} from "../services/domain/downloadSubmission";
+} from "../services/domain";
+import { desktopBrowserService } from "../services/desktop";
+import type { AnalyzeResult } from "../api/client";
+import { useTaskContext } from "../context/taskContext";
 import { useDownloaderStore } from "../stores/downloaderStore";
 import { useDownloaderTasks } from "./downloader/useDownloaderTasks";
 import { prewarmFasterWhisperCliFromStoredPreferences } from "../services/asrCliPrewarm";
 
 export function useDownloaderController() {
+  const { t } = useTranslation("downloader");
   const { addTask, remoteTasksReady } = useTaskContext();
   const { downloadEntries, activeDownloadCount } = useDownloaderTasks();
   // Global Persistent State
@@ -44,14 +47,14 @@ export function useDownloaderController() {
   // ── Cookie Retry Helper ──────────────────────────────────────
   const handleCookieRetry = async (domain: string): Promise<boolean> => {
     if (!isDesktopRuntime()) {
-      setError("需要登录验证，但 Electron API 不可用。请使用桌面版应用。");
+      setError(t("feedback.desktopRequired"));
       return false;
     }
-    setError(`正在打开浏览器，请在新窗口中访问网站，完成后关闭窗口...`);
+    setError(t("feedback.openingBrowser"));
     try {
       const cookieList = await desktopBrowserService.fetchCookies(`https://www.${domain}`);
       if (cookieList.length === 0) {
-        setError(`无法获取 ${domain} 的 Cookie。请尝试在浏览器中登录后重试。`);
+        setError(t("feedback.cookiesMissing", { domain }));
         return false;
       }
       await downloaderService.saveCookies(domain, cookieList);
@@ -60,9 +63,9 @@ export function useDownloaderController() {
     } catch (cookieError: unknown) {
       console.error("[Cookie] Fetch failed:", cookieError);
       setError(
-        `Cookie 获取失败: ${
-          cookieError instanceof Error ? cookieError.message : String(cookieError)
-        }`,
+        t("feedback.cookiesFailed", {
+          detail: cookieError instanceof Error ? cookieError.message : String(cookieError),
+        }),
       );
       return false;
     }
@@ -99,15 +102,16 @@ export function useDownloaderController() {
             continue;
           }
           setError(
-            `Failed to queue ${item.url}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+            t("feedback.queueFailed", {
+              url: item.url,
+              detail: error instanceof Error ? error.message : String(error),
+            }),
           );
         }
       }
       setLoading(false);
     },
-    [addTask, remoteTasksReady, downloadSubs, resolution, codec, lastAnalysis, addToHistory],
+    [addTask, remoteTasksReady, downloadSubs, resolution, codec, lastAnalysis, addToHistory, t],
   );
 
   const handleAnalyzeAndDownload = async () => {
@@ -148,7 +152,7 @@ export function useDownloaderController() {
       }
     } catch (error: unknown) {
       const errorMessage =
-        error instanceof Error ? error.message : "Analysis failed";
+        error instanceof Error ? error.message : t("feedback.analysisFailed");
 
       // Cookie Logic
       if (errorMessage.includes("COOKIES_REQUIRED:")) {
@@ -158,34 +162,40 @@ export function useDownloaderController() {
           const cookieOk = await handleCookieRetry(domain);
           if (cookieOk) {
             // Retry analysis after successful cookie fetch
-            const analysis = await downloaderService.analyzeUrl(url);
-            setLastAnalysis(analysis);
-            if (
-              analysis.type === "playlist" &&
-              analysis.items &&
-              analysis.items.length > 1
-            ) {
-              setPlaylistInfo(analysis);
-              setSelectedItems([]);
-              setShowPlaylistDialog(true);
-            } else {
-              const extraWithDirect: DownloadExtraInfo = {
-                ...(analysis.extra_info ?? {}),
-              };
-              if (analysis.direct_src) {
-                extraWithDirect.direct_src = analysis.direct_src;
+            try {
+              const analysis = await downloaderService.analyzeUrl(url);
+              setLastAnalysis(analysis);
+              if (
+                analysis.type === "playlist" &&
+                analysis.items &&
+                analysis.items.length > 1
+              ) {
+                setPlaylistInfo(analysis);
+                setSelectedItems([]);
+                setShowPlaylistDialog(true);
+              } else {
+                const extraWithDirect: DownloadExtraInfo = {
+                  ...(analysis.extra_info ?? {}),
+                };
+                if (analysis.direct_src) {
+                  extraWithDirect.direct_src = analysis.direct_src;
+                }
+                if (analysis.title) {
+                  extraWithDirect.title = analysis.title;
+                }
+                await downloadVideos(
+                  [{ url: analysis.url || url, title: analysis.title }],
+                  undefined,
+                  extraWithDirect,
+                );
               }
-              if (analysis.title) {
-                extraWithDirect.title = analysis.title;
-              }
-              await downloadVideos(
-                [{ url: analysis.url || url, title: analysis.title }],
-                undefined,
-                extraWithDirect,
-              );
+              setAnalyzing(false);
+              return;
+            } catch (retryError) {
+              setError(t("feedback.analysisFailedDetail", {
+                detail: retryError instanceof Error ? retryError.message : String(retryError),
+              }));
             }
-            setAnalyzing(false);
-            return;
           }
         } else {
           setError(errorMessage);
@@ -233,7 +243,7 @@ export function useDownloaderController() {
       }
 
       if (!currentItem) {
-        setError("无法确定当前视频，请先在播放列表中选择一项后再仅下载该视频。");
+        setError(t("feedback.currentItemUnknown"));
         return;
       }
 

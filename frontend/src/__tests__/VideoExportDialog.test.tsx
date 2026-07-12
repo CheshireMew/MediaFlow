@@ -38,7 +38,7 @@ describe("VideoExportDialog clip scope", () => {
 
   it("submits a clip batch without full-video trim or a single output file", async () => {
     const onExport = vi
-      .fn<(submission: VideoExportSubmission, videoPath: string) => Promise<boolean>>()
+      .fn<(submission: VideoExportSubmission) => Promise<boolean>>()
       .mockResolvedValue(true);
     const onClose = vi.fn();
     render(
@@ -46,7 +46,7 @@ describe("VideoExportDialog clip scope", () => {
         isOpen
         onClose={onClose}
         regions={[{ id: "s1", start: 0, end: 20, text: "Subtitle" }]}
-        videoPath="D:/media/demo.mp4"
+        video={{ path: "D:/media/demo.mp4", name: "demo.mp4" }}
         mediaUrl="file:///D:/media/demo.mp4"
         exportScope={{
           kind: "clips",
@@ -59,6 +59,7 @@ describe("VideoExportDialog clip scope", () => {
       />,
     );
 
+    expect(screen.getByRole("dialog", { name: "clipExport.title" })).toHaveAttribute("aria-modal", "true");
     expect(screen.getByText("clipExport.title")).toBeInTheDocument();
     expect(screen.getByText("output.batchFiles")).toBeInTheDocument();
     expect(screen.queryByTitle("preview.trimVideo")).toBeNull();
@@ -76,7 +77,7 @@ describe("VideoExportDialog clip scope", () => {
 
   it("keeps the dialog open when the caller does not submit a task", async () => {
     const onExport = vi
-      .fn<(submission: VideoExportSubmission, videoPath: string) => Promise<boolean>>()
+      .fn<(submission: VideoExportSubmission) => Promise<boolean>>()
       .mockResolvedValue(false);
     const onClose = vi.fn();
     render(
@@ -84,7 +85,7 @@ describe("VideoExportDialog clip scope", () => {
         isOpen
         onClose={onClose}
         regions={[]}
-        videoPath="D:/media/demo.mp4"
+        video={{ path: "D:/media/demo.mp4", name: "demo.mp4" }}
         mediaUrl="file:///D:/media/demo.mp4"
         exportScope={{
           kind: "clips",
@@ -105,14 +106,14 @@ describe("VideoExportDialog clip scope", () => {
 
   it("keeps the full-video path as a single-file export", async () => {
     const onExport = vi
-      .fn<(submission: VideoExportSubmission, videoPath: string) => Promise<boolean>>()
+      .fn<(submission: VideoExportSubmission) => Promise<boolean>>()
       .mockResolvedValue(true);
     render(
       <VideoExportDialog
         isOpen
         onClose={vi.fn()}
         regions={[{ id: "s1", start: 0, end: 2, text: "Subtitle" }]}
-        videoPath="D:/media/demo.mp4"
+        video={{ path: "D:/media/demo.mp4", name: "demo.mp4" }}
         mediaUrl="file:///D:/media/demo.mp4"
         exportScope={{ kind: "full-video" }}
         onExport={onExport}

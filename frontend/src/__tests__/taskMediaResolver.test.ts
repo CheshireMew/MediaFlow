@@ -25,7 +25,11 @@ describe("taskMediaResolver", () => {
       progress: 100,
       created_at: 1,
       request_params: {},
-      result: { meta: {} },
+      result: {
+        success: true,
+        artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
+        meta: {},
+      },
       artifacts: [
         artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt"),
         artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
@@ -49,22 +53,19 @@ describe("taskMediaResolver", () => {
     });
   });
 
-  it("requires structured refs for translation task source resolution", () => {
+  it("returns no translation refs when no artifacts are published", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
-      id: "resolver-path-mirror-translate",
+      id: "resolver-empty-translate",
       type: "translate",
       status: "completed",
       progress: 100,
       created_at: 1,
-      task_contract_version: 2,
-      request_params: {
-        context_path: "E:/stale/source.srt",
-      },
+      request_params: {},
       result: {
-        meta: {
-          srt_path: "E:/stale/output.srt",
-        },
+        success: true,
+        artifacts: [],
+        meta: {},
       },
     };
 
@@ -74,7 +75,7 @@ describe("taskMediaResolver", () => {
     });
   });
 
-  it("does not surface request output_path as a task-media candidate", () => {
+  it("returns no candidates when a task publishes no artifacts", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "resolver-candidates",
@@ -82,11 +83,10 @@ describe("taskMediaResolver", () => {
       status: "completed",
       progress: 100,
       created_at: 1,
-      request_params: {
-        output_path: "E:/stale/output.mp4",
-      },
+      request_params: {},
       result: {
-        files: [],
+        success: true,
+        artifacts: [],
         meta: {},
       },
     };
@@ -109,7 +109,11 @@ describe("taskMediaResolver", () => {
       created_at: 1,
       primary_operation: "transcribe",
       request_params: {},
-      result: { meta: {} },
+      result: {
+        success: true,
+        artifacts: [artifact("subtitle", "output", "E:/canonical/sample.srt", "sample.srt")],
+        meta: {},
+      },
       artifacts: [
         artifact("video", "input", "E:/canonical/sample.mp4", "sample.mp4"),
         artifact("subtitle", "output", "E:/canonical/sample.srt", "sample.srt"),

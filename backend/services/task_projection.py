@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from backend.core.task_catalog import pipeline_step_to_type
@@ -15,13 +14,6 @@ REF_KEY_ROLES: dict[str, str] = {
     "srt_ref": "input",
     "context_ref": "context",
     "output_ref": "output",
-}
-
-FILE_TYPE_TO_KIND = {
-    "video": "video",
-    "audio": "audio",
-    "subtitle": "subtitle",
-    "image": "image",
 }
 
 def primary_operation(task_type: str, request_params: dict[str, Any] | None) -> str:
@@ -137,50 +129,22 @@ def _walk_request_refs(payload: Any, artifacts: list[TaskArtifact], seen: set[tu
 
 
 def _walk_result_refs(payload: Any, artifacts: list[TaskArtifact], seen: set[tuple[str, str, str]]) -> None:
-    if isinstance(payload, list):
-        for item in payload:
-            _walk_result_refs(item, artifacts, seen)
-        return
-
     if not isinstance(payload, dict):
         return
 
-    meta = payload.get("meta")
-    if isinstance(meta, dict):
-        for key, value in meta.items():
-            if key in REF_KEY_ROLES:
-                default_role = "output" if key in {"output_ref", "video_ref"} else REF_KEY_ROLES[key]
-                _append_ref_artifact(
-                    artifacts,
-                    seen,
-                    key=key,
-                    value=value,
-                    default_role=default_role,
-                )
-
-    files = payload.get("files")
-    if isinstance(files, list):
-        for file_item in files:
-            if not isinstance(file_item, dict):
-                continue
-            path = file_item.get("path")
-            if not isinstance(path, str) or not path:
-                continue
-            file_type = str(file_item.get("type") or "").lower()
-            kind = FILE_TYPE_TO_KIND.get(file_type) or media_kind_from_extension(path) or "file"
-            ref = MediaReference(
-                path=path,
-                name=Path(path).name,
-                type=file_item.get("mime_type"),
-                media_kind=kind,
-                role="output",
-                origin="task",
-            )
-            dedupe_key = (kind, "output", ref.path)
-            if dedupe_key in seen:
-                continue
-            seen.add(dedupe_key)
-            artifacts.append(TaskArtifact(kind=kind, role="output", ref=ref))
+    result_artifacts = payload.get("artifacts")
+    if not isinstance(result_artifacts, list):
+        return
+    for value in result_artifacts:
+        try:
+            artifact = TaskArtifact.model_validate(value)
+        except Exception:
+            continue
+        dedupe_key = (artifact.kind, artifact.role, artifact.ref.path)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        artifacts.append(artifact)
 
 
 def task_artifacts(

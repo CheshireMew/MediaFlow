@@ -13,7 +13,7 @@ function defineRoutePageModule<TModule>(
 
 export const ROUTE_PAGE_MODULES = {
   editor: defineRoutePageModule({
-    namespaces: ["editor"],
+    namespaces: ["editor", "taskmonitor"],
     load: () => import("../pages/EditorPage"),
   }),
   dashboard: defineRoutePageModule({
@@ -25,16 +25,12 @@ export const ROUTE_PAGE_MODULES = {
     load: () => import("../pages/DownloaderPage"),
   }),
   transcriber: defineRoutePageModule({
-    namespaces: ["transcriber"],
+    namespaces: ["transcriber", "taskmonitor"],
     load: () => import("../pages/TranscriberPage"),
   }),
   translator: defineRoutePageModule({
     namespaces: ["translator"],
     load: () => import("../pages/TranslatorPage"),
-  }),
-  preprocessing: defineRoutePageModule({
-    namespaces: ["preprocessing"],
-    load: () => import("../pages/PreprocessingPage"),
   }),
   settings: defineRoutePageModule({
     namespaces: ["settings", "common"],

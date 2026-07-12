@@ -4,6 +4,7 @@
   "taskPanel": { "title": "新任务" },
   "progressCard": {
     "systemReady": "系统就绪",
+    "modelDownload": "模型下载",
     "waitingMessage": "等待开始...",
     "processingMessage": "处理中..."
   },
@@ -21,6 +22,13 @@
     "smartSplitting": "分割中...",
     "translate": "翻译",
     "openEditor": "打开编辑器"
+  },
+  "feedback": {
+    "filePathMissing": "所选文件没有可用的本地路径，请从桌面应用重新打开后再试。",
+    "taskName": "转写 {{name}}",
+    "defaultMediaName": "媒体",
+    "startFailed": "无法启动转写：{{detail}}",
+    "noSubtitleForTranslation": "没有可供翻译的字幕文件"
   },
   "contextMenu": {
     "openSubtitleFolder": "打开字幕所在文件夹"

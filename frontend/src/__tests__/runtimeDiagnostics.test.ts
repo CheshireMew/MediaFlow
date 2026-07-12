@@ -11,9 +11,9 @@ describe("runtimeDiagnostics", () => {
     expect(
       createDesktopRuntimeDiagnostic({
         status: "pong",
-        contract_version: 1,
+        contract_version: 2,
         bridge_version: "1.2.3",
-        capabilities: ["getDesktopRuntimeInfo"],
+        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState"],
         backend: {
           status: "external",
           host: "127.0.0.1",
@@ -24,9 +24,9 @@ describe("runtimeDiagnostics", () => {
         },
       }),
     ).toEqual({
-      contract_version: 1,
+      contract_version: 2,
       bridge_version: "1.2.3",
-      capabilities: ["getDesktopRuntimeInfo"],
+      capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState"],
       backend: {
         status: "external",
         host: "127.0.0.1",
@@ -49,35 +49,30 @@ describe("runtimeDiagnostics", () => {
           status: "running",
           progress: 42,
           task_source: "backend",
-          task_contract_version: 1,
+          task_contract_version: 2,
           persistence_scope: "runtime",
           lifecycle: "resumable",
           queue_state: "running",
           queue_position: null,
           request_params: {
-            context_path: "E:/demo.srt",
             mode: "standard",
             context_ref: {
               path: "E:/canonical/demo.srt",
               name: "demo.srt",
             },
-            subtitle_ref: {
-              path: "E:/canonical/demo.srt",
-              name: "demo.srt",
-            },
           },
           result: {
-            files: [{ type: "subtitle", path: "E:/demo.zh.srt" }],
+            success: true,
+            artifacts: [{
+              kind: "subtitle",
+              role: "output",
+              ref: {
+                path: "E:/canonical/demo.zh.srt",
+                name: "demo.zh.srt",
+              },
+            }],
             meta: {
               language: "SimplifiedChinese",
-              subtitle_ref: {
-                path: "E:/canonical/demo.zh.srt",
-                name: "demo.zh.srt",
-              },
-              output_ref: {
-                path: "E:/canonical/demo.zh.srt",
-                name: "demo.zh.srt",
-              },
             },
           },
           artifacts: [
@@ -108,23 +103,15 @@ describe("runtimeDiagnostics", () => {
       task_source: "backend",
       primary_operation: "translate",
       lifecycle: "resumable",
-      task_contract_version: 1,
+      task_contract_version: 2,
       persistence_scope: "runtime",
       queue_state: "running",
       queue_position: null,
       type: "translate",
       status: "running",
-      params_keys: ["context_path", "mode", "context_ref", "subtitle_ref"],
+      params_keys: ["mode", "context_ref"],
       result_meta: {
         language: "SimplifiedChinese",
-        subtitle_ref: {
-          path: "E:/canonical/demo.zh.srt",
-          name: "demo.zh.srt",
-        },
-        output_ref: {
-          path: "E:/canonical/demo.zh.srt",
-          name: "demo.zh.srt",
-        },
       },
       artifacts: [
         {
@@ -150,20 +137,23 @@ describe("runtimeDiagnostics", () => {
     });
   });
 
-  it("keeps stale result mirrors only in raw result_meta", () => {
+  it("preserves non-media result metadata in diagnostics", () => {
     expect(
       createTaskDiagnostic(
         {
           ...BACKEND_TASK_CONTRACT_FIELDS,
-          id: "task-raw-meta-srt",
+          id: "task-result-meta",
           type: "translate",
           status: "completed",
           progress: 100,
           task_contract_version: 2,
           request_params: {},
           result: {
+            success: true,
+            artifacts: [],
             meta: {
-              srt_path: "E:/stale/output.srt",
+              language: "en",
+              batch_count: 3,
             },
           },
           created_at: 1,
@@ -174,7 +164,8 @@ describe("runtimeDiagnostics", () => {
       ),
     ).toMatchObject({
       result_meta: {
-        srt_path: "E:/stale/output.srt",
+        language: "en",
+        batch_count: 3,
       },
     });
   });

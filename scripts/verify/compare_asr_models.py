@@ -40,7 +40,9 @@ async def run_test(name, model_name, use_cli):
                 audio_path=AUDIO_FILE,
                 model_name=model_name,
                 device="cuda", 
-                progress_callback=lambda p, m: print(f"[{name}] {p}%: {m}")
+                progress_callback=lambda p, code, params: print(
+                    f"[{name}] {p}%: {code} {params}"
+                )
             )
         )
         

@@ -1,19 +1,27 @@
 import { create } from "zustand";
 import type { SubtitleSegment } from "../types/task";
-import type { GlossaryTerm } from "../services/domain";
-import type { MediaReference } from "../services/ui/mediaReference";
-import type { NullableExecutionMode } from "../services/domain";
+import type {
+  GlossaryTerm,
+  NullableExecutionMode,
+  TranslationTargetLanguage,
+} from "../services/domain";
+import {
+  normalizeMediaReference,
+  type MediaReference,
+} from "../services/ui/mediaReference";
 import {
   persistStoredTranslationPreferences,
   restoreStoredTranslationPreferences,
   type TranslationExecutionMode,
 } from "../services/persistence/translationPreferences";
-import type { TranslationTargetLanguage } from "../services/domain/translationTargetLanguages";
 import {
-  readUiStateValue,
   subscribeUiStateSettingsInitialized,
-  writeUiStateValue,
 } from "../services/persistence/uiStateSettings";
+import {
+  readWorkspaceStateValue,
+  subscribeWorkspaceStateInitialized,
+  writeWorkspaceStateValue,
+} from "../services/persistence/workspaceState";
 
 export type TranslatorMode = TranslationExecutionMode;
 export type TranslatorResultMode = TranslatorMode | null;
@@ -24,7 +32,6 @@ interface TranslatorState {
   sourceSegments: SubtitleSegment[];
   targetSegments: SubtitleSegment[];
   glossary: GlossaryTerm[];
-  sourceFilePath: string | null;
   sourceFileRef: MediaReference | null;
   targetSubtitleRef: MediaReference | null;
 
@@ -47,7 +54,6 @@ interface TranslatorState {
   setTargetSegments: (segments: SubtitleSegment[]) => void;
   updateTargetSegment: (index: number, text: string) => void;
   setGlossary: (terms: GlossaryTerm[]) => void;
-  setSourceFilePath: (path: string | null) => void;
   setSourceFileRef: (reference: MediaReference | null) => void;
   setTargetSubtitleRef: (reference: MediaReference | null) => void;
   setTargetLang: (lang: TranslationTargetLanguage) => void;
@@ -68,7 +74,6 @@ type TranslatorSnapshot = Pick<
   TranslatorState,
   | "sourceSegments"
   | "targetSegments"
-  | "sourceFilePath"
   | "sourceFileRef"
   | "targetSubtitleRef"
   | "resultMode"
@@ -84,16 +89,8 @@ function normalizeTranslatorSnapshot(
     targetSegments: Array.isArray(payload?.targetSegments)
       ? payload.targetSegments
       : [],
-    sourceFilePath:
-      typeof payload?.sourceFilePath === "string" ? payload.sourceFilePath : null,
-    sourceFileRef:
-      payload?.sourceFileRef && typeof payload.sourceFileRef === "object"
-        ? (payload.sourceFileRef as MediaReference)
-        : null,
-    targetSubtitleRef:
-      payload?.targetSubtitleRef && typeof payload.targetSubtitleRef === "object"
-        ? (payload.targetSubtitleRef as MediaReference)
-        : null,
+    sourceFileRef: normalizeMediaReference(payload?.sourceFileRef),
+    targetSubtitleRef: normalizeMediaReference(payload?.targetSubtitleRef),
     resultMode:
       payload?.resultMode === "standard" ||
       payload?.resultMode === "intelligent" ||
@@ -105,7 +102,7 @@ function normalizeTranslatorSnapshot(
 
 function readTranslatorSnapshot() {
   return normalizeTranslatorSnapshot(
-    readUiStateValue<Partial<TranslatorSnapshot>>(TRANSLATOR_STORE_KEY),
+    readWorkspaceStateValue<Partial<TranslatorSnapshot>>(TRANSLATOR_STORE_KEY),
   );
 }
 
@@ -116,25 +113,35 @@ function persistTranslatorSnapshot(state: TranslatorState) {
     return;
   }
 
-  writeUiStateValue(TRANSLATOR_STORE_KEY, {
+  if (
+    state.sourceSegments === lastPersistedTranslatorState.sourceSegments &&
+    state.targetSegments === lastPersistedTranslatorState.targetSegments &&
+    state.sourceFileRef === lastPersistedTranslatorState.sourceFileRef &&
+    state.targetSubtitleRef === lastPersistedTranslatorState.targetSubtitleRef &&
+    state.resultMode === lastPersistedTranslatorState.resultMode
+  ) {
+    return;
+  }
+  const snapshot = {
     sourceSegments: state.sourceSegments,
     targetSegments: state.targetSegments,
-    sourceFilePath: state.sourceFilePath,
     sourceFileRef: state.sourceFileRef,
     targetSubtitleRef: state.targetSubtitleRef,
     resultMode: state.resultMode,
-  } satisfies TranslatorSnapshot);
+  } satisfies TranslatorSnapshot;
+  lastPersistedTranslatorState = snapshot;
+  writeWorkspaceStateValue(TRANSLATOR_STORE_KEY, snapshot);
 }
 
 const initialTranslationPreferences = restoreStoredTranslationPreferences();
 const initialTranslatorSnapshot = readTranslatorSnapshot();
+let lastPersistedTranslatorState = initialTranslatorSnapshot;
 
 export const useTranslatorStore = create<TranslatorState>()((set, get) => ({
       // Initial State
       sourceSegments: initialTranslatorSnapshot.sourceSegments,
       targetSegments: initialTranslatorSnapshot.targetSegments,
       glossary: [],
-      sourceFilePath: initialTranslatorSnapshot.sourceFilePath,
       sourceFileRef: initialTranslatorSnapshot.sourceFileRef,
       targetSubtitleRef: initialTranslatorSnapshot.targetSubtitleRef,
       targetLang: initialTranslationPreferences.targetLanguage,
@@ -167,7 +174,6 @@ export const useTranslatorStore = create<TranslatorState>()((set, get) => ({
         }),
 
       setGlossary: (terms) => set({ glossary: terms }),
-      setSourceFilePath: (path) => set({ sourceFilePath: path }),
       setSourceFileRef: (sourceFileRef) => set({ sourceFileRef }),
       setTargetSubtitleRef: (targetSubtitleRef) => set({ targetSubtitleRef }),
       setTargetLang: (lang) => {
@@ -207,20 +213,25 @@ export const useTranslatorStore = create<TranslatorState>()((set, get) => ({
 
 useTranslatorStore.subscribe(persistTranslatorSnapshot);
 
-subscribeUiStateSettingsInitialized(() => {
+subscribeWorkspaceStateInitialized(() => {
   const snapshot = readTranslatorSnapshot();
-  const preferences = restoreStoredTranslationPreferences();
 
   isHydratingTranslatorSnapshot = true;
   useTranslatorStore.setState({
     sourceSegments: snapshot.sourceSegments,
     targetSegments: snapshot.targetSegments,
-    sourceFilePath: snapshot.sourceFilePath,
     sourceFileRef: snapshot.sourceFileRef,
     targetSubtitleRef: snapshot.targetSubtitleRef,
     resultMode: snapshot.resultMode,
+  });
+  lastPersistedTranslatorState = snapshot;
+  isHydratingTranslatorSnapshot = false;
+});
+
+subscribeUiStateSettingsInitialized(() => {
+  const preferences = restoreStoredTranslationPreferences();
+  useTranslatorStore.setState({
     targetLang: preferences.targetLanguage,
     mode: preferences.mode,
   });
-  isHydratingTranslatorSnapshot = false;
 });

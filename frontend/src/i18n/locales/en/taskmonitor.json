@@ -1,5 +1,6 @@
 {
   "title": "Task Monitor",
+  "taskCardLabel": "{{type}}: {{name}}",
   "status": {
     "ready": "Ready",
     "waiting": "Waiting",
@@ -10,6 +11,7 @@
     "clearAll": { "tooltip": "Delete all tasks", "label": "Clear All" }
   },
   "confirm": {
+    "pauseAllTasks": "Pause all active tasks?",
     "deleteAllTasks": "Delete ALL tasks? This cannot be undone.",
     "deleteTask": "Delete this task?"
   },
@@ -18,7 +20,18 @@
     "pause": { "tooltip": "Pause task" },
     "resume": { "tooltip": "Resume task" },
     "delete": { "tooltip": "Delete task" },
-    "showFolder": { "tooltip": "Show in folder" }
+    "showFolder": { "tooltip": "Show in folder" },
+    "transcribe": { "tooltip": "Transcribe media" },
+    "translate": { "tooltip": "Translate subtitles" },
+    "edit": { "tooltip": "Open in editor" },
+    "expand": { "tooltip": "Show execution details" },
+    "collapse": { "tooltip": "Hide execution details" }
+  },
+  "progress": { "label": "Task progress" },
+  "trace": {
+    "title": "Execution trace",
+    "error": "Error: {{error}}",
+    "status": { "success": "Success", "failed": "Failed", "cancelled": "Cancelled" }
   },
   "badges": {
     "history": "History"
@@ -42,7 +55,68 @@
     "generic": "Task"
   },
   "messages": {
+    "pauseAllFailed": "Failed to pause active tasks",
+    "pauseFailed": "Failed to pause the task",
+    "resumeFailed": "Failed to resume the task",
+    "retryFailed": "Failed to retry the task",
+    "clearAllFailed": "Failed to clear tasks",
+    "deleteFailed": "Failed to delete task",
     "initializing": "Initializing...",
     "downloading": "Downloading"
+  },
+  "taskMessages": {
+    "queued": "Queued",
+    "queued_long_segment": "Long segment queued for background processing",
+    "starting": "Starting…",
+    "running": "Running…",
+    "completed": "Completed",
+    "failed": "Task failed",
+    "paused": "Paused",
+    "cancelled": "Cancelled",
+    "deleted": "Task deleted",
+    "deleted_count": "Deleted {{count}} tasks",
+    "pause_requested": "Pause requested",
+    "cancellation_requested": "Cancellation requested",
+    "paused_in_queue": "Paused in queue",
+    "cancelled_in_queue": "Cancelled in queue",
+    "interrupted_by_restart": "Paused after the application restarted",
+    "resumed": "Task resumed",
+    "already_running": "Task is already running",
+    "already_active": "An identical task is already active",
+    "restarted": "Task restarted",
+    "execution_spec_missing": "Task execution configuration is missing",
+    "pipeline_starting": "Starting pipeline…",
+    "pipeline_step_running": "Running step: {{step}}",
+    "pipeline_step_failed": "Step failed: {{step}}",
+    "pipeline_completed": "Pipeline completed",
+    "download_progress": "Downloading… {{percent}}% {{speed}}",
+    "download_stage_completed": "Download stage completed",
+    "download_subtitle_failed": "Subtitle download failed; keeping the media file",
+    "download_completed": "Download completed",
+    "transcription_starting": "Starting transcription…",
+    "transcription_progress": "Transcribing… {{percent}}%",
+    "transcription_completed": "Transcription completed",
+    "transcription_segment_processing": "Processing audio segment…",
+    "transcription_segment_completed": "Audio segment transcribed",
+    "asr_cli_warmup_waiting": "Waiting for the transcription engine to finish warming up…",
+    "asr_audio_splitting": "Splitting audio…",
+    "asr_chunks_progress": "Transcribed {{completed}} of {{total}} audio chunks",
+    "asr_model_preparing": "Preparing model {{model}}…",
+    "asr_model_downloading": "Downloading model {{model}}… {{downloaded}} {{file}}",
+    "asr_model_source_fallback": "Switching to the fallback model source…",
+    "asr_model_initializing": "Initializing model {{model}} on {{device}}…",
+    "asr_model_loaded": "Model {{model}} is ready",
+    "asr_cuda_cpu_fallback": "GPU runtime unavailable; retrying on CPU…",
+    "asr_finalizing": "Finalizing transcript segments…",
+    "translation_starting": "Starting translation…",
+    "translation_batch_progress": "Translated {{completed}} of {{total}} batches",
+    "translation_completed": "Translation completed",
+    "synthesis_preparing": "Preparing video export…",
+    "synthesis_starting": "Starting video synthesis…",
+    "synthesis_encoding": "Encoding video… {{percent}}% {{speed}}",
+    "synthesis_completed": "Video export completed",
+    "clip_export_preparing": "Preparing clip export…",
+    "clip_exporting": "Exporting clip {{current}} of {{total}}…",
+    "clip_export_completed": "Clip export completed"
   }
 }

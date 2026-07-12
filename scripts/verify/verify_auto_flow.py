@@ -1,70 +1,37 @@
 
-import asyncio
-import os
 import sys
 from pathlib import Path
 
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-from backend.core.pipeline import PipelineRunner
-from backend.models.schemas import PipelineStepRequest
-from backend.core.container import container, Services
-from backend.services.task_manager import TaskManager
-from backend.services.settings_manager import SettingsManager
+from backend.core.app_runtime import ApplicationRuntime
+from backend.core.container import ServiceContainer, Services
+from backend.core.task_catalog import pipeline_step_names
 
-# Mock/Stub dependencies if needed, or run integration test
-# We will try to run a "dry run" or minimal real run
 
-async def main():
+def main():
     print(">>> Verifying Auto-Execute Flow Pipeline Construction")
 
-    # 1. Initialize Container
-    container.register(Services.TASK_MANAGER, TaskManager)
-    container.register(Services.SETTINGS_MANAGER, SettingsManager)
-    
-    # We need to register other services too because PipelineRunner uses StepRegistry which looks them up
-    # However, running real download/transcribe is heavy. 
-    # Let's check if we can verify the *chaining* logic without running heavy tasks.
-    # The actual chaining logic is in `PipelineRunner.run`.
-    
-    # Actually, we can just define the steps request and see if PipelineRunner accepts it
-    # But `PipelineRunner` executes step.execute(). 
-    # To verify data passing, we need real or mocked steps.
-    
-    # Let's just verify the *Frontend* logic via inspection (which we did).
-    # This script will serve as a "Backend Integration Test" for the steps we added.
-    
-    print("Checking if steps are registered...")
-    from backend.core.steps.registry import StepRegistry
-    from backend.core.task_catalog import pipeline_step_names
-    from backend.core.steps import download, transcribe, translate, synthesize
-    
-    steps = StepRegistry.list_steps()
+    service_container = ServiceContainer()
+    runtime = ApplicationRuntime(service_container)
+    registered_count = runtime.register_services()
+    runtime.validate_runtime_contracts()
+
+    step_registry = service_container.get(Services.PIPELINE_STEPS)
+    steps = set(step_registry.list_steps())
     print(f"Registered steps: {steps}")
-    
-    required = sorted(pipeline_step_names())
-    missing = [s for s in required if s not in steps]
-    
+
+    required = pipeline_step_names()
+    missing = required - steps
     if missing:
-        print(f"FAILED: Missing steps: {missing}")
-        return
-        
-    print("SUCCESS: All auto-execute steps are registered.")
-    
-    # Check TranscribeStep logic for srt_path
-    # We can't easily unit test the class method without mocking context.
-    # But we inspected the code and it looks correct: ctx.set("srt_path", str(srt_path))
-    
-    # Check TranslateStep logic
-    # It reads "segments" and writes "srt_path".
-    
-    print(">>> Logic verification:")
-    print("1. TranscribeStep: writes 'srt_path' -> CHECKED")
-    print("2. TranslateStep: reads 'segments', writes 'translated_srt_path' AND 'srt_path' -> CHECKED")
-    print("3. SynthesizeStep: reads 'srt_path' -> CHECKED")
-    
-    print("\nFlow is theoretically sound. Real execution requires valid API keys and media files.")
+        raise RuntimeError(f"Missing steps: {sorted(missing)}")
+
+    print(
+        f"SUCCESS: {registered_count} services assembled and all "
+        f"{len(required)} pipeline steps satisfy the runtime contract."
+    )
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

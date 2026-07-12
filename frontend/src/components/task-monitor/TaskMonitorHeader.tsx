@@ -1,6 +1,8 @@
 import { Activity, Pause, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useTaskContext } from "../../context/taskContext";
+import { useConfirmation } from "../ui/confirmationContext";
+import { toast } from "../../utils/toast";
 
 type TaskMonitorHeaderProps = {
   showHeaderOverview: boolean;
@@ -27,6 +29,7 @@ export function TaskMonitorHeader({
   executionBadges,
 }: TaskMonitorHeaderProps) {
   const { t } = useTranslation("taskmonitor");
+  const confirmAction = useConfirmation();
   const {
     pauseAllTasks,
     clearTasks,
@@ -42,7 +45,7 @@ export function TaskMonitorHeader({
       <div className="flex items-center gap-4">
         {showHeaderOverview && (
           <>
-            <div className="hidden md:flex items-center gap-2 text-[10px] text-slate-400">
+            <div className="hidden md:flex items-center gap-2 text-xs text-slate-400">
               <span className="px-2 py-1 rounded-md bg-amber-400/10 text-amber-300 border border-amber-400/20">
                 {t("queue.pending")} {summary.pending}
               </span>
@@ -54,7 +57,7 @@ export function TaskMonitorHeader({
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`text-[10px] font-medium flex items-center gap-1.5 ${taskFeedReady ? "text-emerald-400" : "text-rose-400"}`}>
+              <span className={`text-xs font-medium flex items-center gap-1.5 ${taskFeedReady ? "text-emerald-400" : "text-rose-400"}`}>
                 <span className="relative flex h-2 w-2">
                   <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${taskFeedReady ? "bg-emerald-400" : "bg-rose-400"}`} />
                   <span className={`relative inline-flex rounded-full h-2 w-2 ${taskFeedReady ? "bg-emerald-500" : "bg-rose-500"}`} />
@@ -63,7 +66,7 @@ export function TaskMonitorHeader({
               </span>
             </div>
             {executionBadges.length > 0 && (
-              <div className="hidden lg:flex items-center gap-2 text-[10px]">
+              <div className="hidden lg:flex items-center gap-2 text-xs">
                 {executionBadges.map((badge) => (
                   <span key={badge.key} className={`px-2 py-1 rounded-md border font-mono ${badge.className}`}>
                     {badge.label} {badge.count}
@@ -76,13 +79,22 @@ export function TaskMonitorHeader({
 
         <div className="flex gap-2">
           <button
-            onClick={() => {
-              if (confirm(t("buttons.pauseAll.tooltip"))) {
-                pauseAllTasks().catch((err) => console.error(err));
+            type="button"
+            onClick={async () => {
+              const confirmed = await confirmAction({
+                title: t("buttons.pauseAll.label"),
+                message: t("confirm.pauseAllTasks"),
+              });
+              if (!confirmed) return;
+              try {
+                await pauseAllTasks();
+              } catch (error) {
+                console.error(error);
+                toast.error(t("messages.pauseAllFailed"));
               }
             }}
             disabled={!taskFeedReady}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-[10px] transition-all hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-xs transition-all hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
             title={t("buttons.pauseAll.tooltip")}
           >
             <Pause size={12} />
@@ -90,12 +102,22 @@ export function TaskMonitorHeader({
           </button>
 
           <button
-            onClick={() => {
-              if (confirm(t("confirm.deleteAllTasks"))) {
-                clearTasks().catch((err) => console.error(err));
+            type="button"
+            onClick={async () => {
+              const confirmed = await confirmAction({
+                title: t("buttons.clearAll.label"),
+                message: t("confirm.deleteAllTasks"),
+                tone: "danger",
+              });
+              if (!confirmed) return;
+              try {
+                await clearTasks();
+              } catch (error) {
+                console.error(error);
+                toast.error(t("messages.clearAllFailed"));
               }
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-[10px] transition-all hover:text-rose-300"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-xs transition-all hover:text-rose-300"
             title={t("buttons.clearAll.tooltip")}
           >
             <Trash2 size={12} />

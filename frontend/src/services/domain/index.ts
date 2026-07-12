@@ -1,5 +1,9 @@
 export { executionService, isDesktopRuntime } from "./executionService";
 export { settingsService } from "./settingsService";
+export type {
+  ResolvedLLMProvider,
+  ResolvedUserSettings,
+} from "./settingsService";
 export { glossaryService } from "./glossaryService";
 export type { GlossaryTerm } from "../../types/api";
 export { translationService } from "./translationService";
@@ -14,7 +18,7 @@ export {
 export type { TranslationTargetLanguage } from "./translationTargetLanguages";
 export {
   buildSynthesisOptionsFromPreferences,
-  resolveSynthesisWatermarkPath,
+  resolveSynthesisWatermarkReference,
 } from "./synthesisExecution";
 export {
   getVideoExportClipDuration,
@@ -89,9 +93,8 @@ export {
   isCliTranscriptionSetupRequiredError,
 } from "./executionAccess";
 export type {
-  TranslateRequest,
+  TranslationRequest,
   TranslateResponse,
-  TranslationTaskStatus,
 } from "../../types/api";
 export { downloaderService } from "./downloaderService";
 export {
@@ -101,7 +104,6 @@ export type {
   DownloadExtraInfo,
   DownloadQueueItem,
 } from "./downloadSubmission";
-export { preprocessingService } from "./preprocessingService";
 export { editorService } from "./editorService";
 export type {
   ExecutionMode,

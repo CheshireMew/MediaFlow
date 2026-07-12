@@ -9,7 +9,9 @@ import { apiClient } from "../api/client";
 
 const ACTIVE_TASK_RECONCILE_INTERVAL_MS = 5000;
 
-export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boolean }> = ({
+type TaskProviderProps = { children: React.ReactNode; enabled?: boolean };
+
+const TaskProviderSession: React.FC<TaskProviderProps> = ({
   children,
   enabled = true,
 }) => {
@@ -48,7 +50,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
   );
 
   const pauseTask = async (taskId: string) => {
-    sendPause?.(taskId);
+    if (!sendPause(taskId)) {
+      await apiClient.pauseTask(taskId);
+    }
   };
 
   const pauseAllTasks = async () => {
@@ -74,12 +78,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
   useEffect(() => {
     resetTaskSourceDiagnostics();
   }, []);
-
-  useEffect(() => {
-    if (!enabled) {
-      setRemoteSnapshotReady(false);
-    }
-  }, [enabled]);
 
   useEffect(() => {
     if (!enabled || !remoteSnapshotReady) {
@@ -169,3 +167,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode; enabled?: boole
     children,
   );
 };
+
+export const TaskProvider: React.FC<TaskProviderProps> = ({
+  children,
+  enabled = true,
+}) => (
+  <TaskProviderSession key={enabled ? "enabled" : "disabled"} enabled={enabled}>
+    {children}
+  </TaskProviderSession>
+);

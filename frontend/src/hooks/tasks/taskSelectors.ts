@@ -26,7 +26,7 @@ export const getTranslationTaskMode = (task: Task): TranslatorMode | null => {
 };
 
 export const getTranslationTaskSegments = (task: Task): SubtitleSegment[] => {
-  const segments = task.result?.meta?.segments ?? task.result?.segments;
+  const segments = task.result?.meta?.segments;
   return Array.isArray(segments) ? (segments as SubtitleSegment[]) : [];
 };
 
@@ -90,7 +90,6 @@ export const getActiveDownloadTasks = (tasks: Task[]): Task[] =>
 export const findActiveTranslationTask = (
   tasks: Task[],
   sourceFileRef: MediaReference | null,
-  sourceFilePath: string | null,
 ): Task | undefined =>
   tasks.find((task) => {
     if (task.type !== "translate") return false;
@@ -105,13 +104,12 @@ export const findActiveTranslationTask = (
       return sourceSubtitleIdentity === sourceIdentity;
     }
 
-    return !sourceFileRef && !sourceFilePath;
+    return false;
   });
 
 export const findCompletedTranslationTask = (
   tasks: Task[],
   sourceFileRef: MediaReference | null,
-  sourceFilePath: string | null,
 ): Task | undefined =>
   tasks.find((task) => {
     if (task.type !== "translate") return false;
@@ -124,20 +122,19 @@ export const findCompletedTranslationTask = (
       return sourceSubtitleIdentity === sourceIdentity;
     }
 
-    return !sourceFileRef && !sourceFilePath;
+    return false;
   });
 
 export const findActiveTranscribeTask = (
   tasks: Task[],
   fileRef: MediaReference | null,
-  filePath: string | null | undefined,
 ): Task | undefined =>
   tasks.find((task) => {
     if (!isTaskActive(task)) return false;
     if (!hasTranscribeStep(task)) return false;
 
     const mediaIdentity = resolveMediaReferencePath(fileRef);
-    if (!mediaIdentity) return !fileRef && !filePath;
+    if (!mediaIdentity) return false;
     const transcribeMediaRefs = resolveTranscribeTaskMedia(task);
     const sourceIdentity = resolveMediaReferencePath(transcribeMediaRefs.sourceMediaRef);
     if (sourceIdentity === mediaIdentity) {
@@ -152,14 +149,13 @@ export const findActiveTranscribeTask = (
 export const findCompletedTranscribeTask = (
   tasks: Task[],
   fileRef: MediaReference | null,
-  filePath: string | null | undefined,
 ): Task | undefined =>
   tasks.find((task) => {
     if (task.status !== "completed") return false;
     if (!hasTranscribeStep(task)) return false;
 
     const mediaIdentity = resolveMediaReferencePath(fileRef);
-    if (!mediaIdentity) return !fileRef && !filePath;
+    if (!mediaIdentity) return false;
     const transcribeMediaRefs = resolveTranscribeTaskMedia(task);
     const sourceIdentity = resolveMediaReferencePath(transcribeMediaRefs.sourceMediaRef);
     if (sourceIdentity === mediaIdentity) {

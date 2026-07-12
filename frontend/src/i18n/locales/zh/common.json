@@ -6,19 +6,50 @@
   "edit": "编辑",
   "add": "添加",
   "close": "关闭",
+  "contextMenu": "上下文菜单",
   "loading": "加载中...",
   "success": "成功",
   "failed": "失败",
   "active": "已激活",
+  "enable": "启用",
+  "disable": "停用",
   "setActive": "设为激活",
+  "setup": {
+    "aiRequired": "请先在设置中添加并启用 AI 供应商",
+    "cliRequired": "请先在设置中填写 faster-whisper CLI 路径"
+  },
+  "windowControls": {
+    "minimize": "最小化窗口",
+    "maximize": "最大化或还原窗口",
+    "close": "关闭窗口"
+  },
+  "errorBoundary": {
+    "title": "应用出现错误",
+    "reload": "重新加载应用"
+  },
+  "executionMode": { "taskSubmission": "队列任务" },
+  "persistence": {
+    "workspaceReadFailed": "无法读取已保存的工作区，MediaFlow 已使用当前可用的备用状态启动。",
+    "workspaceWriteFailed": "工作区修改暂未保存，请在关闭应用前检查磁盘访问。",
+    "preferencesWriteFailed": "偏好设置暂未保存，请在关闭应用前检查后端连接。",
+    "recovered": "保存功能已恢复，最新状态已写入。"
+  },
   "startup": {
     "status": {
       "waitingConfig": "正在等待后端配置...",
       "checkingHealth": "已发现后端，正在检查服务健康状态...",
       "retryingHealth": "后端正在启动中，正在重试健康检查...",
-      "retryingGeneric": "启动检查失败，正在重试...",
+      "retryingGeneric": "启动检查失败，可立即重试；系统也会自动重试。",
+      "fatalContract": "桌面端与当前前端版本不兼容，请更新或重新安装 MediaFlow。",
       "ready": "后端已就绪。",
       "webMode": "当前以无 Electron 后端引导的模式运行。"
+    },
+    "action": {
+      "retry": "立即重试"
+    },
+    "fatal": {
+      "title": "无法继续启动",
+      "help": "这是永久版本不兼容，不会通过重复重试恢复。请安装与当前前端匹配的桌面端版本后重新启动。"
     }
   }
 }

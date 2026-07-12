@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
 
 import { useTaskStore } from "../hooks/tasks/useTaskStore";
-import { SUPPORTED_TASK_CONTRACT_VERSION } from "../context/taskSources";
+import { SUPPORTED_TASK_CONTRACT_VERSION } from "../context/taskSources/shared";
 
 describe("useTaskStore", () => {
   beforeEach(() => {
@@ -34,6 +34,7 @@ describe("useTaskStore", () => {
   });
 
   it("filters incompatible tasks from snapshots while keeping supported ones", () => {
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const { result } = renderHook(() => useTaskStore());
 
     act(() => {
@@ -63,5 +64,6 @@ describe("useTaskStore", () => {
     });
 
     expect(result.current.tasks.map((task) => task.id)).toEqual(["task-supported"]);
+    expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
   });
 });

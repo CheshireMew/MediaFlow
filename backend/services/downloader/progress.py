@@ -2,8 +2,9 @@ from typing import Callable, Optional, Dict
 from loguru import logger
 import re
 
+from backend.models.task_message import TaskProgressCallback
+
 # Type aliases for callback functions
-ProgressCallback = Callable[[float, str], None]  # (progress: float, message: str) -> None
 CancelCheckCallback = Callable[[], bool]          # () -> bool (True if cancelled)
 
 def clean_ansi(text: str) -> str:
@@ -24,24 +25,22 @@ def _parse_progress_percent(payload: Dict) -> float:
     return 0.0
 
 
-def _build_progress_message(payload: Dict, percent: float, stage_label: str) -> str:
+def _progress_params(payload: Dict, percent: float) -> dict:
     eta = clean_ansi(str(payload.get("_eta_str", ""))).strip()
     speed = clean_ansi(str(payload.get("_speed_str", ""))).strip()
     total = clean_ansi(str(payload.get("_total_bytes_str", ""))).strip()
 
-    parts = [f"{stage_label}: {percent:.1f}%"]
-    if total:
-        parts.append(total)
-    if speed:
-        parts.append(speed)
-    if eta:
-        parts.append(f"{eta} left")
-    return " - ".join(parts)
+    return {
+        "percent": round(percent, 1),
+        "total": total,
+        "speed": speed,
+        "eta": eta,
+    }
 
 class ProgressHook:
     def __init__(
         self,
-        progress_callback: Optional[ProgressCallback],
+        progress_callback: Optional[TaskProgressCallback],
         check_cancel_callback: Optional[CancelCheckCallback],
         *,
         stage_label: str = "Downloading",
@@ -66,7 +65,8 @@ class ProgressHook:
                 if self.progress_callback:
                     self.progress_callback(
                         percent,
-                        _build_progress_message(d, percent, self.stage_label),
+                        "download_progress",
+                        _progress_params(d, percent),
                     )
             except Exception as e:
                 logger.warning(f"Error in progress hook: {e}")
@@ -74,6 +74,6 @@ class ProgressHook:
         elif status == "finished":
             self._last_percent = max(self._last_percent, 100.0)
             if self.progress_callback:
-                self.progress_callback(100.0, f"{self.stage_label} stage completed")
+                self.progress_callback(100.0, "download_stage_completed", {})
         elif status == "error":
             logger.warning(f"yt-dlp reported error status: {d.get('error', 'unknown')}")

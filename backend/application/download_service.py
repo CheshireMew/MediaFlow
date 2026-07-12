@@ -1,20 +1,34 @@
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service
 from backend.models.schemas import AnalyzeResult, PipelineRequest
 
 
-async def submit_download_pipeline(req: PipelineRequest) -> dict:
-    return await runtime_service(Services.TASK_ORCHESTRATOR).submit_pipeline(req)
+class DownloadApplicationService:
+    def __init__(self, *, task_orchestrator, analyzer, cookie_manager):
+        self._task_orchestrator = task_orchestrator
+        self._analyzer = analyzer
+        self._cookie_manager = cookie_manager
 
+    async def submit_pipeline(self, req: PipelineRequest) -> dict:
+        return await self._task_orchestrator.submit_pipeline(req)
 
-async def analyze_url(url: str) -> AnalyzeResult:
-    return await runtime_service(Services.ANALYZER).analyze(url)
+    async def analyze_url(self, url: str) -> AnalyzeResult:
+        return await self._analyzer.analyze(url)
 
+    def save_cookies(self, domain: str, cookies: list[dict]) -> dict[str, str | bool]:
+        cookie_path = self._cookie_manager.save_cookies(domain, cookies)
+        return {
+            "domain": domain,
+            "has_valid_cookies": True,
+            "cookie_path": str(cookie_path),
+        }
 
-def save_cookies(domain: str, cookies: list[dict]) -> dict[str, str | bool]:
-    cookie_path = runtime_service(Services.COOKIE_MANAGER).save_cookies(domain, cookies)
-    return {
-        "domain": domain,
-        "has_valid_cookies": True,
-        "cookie_path": str(cookie_path),
-    }
+    def cookie_status(self, domain: str) -> dict[str, str | bool | None]:
+        has_valid = self._cookie_manager.has_valid_cookies(domain)
+        cookie_path = self._cookie_manager.get_cookie_path(domain)
+        return {
+            "domain": domain,
+            "has_valid_cookies": has_valid,
+            "cookie_path": str(cookie_path) if has_valid else None,
+        }
+
+    def clear_cookies(self, domain: str) -> bool:
+        return self._cookie_manager.clear_cookies(domain)

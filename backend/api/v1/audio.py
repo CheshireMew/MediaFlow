@@ -3,12 +3,13 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Tuple
 from loguru import logger
+from backend.models.schemas import MediaReference
 from backend.utils.path_validator import validate_input_file
 
 router = APIRouter(tags=["Audio"])
 
 class DetectSilenceRequest(BaseModel):
-    file_path: str
+    audio_ref: MediaReference
     threshold: str = "-30dB"
     min_duration: float = 0.5
 
@@ -21,7 +22,7 @@ async def detect_silence(req: DetectSilenceRequest):
     Detect silence intervals in an audio file.
     """
     try:
-        req.file_path = str(validate_input_file(req.file_path, label="file_path"))
+        audio_path = str(validate_input_file(req.audio_ref.path, label="audio_ref.path"))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
@@ -31,7 +32,7 @@ async def detect_silence(req: DetectSilenceRequest):
         from backend.utils.audio_processor import AudioProcessor
 
         intervals = AudioProcessor.detect_silence(
-            req.file_path, 
+            audio_path,
             silence_thresh=req.threshold, 
             min_silence_dur=req.min_duration
         )

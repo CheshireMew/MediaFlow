@@ -2,6 +2,7 @@ from backend.application.pipeline_submission_service import PipelineSubmissionSe
 from backend.application.task_orchestrator import TaskOrchestrator
 from backend.application.task_request_deduplicator import TaskRequestDeduplicator
 from backend.application.task_resume_service import TaskResumeService
+from backend.core.tasks.registry import TaskRunnerRegistry
 from backend.services.task_control_service import TaskControlService
 from backend.services.task_event_publisher import TaskEventPublisher
 from backend.services.task_queue_view import TaskQueueView
@@ -25,6 +26,8 @@ def create_orchestrator(manager: TaskManager) -> TaskOrchestrator:
         def get_settings(self):
             return None
 
+    task_runners = TaskRunnerRegistry()
+    task_runners.register("pipeline", lambda _task: object())
     return TaskOrchestrator(
         task_manager=manager,
         settings_manager=DummySettingsManager(),
@@ -33,6 +36,7 @@ def create_orchestrator(manager: TaskManager) -> TaskOrchestrator:
         task_request_deduplicator=TaskRequestDeduplicator(),
         task_resume_service=TaskResumeService(),
         pipeline_submission_service=PipelineSubmissionService(),
+        task_runner_registry=task_runners,
     )
 
 

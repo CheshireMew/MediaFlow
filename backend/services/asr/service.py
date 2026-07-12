@@ -6,11 +6,16 @@ import threading
 import wave
 import tempfile
 from pathlib import Path
-from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor
 from loguru import logger
 from backend.config import settings
-from backend.models.schemas import SubtitleSegment, TranscribeResponse, TaskResult, FileRef
+from backend.models.schemas import (
+    DEFAULT_ASR_VAD_FILTER,
+    SubtitleSegment,
+    TaskArtifact,
+    TaskResult,
+    TranscriptionEngine,
+)
 from backend.utils.audio_processor import AudioProcessor
 from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils.segment_refiner import SegmentRefiner
@@ -83,7 +88,7 @@ class ASRService:
 
         logger.info("Waiting for Faster-Whisper CLI prewarm for {}: {}", profile_key, reason)
         if progress_callback:
-            progress_callback(0, "Waiting for Faster-Whisper CLI warmup to finish...")
+            progress_callback(0, "asr_cli_warmup_waiting", {})
 
         thread.join(timeout=self.CLI_PREWARM_JOIN_TIMEOUT_SECONDS)
         if not thread.is_alive():
@@ -131,13 +136,21 @@ class ASRService:
         return False
 
     @staticmethod
+    def _available_cli_path() -> Path | None:
+        configured_path = settings.FASTER_WHISPER_CLI_PATH or ""
+        if not configured_path:
+            return None
+        cli_path = Path(configured_path)
+        return cli_path.resolve() if cli_path.exists() else None
+
+    @staticmethod
     def _cli_prewarm_profile_key(model_name: str, device: str) -> tuple[str, str, str] | None:
-        cli_path = getattr(settings, "FASTER_WHISPER_CLI_PATH", "") or ""
-        if not cli_path or not Path(cli_path).exists():
+        cli_path = ASRService._available_cli_path()
+        if cli_path is None:
             return None
 
         return (
-            str(Path(cli_path).resolve()),
+            str(cli_path),
             model_name or "base",
             device or "cpu",
         )
@@ -258,8 +271,8 @@ class ASRService:
         return "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in raw_name)
 
     @staticmethod
-    def _create_cli_transcription_output_dir(task_id: str | None) -> Path:
-        base_dir = settings.TEMP_DIR / "faster-whisper-cli"
+    def _create_transcription_work_dir(task_id: str | None) -> Path:
+        base_dir = settings.TEMP_DIR / "asr-work"
         base_dir.mkdir(parents=True, exist_ok=True)
         safe_task_id = "".join(
             char if char.isascii() and (char.isalnum() or char in {"-", "_"}) else "_"
@@ -268,34 +281,24 @@ class ASRService:
         return Path(tempfile.mkdtemp(prefix=f"transcribe-{safe_task_id}-", dir=base_dir))
 
     @staticmethod
-    def _stage_cli_audio_input(audio_path: Path, output_dir: Path) -> Path:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        suffix = audio_path.suffix if audio_path.suffix.isascii() and len(audio_path.suffix) <= 16 else ""
-        staged_path = output_dir / f"input{suffix.lower()}"
-
-        try:
-            os.link(audio_path, staged_path)
-            return staged_path
-        except OSError:
-            pass
-
-        try:
-            os.symlink(audio_path, staged_path)
-            return staged_path
-        except OSError:
-            pass
-
-        logger.info("Copying media to CLI-safe temp path: {}", staged_path)
-        shutil.copy2(audio_path, staged_path)
-        return staged_path
-
-    @staticmethod
     def _create_segment_audio_path(segment_id: str) -> Path:
         segment_dir = settings.TEMP_DIR / "asr-segments"
         segment_dir.mkdir(parents=True, exist_ok=True)
         return segment_dir / f"segment_{segment_id}.wav"
 
-    def transcribe(self, audio_path: str, model_name: str = "base", device: str = "cpu", language: str = None, task_id: str = None, initial_prompt: str = None, progress_callback=None, generate_peaks: bool = True, engine: str = "builtin") -> TaskResult:
+    def transcribe(
+        self,
+        *,
+        audio_path: str,
+        model_name: str = "base",
+        device: str = "cpu",
+        engine: TranscriptionEngine = "builtin",
+        language: str | None = None,
+        vad_filter: bool = DEFAULT_ASR_VAD_FILTER,
+        task_id: str | None = None,
+        initial_prompt: str | None = None,
+        progress_callback=None,
+    ) -> TaskResult:
         """
         Main entry point for transcription. Dispatches to specific strategies.
         """
@@ -312,25 +315,34 @@ class ASRService:
             duration = 0.0
 
         # Engine selection is request-driven. Do not silently switch engines.
-        cli_available = (
-            hasattr(settings, "FASTER_WHISPER_CLI_PATH")
-            and os.path.exists(settings.FASTER_WHISPER_CLI_PATH)
-        )
+        cli_available = self._available_cli_path() is not None
         use_cli = engine == "cli"
         if use_cli and not cli_available:
             return TaskResult(success=False, error="CLI transcription engine is unavailable")
         if use_cli:
             logger.info("Faster-Whisper CLI enabled. Using CLI transcription path.")
 
+        work_dir = self._create_transcription_work_dir(task_id)
+        try:
+            prepared_audio_path = AudioProcessor.prepare_for_transcription(
+                audio_path,
+                work_dir / "input.wav",
+            )
+        except Exception as error:
+            shutil.rmtree(work_dir, ignore_errors=True)
+            logger.error("Failed to prepare ASR audio input: {}", error)
+            return TaskResult(
+                success=False,
+                error=f"Failed to prepare audio for transcription: {error}",
+            )
+
         final_segments = []
         
         if use_cli:
-            output_dir = self._create_cli_transcription_output_dir(task_id)
             try:
-                cli_audio_path = self._stage_cli_audio_input(Path(audio_path), output_dir)
                 # 1. Ensure model is available locally
                 # ModelManager returns path to model dir (or model name if fallback)
-                local_model_path_str = self.model_manager.ensure_model_downloaded(model_name, progress_callback)
+                self.model_manager.ensure_model_downloaded(model_name, progress_callback)
                 self._join_running_cli_prewarm(
                     model_name=model_name,
                     device=device,
@@ -340,8 +352,8 @@ class ASRService:
                 
                 # 2. Configure Adapter
                 config = FasterWhisperConfig(
-                    audio_path=cli_audio_path,
-                    output_dir=output_dir,
+                    audio_path=prepared_audio_path,
+                    output_dir=work_dir,
                     model_name=model_name,
                     # Pass the root model directory so CLI can find "faster-whisper-{model}" inside it
                     # OR pass the specific path if it's "large-v3" inside "faster-whisper-large-v3"
@@ -355,20 +367,14 @@ class ASRService:
                     model_dir=settings.ASR_MODEL_DIR,
                     language=language,
                     initial_prompt=initial_prompt,
+                    vad_filter=vad_filter,
                     device=device,
                 )
 
-                try:
-                    final_segments = self.adapter.execute(config, progress_callback)
-                except RuntimeError as cli_error:
-                    if device == "cuda" and self._is_cli_cuda_unavailable_error(cli_error):
-                        logger.warning(f"CLI CUDA unavailable, retrying on CPU: {cli_error}")
-                        if progress_callback:
-                            progress_callback(0, "CUDA 不可用，已自动切换到 CPU 重试...")
-                        cpu_config = config.model_copy(update={"device": "cpu"})
-                        final_segments = self.adapter.execute(cpu_config, progress_callback)
-                    else:
-                        raise
+                final_segments = self._execute_cli_with_device_fallback(
+                    config,
+                    progress_callback,
+                )
                 
             except TaskControlRequested:
                 raise
@@ -377,21 +383,22 @@ class ASRService:
                 return TaskResult(success=False, error=f"CLI transcription failed: {e}")
             finally:
                 # Cleanup temp output
-                if output_dir.exists():
+                if work_dir.exists():
                      try:
-                         shutil.rmtree(output_dir, ignore_errors=True)
+                         shutil.rmtree(work_dir, ignore_errors=True)
                      except OSError:
                          pass
 
         if not use_cli:
             try:
                 all_segments = self._transcribe_builtin(
-                    audio_path=audio_path,
+                    audio_path=str(prepared_audio_path),
                     duration=duration,
                     model_name=model_name,
                     device=device,
                     language=language,
                     initial_prompt=initial_prompt,
+                    vad_filter=vad_filter,
                     progress_callback=progress_callback,
                 )
             except TaskControlRequested:
@@ -401,21 +408,28 @@ class ASRService:
                     logger.warning(f"Built-in CUDA runtime unavailable, retrying on CPU: {error}")
                     self.model_manager.clear_loaded_model()
                     if progress_callback:
-                        progress_callback(8, "CUDA runtime unavailable. Retrying transcription on CPU...")
+                        progress_callback(
+                            8,
+                            "asr_cuda_cpu_fallback",
+                            {"device": "cpu"},
+                        )
                     all_segments = self._transcribe_builtin(
-                        audio_path=audio_path,
+                        audio_path=str(prepared_audio_path),
                         duration=duration,
                         model_name=model_name,
                         device="cpu",
                         language=language,
                         initial_prompt=initial_prompt,
+                        vad_filter=vad_filter,
                         progress_callback=progress_callback,
                     )
                 else:
                     raise
+            finally:
+                shutil.rmtree(work_dir, ignore_errors=True)
 
             if progress_callback:
-                progress_callback(95, "Finalizing segments...")
+                progress_callback(95, "asr_finalizing", {})
             all_segments.sort(key=lambda x: x.start)
             final_segments = all_segments
 
@@ -430,15 +444,13 @@ class ASRService:
         full_text = "\n".join([s.text for s in final_segments])
             
         logger.success(f"Transcription complete. Total segments: {len(final_segments)}")
-        if progress_callback: progress_callback(100, "Completed")
+        if progress_callback:
+            progress_callback(100, "transcription_completed", {})
         
         # 5. Save SRT file
         srt_path = SubtitleWriter.save_srt(final_segments, audio_path)
         logger.success(f"SRT file saved to: {srt_path}")
 
-        files = [
-            FileRef(type="subtitle", path=str(srt_path), label="transcription")
-        ]
         subtitle_ref = create_media_ref(
             str(srt_path),
             "application/x-subrip",
@@ -447,16 +459,47 @@ class ASRService:
 
         return TaskResult(
             success=True,
-            files=files,
+            artifacts=[
+                TaskArtifact(kind="subtitle", role="output", ref=subtitle_ref)
+            ],
             meta={
                 "task_id": task_id or "sync_task",
                 "language": language or "auto",
                 "duration": duration,
                 "segments": [s.model_dump() for s in final_segments],
                 "text": full_text,
-                "subtitle_ref": subtitle_ref,
             }
         )
+
+    def _execute_cli_with_device_fallback(
+        self,
+        config: FasterWhisperConfig,
+        progress_callback=None,
+    ) -> list[SubtitleSegment]:
+        """Run CLI transcription, retrying only when the requested device is unavailable."""
+        active_config = config
+
+        while True:
+            try:
+                return self.adapter.execute(active_config, progress_callback)
+            except RuntimeError as cli_error:
+                if (
+                    active_config.device == "cuda"
+                    and self._is_cli_cuda_unavailable_error(cli_error)
+                ):
+                    logger.warning(
+                        "CLI CUDA unavailable, retrying on CPU: {}",
+                        cli_error,
+                    )
+                    if progress_callback:
+                        progress_callback(
+                            0,
+                            "asr_cuda_cpu_fallback",
+                            {"device": "cpu"},
+                        )
+                    active_config = active_config.model_copy(update={"device": "cpu"})
+                    continue
+                raise
 
     def _transcribe_builtin(
         self,
@@ -467,6 +510,7 @@ class ASRService:
         device: str,
         language: str | None,
         initial_prompt: str | None,
+        vad_filter: bool,
         progress_callback=None,
     ) -> list:
         model = self.model_manager.load_model(model_name, device, progress_callback)
@@ -474,10 +518,22 @@ class ASRService:
 
         if duration > 900:
             return self.core_strategies.transcribe_smart_split(
-                audio_path, duration, model, language, initial_prompt, progress_callback
+                audio_path,
+                duration,
+                model,
+                language,
+                initial_prompt,
+                vad_filter,
+                progress_callback,
             )
         return self.core_strategies.transcribe_direct(
-            audio_path, duration, model, language, initial_prompt, progress_callback
+            audio_path,
+            duration,
+            model,
+            language,
+            initial_prompt,
+            vad_filter,
+            progress_callback,
         )
 
     @staticmethod
@@ -490,14 +546,17 @@ class ASRService:
 
     def transcribe_segment(
         self,
+        *,
         audio_path: str,
         start: float,
         end: float,
         model_name: str = "base",
         device: str = "cpu",
-        language: str = None,
-        engine: str = "builtin",
-        task_id: str = None,
+        language: str | None = None,
+        engine: TranscriptionEngine = "builtin",
+        vad_filter: bool = DEFAULT_ASR_VAD_FILTER,
+        task_id: str | None = None,
+        initial_prompt: str | None = None,
         progress_callback=None,
     ) -> TaskResult:
         """
@@ -521,9 +580,10 @@ class ASRService:
                 device=device,
                 language=language,
                 engine=engine,
+                vad_filter=vad_filter,
                 task_id=task_id or f"seg_{temp_id}",
+                initial_prompt=initial_prompt,
                 progress_callback=progress_callback,
-                generate_peaks=False,  # Disable redundant peak generation
             )
             
             # 3. Adjust timestamps relative to original audio

@@ -1,8 +1,13 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
-import { isDesktopRuntime } from "../../services/domain";
+import {
+  getTranslationTargetLanguageBySuffix,
+  isDesktopRuntime,
+} from "../../services/domain";
 import { useTranslatorStore } from "../../stores/translatorStore";
 import {
+  mediaReferenceFromPath,
   normalizeMediaReference,
   type MediaReference,
 } from "../../services/ui/mediaReference";
@@ -11,15 +16,15 @@ import {
   isSupportedTranslatorSubtitlePath,
   loadTranslatorSubtitle,
 } from "./translatorFileHelpers";
-import { getTranslationTargetLanguageBySuffix } from "../../services/domain/translationTargetLanguages";
+import { toast } from "../../utils/toast";
 
 export function useTranslatorFileLoader() {
+  const { t } = useTranslation("translator");
   const {
-    sourceFilePath,
+    sourceFileRef,
     sourceSegments,
     targetLang,
     mode,
-    setSourceFilePath,
     setSourceFileRef,
     setSourceSegments,
     setTargetSegments,
@@ -27,6 +32,7 @@ export function useTranslatorFileLoader() {
     setTargetSubtitleRef,
     resetTask,
   } = useTranslatorStore();
+  const sourceFilePath = sourceFileRef?.path ?? null;
 
   const hasSameSubtitleContent = useCallback(
     (nextPath: string, nextSegments: Awaited<ReturnType<typeof loadTranslatorSubtitle>>) => {
@@ -67,7 +73,7 @@ export function useTranslatorFileLoader() {
           const foundLang = getTranslationTargetLanguageBySuffix(suffix);
           if (foundLang) setTargetLang(foundLang);
           setTargetSegments(parsed);
-          setTargetSubtitleRef(normalizeMediaReference(targetPath));
+          setTargetSubtitleRef(mediaReferenceFromPath(targetPath));
           break;
         }
       } catch {
@@ -76,28 +82,24 @@ export function useTranslatorFileLoader() {
     }
   }, [mode, setTargetLang, setTargetSegments, setTargetSubtitleRef, targetLang]);
 
-  const handleFileUpload = useCallback(async (input: string | MediaReference) => {
+  const handleFileUpload = useCallback(async (input: MediaReference) => {
     if (!isDesktopRuntime()) return;
-    const resolvedRef =
-      normalizeMediaReference(input);
+    const resolvedRef = normalizeMediaReference(input);
     if (!resolvedRef) return;
     const path = resolvedRef.path;
     if (!isSupportedTranslatorSubtitlePath(path)) {
-      alert("AI 翻译当前只支持导入字幕文件（如 .srt / .vtt / .ass / .ssa）。");
+      toast.warning(t("feedback.unsupportedSubtitle"));
       return;
     }
     try {
       const parsed = await loadTranslatorSubtitle(path);
       if (!parsed || parsed.length === 0) {
-        alert(
-          `未在该字幕文件中解析出可翻译的时间轴内容：${path}\n请确认文件不是空文件，并且格式为 .srt / .vtt / .ass / .ssa。`,
-        );
+        toast.warning(t("feedback.emptySubtitle", { path }));
         return;
       }
       const shouldReuseExistingTarget =
         sourceFilePath !== path || hasSameSubtitleContent(path, parsed);
       resetTask();
-      setSourceFilePath(path);
       setSourceFileRef(resolvedRef);
       setSourceSegments(parsed);
       setTargetSegments(parsed.map((s) => ({ ...s, text: "" })));
@@ -107,17 +109,17 @@ export function useTranslatorFileLoader() {
       }
     } catch (error) {
       console.error("File load error:", error);
-      alert(`Failed to load file: ${path}`);
+      toast.error(t("feedback.loadFailed", { path }));
     }
   }, [
     hasSameSubtitleContent,
     resetTask,
-    setSourceFilePath,
     setSourceFileRef,
     setSourceSegments,
     setTargetSegments,
     setTargetSubtitleRef,
     sourceFilePath,
+    t,
     tryLoadExistingTarget,
   ]);
 

@@ -4,7 +4,7 @@ import { readUiStateValue, writeUiStateValue } from "./uiStateSettings";
 import { parseVersionedSnapshot, serializeVersionedSnapshot } from "./versionedSnapshot";
 
 export type SynthesisQuality = "high" | "balanced" | "small";
-export type SynthesisTargetResolution = "original" | "720p" | "1080p" | "sr_2x" | "sr_4x";
+export type SynthesisTargetResolution = "original" | "720p" | "1080p";
 
 export type SynthesisSubtitleStylePreferences = PersistedSubtitleStyleValues;
 
@@ -156,9 +156,7 @@ function normalizeSynthesisExecutionPreferences(
     useGpu: typeof payload?.useGpu === "boolean" ? payload.useGpu : defaults.useGpu,
     targetResolution:
       payload?.targetResolution === "720p" ||
-      payload?.targetResolution === "1080p" ||
-      payload?.targetResolution === "sr_2x" ||
-      payload?.targetResolution === "sr_4x"
+      payload?.targetResolution === "1080p"
         ? payload.targetResolution
         : defaults.targetResolution,
     lastOutputDir: typeof payload?.lastOutputDir === "string" ? payload.lastOutputDir : null,

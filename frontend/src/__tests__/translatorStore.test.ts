@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useTranslatorStore } from "../stores/translatorStore";
 import { readUiStateValue } from "../services/persistence/uiStateSettings";
+import {
+  readWorkspaceStateValue,
+  resetWorkspaceStateForTests,
+} from "../services/persistence/workspaceState";
 
 describe("translatorStore persistence", () => {
   beforeEach(() => {
     localStorage.clear();
+    resetWorkspaceStateForTests();
     useTranslatorStore.setState({
       sourceSegments: [],
       targetSegments: [],
       glossary: [],
-      sourceFilePath: null,
       sourceFileRef: null,
       targetSubtitleRef: null,
       targetLang: "SimplifiedChinese",
@@ -26,7 +30,6 @@ describe("translatorStore persistence", () => {
 
   it("does not persist runtime-only translation task state", () => {
     useTranslatorStore.setState({
-      sourceFilePath: "E:/subs/demo.srt",
       sourceFileRef: { path: "E:/subs/demo.srt", name: "demo.srt" },
       targetSegments: [{ id: "1", start: 0, end: 1, text: "nihao" }],
       resultMode: "standard",
@@ -38,11 +41,12 @@ describe("translatorStore persistence", () => {
       activeMode: "intelligent",
     });
 
-    const persisted = readUiStateValue<Record<string, unknown>>("translator-storage");
+    const persisted = readWorkspaceStateValue<Record<string, unknown>>(
+      "translator-storage",
+    );
     expect(persisted).toBeTruthy();
 
     expect(persisted).toMatchObject({
-      sourceFilePath: "E:/subs/demo.srt",
       sourceFileRef: { path: "E:/subs/demo.srt", name: "demo.srt" },
       targetSegments: [{ id: "1", start: 0, end: 1, text: "nihao" }],
       resultMode: "standard",
@@ -54,6 +58,7 @@ describe("translatorStore persistence", () => {
     expect(persisted?.taskError).toBeUndefined();
     expect(persisted?.executionMode).toBeUndefined();
     expect(persisted?.activeMode).toBeUndefined();
+    expect(persisted?.sourceFilePath).toBeUndefined();
   });
 
   it("persists target language through the shared translation preferences", () => {

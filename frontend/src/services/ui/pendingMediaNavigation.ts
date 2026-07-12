@@ -6,7 +6,7 @@ import {
 const PENDING_MEDIA_KEY = "mediaflow:pending_file";
 
 export interface PendingMediaNavigationPayload {
-  target?: "editor" | "translator" | "transcriber" | "preprocessing";
+  target?: "editor" | "translator" | "transcriber";
   video_ref?: MediaReference | null;
   subtitle_ref?: MediaReference | null;
 }

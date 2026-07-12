@@ -1,0 +1,30 @@
+appId: com.mediaflow.ui.smoke
+productName: MediaFlowSmoke
+asar: true
+
+directories:
+  output: release-smoke
+
+files:
+  - package.json
+  - dist-electron/**/*
+  - dist/index.html
+  - dist/assets/**/*
+  - dist/grid.svg
+  - dist/vite.svg
+  - "!dist/**/*.map"
+  - "!dist-electron/**/*.map"
+
+extraResources:
+  - from: src/assets/fonts
+    to: fonts
+    filter:
+      - "**/*"
+  - from: src/shared/fontCatalog.json
+    to: fontCatalog.json
+
+win:
+  target:
+    - dir
+  icon: resources/icon.ico
+  signAndEditExecutable: false

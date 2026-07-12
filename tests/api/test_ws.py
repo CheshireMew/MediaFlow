@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 import time
 import queue
 import threading
@@ -7,9 +6,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from backend.config import settings
 from backend.core.container import container, Services
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service
-from backend.models.schemas import FileRef, TaskResult
+from backend.models.schemas import MediaReference, TaskArtifact, TaskResult
 
 
 class SlowMockASR:
@@ -19,14 +16,16 @@ class SlowMockASR:
 
     def transcribe(
         self,
+        *,
         audio_path: str,
-        model_name: str = "base",
-        device: str = "cpu",
-        language: str = None,
-        task_id: str = None,
-        initial_prompt: str = None,
-        progress_callback=None,
-        generate_peaks: bool = True,
+        model_name: str,
+        device: str,
+        engine: str,
+        language: str | None,
+        vad_filter: bool,
+        task_id: str | None,
+        initial_prompt: str | None,
+        progress_callback,
     ) -> TaskResult:
         output_path = str(Path(audio_path).with_suffix(".srt"))
 
@@ -34,11 +33,26 @@ class SlowMockASR:
             time.sleep(self.delay_s)
             if progress_callback:
                 percent = (step + 1) * (80 / self.steps)
-                progress_callback(percent, f"mock step {step + 1}")
+                progress_callback(
+                    percent,
+                    "transcription_progress",
+                    {"percent": round(percent, 1)},
+                )
 
         return TaskResult(
             success=True,
-            files=[FileRef(type="subtitle", path=output_path, label="transcription")],
+            artifacts=[
+                TaskArtifact(
+                    kind="subtitle",
+                    role="output",
+                    ref=MediaReference(
+                        path=output_path,
+                        name=Path(output_path).name,
+                        media_kind="subtitle",
+                        role="output",
+                    ),
+                )
+            ],
             meta={"segments": [], "text": "ok", "language": language or "en"},
         )
 
@@ -118,7 +132,7 @@ def _wait_for_queue_idle(client, timeout_s: float = 3.0):
 def test_websocket_connection(isolated_api_client: TestClient):
     with isolated_api_client.websocket_connect("/api/v1/ws/tasks") as websocket:
         # 1. Connection established
-        notifier = runtime_service(Services.WS_NOTIFIER)
+        notifier = container.get(Services.WS_NOTIFIER)
         assert len(notifier.active_connections) == 1
         
         # 2. Simulate task update broadcast
@@ -133,7 +147,7 @@ def test_websocket_connection(isolated_api_client: TestClient):
         # 3. Disconnect
         websocket.close()
 
-    notifier = runtime_service(Services.WS_NOTIFIER)
+    notifier = container.get(Services.WS_NOTIFIER)
     for _ in range(10):
         if len(notifier.active_connections) == 0:
             break
@@ -156,8 +170,8 @@ async def test_task_update_broadcast(isolated_api_client: TestClient):
             self.sent_messages.append(data)
             
     mock_ws = MockWS()
-    notifier = runtime_service(Services.WS_NOTIFIER)
-    task_manager = runtime_service(Services.TASK_MANAGER)
+    notifier = container.get(Services.WS_NOTIFIER)
+    task_manager = container.get(Services.TASK_MANAGER)
     await notifier.connect(mock_ws)
     
     from backend.models.task_model import Task, task_timestamp_ms
@@ -168,10 +182,16 @@ async def test_task_update_broadcast(isolated_api_client: TestClient):
         type="test", 
         status="pending", 
         created_at=task_timestamp_ms(), 
-        message="Created"
+        message_code="queued",
+        message_params={},
     )
     
-    await task_manager.update_task("test_task", status="running", message="Test Message")
+    await task_manager.update_task(
+        "test_task",
+        status="running",
+        message_code="running",
+        message_params={},
+    )
     
     print(f"DEBUG MESSAGES: {mock_ws.sent_messages}")
     msg = mock_ws.sent_messages[-1]
@@ -182,11 +202,16 @@ async def test_task_update_broadcast(isolated_api_client: TestClient):
     notifier.disconnect(mock_ws)
 
 
-def test_websocket_pushes_queue_position_and_pause_resume_updates(isolated_api_client):
+def test_websocket_pushes_queue_position_and_pause_resume_updates(
+    isolated_api_client,
+    monkeypatch,
+):
     audio_path = _create_audio_file("ws_queue_pause_audio.mp3")
 
     client = isolated_api_client
-    container.override(Services.ASR, SlowMockASR(steps=10, delay_s=0.15))
+    assert client.get("/api/v1/tasks/queue/summary").status_code == 200
+    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
+    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=10, delay_s=0.15))
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
@@ -239,7 +264,7 @@ def test_websocket_pushes_queue_position_and_pause_resume_updates(isolated_api_c
                 ),
                 limit=60,
             )
-            assert paused_message["task"]["message"] == "Task paused by user"
+            assert paused_message["task"]["message_code"] == "paused"
 
             resume_response = client.post(f"/api/v1/tasks/{pause_target_id}/resume")
             assert resume_response.status_code == 200
@@ -262,11 +287,16 @@ def test_websocket_pushes_queue_position_and_pause_resume_updates(isolated_api_c
     _wait_for_queue_idle(client)
 
 
-def test_websocket_pushes_cancel_updates_for_running_and_queued_tasks(isolated_api_client):
+def test_websocket_pushes_cancel_updates_for_running_and_queued_tasks(
+    isolated_api_client,
+    monkeypatch,
+):
     audio_path = _create_audio_file("ws_cancel_audio.mp3")
 
     client = isolated_api_client
-    container.override(Services.ASR, SlowMockASR(steps=10, delay_s=0.15))
+    assert client.get("/api/v1/tasks/queue/summary").status_code == 200
+    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
+    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=10, delay_s=0.15))
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
@@ -315,7 +345,7 @@ def test_websocket_pushes_cancel_updates_for_running_and_queued_tasks(isolated_a
                 ),
                 limit=40,
             )
-            assert cancelled_queued_message["task"]["message"] == "Cancelled in queue"
+            assert cancelled_queued_message["task"]["message_code"] == "cancelled_in_queue"
 
             websocket.send_json({"action": "cancel", "task_id": running_task_id})
             cancelled_running_message = _receive_until(
@@ -328,7 +358,7 @@ def test_websocket_pushes_cancel_updates_for_running_and_queued_tasks(isolated_a
                 ),
                 limit=60,
             )
-            assert cancelled_running_message["task"]["message"] == "Task cancelled by user"
+            assert cancelled_running_message["task"]["message_code"] == "cancelled"
 
     _wait_for_terminal_tasks(client, created_task_ids)
     for task_id in created_task_ids:
@@ -336,11 +366,16 @@ def test_websocket_pushes_cancel_updates_for_running_and_queued_tasks(isolated_a
     _wait_for_queue_idle(client)
 
 
-def test_websocket_pushes_pause_all_updates_for_running_and_queued_tasks(isolated_api_client):
+def test_websocket_pushes_pause_all_updates_for_running_and_queued_tasks(
+    isolated_api_client,
+    monkeypatch,
+):
     audio_path = _create_audio_file("ws_pause_all_audio.mp3")
 
     client = isolated_api_client
-    container.override(Services.ASR, SlowMockASR(steps=10, delay_s=0.15))
+    assert client.get("/api/v1/tasks/queue/summary").status_code == 200
+    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
+    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=10, delay_s=0.15))
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
@@ -393,20 +428,24 @@ def test_websocket_pushes_pause_all_updates_for_running_and_queued_tasks(isolate
                 ),
                 limit=60,
             )
-            assert paused_queued_message["task"]["message"] == "Paused in queue"
+            assert paused_queued_message["task"]["message_code"] == "paused_in_queue"
 
-            for task_id in created_task_ids[:2]:
+            paused_running_ids = set()
+            expected_running_ids = set(created_task_ids[:2])
+            while paused_running_ids != expected_running_ids:
                 paused_running_message = _receive_until(
                     websocket,
-                    lambda message, expected_task_id=task_id: (
+                    lambda message: (
                         message.get("type") == "update"
-                        and message.get("task", {}).get("id") == expected_task_id
+                        and message.get("task", {}).get("id")
+                        in (expected_running_ids - paused_running_ids)
                         and message.get("task", {}).get("status") == "paused"
                         and message.get("task", {}).get("queue_state") == "paused"
                     ),
                     limit=60,
                 )
                 assert paused_running_message["task"]["progress"] >= 0
+                paused_running_ids.add(paused_running_message["task"]["id"])
 
     _wait_for_terminal_tasks(client, created_task_ids)
     for task_id in created_task_ids:
@@ -414,11 +453,16 @@ def test_websocket_pushes_pause_all_updates_for_running_and_queued_tasks(isolate
     _wait_for_queue_idle(client)
 
 
-def test_websocket_delete_sequence_for_running_and_queued_tasks(isolated_api_client):
+def test_websocket_delete_sequence_for_running_and_queued_tasks(
+    isolated_api_client,
+    monkeypatch,
+):
     audio_path = _create_audio_file("ws_delete_audio.mp3")
 
     client = isolated_api_client
-    container.override(Services.ASR, SlowMockASR(steps=10, delay_s=0.15))
+    assert client.get("/api/v1/tasks/queue/summary").status_code == 200
+    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
+    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=10, delay_s=0.15))
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
@@ -482,7 +526,7 @@ def test_websocket_delete_sequence_for_running_and_queued_tasks(isolated_api_cli
                 ),
                 limit=60,
             )
-            assert cancelled_message["task"]["message"] == "Task cancelled by user"
+            assert cancelled_message["task"]["message_code"] == "cancelled"
 
             running_delete_message = _receive_until(
                 websocket,

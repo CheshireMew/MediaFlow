@@ -1,5 +1,4 @@
 import { useEditorStore } from "../stores/editorStore";
-import { usePreprocessingStore } from "../stores/preprocessingStore";
 import {
   ASR_EXECUTION_PREFERENCES,
   TASK_CONTRACT_VERSION,
@@ -8,6 +7,7 @@ import {
 import { writeUiStateValue } from "../services/persistence/uiStateSettings";
 import type { Task, TaskRequestParams } from "../types/task";
 import type { TranscribeResult } from "../types/transcriber";
+import { createEmptyEditorDocument } from "../stores/editorDocument";
 
 export const BACKEND_TASK_CONTRACT_FIELDS = {
   task_source: "backend",
@@ -17,6 +17,8 @@ export const BACKEND_TASK_CONTRACT_FIELDS = {
   queue_state: "idle",
   primary_operation: "pipeline",
   artifacts: [],
+  message_code: "queued",
+  message_params: {},
 } as const satisfies Pick<
   Task,
   | "task_source"
@@ -26,6 +28,8 @@ export const BACKEND_TASK_CONTRACT_FIELDS = {
   | "queue_state"
   | "primary_operation"
   | "artifacts"
+  | "message_code"
+  | "message_params"
 >;
 
 export function createSampleTranscriptionResult(
@@ -80,39 +84,12 @@ export function seedJapaneseCudaExecutionPreferences(
 
 export function resetEditorStoreForTests() {
   useEditorStore.setState({
-    regions: [],
-    mediaUrl: null,
-    currentFilePath: null,
-    currentSubtitlePath: null,
-    currentFileRef: null,
-    currentSubtitleRef: null,
+    document: createEmptyEditorDocument(),
+    revisionClock: 0,
     activeSegmentId: null,
     selectedIds: [],
     past: [],
     future: [],
-  });
-}
-
-export function resetPreprocessingStoreForTests(
-  overrides: Partial<ReturnType<typeof usePreprocessingStore.getState>> = {},
-) {
-  usePreprocessingStore.setState({
-    preprocessingActiveTool: "extract",
-    enhanceModel: "RealESRGAN-x4plus",
-    enhanceScale: "4x",
-    enhanceMethod: "realesrgan",
-    cleanMethod: "telea",
-    ocrEngine: "rapid",
-    ocrResults: [],
-    preprocessingIsProcessing: false,
-    currentPreprocessingTaskId: null,
-    currentPreprocessingTaskTool: null,
-    currentPreprocessingTaskVideoPath: null,
-    currentPreprocessingTaskVideoRef: null,
-    preprocessingFiles: [],
-    preprocessingVideoPath: null,
-    preprocessingVideoRef: null,
-    ...overrides,
   });
 }
 

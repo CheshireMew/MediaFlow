@@ -1,0 +1,110 @@
+{
+  "tasks": { "extract": "テキスト抽出", "enhance": "動画を強化", "clean": "動画をクリーンアップ" },
+  "title": "前処理ラボ",
+  "subtitle": "画質強化、字幕除去、OCR 抽出",
+  "importButton": "メディアをインポート",
+  "canvas": {
+    "previewAlt": "処理プレビュー",
+    "noVideoMessage": "[ 動画未選択 ]",
+    "dragHelpText": "ファイルをドラッグするか「メディアをインポート」をクリック"
+  },
+  "roi": { "label": "ROI" },
+  "subtitleBar": { "noSubtitle": "現在位置に字幕がありません" },
+  "player": {
+    "play": "動画を再生",
+    "pause": "動画を一時停止",
+    "seek": "動画の再生位置",
+    "mute": "ミュート",
+    "unmute": "ミュート解除",
+    "volume": "音量"
+  },
+  "tabs": {
+    "enhance": "画質",
+    "clean": "クリーンアップ",
+    "extract": "OCR"
+  },
+  "toolbar": {
+    "selectionActive": "範囲選択モードが有効です",
+    "previewOnly": "プレビュー専用モード"
+  },
+  "feedback": {
+    "completed": {
+      "enhance": "画質強化が完了しました",
+      "clean": "クリーンアップが完了しました",
+      "extract": "OCR 抽出が完了しました"
+    },
+    "failed": "処理に失敗しました",
+    "cancelled": "処理をキャンセルしました",
+    "paused": "処理を一時停止しました。タスクセンターから再開できます",
+    "openOutput": "出力場所を開く",
+    "dismiss": "メッセージを閉じる"
+  },
+  "errors": {
+    "invalidROI": "表示中のメディアに重なる有効な範囲を選択してください。"
+  },
+  "button": {
+    "processingLabel": "処理中...",
+    "noMediaText": "メディアをインポートしてください",
+    "noROIText": "クリーンアップ領域を描画",
+    "enhanceText": "エンハンス開始",
+    "cleanText": "クリーンアップ開始",
+    "ocrROIText": "OCR抽出（領域）",
+    "ocrFullText": "OCR抽出（全画面）",
+    "defaultText": "処理開始"
+  },
+  "tools": {
+    "enhance": {
+      "title": "超解像",
+      "description": "リアルな映像向けに訓練された AI モデルで低解像度素材を拡大します。",
+      "method": "拡大方法",
+      "methods": {
+        "realesrgan": "Real-ESRGAN（高速・安定）",
+        "basicvsr": "BasicVSR++（Python 3.10 が必要）"
+      },
+      "models": {
+        "basicvsrPlusPlus": "BasicVSR++（時系列動画 AI・最も低速・最高品質）",
+        "realesrganX4Plus": "RealESRGAN x4 Plus（汎用・高品質）",
+        "realesrganX4PlusAnime": "RealESRGAN x4 Plus アニメモデル",
+        "realesrAnimeVideoV3": "RealESR AnimeVideo v3（アニメ向け最速）",
+        "realesrGeneralX4V3": "RealESR General x4 v3（実写向け最速）",
+        "realesrGeneralDenoiseX4V3": "RealESR General x4 v3（ノイズ除去）"
+      },
+      "model": "モデル",
+      "performanceTitle": "高性能な環境が必要",
+      "performanceDescription": "BasicVSR++ には専用 NVIDIA GPU（6GB 以上の VRAM）と CUDA が必要です。処理速度は非常に遅いです（約 1-2 fps）。",
+      "scale": "拡大倍率"
+    },
+    "clean": {
+      "title": "ウォーターマーク除去",
+      "description": "除去する領域を選択します。AI が選択領域を時間方向に補完します。",
+      "drawSelection": "選択範囲を描画",
+      "regions": "領域",
+      "regionLabel": "領域 #{{index}}",
+      "noRegion": "プレビュー上をドラッグしてクリーンアップ領域を作成します。",
+      "clearSelection": "選択範囲をクリア",
+      "method": "方法",
+      "methods": {
+        "telea": "高速（OpenCV Telea）",
+        "navier": "高速（OpenCV Navier-Stokes）"
+      }
+    },
+    "ocr": {
+      "title": "テキスト抽出（OCR）",
+      "description": "動画上で抽出領域（ROI）を指定します。",
+      "roiCoordinates": "ROI 座標",
+      "noSelection": "未選択",
+      "engine": "OCR エンジン",
+      "engines": {
+        "rapid": "RapidOCR（デフォルト）",
+        "paddle": "PaddleOCR"
+      },
+      "results": "結果（{{count}}）",
+      "empty": "選択領域にテキストが見つかりません"
+    }
+  },
+  "projectFiles": {
+    "title": "プロジェクトファイル",
+    "emptyState": "インポートされたファイルなし",
+    "removeTooltip": "リストから削除"
+  }
+}

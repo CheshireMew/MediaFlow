@@ -3,6 +3,10 @@ import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ContextMenu } from "../components/ui/ContextMenu";
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
 describe("ContextMenu", () => {
   afterEach(() => {
     cleanup();

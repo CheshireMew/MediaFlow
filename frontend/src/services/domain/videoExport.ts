@@ -9,7 +9,7 @@ export type VideoExportSubmission = {
   options: SynthesizeOptions;
   outputRef: MediaReference | null;
   outputDir: string | null;
-  watermarkPath: string | null;
+  watermarkRef: MediaReference | null;
   subtitleEnabled: boolean;
   watermarkEnabled: boolean;
 };
@@ -25,11 +25,11 @@ export function getVideoExportClipDuration(scope: VideoExportScope): number {
 export function resolveClipRenderMode(
   submission: Pick<
     VideoExportSubmission,
-    "subtitleEnabled" | "watermarkEnabled" | "watermarkPath"
+    "subtitleEnabled" | "watermarkEnabled" | "watermarkRef"
   >,
 ): "burned" | "source" {
   return submission.subtitleEnabled ||
-    (submission.watermarkEnabled && Boolean(submission.watermarkPath))
+    (submission.watermarkEnabled && Boolean(submission.watermarkRef))
     ? "burned"
     : "source";
 }

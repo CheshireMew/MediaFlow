@@ -9,17 +9,14 @@ import {
 import {
   applyExecutionOutcome,
   enqueueExecutionTask,
-  executionService,
   isCliTranscriptionSetupRequiredError,
   isDesktopRuntime,
   settingsService,
   type NullableExecutionMode,
 } from "../../services/domain";
+import { executionService } from "../../services/domain/executionService";
 import { fileService } from "../../services/fileService";
 import { normalizeMediaReference } from "../../services/ui/mediaReference";
-import {
-  getElectronFileSource,
-} from "../../services/ui/electronFileSource";
 import type { ElectronFile } from "../../types/electron";
 import type { TranscribeResult, TranscriptionEngine } from "../../types/transcriber";
 import { toSRT } from "../../utils/subtitleParser";
@@ -49,8 +46,6 @@ export function createTranscriberTranslationNavigationPayload(
   payload: TranslatorNavigationPayload,
 ) {
   return createNavigationMediaPayload({
-    videoPath: null,
-    subtitlePath: null,
     videoRef: payload.video_ref ?? null,
     subtitleRef: payload.subtitle_ref ?? null,
   });
@@ -62,8 +57,6 @@ export function createTranscriberEditorNavigationPayload(params: {
 }) {
   const { file, result } = params;
   return createNavigationMediaPayload({
-    videoPath: file.path,
-    subtitlePath: null,
     videoRef: normalizeMediaReference(file),
     subtitleRef: result?.subtitle_ref ?? null,
   });
@@ -98,22 +91,16 @@ export function useTranscriberCommands({
       }
 
       if (!filePath) {
-        alert("Cannot detect file path. Are you running in Electron?");
+        toast.error(t("feedback.filePathMissing"));
         setIsUploading(false);
         return;
       }
 
       const submissionAudioRef = normalizeMediaReference({ ...file, path: filePath })!;
 
-      console.info("[Transcriber] backend transcribe payload", {
-        source: getElectronFileSource(file),
-        engine,
-        audio_ref: submissionAudioRef.path,
-        file_path: file.path ?? null,
-      });
-
       const executionResult = await executionService.transcribe({
         audio_ref: submissionAudioRef,
+        task_name: t("feedback.taskName", { name: file.name }),
         engine,
         model,
         device,
@@ -128,7 +115,7 @@ export function useTranscriberCommands({
         outcome: executionResult,
         descriptor: {
           type: "pipeline",
-          name: `Transcribe ${file.name}`,
+          name: t("feedback.taskName", { name: file.name }),
           request_params: {
             pipeline_id: "transcriber_tool",
             steps: [
@@ -139,7 +126,6 @@ export function useTranscriberCommands({
                   engine,
                   model,
                   device,
-                  vad_filter: true,
                 },
               },
             ],
@@ -159,7 +145,7 @@ export function useTranscriberCommands({
       }
       setExecutionMode(null);
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
-      alert(`Transcription failed to start.\nDetails: ${msg}`);
+      toast.error(t("feedback.startFailed", { detail: msg }));
     } finally {
       setIsUploading(false);
     }
@@ -173,6 +159,7 @@ export function useTranscriberCommands({
     setExecutionMode,
     setIsUploading,
     setResult,
+    t,
   ]);
 
   const sendToTranslator = useCallback(
@@ -195,7 +182,7 @@ export function useTranscriberCommands({
           "[Transcriber] handleSendToTranslator: No valid result/path available",
           targetResult,
         );
-        alert("No subtitle file available to translate.");
+        toast.warning(t("feedback.noSubtitleForTranslation"));
         return;
       }
 
@@ -204,7 +191,7 @@ export function useTranscriberCommands({
         createTranscriberTranslationNavigationPayload(targetResult),
       );
     },
-    [file, result],
+    [file, result, t],
   );
 
   const sendToEditor = useCallback(() => {

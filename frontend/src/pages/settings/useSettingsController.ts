@@ -20,7 +20,7 @@ export function useSettingsController(search: string, t: TFunction<"settings">) 
     setSettings: settingsData.setSettings,
     showNotification: settingsData.showNotification,
     t,
-    updateSettingsField: settingsData.updateSettingsField,
+    updatePreferences: settingsData.updatePreferences,
   });
 
   return {
@@ -56,7 +56,7 @@ export function useSettingsController(search: string, t: TFunction<"settings">) 
     settings: settingsData.settings,
     showNotification: settingsData.showNotification,
     smartSplitTextLimitInput: settingsData.smartSplitTextLimitInput,
-    updateSettingsField: settingsData.updateSettingsField,
+    updatePreferences: settingsData.updatePreferences,
     ytDlpUpdateInfo: generalSettings.ytDlpUpdateInfo,
   };
 }

@@ -25,7 +25,7 @@ export {
 
 export const useFileIO = () => {
   const {
-    sourceFilePath,
+    sourceFileRef,
     sourceSegments,
     targetSegments,
   } = useTranslatorStore();
@@ -38,10 +38,10 @@ export const useFileIO = () => {
     }
 
     try {
-      const { subtitleRef, subtitlePath } = resolveNavigationMediaPayload(payload);
+      const { subtitleRef } = resolveNavigationMediaPayload(payload);
 
-      if (subtitlePath) {
-        void handleFileUpload(subtitleRef ?? subtitlePath);
+      if (subtitleRef) {
+        void handleFileUpload(subtitleRef);
         return true;
       }
     } catch (error) {
@@ -73,7 +73,7 @@ export const useFileIO = () => {
   }, [applyTranslatorPayload, checkPendingNavigation]);
 
   return {
-    sourceFilePath,
+    sourceFileRef,
     sourceSegments, // Exposed for checking length
     targetSegments, // Exposed for checking length
     handleFileUpload,

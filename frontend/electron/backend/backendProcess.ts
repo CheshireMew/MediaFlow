@@ -8,6 +8,10 @@ import {
   resolveBundledBackendExecutable,
   resolvePreferredDesktopBackendPort,
 } from "../desktopRuntime";
+import {
+  BACKEND_OUTPUT_DIAGNOSTICS_ENV,
+  shouldForwardBackendOutput,
+} from "./backendOutputPolicy";
 
 let backendProcess: ChildProcess | null = null;
 let backendRuntimeInfoPromise: Promise<DesktopBackendRuntimeInfo> | null = null;
@@ -144,6 +148,29 @@ async function resolveManagedBackendPort() {
   return await allocatePort();
 }
 
+function connectBackendOutput(processHandle: ChildProcess) {
+  const forwardOutput = shouldForwardBackendOutput(
+    isDesktopDevMode(),
+    process.env[BACKEND_OUTPUT_DIAGNOSTICS_ENV],
+  );
+
+  if (!forwardOutput) {
+    // Piped child streams must remain in flowing mode or a verbose backend can
+    // eventually block on a full OS pipe. Production intentionally discards
+    // their contents instead of forwarding potentially sensitive media data.
+    processHandle.stdout?.resume();
+    processHandle.stderr?.resume();
+    return;
+  }
+
+  processHandle.stdout?.on("data", (data) => {
+    console.log(`[Backend] ${data.toString().trimEnd()}`);
+  });
+  processHandle.stderr?.on("data", (data) => {
+    console.error(`[Backend ERR] ${data.toString().trimEnd()}`);
+  });
+}
+
 function resolveExternalBackendInfo(): DesktopBackendRuntimeInfo {
   const apiBase = process.env.VITE_API_URL?.trim();
   const wsBase = process.env.VITE_WS_URL?.trim();
@@ -189,12 +216,7 @@ async function startManagedBackend(): Promise<DesktopBackendRuntimeInfo> {
     },
   });
 
-  backendProcess.stdout?.on("data", (data) => {
-    console.log(`[Backend] ${data.toString().trimEnd()}`);
-  });
-  backendProcess.stderr?.on("data", (data) => {
-    console.error(`[Backend ERR] ${data.toString().trimEnd()}`);
-  });
+  connectBackendOutput(backendProcess);
   backendProcess.once("exit", (code) => {
     console.log(`[Backend] exited with code ${code}`);
     backendProcess = null;

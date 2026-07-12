@@ -5,7 +5,7 @@ from pathlib import Path
 from backend.config import settings
 from backend.core.container import Services, container
 from backend.models.task_model import Task
-from backend.models.schemas import FileRef, TaskResult
+from backend.models.schemas import MediaReference, TaskArtifact, TaskResult
 from backend.services.task_control_service import TaskControlService
 from backend.services.task_event_publisher import TaskEventPublisher
 from backend.services.task_manager import TaskManager
@@ -21,14 +21,16 @@ class SlowMockASR:
 
     def transcribe(
         self,
+        *,
         audio_path: str,
-        model_name: str = "base",
-        device: str = "cpu",
-        language: str = None,
-        task_id: str = None,
-        initial_prompt: str = None,
-        progress_callback=None,
-        generate_peaks: bool = True,
+        model_name: str,
+        device: str,
+        engine: str,
+        language: str | None,
+        vad_filter: bool,
+        task_id: str | None,
+        initial_prompt: str | None,
+        progress_callback,
     ) -> TaskResult:
         output_path = str(Path(audio_path).with_suffix(".srt"))
 
@@ -36,11 +38,26 @@ class SlowMockASR:
             time.sleep(self.delay_s)
             if progress_callback:
                 percent = (step + 1) * (80 / self.steps)
-                progress_callback(percent, f"mock step {step + 1}")
+                progress_callback(
+                    percent,
+                    "transcription_progress",
+                    {"percent": round(percent, 1)},
+                )
 
         return TaskResult(
             success=True,
-            files=[FileRef(type="subtitle", path=output_path, label="transcription")],
+            artifacts=[
+                TaskArtifact(
+                    kind="subtitle",
+                    role="output",
+                    ref=MediaReference(
+                        path=output_path,
+                        name=Path(output_path).name,
+                        media_kind="subtitle",
+                        role="output",
+                    ),
+                )
+            ],
             meta={"segments": [], "text": "ok", "language": language or "en"},
         )
 
@@ -104,11 +121,13 @@ def _wait_for_queue_idle(
     raise AssertionError(f"Queue did not become idle. Last payload: {last_payload}")
 
 
-def test_queue_summary_limits_concurrency_to_two(isolated_api_client):
+def test_queue_summary_limits_concurrency_to_two(isolated_api_client, monkeypatch):
     audio_path = _create_audio_file("queue_api_test_audio.mp3")
 
     client = isolated_api_client
-    container.override(Services.ASR, SlowMockASR(steps=4, delay_s=0.25))
+    assert client.get("/api/v1/tasks/queue/summary").status_code == 200
+    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
+    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=4, delay_s=0.25))
 
     task_ids: list[str] = []
     for _ in range(3):
@@ -164,11 +183,13 @@ def test_queue_summary_limits_concurrency_to_two(isolated_api_client):
         client.delete(f"/api/v1/tasks/{task_id}")
     _wait_for_queue_idle(client)
 
-def test_pause_and_resume_transition_task_state(isolated_api_client):
+def test_pause_and_resume_transition_task_state(isolated_api_client, monkeypatch):
     audio_path = _create_audio_file("pause_resume_api_test_audio.mp3")
 
     client = isolated_api_client
-    container.override(Services.ASR, SlowMockASR(steps=10, delay_s=0.15))
+    assert client.get("/api/v1/tasks/queue/summary").status_code == 200
+    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
+    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=10, delay_s=0.15))
 
     create_response = client.post(
         "/api/v1/transcribe/",
@@ -188,6 +209,8 @@ def test_pause_and_resume_transition_task_state(isolated_api_client):
 
     pause_response = client.post(f"/api/v1/tasks/{task_id}/pause")
     assert pause_response.status_code == 200
+    assert pause_response.json()["message_code"] == "pause_requested"
+    assert pause_response.json()["message_params"] == {}
 
     time.sleep(0.30)
 
@@ -201,6 +224,8 @@ def test_pause_and_resume_transition_task_state(isolated_api_client):
 
     resume_response = client.post(f"/api/v1/tasks/{task_id}/resume")
     assert resume_response.status_code == 200
+    assert resume_response.json()["message_code"] == "resumed"
+    assert resume_response.json()["message_params"] == {}
 
     time.sleep(0.20)
 
@@ -227,7 +252,8 @@ def test_load_runtime_tasks_marks_interrupted_work_as_paused_and_snapshot_reflec
         type="transcribe",
         status="running",
         progress=32.0,
-        message="Interrupted mid-run",
+        message_code="transcription_progress",
+        message_params={"percent": 32},
         request_params={"audio_ref": {"path": "x.mp3", "name": "x.mp3"}, "model": "base", "device": "cpu"},
     )
     pending_task = Task(
@@ -236,7 +262,8 @@ def test_load_runtime_tasks_marks_interrupted_work_as_paused_and_snapshot_reflec
         type="transcribe",
         status="pending",
         progress=0.0,
-        message="Queued",
+        message_code="queued",
+        message_params={},
         request_params={"audio_ref": {"path": "y.mp3", "name": "y.mp3"}, "model": "base", "device": "cpu"},
     )
     paused_task = Task(
@@ -245,7 +272,8 @@ def test_load_runtime_tasks_marks_interrupted_work_as_paused_and_snapshot_reflec
         type="transcribe",
         status="paused",
         progress=12.0,
-        message="Paused by user",
+        message_code="paused",
+        message_params={},
         request_params={"audio_ref": {"path": "z.mp3", "name": "z.mp3"}, "model": "base", "device": "cpu"},
     )
     fake_tasks = [running_task, pending_task, paused_task]
@@ -255,7 +283,8 @@ def test_load_runtime_tasks_marks_interrupted_work_as_paused_and_snapshot_reflec
         for task in fake_tasks:
             if task.status in ["running", "pending"]:
                 task.status = "paused"
-                task.message = "Interrupted by restart"
+                task.message_code = "interrupted_by_restart"
+                task.message_params = {}
                 task.cancelled = False
             tasks_by_id[task.id] = task
         return tasks_by_id
@@ -272,11 +301,11 @@ def test_load_runtime_tasks_marks_interrupted_work_as_paused_and_snapshot_reflec
     asyncio.run(tm.load_runtime_tasks())
 
     assert tm.get_task(running_task.id).status == "paused"
-    assert tm.get_task(running_task.id).message == "Interrupted by restart"
+    assert tm.get_task(running_task.id).message_code == "interrupted_by_restart"
     assert tm.get_task(pending_task.id).status == "paused"
-    assert tm.get_task(pending_task.id).message == "Interrupted by restart"
+    assert tm.get_task(pending_task.id).message_code == "interrupted_by_restart"
     assert tm.get_task(paused_task.id).status == "paused"
-    assert tm.get_task(paused_task.id).message == "Paused by user"
+    assert tm.get_task(paused_task.id).message_code == "paused"
 
     snapshot = {task.id: task for task in tm.get_tasks_snapshot()}
     assert snapshot[running_task.id].queue_state == "paused"

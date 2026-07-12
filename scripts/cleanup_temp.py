@@ -1,5 +1,4 @@
 import os
-import shutil
 from pathlib import Path
 
 TEMP_DIR = Path(r"e:\Work\Code\Mediaflow\temp")

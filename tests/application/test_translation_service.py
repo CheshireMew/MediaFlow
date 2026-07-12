@@ -4,7 +4,7 @@ from backend.application.translation_service import build_translation_task_resul
 from backend.models.schemas import MediaReference, SubtitleSegment
 
 
-def test_build_translation_task_result_emits_structured_media_refs(monkeypatch):
+def test_build_translation_task_result_emits_output_artifact(monkeypatch):
     saved_path = Path("C:/tmp/demo_ZH-CN.srt")
 
     monkeypatch.setattr(
@@ -27,20 +27,22 @@ def test_build_translation_task_result_emits_structured_media_refs(monkeypatch):
         ),
     )
 
-    assert result.meta["context_ref"]["path"] == "C:/tmp/demo.srt"
-    assert result.meta["context_ref"]["media_kind"] == "subtitle"
-    assert result.meta["subtitle_ref"]["path"] == str(saved_path)
-    assert result.meta["output_ref"]["path"] == str(saved_path)
-    assert result.meta["output_ref"]["role"] == "output"
+    assert result.meta["language"] == "SimplifiedChinese"
+    assert not any(key.endswith("_ref") for key in result.meta)
+    assert result.artifacts[0].kind == "subtitle"
+    assert result.artifacts[0].ref.path == str(saved_path)
+    assert result.artifacts[0].ref.role == "output"
 
 
 def test_build_translation_task_result_prefers_normalized_context_ref(monkeypatch):
     saved_path = Path("C:/tmp/demo_ZH-CN.srt")
+    captured = {}
 
-    monkeypatch.setattr(
-        "backend.utils.subtitle_writer.SubtitleWriter.save_srt",
-        lambda segments, output_path: str(saved_path),
-    )
+    def fake_save_srt(_segments, output_path):
+        captured["output_path"] = output_path
+        return str(saved_path)
+
+    monkeypatch.setattr("backend.utils.subtitle_writer.SubtitleWriter.save_srt", fake_save_srt)
 
     result = build_translation_task_result(
         [
@@ -58,8 +60,8 @@ def test_build_translation_task_result_prefers_normalized_context_ref(monkeypatc
         ),
     )
 
-    assert result.meta["context_ref"]["path"] == "C:/canonical/demo.srt"
-    assert result.meta["context_ref"]["origin"] == "request"
+    assert captured["output_path"] == "C:\\canonical\\demo_ZH-CN.srt"
+    assert result.artifacts[0].ref.path == str(saved_path)
 
 
 def test_build_translation_task_result_uses_shortened_output_path_for_long_context(monkeypatch):
@@ -96,4 +98,4 @@ def test_build_translation_task_result_uses_shortened_output_path_for_long_conte
 
     assert len(captured["output_path"]) <= 240
     assert captured["output_path"].endswith("_ZH-CN.srt")
-    assert result.meta["subtitle_ref"]["path"] == captured["output_path"]
+    assert result.artifacts[0].ref.path == captured["output_path"]

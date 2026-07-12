@@ -5,6 +5,7 @@ import {
   TASK_LIFECYCLE,
   TASK_QUEUE_STATES,
   TASK_PERSISTENCE_SCOPES,
+  isTaskMessageCode,
   type TaskLifecycle,
   type TaskPersistenceScope,
   type TaskQueueState,
@@ -87,6 +88,10 @@ export function createTaskExecutionSubmissionReceipt(
   if (!TASK_QUEUE_STATES.includes(response.queue_state as TaskQueueState)) {
     throw new Error(`Task submission returned invalid queue state: ${response.queue_state}`);
   }
+  const messageCode = response.message_code;
+  if (!isTaskMessageCode(messageCode)) {
+    throw new Error(`Task submission returned invalid message code: ${response.message_code}`);
+  }
 
   const persistenceScope = response.persistence_scope as TaskPersistenceScope;
   const lifecycle = response.lifecycle as TaskLifecycle;
@@ -96,7 +101,8 @@ export function createTaskExecutionSubmissionReceipt(
     execution_mode: "task_submission",
     task_id: response.task_id,
     status: response.status,
-    message: response.message,
+    message_code: messageCode,
+    message_params: response.message_params,
     task_source: response.task_source,
     task_contract_version: response.task_contract_version,
     persistence_scope: persistenceScope,
@@ -134,7 +140,8 @@ export function createTaskFromSubmissionReceipt(args: {
     lifecycle: receipt.lifecycle,
     progress: 0,
     name,
-    message: receipt.message,
+    message_code: receipt.message_code,
+    message_params: receipt.message_params,
     request_params,
     primary_operation: receipt.primary_operation,
     created_at: created_at ?? Date.now(),

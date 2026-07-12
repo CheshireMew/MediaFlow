@@ -1,5 +1,4 @@
 import base64
-import os
 import shutil
 import tempfile
 import time

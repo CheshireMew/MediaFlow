@@ -6,8 +6,6 @@ from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service
 from backend.models.schemas import (
     ClipCandidate,
     SubtitleSegment,
@@ -51,6 +49,7 @@ class LlmHighlightResponse(BaseModel):
 
 def detect_highlights(
     *,
+    settings_manager,
     video_path: str,
     subtitle_segments: list[SubtitleSegment],
     max_candidates: int,
@@ -69,6 +68,7 @@ def detect_highlights(
     cues = _build_subtitle_cues(valid_subtitles)
     windows = _build_analysis_windows(cues)
     response = _request_llm_highlights(
+        settings_manager=settings_manager,
         video_path=video_path,
         media_duration=duration,
         windows=windows,
@@ -134,6 +134,7 @@ def _window_from_cues(index: int, cues: list[HighlightSubtitleCue]) -> Highlight
 
 def _request_llm_highlights(
     *,
+    settings_manager,
     video_path: str,
     media_duration: float,
     windows: list[HighlightAnalysisWindow],
@@ -141,9 +142,7 @@ def _request_llm_highlights(
     min_duration: float,
     max_duration: float,
 ) -> LlmHighlightResponse:
-    client, model_name = TranslationClientFactory(
-        runtime_service(Services.SETTINGS_MANAGER)
-    ).get_client()
+    client, model_name = TranslationClientFactory(settings_manager).get_client()
     if not client or not model_name:
         raise ValueError("LLM provider is not configured.")
 
@@ -197,6 +196,29 @@ def _request_llm_highlights(
     log_llm_response("Highlight detection", response)
     logger.info("LLM highlight detection returned {} candidates", len(response.candidates))
     return response
+
+
+class HighlightApplicationService:
+    def __init__(self, settings_manager):
+        self._settings_manager = settings_manager
+
+    def detect(
+        self,
+        *,
+        video_path: str,
+        subtitle_segments: list[SubtitleSegment],
+        max_candidates: int,
+        min_duration: float,
+        max_duration: float,
+    ) -> tuple[list[ClipCandidate], str, float]:
+        return detect_highlights(
+            settings_manager=self._settings_manager,
+            video_path=video_path,
+            subtitle_segments=subtitle_segments,
+            max_candidates=max_candidates,
+            min_duration=min_duration,
+            max_duration=max_duration,
+        )
 
 
 def _normalize_llm_candidates(

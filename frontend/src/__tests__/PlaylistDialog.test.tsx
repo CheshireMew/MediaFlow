@@ -61,4 +61,31 @@ describe("PlaylistDialog", () => {
     fireEvent.click(screen.getByText("playlist.downloadThisOnly"));
     expect(onDownloadCurrent).toHaveBeenCalledTimes(1);
   });
+
+  it("exposes modal and playlist selection semantics", () => {
+    const onToggleItem = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <PlaylistDialog
+        playlistInfo={playlistInfo}
+        selectedItems={[0]}
+        canDownloadCurrent
+        onClose={onClose}
+        onSelectAll={vi.fn()}
+        onClearSelection={vi.fn()}
+        onDownloadCurrent={vi.fn()}
+        onDownloadSelected={vi.fn()}
+        onToggleItem={onToggleItem}
+      />,
+    );
+
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+    const firstItem = screen.getByRole("checkbox", { name: /First/ });
+    expect(firstItem).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(firstItem);
+    expect(onToggleItem).toHaveBeenCalledWith(0);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });

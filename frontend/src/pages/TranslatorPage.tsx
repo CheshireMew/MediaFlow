@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
     Wand2, FolderOpen, Loader2, Book, Globe, Download, FileEdit, Sparkles 
@@ -15,19 +15,15 @@ import { SegmentsTable } from '../components/translator/SegmentsTable';
 import { Sidebar } from '../components/translator/Sidebar';
 import type { TranslatorMode } from '../hooks/useTranslator';
 import { PageContent, PageHeader, PageShell, ToolbarButton, WorkPanel } from '../components/ui/PageChrome';
-
-type ElectronSubtitleFile = {
-    path: string;
-    name: string;
-};
+import { normalizeMediaReference } from '../services/ui/mediaReference';
 
 export const TranslatorPage = () => {
     const {
         sourceSegments,
         targetSegments,
         glossary,
-        sourceFilePath,
-        targetSubtitlePath,
+        sourceFileRef,
+        targetSubtitleRef,
         targetLang,
         mode,
         activeMode,
@@ -45,18 +41,22 @@ export const TranslatorPage = () => {
         exportSRT,
         handleOpenInEditor
     } = useTranslator();
+    const sourceFilePath = sourceFileRef?.path ?? null;
+    const targetSubtitlePath = targetSubtitleRef?.path ?? null;
 
     const { t } = useTranslation('translator');
     
     // UI Local State for Sidebar
     const [showGlossary, setShowGlossary] = useState(false);
+    const targetLanguageId = useId();
+    const translationModeId = useId();
 
-    // --- Legacy "Open File" Handler to wrap hook ---
     const handleOpenFile = async () => {
          try {
-            const fileData = await fileService.openSubtitleFile() as ElectronSubtitleFile | null;
-            if (fileData && fileData.path) {
-                handleFileUpload(fileData.path);
+            const fileData = await fileService.openFile({ profile: 'subtitle' });
+            const reference = normalizeMediaReference(fileData);
+            if (reference) {
+                await handleFileUpload(reference);
             }
          } catch (error) {
             console.error("Failed to open subtitle file:", error);
@@ -174,13 +174,14 @@ export const TranslatorPage = () => {
                  {/* Table Header Controls */}
                  <div className="flex-none p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                      <div className="flex items-center gap-4">
-                         <span className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-2 border-l-2 border-slate-700">{t('table.sourceHeader')} ({sourceSegments.length})</span>
+                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-2 border-l-2 border-slate-700">{t('table.sourceHeader')} ({sourceSegments.length})</span>
                      </div>
                      <div className="flex items-center gap-6">
                          <div className="flex items-center gap-3">
-                             <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{t('table.targetLangLabel')}</label>
+                              <label htmlFor={targetLanguageId} className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('table.targetLangLabel')}</label>
                              <div className="relative group">
-                                <select 
+                                 <select
+                                    id={targetLanguageId}
                                     value={targetLang} 
                                     onChange={e => setTargetLang(e.target.value as TranslationTargetLanguage)}
                                     className="bg-black/40 border border-white/10 text-xs px-3 py-1.5 rounded-lg outline-none text-slate-300 hover:text-white focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all appearance-none pr-8 cursor-pointer font-medium"
@@ -193,9 +194,10 @@ export const TranslatorPage = () => {
                          </div>
 
                          <div className="flex items-center gap-3">
-                             <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{t('table.modeLabel')}</label>
+                              <label htmlFor={translationModeId} className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('table.modeLabel')}</label>
                              <div className="relative group">
-                                <select 
+                                 <select
+                                    id={translationModeId}
                                     value={mode} 
                                     onChange={e => setMode(e.target.value as TranslatorMode)}
                                     className="bg-black/40 border border-white/10 text-xs px-3 py-1.5 rounded-lg outline-none text-slate-300 hover:text-white focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all appearance-none pr-8 cursor-pointer font-medium"

@@ -19,16 +19,17 @@ import {
     editorService,
     getVideoExportClipDuration,
     resolvePreviewViewportMetrics,
-    resolveSynthesisWatermarkPath,
+    resolveSynthesisWatermarkReference,
     type VideoExportScope,
     type VideoExportSubmission,
 } from '../../services/domain';
-import { normalizeMediaReference, type MediaReference } from '../../services/ui/mediaReference';
+import { mediaReferenceFromPath, type MediaReference } from '../../services/ui/mediaReference';
 import {
     restoreStoredSynthesisExecutionPreferences,
     type SynthesisExecutionPreferences,
     updateStoredSynthesisExecutionPreferences,
 } from '../../services/persistence/synthesisExecutionPreferences';
+import { Dialog } from '../ui/Dialog';
 
 const PREVIEW_VISIBLE_FRAME_OFFSET_SECONDS = 1 / 30;
 const PROBE_FAILURE_FALLBACK_VISIBLE_START_SECONDS = 2 / 30;
@@ -44,18 +45,16 @@ interface VideoExportDialogProps {
     isOpen: boolean;
     onClose: () => void;
     regions: SubtitleSegment[];
-    videoPath: string | null;
+    video: MediaReference | null;
     mediaUrl: string | null;
     exportScope: VideoExportScope;
-    onExport: (
-        submission: VideoExportSubmission,
-        videoPath: string,
-    ) => Promise<boolean>;
+    onExport: (submission: VideoExportSubmission) => Promise<boolean>;
 }
 
 export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
-    isOpen, onClose, regions, videoPath, mediaUrl, exportScope, onExport
+    isOpen, onClose, regions, video, mediaUrl, exportScope, onExport
 }) => {
+    const videoPath = video?.path ?? null;
     const { t } = useTranslation('synthesis');
     const [persistedPreferences, setPersistedPreferences] = useState(() => restoreStoredSynthesisExecutionPreferences());
     // --- Shared refs ---
@@ -126,22 +125,13 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
     }, [firstClipStart, isClipExport, isOpen, videoPath, mediaUrl]);
 
     useEffect(() => {
-        if (!isOpen || isClipExport || !videoPath) {
-            return;
-        }
-
-        const videoRefForProbe = normalizeMediaReference(videoPath, {
-            type: "video/mp4",
-            media_kind: "video",
-            role: "source",
-        });
-        if (!videoRefForProbe) {
+        if (!isOpen || isClipExport || !video) {
             return;
         }
 
         let cancelled = false;
         void editorService
-            .getMediaVisibleStart({ video_ref: videoRefForProbe })
+            .getMediaVisibleStart({ video_ref: video })
             .then((result) => {
                 if (cancelled) {
                     return;
@@ -167,7 +157,7 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
         return () => {
             cancelled = true;
         };
-    }, [isClipExport, isOpen, videoPath, mediaUrl]);
+    }, [isClipExport, isOpen, video, mediaUrl]);
 
     useEffect(() => {
         if (!isOpen || !activeClip || !videoRef.current) return;
@@ -263,17 +253,13 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
         setIsSubmitting(true);
         try {
             const effectiveSubtitleEnabled = subtitleAvailable && subtitleEnabled;
-            const effectiveTargetResolution =
-                isClipExport && output.targetResolution.startsWith("sr_")
-                    ? "original"
-                    : output.targetResolution;
             const effectivePreferences: SynthesisExecutionPreferences = {
                 ...persistedPreferences,
                 subtitleEnabled: effectiveSubtitleEnabled,
                 watermarkEnabled,
                 quality: output.quality,
                 useGpu: output.useGpu,
-                targetResolution: effectiveTargetResolution,
+                targetResolution: output.targetResolution,
                 lastOutputDir: output.outputDir,
                 subtitleStyle: {
                     ...persistedPreferences.subtitleStyle,
@@ -306,7 +292,7 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
             const options = buildSynthesisOptionsFromPreferences(
                 effectivePreferences,
                 {
-                    targetResolution: effectiveTargetResolution,
+                    targetResolution: output.targetResolution,
                     trimStart: isClipExport ? undefined : Math.max(output.trimStart, mediaVisibleStart),
                     trimEnd: isClipExport ? undefined : output.trimEnd,
                     crop: crop.isEnabled ? crop.crop : null,
@@ -319,7 +305,7 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                 const sep = output.outputDir.includes('\\') ? '\\' : '/';
                 const cleanDir = output.outputDir.endsWith(sep) ? output.outputDir.slice(0, -1) : output.outputDir;
                 const targetPath = `${cleanDir}${sep}${output.outputFilename}`;
-                outputRef = normalizeMediaReference(targetPath, {
+                outputRef = mediaReferenceFromPath(targetPath, {
                         type: "video/mp4",
                         media_kind: "video",
                         role: "output",
@@ -327,20 +313,17 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                     });
             }
 
-            const effectiveWatermarkPath = watermarkEnabled
-                ? watermark.watermarkPath ?? await resolveSynthesisWatermarkPath(effectivePreferences)
+            const effectiveWatermarkRef = watermarkEnabled
+                ? watermark.watermarkRef ?? await resolveSynthesisWatermarkReference(effectivePreferences)
                 : null;
-            const submitted = await onExport(
-                {
-                    options,
-                    outputRef,
-                    outputDir: output.outputDir,
-                    watermarkPath: effectiveWatermarkPath,
-                    subtitleEnabled: effectiveSubtitleEnabled,
-                    watermarkEnabled,
-                },
-                videoPath,
-            );
+            const submitted = await onExport({
+                options,
+                outputRef,
+                outputDir: output.outputDir,
+                watermarkRef: effectiveWatermarkRef,
+                subtitleEnabled: effectiveSubtitleEnabled,
+                watermarkEnabled,
+            });
             if (submitted) onClose();
         } catch (e) {
             console.error(e);
@@ -353,20 +336,19 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-            <div 
-                className="relative bg-[#0a0a0a] w-[95vw] h-[90vh] rounded-lg border border-white/10 shadow-2xl flex overflow-hidden ring-1 ring-white/5"
-                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties & { WebkitAppRegion: 'no-drag' }}
-                aria-busy={isSubmitting}
-                onKeyDownCapture={(event) => {
-                    if (!isSubmitting) return;
-                    event.preventDefault();
-                    event.stopPropagation();
-                }}
-            >
+        <Dialog
+            open={isOpen}
+            onClose={onClose}
+            ariaLabel={isClipExport ? t('clipExport.title') : t('title')}
+            busy={isSubmitting}
+            closeOnBackdrop={false}
+            overlayClassName="z-[100] bg-black/80 p-2 backdrop-blur-sm sm:p-4"
+            className="relative flex h-[90vh] w-[95vw] overflow-hidden rounded-lg border border-white/10 bg-[#0a0a0a] shadow-2xl ring-1 ring-white/5 max-[900px]:h-[95vh] max-[900px]:flex-col"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties & { WebkitAppRegion: 'no-drag' }}
+        >
                 {/* Left: Settings Panel */}
-                <div className="w-[340px] bg-[#161616] flex flex-col border-r border-white/5 z-10 shrink-0">
-                    <div className="p-6 pb-4">
+                <div className="z-10 flex w-[340px] shrink-0 flex-col border-r border-white/5 bg-[#161616] max-[900px]:max-h-[43%] max-[900px]:w-full max-[900px]:border-r-0 max-[900px]:border-b">
+                    <div className="p-6 pb-4 max-[900px]:p-4 max-[900px]:pb-3">
                         <h2 className="text-xl font-bold flex items-center gap-3 text-white tracking-tight">
                             <div className="p-2 bg-indigo-500/20 rounded-lg">
                                 <MonitorPlay size={20} className="text-indigo-400"/>
@@ -374,7 +356,7 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                             {isClipExport ? t('clipExport.title') : t('title')}
                         </h2>
                         {isClipExport && (
-                            <p className="mt-2 text-xs text-slate-500">
+                            <p className="mt-2 text-xs text-slate-400">
                                 {t('clipExport.summary', {
                                     count: clipSegments.length,
                                     duration: clipDuration.toFixed(1),
@@ -383,7 +365,7 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                         )}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-0 flex flex-col gap-6">
+                    <div className="custom-scrollbar flex flex-1 flex-col gap-6 overflow-y-auto p-6 pt-0 max-[900px]:p-4 max-[900px]:pt-0">
                         <SubtitleStylePanel
                             style={style}
                             enabled={subtitleAvailable && subtitleEnabled}
@@ -434,7 +416,6 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                         aria-hidden="true"
                     />
                 )}
-            </div>
-        </div>
+        </Dialog>
     );
 };

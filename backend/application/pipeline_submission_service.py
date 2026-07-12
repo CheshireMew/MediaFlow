@@ -3,11 +3,16 @@ from loguru import logger
 from backend.models.schemas import TaskView
 
 
-def task_submission_response(task: TaskView, message: str | None = None) -> dict:
+def task_submission_response(
+    task: TaskView,
+    message_code: str | None = None,
+    message_params: dict | None = None,
+) -> dict:
     return {
         "task_id": task.id,
         "status": task.status,
-        "message": message if message is not None else task.message,
+        "message_code": message_code if message_code is not None else task.message_code,
+        "message_params": message_params if message_params is not None else task.message_params,
         "task_source": task.task_source,
         "task_contract_version": task.task_contract_version,
         "persistence_scope": task.persistence_scope,
@@ -38,7 +43,8 @@ class PipelineSubmissionService:
                     logger.info(f"Duplicate task request ignored: {existing_task_id}")
                     return task_submission_response(
                         orchestrator.serialize_task(task),
-                        "Task already active",
+                        "already_active",
+                        {},
                     )
 
                 logger.info(f"Recycling existing task: {existing_task_id}")
@@ -46,23 +52,29 @@ class PipelineSubmissionService:
                     existing_task_id,
                     request_params=request_params,
                 )
-                await orchestrator.enqueue_existing_task(existing_task_id, queued_message="Queued")
+                await orchestrator.enqueue_existing_task(
+                    existing_task_id,
+                    queued_message_code="queued",
+                )
                 restarted = orchestrator.get_task(existing_task_id)
                 return task_submission_response(
                     orchestrator.serialize_task(restarted),
-                    "Task restarted",
+                    "restarted",
+                    {},
                 )
 
         logger.info(
             f"Pipeline Request: task_name={req.task_name}, steps={len(req.steps)}, type={task_type}"
         )
-        logger.debug(f"DEBUG PIPELINE PARAMS TYPE: {type(request_params)}")
-        logger.debug(f"DEBUG PIPELINE PARAMS CONTENT: {request_params}")
+        logger.debug(
+            "Pipeline request parameters prepared: fields={}",
+            sorted(request_params),
+        )
 
         return await orchestrator.submit_task(
             task_type=task_type,
             task_name=req.task_name,
             request_params=request_params,
-            initial_message="Queued",
-            queued_message="Queued",
+            initial_message_code="queued",
+            queued_message_code="queued",
         )

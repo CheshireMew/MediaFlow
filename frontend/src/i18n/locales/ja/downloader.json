@@ -18,6 +18,17 @@
     }
   },
   "supportedPlatforms": "対応プラットフォーム",
+  "feedback": {
+    "desktopRequired": "ログインが必要ですが、ブラウザー連携はデスクトップアプリでのみ使用できます",
+    "openingBrowser": "ブラウザーを開いています。ログイン後、ウィンドウを閉じて続行してください...",
+    "cookiesMissing": "{{domain}} の Cookie を取得できませんでした。ブラウザーでログインして再試行してください。",
+    "cookiesFailed": "Cookie を取得できませんでした：{{detail}}",
+    "queueFailed": "{{url}} をキューに追加できませんでした：{{detail}}",
+    "analysisFailed": "動画を解析できませんでした",
+    "analysisFailedDetail": "動画を解析できませんでした：{{detail}}",
+    "currentItemUnknown": "現在の動画だけをダウンロードする前に、プレイリスト項目を1つ選択してください",
+    "backendNotReady": "ダウンロードバックエンドの準備ができていません"
+  },
   "input": {
     "placeholder": "動画のURLを貼り付け（例：YouTube、Bilibili...）",
     "pasteTooltip": "クリップボードから貼り付け"

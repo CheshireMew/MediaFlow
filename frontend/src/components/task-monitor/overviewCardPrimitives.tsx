@@ -28,7 +28,7 @@ export function OverviewCardHeader({
       </div>
       <div className="min-w-0 pt-0.5">
         <h3 className="font-semibold text-slate-200 text-sm">{title}</h3>
-        <div className="mt-0.5 h-4 text-[11px] leading-4 text-slate-500">
+        <div className="mt-0.5 h-4 text-xs leading-4 text-slate-400">
           {subtitle ? subtitle : <span className="invisible">.</span>}
         </div>
       </div>

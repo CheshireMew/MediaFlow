@@ -45,11 +45,13 @@ def _install_fake_modelscope(monkeypatch, snapshot_download_impl):
 def test_modelscope_progress_reporter_aggregates_bytes(monkeypatch):
     _install_fake_modelscope(monkeypatch, snapshot_download_impl=lambda **_: None)
 
-    emitted: list[tuple[float, str]] = []
+    emitted: list[tuple[float, str, dict]] = []
     reporter = _ModelDownloadProgressReporter(
         model_name="large-v2",
         source_label="ModelScope",
-        progress_callback=lambda progress, message: emitted.append((progress, message)),
+        progress_callback=lambda progress, code, params: emitted.append(
+            (progress, code, params)
+        ),
         progress_start=0.0,
         progress_end=8.0,
         total_bytes=100,
@@ -67,11 +69,12 @@ def test_modelscope_progress_reporter_aggregates_bytes(monkeypatch):
     config.end()
     reporter.complete()
 
-    progresses = [progress for progress, _ in emitted]
+    progresses = [progress for progress, _code, _params in emitted]
     assert progresses == sorted(progresses)
     assert any(0 < progress < 8 for progress in progresses)
     assert progresses[-1] == 8.0
-    assert emitted[-1][1] == "Downloaded model large-v2."
+    assert emitted[-1][1] == "asr_model_downloading"
+    assert emitted[-1][2]["model"] == "large-v2"
 
 
 def test_ensure_model_downloaded_reports_modelscope_progress(monkeypatch):
@@ -102,21 +105,24 @@ def test_ensure_model_downloaded_reports_modelscope_progress(monkeypatch):
             lambda _repo_id: 100,
         )
 
-        emitted: list[tuple[float, str]] = []
+        emitted: list[tuple[float, str, dict]] = []
         local_path = manager.ensure_model_downloaded(
             "large-v2",
-            lambda progress, message: emitted.append((progress, message)),
+            lambda progress, code, params: emitted.append((progress, code, params)),
         )
 
         expected_dir = temp_root / "faster-whisper" / "faster-whisper-large-v2"
         assert local_path == str(expected_dir)
         assert (expected_dir / "model.bin").exists()
-        assert emitted[0] == (0, "Preparing model download large-v2...")
+        assert emitted[0] == (0, "asr_model_preparing", {"model": "large-v2"})
         assert any(
-            progress > 0 and "Downloading model large-v2 from ModelScope" in message
-            for progress, message in emitted
+            progress > 0
+            and code == "asr_model_downloading"
+            and params["source"] == "ModelScope"
+            for progress, code, params in emitted
         )
-        assert emitted[-1] == (8.0, "Downloaded model large-v2.")
+        assert emitted[-1][0:2] == (8.0, "asr_model_downloading")
+        assert emitted[-1][2]["model"] == "large-v2"
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)
 
@@ -172,10 +178,10 @@ def test_ensure_model_downloaded_reports_huggingface_fallback_progress(monkeypat
 
         monkeypatch.setattr(huggingface_hub, "snapshot_download", fake_hf_snapshot_download)
 
-        emitted: list[tuple[float, str]] = []
+        emitted: list[tuple[float, str, dict]] = []
         local_path = manager.ensure_model_downloaded(
             "large-v2",
-            lambda progress, message: emitted.append((progress, message)),
+            lambda progress, code, params: emitted.append((progress, code, params)),
         )
 
         expected_dir = temp_root / "faster-whisper" / "faster-whisper-large-v2"
@@ -183,12 +189,15 @@ def test_ensure_model_downloaded_reports_huggingface_fallback_progress(monkeypat
         assert (expected_dir / "model.bin").exists()
         assert ("Systran/faster-whisper-large-v2", True) in calls
         assert ("Systran/faster-whisper-large-v2", False) in calls
-        assert emitted[0] == (2, "ModelScope missing. Falling back to Hugging Face...")
+        assert emitted[0] == (2, "asr_model_source_fallback", {})
         assert any(
-            progress > 2 and "Downloading model large-v2 from Hugging Face" in message
-            for progress, message in emitted
+            progress > 2
+            and code == "asr_model_downloading"
+            and params["source"] == "Hugging Face"
+            for progress, code, params in emitted
         )
-        assert emitted[-1] == (8.0, "Downloaded model large-v2.")
+        assert emitted[-1][0:2] == (8.0, "asr_model_downloading")
+        assert emitted[-1][2]["model"] == "large-v2"
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)
 

@@ -1,5 +1,6 @@
 {
   "title": "任务监控",
+  "taskCardLabel": "{{type}}：{{name}}",
   "status": {
     "ready": "就绪",
     "waiting": "等待中",
@@ -10,6 +11,7 @@
     "clearAll": { "tooltip": "删除所有任务", "label": "全部清除" }
   },
   "confirm": {
+    "pauseAllTasks": "确定暂停所有活动任务吗？",
     "deleteAllTasks": "删除所有任务？此操作不可撤销。",
     "deleteTask": "确定要删除此任务吗？"
   },
@@ -18,7 +20,18 @@
     "pause": { "tooltip": "暂停任务" },
     "resume": { "tooltip": "恢复任务" },
     "delete": { "tooltip": "删除任务" },
-    "showFolder": { "tooltip": "在文件夹中显示" }
+    "showFolder": { "tooltip": "在文件夹中显示" },
+    "transcribe": { "tooltip": "转写媒体" },
+    "translate": { "tooltip": "翻译字幕" },
+    "edit": { "tooltip": "在编辑器中打开" },
+    "expand": { "tooltip": "显示执行详情" },
+    "collapse": { "tooltip": "隐藏执行详情" }
+  },
+  "progress": { "label": "任务进度" },
+  "trace": {
+    "title": "执行轨迹",
+    "error": "错误：{{error}}",
+    "status": { "success": "成功", "failed": "失败", "cancelled": "已取消" }
   },
   "badges": {
     "history": "历史记录"
@@ -42,7 +55,68 @@
     "generic": "任务"
   },
   "messages": {
+    "pauseAllFailed": "暂停活动任务失败",
+    "pauseFailed": "暂停任务失败",
+    "resumeFailed": "恢复任务失败",
+    "retryFailed": "重试任务失败",
+    "clearAllFailed": "清空任务失败",
+    "deleteFailed": "删除任务失败",
     "initializing": "初始化中...",
     "downloading": "下载中"
+  },
+  "taskMessages": {
+    "queued": "已加入队列",
+    "queued_long_segment": "长片段已加入后台处理队列",
+    "starting": "正在启动…",
+    "running": "正在运行…",
+    "completed": "已完成",
+    "failed": "任务失败",
+    "paused": "已暂停",
+    "cancelled": "已取消",
+    "deleted": "任务已删除",
+    "deleted_count": "已删除 {{count}} 个任务",
+    "pause_requested": "已请求暂停",
+    "cancellation_requested": "已请求取消",
+    "paused_in_queue": "已在队列中暂停",
+    "cancelled_in_queue": "已在队列中取消",
+    "interrupted_by_restart": "应用重启后任务已暂停",
+    "resumed": "任务已恢复",
+    "already_running": "任务已在运行",
+    "already_active": "相同任务已在处理中",
+    "restarted": "任务已重新启动",
+    "execution_spec_missing": "缺少任务执行配置",
+    "pipeline_starting": "正在启动处理流程…",
+    "pipeline_step_running": "正在执行步骤：{{step}}",
+    "pipeline_step_failed": "步骤执行失败：{{step}}",
+    "pipeline_completed": "处理流程已完成",
+    "download_progress": "正在下载… {{percent}}% {{speed}}",
+    "download_stage_completed": "下载阶段已完成",
+    "download_subtitle_failed": "字幕下载失败，已保留媒体文件",
+    "download_completed": "下载已完成",
+    "transcription_starting": "正在开始转写…",
+    "transcription_progress": "正在转写… {{percent}}%",
+    "transcription_completed": "转写已完成",
+    "transcription_segment_processing": "正在处理音频片段…",
+    "transcription_segment_completed": "音频片段转写完成",
+    "asr_cli_warmup_waiting": "正在等待转写引擎预热完成…",
+    "asr_audio_splitting": "正在切分音频…",
+    "asr_chunks_progress": "已转写 {{completed}} / {{total}} 个音频分块",
+    "asr_model_preparing": "正在准备模型 {{model}}…",
+    "asr_model_downloading": "正在下载模型 {{model}}… {{downloaded}} {{file}}",
+    "asr_model_source_fallback": "正在切换到备用模型源…",
+    "asr_model_initializing": "正在 {{device}} 上初始化模型 {{model}}…",
+    "asr_model_loaded": "模型 {{model}} 已就绪",
+    "asr_cuda_cpu_fallback": "GPU 运行环境不可用，正在改用 CPU 重试…",
+    "asr_finalizing": "正在整理转写片段…",
+    "translation_starting": "正在开始翻译…",
+    "translation_batch_progress": "已翻译 {{completed}} / {{total}} 个批次",
+    "translation_completed": "翻译已完成",
+    "synthesis_preparing": "正在准备导出视频…",
+    "synthesis_starting": "正在启动视频合成…",
+    "synthesis_encoding": "正在编码视频… {{percent}}% {{speed}}",
+    "synthesis_completed": "视频导出已完成",
+    "clip_export_preparing": "正在准备导出片段…",
+    "clip_exporting": "正在导出第 {{current}} / {{total}} 个片段…",
+    "clip_export_completed": "片段导出已完成"
   }
 }

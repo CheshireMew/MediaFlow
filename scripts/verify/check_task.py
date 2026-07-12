@@ -1,29 +1,34 @@
 
+import argparse
+import asyncio
 import sys
-import os
 from pathlib import Path
 
 repo_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(repo_root))
-from backend.core.database import SessionLocal
+
+from backend.core.database import get_session_context
 from backend.models.task_model import Task
 
-def check_task(task_id):
-    db = SessionLocal()
-    try:
-        task = db.query(Task).filter(Task.id == task_id).first()
+
+async def check_task(task_id: str) -> None:
+    async with get_session_context() as session:
+        task = await session.get(Task, task_id)
         if task:
             print(f"Task ID: {task.id}")
             print(f"Name: {task.name}")
             print(f"Status: {task.status}")
             print(f"Progress: {task.progress}")
-            print(f"Message: {task.message}")
+            print(f"Message code: {task.message_code}")
+            print(f"Message params: {task.message_params}")
             print(f"Result: {task.result}")
             print(f"Error: {task.error}")
         else:
             print(f"Task {task_id} not found.")
-    finally:
-        db.close()
+
 
 if __name__ == "__main__":
-    check_task("f84cfef7")
+    parser = argparse.ArgumentParser(description="Inspect one MediaFlow task.")
+    parser.add_argument("task_id")
+    args = parser.parse_args()
+    asyncio.run(check_task(args.task_id))

@@ -1,4 +1,5 @@
 import type React from "react";
+import { useTranslation } from "react-i18next";
 
 import type { SubtitleStyleState } from "../hooks/useSubtitleStyle";
 import type { PreviewDragTarget } from "../hooks/usePreviewDrag";
@@ -13,7 +14,7 @@ type SubtitlePreviewLayerProps = {
   sourceSize: { width: number; height: number };
   fallbackText: string;
   dragging: PreviewDragTarget | null;
-  onSubtitleDragStart: (event: React.MouseEvent) => void;
+  onSubtitleDragStart: (event: React.PointerEvent) => void;
 };
 
 export function SubtitlePreviewLayer({
@@ -24,6 +25,7 @@ export function SubtitlePreviewLayer({
   dragging,
   onSubtitleDragStart,
 }: SubtitlePreviewLayerProps) {
+  const { t } = useTranslation("synthesis");
   const sourceRenderSpec = resolveSubtitleRenderSourceSpec({
     ...style,
     outputWidth: sourceSize.width,
@@ -39,6 +41,20 @@ export function SubtitlePreviewLayer({
   }
 
   const subtitleText = style.currentSubtitle || fallbackText;
+  const handlePositionKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const step = event.shiftKey ? 0.05 : 0.01;
+    const direction = event.key === "ArrowUp" ? -1 : 1;
+    style.setSubPos({
+      x: 0.5,
+      y: Math.max(0, Math.min(1, style.subPos.y + direction * step)),
+    });
+  };
   const alignment =
     style.alignment === 1 ? "left" : style.alignment === 3 ? "right" : "center";
   const blockAnchorTransform =
@@ -68,12 +84,20 @@ export function SubtitlePreviewLayer({
           }}
         >
           <span
+            role="slider"
+            tabIndex={0}
+            aria-label={t("style.positionControl")}
+            aria-orientation="vertical"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(style.subPos.y * 100)}
             className={`
               inline-block text-lg md:text-xl leading-relaxed max-w-full cursor-move pointer-events-auto
-              transition-all duration-75
+              border-0 transition-all duration-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300
               ${dragging === "sub" ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-black/50" : "group-hover:ring-1 group-hover:ring-white/30"}
             `}
-            onMouseDown={onSubtitleDragStart}
+            onPointerDown={onSubtitleDragStart}
+            onKeyDown={handlePositionKeyDown}
             style={{
               fontSize: `${previewMetrics.fontSize}px`,
               color: style.fontColor,
@@ -88,6 +112,7 @@ export function SubtitlePreviewLayer({
               borderRadius: style.bgEnabled ? 0 : undefined,
               whiteSpace: "pre-wrap",
               overflowWrap: "anywhere",
+              touchAction: "none",
             }}
           >
             {subtitleText}

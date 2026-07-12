@@ -277,16 +277,16 @@ export function EmptyState({
   return (
     <div
       className={[
-        "flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-slate-500",
+        "flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-slate-400",
         className,
       ].join(" ")}
     >
       <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-white/5 bg-white/[0.03]">
-        <Icon size={28} className="text-slate-500" />
+        <Icon size={28} className="text-slate-400" />
       </div>
       <div>
         <p className="text-sm font-medium text-slate-400">{title}</p>
-        {description && <p className="mt-1 text-xs text-slate-600">{description}</p>}
+        {description && <p className="mt-1 text-xs text-slate-400">{description}</p>}
       </div>
     </div>
   );

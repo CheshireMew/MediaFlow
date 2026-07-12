@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  hasEditableKeyboardTarget,
-  isKeyboardEventComposing,
-} from '../../utils/keyboardShortcuts';
+import { useTranslation } from 'react-i18next';
+import { isKeyboardEventComposing } from '../../utils/keyboardShortcuts';
 
 export interface ContextMenuItem {
   label: string;
@@ -18,11 +16,19 @@ interface ContextMenuProps {
   items: ContextMenuItem[];
   position: { x: number; y: number } | null;
   onClose: () => void;
+  ariaLabel?: string;
 }
 
-export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
+export function ContextMenu({ items, position, onClose, ariaLabel }: ContextMenuProps) {
+  const { t } = useTranslation('common');
   const [menuNode, setMenuNode] = useState<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const restoreFocusRef = useRef(true);
+  const setMenuRefs = useCallback((node: HTMLDivElement | null) => {
+    menuRef.current = node;
+    setMenuNode(node);
+  }, []);
   const adjustedPosition = useMemo(() => {
     if (!position || !menuNode) return null;
 
@@ -42,6 +48,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   }, [menuNode, position]);
 
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         onClose();
@@ -50,7 +57,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     
     // Handle Esc key
     const handleKeyDown = (event: KeyboardEvent) => {
-        if (isKeyboardEventComposing(event) || hasEditableKeyboardTarget(event)) {
+        if (isKeyboardEventComposing(event)) {
           return;
         }
 
@@ -58,8 +65,18 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     }
 
     if (position) {
+      restoreFocusRef.current = true;
       document.addEventListener("mousedown", handleClickOutside);
       document.addEventListener("keydown", handleKeyDown);
+      const timer = window.setTimeout(() => {
+        itemRefs.current.find((item) => item && !item.disabled)?.focus();
+      }, 0);
+      return () => {
+        window.clearTimeout(timer);
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("keydown", handleKeyDown);
+        if (restoreFocusRef.current && previouslyFocused?.isConnected) previouslyFocused.focus();
+      };
     }
 
     return () => {
@@ -68,6 +85,37 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     };
   }, [position, onClose]);
 
+  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isKeyboardEventComposing(event.nativeEvent)) return;
+    const enabledItems = itemRefs.current.filter(
+      (item): item is HTMLButtonElement => Boolean(item && !item.disabled),
+    );
+    if (enabledItems.length === 0) return;
+
+    const currentIndex = enabledItems.indexOf(document.activeElement as HTMLButtonElement);
+    let targetIndex: number | null = null;
+    if (event.key === 'ArrowDown') targetIndex = (currentIndex + 1) % enabledItems.length;
+    if (event.key === 'ArrowUp') targetIndex = (currentIndex - 1 + enabledItems.length) % enabledItems.length;
+    if (event.key === 'Home') targetIndex = 0;
+    if (event.key === 'End') targetIndex = enabledItems.length - 1;
+
+    if (targetIndex !== null) {
+      event.preventDefault();
+      event.stopPropagation();
+      enabledItems[targetIndex].focus();
+      return;
+    }
+
+    if (event.key === 'Tab') {
+      restoreFocusRef.current = false;
+      onClose();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    }
+  };
+
   if (!position) return null;
 
   // Use adjustedPosition if available, otherwise hide initially to prevent flash
@@ -75,19 +123,22 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
 
   return createPortal(
     <div
-      ref={(node) => {
-        menuRef.current = node;
-        setMenuNode(node);
-      }}
+      ref={setMenuRefs}
+      role="menu"
+      aria-label={ariaLabel ?? t('contextMenu')}
+      onKeyDown={handleMenuKeyDown}
       className={`fixed z-50 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-75 text-slate-100 select-none`}
       style={{ top: finalPos.y, left: finalPos.x, opacity: adjustedPosition ? 1 : 0 }}
     >
       {items.map((item, index) => (
         item.separator ? (
-            <div key={index} className="h-[1px] bg-slate-700 my-1 mx-2" />
+            <div key={index} role="separator" className="h-[1px] bg-slate-700 my-1 mx-2" />
         ) : (
             <button
             key={index}
+            ref={(node) => { itemRefs.current[index] = node; }}
+            type="button"
+            role="menuitem"
             onClick={() => {
                 if(!item.disabled) {
                     item.onClick();
@@ -99,12 +150,12 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
                 w-full text-left px-3 py-1.5 text-sm flex items-center justify-between
                 ${item.danger ? 'text-red-400 hover:bg-red-900/20' : 'text-slate-200 hover:bg-slate-700'}
                 ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                transition-colors
+                transition-colors focus-visible:outline-none focus-visible:bg-slate-700 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400
             `}
             >
             <span>{item.label}</span>
             {item.shortcut && (
-                <span className="text-xs text-slate-500 ml-4 font-mono">{item.shortcut}</span>
+                <span className="text-xs text-slate-400 ml-4 font-mono">{item.shortcut}</span>
             )}
             </button>
         )

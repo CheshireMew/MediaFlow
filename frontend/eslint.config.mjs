@@ -35,8 +35,11 @@ export default defineConfig([
         {
           patterns: [
             {
-              group: ['**/services/domain/*'],
-              message: 'Import domain services from `services/domain` barrel exports.',
+              group: [
+                '**/services/domain/*',
+                '!**/services/domain/executionService',
+              ],
+              message: 'Import domain services from `services/domain` barrel exports; executionService is a route chunk boundary and must be imported directly.',
             },
             {
               group: ['**/services/desktop/*'],

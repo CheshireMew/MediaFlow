@@ -1,18 +1,17 @@
-import os
-import shutil
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from loguru import logger
 from tqdm.auto import tqdm
 
 from backend.config import settings
 from backend.core.task_control import TaskControlRequested
+from backend.models.task_message import TaskProgressCallback
 
 
-ModelProgressCallback = Optional[Callable[[float, str], None]]
+ModelProgressCallback = Optional[TaskProgressCallback]
 
 
 class _SilentTqdm(tqdm):
@@ -126,7 +125,7 @@ class _ModelDownloadProgressReporter:
             self._downloaded_bytes += normalized_delta
             self._emit_locked(active_filename=active_filename)
 
-    def complete(self, message: Optional[str] = None) -> None:
+    def complete(self) -> None:
         with self._lock:
             if self._resolved_total_bytes > 0:
                 self._downloaded_bytes = max(self._downloaded_bytes, self._resolved_total_bytes)
@@ -136,7 +135,8 @@ class _ModelDownloadProgressReporter:
             self._last_progress = self._progress_start + self._progress_span
             self._emit_raw_locked(
                 self._last_progress,
-                message or f"Downloaded model {self._model_name}.",
+                "asr_model_downloading",
+                self._build_params(None, self._resolved_total_bytes or self._known_total_bytes),
             )
 
     def _emit_locked(self, force: bool = False, active_filename: Optional[str] = None) -> None:
@@ -158,10 +158,15 @@ class _ModelDownloadProgressReporter:
             return
 
         self._last_progress = progress
-        message = self._build_message(active_filename, total_bytes)
-        self._emit_raw_locked(progress, message)
+        message_params = self._build_params(active_filename, total_bytes)
+        self._emit_raw_locked(progress, "asr_model_downloading", message_params)
 
-    def _emit_raw_locked(self, progress: float, message: str) -> None:
+    def _emit_raw_locked(
+        self,
+        progress: float,
+        message_code: str,
+        message_params: dict,
+    ) -> None:
         if not self._progress_callback:
             return
         self._last_emit_at = time.monotonic()
@@ -169,34 +174,22 @@ class _ModelDownloadProgressReporter:
             self._progress_start,
             min(self._progress_start + self._progress_span, float(progress)),
         )
-        self._progress_callback(round(bounded_progress, 2), message)
+        self._progress_callback(
+            round(bounded_progress, 2),
+            message_code,
+            message_params,
+        )
 
-    def _build_message(self, active_filename: Optional[str], total_bytes: int) -> str:
-        prefix = f"Downloading model {self._model_name} from {self._source_label}"
-        if total_bytes > 0:
-            downloaded = min(self._downloaded_bytes, total_bytes)
-            message = (
-                f"{prefix}... "
-                f"{self._format_bytes(downloaded)} / {self._format_bytes(total_bytes)}"
-            )
-        else:
-            message = prefix + "..."
-
-        if active_filename:
-            return f"{message} ({Path(active_filename).name})"
-        return message
-
-    @staticmethod
-    def _format_bytes(size: int) -> str:
-        value = float(max(size, 0))
-        units = ["B", "KB", "MB", "GB", "TB"]
-        unit_index = 0
-        while value >= 1024 and unit_index < len(units) - 1:
-            value /= 1024
-            unit_index += 1
-        if unit_index == 0:
-            return f"{int(value)} {units[unit_index]}"
-        return f"{value:.1f} {units[unit_index]}"
+    def _build_params(self, active_filename: Optional[str], total_bytes: int) -> dict:
+        return {
+            "model": self._model_name,
+            "source": self._source_label,
+            "file": Path(active_filename).name if active_filename else "",
+            "downloaded_bytes": min(self._downloaded_bytes, total_bytes)
+            if total_bytes > 0
+            else self._downloaded_bytes,
+            "total_bytes": total_bytes,
+        }
 
 
 class ModelManager:
@@ -297,7 +290,7 @@ class ModelManager:
             total_bytes=total_bytes,
         )
         if progress_callback:
-            progress_callback(0, f"Preparing model download {model_name}...")
+            progress_callback(0, "asr_model_preparing", {"model": model_name})
 
         local_model_path = snapshot_download(
             model_repo_id,
@@ -305,7 +298,7 @@ class ModelManager:
             progress_callbacks=[reporter.build_callback_type()],
         )
         logger.success(f"Model downloaded to: {local_model_path}")
-        reporter.complete(f"Downloaded model {model_name}.")
+        reporter.complete()
         return local_model_path
 
     def _download_from_huggingface(
@@ -348,7 +341,11 @@ class ModelManager:
                 return result
 
         if progress_callback:
-            progress_callback(2, f"Preparing Hugging Face fallback for model {model_name}...")
+            progress_callback(
+                2,
+                "asr_model_preparing",
+                {"model": model_name},
+            )
 
         local_model_path = snapshot_download(
             repo_id,
@@ -359,7 +356,7 @@ class ModelManager:
             tqdm_class=_HuggingFaceProgressTqdm,
         )
         logger.success(f"Model downloaded from Hugging Face to: {local_model_path}")
-        reporter.complete(f"Downloaded model {model_name}.")
+        reporter.complete()
         return local_model_path
 
     def ensure_model_downloaded(self, model_name: str, progress_callback=None) -> str:
@@ -382,7 +379,7 @@ class ModelManager:
         except ImportError:
             logger.warning("ModelScope not installed, falling back to Hugging Face...")
             if progress_callback:
-                progress_callback(2, "ModelScope missing. Falling back to Hugging Face...")
+                progress_callback(2, "asr_model_source_fallback", {})
             return self._download_from_huggingface(
                 model_name,
                 target_dir,
@@ -393,7 +390,8 @@ class ModelManager:
             if progress_callback:
                 progress_callback(
                     2,
-                    f"ModelScope failed. Falling back to Hugging Face... ({str(e)[:20]})",
+                    "asr_model_source_fallback",
+                    {},
                 )
             return self._download_from_huggingface(
                 model_name,
@@ -424,7 +422,11 @@ class ModelManager:
             local_model_path = self.ensure_model_downloaded(model_name, progress_callback)
 
             if progress_callback:
-                progress_callback(8, f"Initializing {model_name} on {device}...")
+                progress_callback(
+                    8,
+                    "asr_model_initializing",
+                    {"model": model_name, "device": device},
+                )
             self._model_instance = WhisperModel(
                 local_model_path,
                 device=device,
@@ -435,7 +437,7 @@ class ModelManager:
             self._current_device = device
             logger.success(f"Model {model_name} loaded successfully.")
             if progress_callback:
-                progress_callback(10, "Model loaded successfully.")
+                progress_callback(10, "asr_model_loaded", {"model": model_name})
             return self._model_instance
         except TaskControlRequested:
             raise

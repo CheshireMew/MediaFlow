@@ -1,5 +1,6 @@
 // ── Subtitle Style State + Persistence + Presets ──
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { SubtitleSegment } from "../../../../types/task";
 import {
   computeDefaultSubtitleFontSize,
@@ -57,6 +58,7 @@ export function useSubtitleStyle(
   videoPath: string | null,
   persistedPreferences: SynthesisExecutionPreferences,
 ): SubtitleStyleState {
+  const { t } = useTranslation("synthesis");
   // --- State ---
   const [fontSize, setFontSizeState] = useState(24);
   const [fontColor, setFontColor] = useState("#FFFFFF");
@@ -115,7 +117,7 @@ export function useSubtitleStyle(
 
   const fontAvailabilityMessage = fontAvailable
     ? null
-    : `字体 "${fontName}" 当前不可用，预览可能回退到替代字体。`;
+    : t("style.fontUnavailable", { fontName });
 
   const subtitleStyleValues = useMemo<SubtitleStyleValues>(
     () => ({

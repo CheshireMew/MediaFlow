@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import type { TFunction } from "i18next";
-import type { UserSettings } from "../../types/api";
-import { settingsService } from "../../services/domain";
+import type { UserPreferencesPatch } from "../../types/api";
+import {
+  settingsService,
+  type ResolvedUserSettings,
+} from "../../services/domain";
 import {
   DEFAULT_SMART_SPLIT_TEXT_LIMIT,
   normalizeSmartSplitTextLimit,
@@ -24,7 +27,7 @@ export function resolveSettingsTab(search: string): SettingsTab {
 }
 
 export function useSettingsData(search: string, t: TFunction<"settings">) {
-  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [settings, setSettings] = useState<ResolvedUserSettings | null>(null);
   const [notification, setNotification] = useState<Notification | null>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => resolveSettingsTab(search));
   const [smartSplitTextLimitInput, setSmartSplitTextLimitInput] = useState(
@@ -36,9 +39,9 @@ export function useSettingsData(search: string, t: TFunction<"settings">) {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const updateSettingsField = async (nextSettings: UserSettings, successMessage?: string) => {
+  const updatePreferences = async (patch: UserPreferencesPatch, successMessage?: string) => {
     try {
-      const res = await settingsService.updateSettings(nextSettings);
+      const res = await settingsService.updatePreferences(patch);
       setSettings(res);
       showNotification(successMessage || t("general.updateSuccess"));
       return res;
@@ -94,6 +97,6 @@ export function useSettingsData(search: string, t: TFunction<"settings">) {
     settings,
     showNotification,
     smartSplitTextLimitInput,
-    updateSettingsField,
+    updatePreferences,
   };
 }

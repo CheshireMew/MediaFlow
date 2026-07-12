@@ -1,6 +1,6 @@
 import re
 import httpx
-from typing import Optional, Union, List
+from typing import Optional, List
 from loguru import logger
 from backend.services.platforms.base import BasePlatform
 from backend.models.schemas import AnalyzeResult, PlaylistItem

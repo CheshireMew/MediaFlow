@@ -4,6 +4,7 @@
   "taskPanel": { "title": "New Task" },
   "progressCard": {
     "systemReady": "System Ready",
+    "modelDownload": "Model Download",
     "waitingMessage": "Waiting to start...",
     "processingMessage": "Processing..."
   },
@@ -21,6 +22,13 @@
     "smartSplitting": "Splitting...",
     "translate": "Translate",
     "openEditor": "Open Editor"
+  },
+  "feedback": {
+    "filePathMissing": "The selected file does not expose a local path. Open it from the desktop app and try again.",
+    "taskName": "Transcribe {{name}}",
+    "defaultMediaName": "media",
+    "startFailed": "Could not start transcription: {{detail}}",
+    "noSubtitleForTranslation": "No subtitle file is available to translate"
   },
   "contextMenu": {
     "openSubtitleFolder": "Open subtitle folder"

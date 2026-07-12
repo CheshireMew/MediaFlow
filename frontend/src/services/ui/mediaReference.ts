@@ -1,15 +1,7 @@
 import type { ElectronFile } from "../../types/electron";
+import type { MediaReference as GeneratedMediaReference } from "../../types/generatedApi";
 
-export interface MediaReference {
-  path: string;
-  name: string;
-  size?: number | null;
-  type?: string | null;
-  media_id?: string | null;
-  media_kind?: string | null;
-  role?: string | null;
-  origin?: string | null;
-}
+export type MediaReference = GeneratedMediaReference;
 
 type MediaReferenceDefaults = {
   name?: string | null;
@@ -21,7 +13,7 @@ type MediaReferenceDefaults = {
   origin?: string | null;
 };
 
-export function getBasenameFromPath(filePath: string, defaultName?: string) {
+function getBasenameFromPath(filePath: string, defaultName?: string) {
   const normalized = typeof filePath === "string" ? filePath.trim() : "";
   if (!normalized) {
     return defaultName ?? "";
@@ -70,17 +62,6 @@ export function normalizeMediaReference(
   value: unknown,
   defaults: MediaReferenceDefaults = {},
 ): MediaReference | null {
-  if (typeof value === "string") {
-    const path = value.trim();
-    if (!path) {
-      return null;
-    }
-    return createMediaReference({
-      path,
-      ...defaults,
-    });
-  }
-
   if (!isMediaReferenceCandidate(value)) {
     return null;
   }
@@ -100,6 +81,17 @@ export function normalizeMediaReference(
     role: typeof value.role === "string" ? value.role : defaults.role,
     origin: typeof value.origin === "string" ? value.origin : defaults.origin,
   });
+}
+
+export function mediaReferenceFromPath(
+  pathValue: string,
+  defaults: MediaReferenceDefaults = {},
+): MediaReference | null {
+  const path = pathValue.trim();
+  if (!path) {
+    return null;
+  }
+  return createMediaReference({ path, ...defaults });
 }
 
 export function mediaReferenceFromElectronFile(
@@ -125,40 +117,6 @@ export function toElectronFile(reference: MediaReference): ElectronFile {
     size: reference.size ?? 0,
     type: reference.type ?? "video/mp4",
   } as ElectronFile;
-}
-
-export function serializeMediaReference(reference: MediaReference | null) {
-  if (!reference) {
-    return null;
-  }
-
-  return JSON.stringify({
-    path: reference.path,
-    name: reference.name,
-    size: reference.size ?? 0,
-    type: reference.type ?? "video/mp4",
-    media_id: reference.media_id ?? null,
-    media_kind: reference.media_kind ?? null,
-    role: reference.role ?? null,
-    origin: reference.origin ?? null,
-  });
-}
-
-export function parseMediaReference(raw: string | null): MediaReference | null {
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<MediaReference>;
-    if (!parsed || typeof parsed !== "object" || typeof parsed.path !== "string") {
-      return null;
-    }
-
-    return normalizeMediaReference(parsed);
-  } catch {
-    return null;
-  }
 }
 
 export function resolveMediaReferencePath(

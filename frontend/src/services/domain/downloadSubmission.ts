@@ -4,6 +4,7 @@ import type { Task } from "../../types/task";
 import type { DownloadHistoryItem } from "../../stores/downloaderStore";
 import { executionService, isDesktopRuntime } from "./executionService";
 import { settingsService } from "./settingsService";
+import i18n from "../../i18n";
 import {
   createTaskFromExecutionOutcome,
   getExecutionSubmission,
@@ -129,7 +130,7 @@ export async function queueDownloadItems({
     : undefined;
 
   if (!downloadSettings && !remoteTasksReady) {
-    throw new Error("下载后端尚未就绪。");
+    throw new Error(i18n.t("feedback.backendNotReady", { ns: "downloader" }));
   }
 
   for (const item of items) {

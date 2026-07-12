@@ -4,7 +4,20 @@ from backend.services.downloader.service import DownloaderService
 from backend.services.cookie_manager import CookieManager
 from backend.services.platforms.base import BasePlatform
 from backend.services.platforms.factory import PlatformFactory
-from backend.models.schemas import AnalyzeResult, TaskResult, FileRef
+from backend.models.schemas import AnalyzeResult, MediaReference, TaskArtifact, TaskResult
+
+
+def video_artifact(path: str) -> TaskArtifact:
+    return TaskArtifact(
+        kind="video",
+        role="output",
+        ref=MediaReference(
+            path=path,
+            name=path.rsplit("/", 1)[-1],
+            media_kind="video",
+            role="output",
+        ),
+    )
 
 
 def make_downloader() -> DownloaderService:
@@ -40,7 +53,7 @@ async def test_download_uses_strategy():
             # Setup run_in_executor to return immediate result
             expected_asset = TaskResult(
                 success=True,
-                files=[FileRef(type="video", path="/tmp/Mock Video.mp4", label="source")],
+                artifacts=[video_artifact("/tmp/Mock Video.mp4")],
                 meta={"id": "task1", "filename": "Mock Video.mp4", "duration": 100, "title": "Mock Video"}
             )
             mock_loop.run_in_executor = AsyncMock(return_value=expected_asset)
@@ -70,7 +83,7 @@ async def test_download_fallback_when_no_handler():
             
             expected_asset = TaskResult(
                 success=True,
-                files=[FileRef(type="video", path="path", label="source")],
+                artifacts=[video_artifact("path")],
                 meta={"id": "task2", "filename": "file.mp4", "duration": 10, "title": "Title"}
             )
             mock_loop.run_in_executor = AsyncMock(return_value=expected_asset)
@@ -87,7 +100,7 @@ async def test_download_normalizes_x_pro_url_before_sync_download():
     downloader_service = make_downloader()
     expected_asset = TaskResult(
         success=True,
-        files=[FileRef(type="video", path="path", label="source")],
+        artifacts=[video_artifact("path")],
         meta={"id": "task3", "filename": "file.mp4", "duration": 10, "title": "Title"},
     )
 

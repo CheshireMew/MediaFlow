@@ -46,6 +46,8 @@ export function PreviewToolbar({
         {clipNavigator ? (
           <div className="flex items-center gap-2">
             <button
+              type="button"
+              aria-label={t("clipExport.previousClip")}
               onClick={clipNavigator.onPrevious}
               disabled={clipNavigator.index === 0}
               className="rounded-md border border-white/5 bg-white/[0.03] p-1 text-slate-400 hover:text-white disabled:opacity-30"
@@ -60,6 +62,8 @@ export function PreviewToolbar({
               })} · {clipNavigator.title}
             </span>
             <button
+              type="button"
+              aria-label={t("clipExport.nextClip")}
               onClick={clipNavigator.onNext}
               disabled={clipNavigator.index >= clipNavigator.count - 1}
               className="rounded-md border border-white/5 bg-white/[0.03] p-1 text-slate-400 hover:text-white disabled:opacity-30"
@@ -77,25 +81,31 @@ export function PreviewToolbar({
       <div className="flex items-center gap-4">
         <div className="relative">
           <button
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={isQualityMenuOpen}
             onClick={() => setIsQualityMenuOpen(!isQualityMenuOpen)}
             className="flex items-center gap-2 bg-black/20 hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-lg pl-3 pr-2 py-1.5 transition-all outline-none focus:ring-1 focus:ring-indigo-500/50 group"
           >
             <div className="flex flex-col items-start gap-0.5">
-              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none">{t("preview.quality")}</span>
+              <span className="text-xs text-slate-400 font-bold uppercase tracking-wider leading-none">{t("preview.quality")}</span>
               <span className="text-xs text-slate-200 font-medium leading-none group-hover:text-white transition-colors">
                 {quality === "high" ? t("preview.qualityHigh") : quality === "balanced" ? t("preview.qualityBalanced") : t("preview.qualitySmall")}
               </span>
             </div>
-            <ChevronDown size={14} className={`text-slate-500 transition-transform duration-200 ${isQualityMenuOpen ? "rotate-180" : ""}`} />
+            <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isQualityMenuOpen ? "rotate-180" : ""}`} />
           </button>
 
           {isQualityMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setIsQualityMenuOpen(false)} />
-              <div className="absolute top-full mt-2 right-0 w-56 bg-[#161616] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 py-1 ring-1 ring-black/50 animate-in fade-in zoom-in-95 duration-100">
+              <div role="listbox" aria-label={t("preview.quality")} className="absolute top-full mt-2 right-0 w-56 bg-[#161616] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 py-1 ring-1 ring-black/50 animate-in fade-in zoom-in-95 duration-100">
                 {qualityOptions.map((opt) => (
                   <button
                     key={opt.id}
+                    type="button"
+                    role="option"
+                    aria-selected={quality === opt.id}
                     onClick={() => {
                       setQuality(opt.id);
                       setIsQualityMenuOpen(false);
@@ -109,7 +119,7 @@ export function PreviewToolbar({
                       <span className={`text-xs font-medium ${quality === opt.id ? "text-indigo-300" : "text-slate-200"}`}>
                         {opt.label}
                       </span>
-                      <span className="text-[10px] text-slate-500">{opt.desc}</span>
+                      <span className="text-xs text-slate-400">{opt.desc}</span>
                     </div>
                   </button>
                 ))}
@@ -122,6 +132,9 @@ export function PreviewToolbar({
 
         {showTrimButton && (
           <button
+            type="button"
+            aria-pressed={isTrimOpen}
+            aria-label={t("preview.trimVideo")}
             onClick={() => setIsTrimOpen(!isTrimOpen)}
             className={`p-1.5 rounded-lg transition-all ${isTrimOpen ? "bg-indigo-500/20 text-indigo-400" : "hover:bg-white/10 text-slate-400 hover:text-white"}`}
             title={t("preview.trimVideo")}
@@ -131,6 +144,9 @@ export function PreviewToolbar({
         )}
 
         <button
+          type="button"
+          aria-pressed={crop.isEnabled}
+          aria-label={t("preview.cropVideo")}
           onClick={() => crop.setIsEnabled(!crop.isEnabled)}
           className={`p-1.5 rounded-lg transition-all ${crop.isEnabled ? "bg-indigo-500/20 text-indigo-400" : "hover:bg-white/10 text-slate-400 hover:text-white"}`}
           title={t("preview.cropVideo")}
@@ -144,7 +160,7 @@ export function PreviewToolbar({
         </button>
 
         <div className="h-4 w-[1px] bg-white/10" />
-        <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-all">
+        <button type="button" aria-label={t("common:close")} onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
           <X size={18} />
         </button>
       </div>

@@ -6,27 +6,8 @@
     "translate",
     "pipeline",
     "synthesis",
-    "clip_export",
-    "enhancement",
-    "cleanup",
-    "extract"
+    "clip_export"
   ],
-  "required_task_types": [
-    "download",
-    "transcribe",
-    "transcribe_segment",
-    "translate",
-    "pipeline",
-    "synthesis",
-    "clip_export",
-    "extract"
-  ],
-  "experimental_task_types": {
-    "preprocessing": [
-      "enhancement",
-      "cleanup"
-    ]
-  },
   "pipeline_steps": {
     "download": {
       "task_type": "download"

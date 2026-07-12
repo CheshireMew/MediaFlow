@@ -1,9 +1,7 @@
 
 import os
 import subprocess
-import time
 from backend.utils.subtitle_writer import SubtitleWriter
-from backend.utils.subtitle_manager import SubtitleManager
 
 # Setup
 TEST_TEXT = "你的邻居在股价5万美元时投入2万，或者借钱投入200万，然后股价跌到0，损失是一样的。" * 3 # Very long line
@@ -33,10 +31,6 @@ def render_clip(ass_path, output_name, options):
     
     width = options.get('video_width', 1280)
     height = options.get('video_height', 720)
-    
-    # Construct filter complex
-    # We use a black background to isolate subtitle rendering
-    vf = f"color=c=black:s={width}x{height}:d=5[v];[v]subtitles={ass_path.replace(os.sep, '/')}"
     
     cmd = [
         "bin/ffmpeg.exe", "-y", "-hide_banner", "-loglevel", "error",

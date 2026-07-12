@@ -1,4 +1,5 @@
 {
+  "feedback": { "watermarkProcessingFailed": "水印图片处理失败" },
   "title": "视频导出",
   "clipExport": {
     "title": "切片导出",
@@ -13,6 +14,15 @@
     "sectionTitle": "字幕",
     "stylePreset": "样式预设",
     "deletePreset": "删除预设",
+    "deletePresetNamed": "删除预设 {{name}}",
+    "fontUnavailable": "字体“{{fontName}}”当前不可用，预览可能使用替代字体。",
+    "presets": {
+      "classicWhite": "经典白字",
+      "yellowBold": "黄色字幕",
+      "cinematic": "电影风",
+      "cleanShadow": "纯净阴影",
+      "backgroundPanel": "底板模式"
+    },
     "savePresetTooltip": "保存当前设置为预设",
     "save": "保存",
     "presetNamePlaceholder": "预设名称...",
@@ -39,6 +49,7 @@
     "centerAligned": "居中对齐",
     "topAligned": "顶部对齐",
     "dragHint": "在预览中拖动文字以调整位置。",
+    "positionControl": "字幕位置。使用上、下方向键微调；按住 Shift 可大幅调整。",
     "resetPosition": "复位位置",
     "subtitleDisabledHint": "字幕渲染已关闭，导出时将不会烧录字幕",
     "subtitleUnavailableHint": "当前视频没有可用字幕，字幕渲染已自动关闭"
@@ -51,7 +62,9 @@
     "positionPreset": "位置预设",
     "scale": "缩放",
     "opacity": "不透明度",
-    "watermarkDisabledHint": "水印渲染已关闭，导出时将不会添加水印"
+    "watermarkDisabledHint": "水印渲染已关闭，导出时将不会添加水印",
+    "previewAlt": "水印预览",
+    "positionControl": "水印位置。使用方向键移动；按住 Shift 可大幅调整。"
   },
   "output": {
     "sectionTitle": "输出",
@@ -60,9 +73,6 @@
     "cpuQuality": "CPU（高质量）",
     "resolution": "输出分辨率",
     "original": "原始",
-    "sr2x": "SR 2x",
-    "sr4x": "SR 4x",
-    "srNote": "AI 超分辨率：先放大原视频再烧字幕，处理时间较长。需要 Real-ESRGAN。",
     "filename": "文件名",
     "filenamePlaceholder": "video_synthesized.mp4",
     "batchFiles": "将导出 {{count}} 个独立视频文件",
@@ -81,6 +91,12 @@
     "qualitySmallDesc": "CRF 26（压缩）",
     "trimVideo": "裁剪视频",
     "cropVideo": "画面裁切",
+    "cropRegionControl": "裁剪区域。使用方向键移动；按住 Shift 可大幅调整。",
+    "cropHandleTopLeft": "左上裁剪手柄。使用方向键调整大小；按住 Shift 可大幅调整。",
+    "cropHandleTopRight": "右上裁剪手柄。使用方向键调整大小；按住 Shift 可大幅调整。",
+    "cropHandleBottomLeft": "左下裁剪手柄。使用方向键调整大小；按住 Shift 可大幅调整。",
+    "cropHandleBottomRight": "右下裁剪手柄。使用方向键调整大小；按住 Shift 可大幅调整。",
+    "seek": "预览播放进度",
     "trimStart": "开始:",
     "trimEnd": "结束:",
     "seconds": "秒",

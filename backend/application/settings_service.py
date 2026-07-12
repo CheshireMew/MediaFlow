@@ -5,16 +5,19 @@ import json
 import zipfile
 from importlib import import_module
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service
 from backend.config import settings
 from backend.services.llm_io_logger import log_llm_messages, log_llm_response
 from backend.services.runtime_diagnostics import CudaReadinessResponse, RuntimeDiagnosticsService
-from backend.services.settings_manager import LLMProvider, UserSettings
+from backend.services.settings_manager import (
+    LLMProvider,
+    UiStatePatch,
+    UserPreferencesPatch,
+    UserSettings,
+)
 
 OpenAI = None
 
@@ -39,9 +42,11 @@ class SettingsApplicationService:
     def get_cuda_readiness(self) -> CudaReadinessResponse:
         return RuntimeDiagnosticsService().cuda_readiness()
 
-    def update_settings(self, settings: UserSettings) -> UserSettings:
-        self._settings_manager.update_settings(settings)
-        return self._settings_manager.get_settings()
+    def patch_preferences(self, patch: UserPreferencesPatch) -> UserSettings:
+        return self._settings_manager.patch_preferences(patch)
+
+    def patch_ui_state(self, patch: UiStatePatch) -> UserSettings:
+        return self._settings_manager.patch_ui_state(patch)
 
     def set_active_provider(self, provider_id: str) -> dict[str, str]:
         self._settings_manager.set_active_provider(provider_id)
@@ -109,25 +114,18 @@ class SettingsApplicationService:
             "current_version": release["version"],
         }
 
-    def install_faster_whisper_cli(
-        self,
-        progress_callback: Callable[[float, str], None] | None = None,
-    ) -> dict[str, str | None]:
+    def install_faster_whisper_cli(self) -> dict[str, str | None]:
         target_dir = settings.TOOL_DIR / "Faster-Whisper-XXL"
         cli_path = target_dir / "faster-whisper-xxl.exe"
         archive_path = settings.TOOL_DOWNLOAD_DIR / FASTER_WHISPER_CLI_ARCHIVE
 
         with _faster_whisper_cli_install_lock:
             if cli_path.exists():
-                if progress_callback:
-                    progress_callback(100, "Faster-Whisper CLI is already installed.")
                 return self._save_faster_whisper_cli_path(
                     cli_path,
                     "Faster-Whisper CLI is already installed.",
                 )
 
-            if progress_callback:
-                progress_callback(0, "Preparing Faster-Whisper CLI install...")
             self._ensure_install_space(archive_path.parent)
 
             archive_path.parent.mkdir(parents=True, exist_ok=True)
@@ -135,12 +133,9 @@ class SettingsApplicationService:
                 FASTER_WHISPER_CLI_URL,
                 archive_path,
                 expected_size=FASTER_WHISPER_CLI_SIZE,
-                progress_callback=progress_callback,
             )
 
             target_dir.parent.mkdir(parents=True, exist_ok=True)
-            if progress_callback:
-                progress_callback(92, "Extracting Faster-Whisper CLI...")
             result = subprocess.run(
                 ["tar", "-xf", str(archive_path), "-C", str(target_dir.parent)],
                 capture_output=True,
@@ -155,28 +150,15 @@ class SettingsApplicationService:
             if not cli_path.exists():
                 raise RuntimeError(f"Faster-Whisper CLI executable was not found after extraction: {cli_path}")
 
-            if progress_callback:
-                progress_callback(98, "Saving Faster-Whisper CLI path...")
-            result_payload = self._save_faster_whisper_cli_path(
+            return self._save_faster_whisper_cli_path(
                 cli_path,
                 "Faster-Whisper CLI installed.",
             )
-            if progress_callback:
-                progress_callback(100, "Faster-Whisper CLI is ready.")
-            return result_payload
 
     def _save_faster_whisper_cli_path(self, cli_path: Path, message: str) -> dict[str, str | None]:
-        current_settings = self._settings_manager.get_settings()
-        if hasattr(current_settings, "model_copy"):
-            next_settings = current_settings.model_copy(
-                update={"faster_whisper_cli_path": str(cli_path)}
-            )
-        else:
-            data = current_settings.dict()
-            data["faster_whisper_cli_path"] = str(cli_path)
-            next_settings = UserSettings(**data)
-
-        self._settings_manager.update_settings(next_settings)
+        self._settings_manager.patch_preferences(
+            UserPreferencesPatch(faster_whisper_cli_path=str(cli_path))
+        )
         settings.FASTER_WHISPER_CLI_PATH = str(cli_path)
         return {
             "status": "success",
@@ -243,13 +225,10 @@ class SettingsApplicationService:
         url: str,
         destination: Path,
         expected_size: int,
-        progress_callback: Callable[[float, str], None] | None = None,
     ) -> None:
         for attempt in range(1, 8):
             current_size = destination.stat().st_size if destination.exists() else 0
             if expected_size > 0 and current_size == expected_size:
-                if progress_callback:
-                    progress_callback(90, "Faster-Whisper CLI archive already downloaded.")
                 return
             if expected_size > 0 and current_size > expected_size:
                 destination.unlink()
@@ -261,9 +240,6 @@ class SettingsApplicationService:
 
             request = Request(url, headers=headers)
             try:
-                if progress_callback:
-                    progress = 5 + min(current_size / expected_size, 1.0) * 85
-                    progress_callback(progress, f"Downloading Faster-Whisper CLI... attempt {attempt}")
                 with urlopen(request, timeout=60) as response:
                     status = getattr(response, "status", 200)
                     if current_size > 0 and status != 206:
@@ -277,12 +253,6 @@ class SettingsApplicationService:
                                 break
                             output.write(chunk)
                             current_size += len(chunk)
-                            if progress_callback and expected_size > 0:
-                                progress = 5 + min(current_size / expected_size, 1.0) * 85
-                                progress_callback(
-                                    progress,
-                                    f"Downloading Faster-Whisper CLI... {current_size / (1024 ** 2):.0f} MiB / {expected_size / (1024 ** 2):.0f} MiB",
-                                )
             except (TimeoutError, URLError, OSError) as exc:
                 if attempt == 7:
                     raise RuntimeError(f"Failed to download Faster-Whisper CLI: {exc}") from exc

@@ -1,11 +1,11 @@
-import { isDesktopRuntime } from "../../services/domain";
+import {
+  getTranslationTargetLanguageSuffix,
+  isDesktopRuntime,
+  TRANSLATION_TARGET_LANGUAGES,
+  type TranslationTargetLanguage,
+} from "../../services/domain";
 import { parseSubtitleContent } from "../../utils/subtitleParser";
 import { fileService } from "../../services/fileService";
-import {
-  TRANSLATION_TARGET_LANGUAGES,
-  getTranslationTargetLanguageSuffix,
-  type TranslationTargetLanguage,
-} from "../../services/domain/translationTargetLanguages";
 import { buildSuffixedOutputPath } from "../../services/ui/generatedOutputPath";
 
 export const TRANSLATOR_SUBTITLE_EXTENSIONS = [

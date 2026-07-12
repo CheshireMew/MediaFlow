@@ -47,10 +47,10 @@ class _FakeClientFactory:
 
 def test_detect_highlights_uses_llm_provider(monkeypatch):
     monkeypatch.setattr(MediaProber, "get_duration", lambda _path: 180.0)
-    monkeypatch.setattr(highlight_service, "runtime_service", lambda _service: object())
     monkeypatch.setattr(highlight_service, "TranslationClientFactory", _FakeClientFactory)
 
     candidates, source, duration = detect_highlights(
+        settings_manager=object(),
         video_path="demo.mp4",
         subtitle_segments=[
             SubtitleSegment(id="1", start=5.0, end=12.0, text="普通开场"),
@@ -77,6 +77,7 @@ def test_detect_highlights_requires_subtitles(monkeypatch):
 
     with pytest.raises(ValueError, match="requires subtitles"):
         detect_highlights(
+            settings_manager=object(),
             video_path="demo.mp4",
             subtitle_segments=[],
             max_candidates=3,

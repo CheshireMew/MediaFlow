@@ -59,8 +59,6 @@ const outputKindPriority = (task: TaskWithDetails, artifact: TaskArtifact) => {
   switch (operation) {
     case "synthesis":
     case "clip_export":
-    case "enhancement":
-    case "cleanup":
       return artifact.kind === "video" ? 0 : fallbackKindPriority(artifact.kind) + 1;
     case "transcribe":
     case "translate":
@@ -115,10 +113,6 @@ export function getTaskMediaCandidates(task: TaskWithDetails) {
 
 export function resolvePrimaryTaskMedia(task: TaskWithDetails) {
   const structuredRefs = getTaskStructuredMediaRefs(task);
-  const candidates = getTaskMediaCandidates(task);
-  const contextCandidate = candidates.context.find(
-    (value): value is string => typeof value === "string" && value.length > 0,
-  );
 
   return {
     videoRef: structuredRefs.videoRef,
@@ -126,7 +120,6 @@ export function resolvePrimaryTaskMedia(task: TaskWithDetails) {
       structuredRefs.subtitleRef,
     contextRef: structuredRefs.contextRef,
     outputRef: structuredRefs.outputRef,
-    contextPath: contextCandidate ?? null,
   };
 }
 

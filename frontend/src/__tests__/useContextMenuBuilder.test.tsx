@@ -12,6 +12,7 @@ const {
   toastInfoMock,
   toastSuccessMock,
   toastErrorMock,
+  toastWarningMock,
   showInExplorerMock,
 } = vi.hoisted(() => ({
   transcribeSegmentMock: vi.fn(),
@@ -19,6 +20,7 @@ const {
   toastInfoMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  toastWarningMock: vi.fn(),
   showInExplorerMock: vi.fn(),
 }));
 
@@ -35,7 +37,12 @@ vi.mock("../utils/toast", () => ({
     info: toastInfoMock,
     success: toastSuccessMock,
     error: toastErrorMock,
+    warning: toastWarningMock,
   },
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
 }));
 
 vi.mock("../services/fileService", () => ({
@@ -78,10 +85,8 @@ describe("useContextMenuBuilder", () => {
       useContextMenuBuilder({
         regions: [],
         selectedIds: [],
-        currentFilePath: "E:/sample.mp4",
-        currentFileRef: null,
-        currentSubtitlePath: null,
-        currentSubtitleRef: null,
+        video: { path: "E:/sample.mp4", name: "sample.mp4" },
+        subtitle: null,
         videoRef: { current: null },
         selectSegment: vi.fn(),
         addSegment: vi.fn(),
@@ -150,10 +155,8 @@ describe("useContextMenuBuilder", () => {
       useContextMenuBuilder({
         regions: [],
         selectedIds: [],
-        currentFilePath: "E:/sample.mp4",
-        currentFileRef: null,
-        currentSubtitlePath: null,
-        currentSubtitleRef: null,
+        video: { path: "E:/sample.mp4", name: "sample.mp4" },
+        subtitle: null,
         videoRef: { current: null },
         selectSegment: vi.fn(),
         addSegment: vi.fn(),
@@ -214,10 +217,8 @@ describe("useContextMenuBuilder", () => {
       useContextMenuBuilder({
         regions: [{ id: "1", start: 1, end: 2, text: "hello" }],
         selectedIds: ["1"],
-        currentFilePath: "E:/video/sample.mp4",
-        currentFileRef: null,
-        currentSubtitlePath: "E:/subtitles/sample.srt",
-        currentSubtitleRef: null,
+        video: { path: "E:/video/sample.mp4", name: "sample.mp4" },
+        subtitle: { path: "E:/subtitles/sample.srt", name: "sample.srt" },
         videoRef: { current: null },
         selectSegment: vi.fn(),
         addSegment: vi.fn(),
@@ -239,7 +240,7 @@ describe("useContextMenuBuilder", () => {
 
     const menu = setContextMenu.mock.calls[0][0];
     const openFolderItem = menu.items.find(
-      (item: { label: string }) => item.label === "📂 打开字幕所在文件夹",
+      (item: { label: string }) => item.label === "contextMenu.openSubtitleFolder",
     );
 
     expect(openFolderItem).toBeDefined();

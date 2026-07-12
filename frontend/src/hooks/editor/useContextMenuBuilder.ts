@@ -1,16 +1,18 @@
 import { useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   editorService,
   isAiTranslationSetupRequiredError,
 } from "../../services/domain";
 import { restoreStoredAsrExecutionPreferences } from "../../services/persistence/asrExecutionPreferences";
 import { restoreStoredTranslationPreferences } from "../../services/persistence/translationPreferences";
-import { createOpenSubtitleFolderMenuItem } from "../../components/ui/SubtitleFileContextMenu";
-import { normalizeMediaReference, type MediaReference } from "../../services/ui/mediaReference";
+import { createOpenSubtitleFolderMenuItem } from "../../components/ui/subtitleFileContextMenuItems";
+import type { MediaReference } from "../../services/ui/mediaReference";
 import { formatSRTTime } from "../../utils/subtitleParser";
 import type { ContextMenuItem } from "../../components/ui/ContextMenu";
 import type { SubtitleSegment } from "../../types/task";
 import type { TranscribeSegmentResponse } from "../../types/api";
+import { toast } from "../../utils/toast";
 
 type ContextMenuEvent = MouseEvent | React.MouseEvent;
 
@@ -28,10 +30,8 @@ interface ContextMenuState {
 interface UseContextMenuBuilderArgs {
   regions: SubtitleSegment[];
   selectedIds: string[];
-  currentFilePath: string | null;
-  currentFileRef: MediaReference | null;
-  currentSubtitlePath: string | null;
-  currentSubtitleRef: MediaReference | null;
+  video: MediaReference | null;
+  subtitle: MediaReference | null;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   selectSegment: (id: string, multi?: boolean, range?: boolean) => void;
   addSegment: (seg: SubtitleSegment) => void;
@@ -49,10 +49,8 @@ interface UseContextMenuBuilderArgs {
 export function useContextMenuBuilder({
   regions,
   selectedIds,
-  currentFilePath,
-  currentFileRef,
-  currentSubtitlePath,
-  currentSubtitleRef,
+  video,
+  subtitle,
   videoRef,
   selectSegment,
   addSegment,
@@ -63,19 +61,16 @@ export function useContextMenuBuilder({
   deleteSegments,
   setContextMenu,
 }: UseContextMenuBuilderArgs) {
+  const { t } = useTranslation("editor");
   // Use ref to avoid re-creating callbacks when regions change
   const regionsRef = useRef(regions);
   regionsRef.current = regions;
   const selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
-  const currentFilePathRef = useRef(currentFilePath);
-  currentFilePathRef.current = currentFilePath;
-  const currentFileRefRef = useRef(currentFileRef);
-  currentFileRefRef.current = currentFileRef;
-  const currentSubtitlePathRef = useRef(currentSubtitlePath);
-  currentSubtitlePathRef.current = currentSubtitlePath;
-  const currentSubtitleRefRef = useRef(currentSubtitleRef);
-  currentSubtitleRefRef.current = currentSubtitleRef;
+  const videoReferenceRef = useRef(video);
+  videoReferenceRef.current = video;
+  const subtitleReferenceRef = useRef(subtitle);
+  subtitleReferenceRef.current = subtitle;
 
   const buildSegmentsFromTranscription = useCallback(
     (
@@ -96,16 +91,15 @@ export function useContextMenuBuilder({
           id: String(Date.now()),
           start: fallbackRegion.start,
           end: fallbackRegion.end,
-          text: (payload.text || "").trim() || "[无语音]",
+          text: (payload.text || "").trim() || t("contextMenu.noSpeechFallback"),
         },
       ];
     },
-    [],
+    [t],
   );
 
   const translateSegmentsWithSharedTargetLanguage = useCallback(
     async (segments: SubtitleSegment[]) => {
-      const { toast } = await import("../../utils/toast");
       const { targetLanguage, mode } = restoreStoredTranslationPreferences();
 
       try {
@@ -121,7 +115,7 @@ export function useContextMenuBuilder({
           };
         }
 
-        toast.info(`任务处理中 (Task: ${res.task_id})`, 3000);
+        toast.info(t("contextMenu.taskPending", { taskId: res.task_id }), 3000);
         return {
           segments: null,
           targetLanguage,
@@ -135,27 +129,25 @@ export function useContextMenuBuilder({
             aborted: true,
           };
         }
-        toast.error("翻译失败 " + String(err));
         throw err;
       }
     },
-    [],
+    [t],
   );
 
   const transcribeRegion = useCallback(
     async (region: { start: number; end: number }, translateAfterTranscribe: boolean) => {
-      const currentPath = currentFilePathRef.current;
-      const currentFile = currentFileRefRef.current;
-      const currentMediaRef = currentFile ?? normalizeMediaReference(currentPath);
+      const currentMediaRef = videoReferenceRef.current;
 
       if (!currentMediaRef) {
-        alert("请先保存或打开一个文件");
+        toast.warning(t("contextMenu.mediaRequired"));
         return;
       }
 
-      const { toast } = await import("../../utils/toast");
       toast.info(
-        translateAfterTranscribe ? "正在识别并翻译片段..." : "正在识别片段...",
+        translateAfterTranscribe
+          ? t("contextMenu.transcribeTranslateStarting")
+          : t("contextMenu.transcribeStarting"),
         2000,
       );
 
@@ -171,7 +163,7 @@ export function useContextMenuBuilder({
         })) as TranscribeSegmentResponse;
 
         if (res.status !== "completed" || !res.data) {
-          throw new Error("片段识别未返回同步结果");
+          throw new Error(t("contextMenu.noSyncTranscription"));
         }
 
         const recognizedSegments = buildSegmentsFromTranscription(res.data, region);
@@ -184,7 +176,9 @@ export function useContextMenuBuilder({
           if (translated.segments) {
             finalSegments = translated.segments;
             addSegments(finalSegments);
-            toast.success(`识别并翻译完成 (${translated.targetLanguage})`);
+            toast.success(t("contextMenu.transcribeTranslateComplete", {
+              language: translated.targetLanguage,
+            }));
             return;
           }
 
@@ -193,23 +187,24 @@ export function useContextMenuBuilder({
           }
 
           addSegments(finalSegments);
-          toast.success("识别完成，翻译任务已提交");
+          toast.success(t("contextMenu.translateQueued"));
           return;
         }
 
         addSegments(finalSegments);
         toast.success(
           finalSegments.length > 1
-            ? `成功识别 ${finalSegments.length} 个片段`
-            : "识别成功",
+            ? t("contextMenu.transcribeMultipleSuccess", { count: finalSegments.length })
+            : t("contextMenu.transcribeSuccess"),
         );
       } catch (err) {
         console.error(err);
-        const { toast } = await import("../../utils/toast");
-        toast.error("识别失败: " + String(err));
+        toast.error(t("contextMenu.transcribeFailed", {
+          detail: err instanceof Error ? err.message : String(err),
+        }));
       }
     },
-    [addSegments, buildSegmentsFromTranscription, translateSegmentsWithSharedTargetLanguage],
+    [addSegments, buildSegmentsFromTranscription, t, translateSegmentsWithSharedTargetLanguage],
   );
 
   const handleContextMenu = useCallback(
@@ -224,7 +219,7 @@ export function useContextMenuBuilder({
           targetId: id,
           items: [
             {
-              label: "在此处插入空白字幕",
+              label: t("contextMenu.insertBlank"),
               onClick: () => {
                 const newId = String(Date.now());
                 addSegment({
@@ -237,15 +232,15 @@ export function useContextMenuBuilder({
               },
             },
             {
-              label: "🎙️ 识别选中区域 (ASR)",
+              label: t("contextMenu.transcribeSelection"),
               onClick: async () => transcribeRegion(regionData, false),
             },
             {
-              label: "🎙️🌐 识别并翻译选中区域",
+              label: t("contextMenu.transcribeTranslateSelection"),
               onClick: async () => transcribeRegion(regionData, true),
             },
             { separator: true, label: "", onClick: () => {} },
-            { label: "取消", onClick: () => {} },
+            { label: t("contextMenu.cancel"), onClick: () => {} },
           ],
         });
         return;
@@ -267,11 +262,11 @@ export function useContextMenuBuilder({
         if (indices[i + 1] !== indices[i] + 1) isContinuous = false;
       }
 
-      const subtitlePath = currentSubtitlePathRef.current ?? currentSubtitleRefRef.current?.path;
+      const subtitlePath = subtitleReferenceRef.current?.path;
 
       const menu: ContextMenuItem[] = [
         {
-          label: "播放此片段",
+          label: t("contextMenu.playSegment"),
           onClick: () => {
             const seg = regionsRef.current.find((r) => r.id === id);
             if (seg && videoRef.current) {
@@ -281,30 +276,31 @@ export function useContextMenuBuilder({
           },
         },
         {
-          label: "🌐 翻译选中区域 (LLM)",
+          label: t("contextMenu.translateSelection"),
           onClick: async () => {
             const selected = regionsRef.current.filter((r) =>
               targetSelectedIds.includes(String(r.id)),
             );
             if (selected.length === 0) return;
 
-            const { toast } = await import("../../utils/toast");
-            toast.info("正在翻译...", 2000);
+            toast.info(t("contextMenu.translating"), 2000);
 
             try {
               const translated = await translateSegmentsWithSharedTargetLanguage(selected);
               if (translated.segments) {
                 updateSegments(translated.segments);
-                toast.success("翻译完成");
+                toast.success(t("contextMenu.translationComplete"));
               }
-            } catch {
-              return;
+            } catch (error) {
+              toast.error(t("contextMenu.translationFailed", {
+                detail: error instanceof Error ? error.message : String(error),
+              }));
             }
           },
         },
         { separator: true, label: "", onClick: () => {} },
         {
-          label: "📋 复制选中字幕 (SRT)",
+          label: t("contextMenu.copySelection"),
           onClick: async () => {
             const selected = regionsRef.current.filter((r) =>
               targetSelectedIds.includes(String(r.id)),
@@ -319,21 +315,20 @@ export function useContextMenuBuilder({
 
             try {
               await navigator.clipboard.writeText(srtBlock);
-              const { toast } = await import("../../utils/toast");
-              toast.success(`已复制 ${selected.length} 条字幕到剪贴板`);
-            } catch {
-              alert("复制失败，请检查浏览器权限");
+              toast.success(t("contextMenu.copied", { count: selected.length }));
+            } catch (error) {
+              console.error("Copy failed", error);
+              toast.error(t("contextMenu.copyFailed"));
             }
           },
         },
         {
-          label: "✂️ 粘贴并替换 (Replace)",
+          label: t("contextMenu.pasteReplace"),
           onClick: async () => {
-            const { toast } = await import("../../utils/toast");
             try {
               const text = await navigator.clipboard.readText();
               if (!text.trim()) {
-                toast.error("剪贴板为空");
+                toast.error(t("contextMenu.clipboardEmpty"));
                 return;
               }
 
@@ -353,7 +348,7 @@ export function useContextMenuBuilder({
               const ids = targetSelectedIds.map(String);
               const count = Math.min(newTexts.length, ids.length);
               if (count === 0) {
-                toast.error("无法解析剪贴板内容 或 未选中字幕");
+                toast.error(t("contextMenu.clipboardInvalid"));
                 return;
               }
 
@@ -362,20 +357,23 @@ export function useContextMenuBuilder({
                 text: newTexts[i],
               }));
               updateSegments(updates);
-              toast.success(`已替换 ${count} 条字幕内容`);
+              toast.success(t("contextMenu.replaced", { count }));
             } catch (err) {
               console.error("Paste failed", err);
-              toast.error("读取剪贴板失败: " + String(err));
+              toast.error(t("contextMenu.clipboardReadFailed", {
+                detail: err instanceof Error ? err.message : String(err),
+              }));
             }
           },
         },
         createOpenSubtitleFolderMenuItem({
-          label: "📂 打开字幕所在文件夹",
+          label: t("contextMenu.openSubtitleFolder"),
           subtitlePath,
           onError: async (err) => {
             console.error("Failed to show subtitle in explorer", err);
-            const { toast } = await import("../../utils/toast");
-            toast.error("无法打开字幕所在文件夹: " + String(err));
+            toast.error(t("contextMenu.openSubtitleFolderFailed", {
+              detail: err instanceof Error ? err.message : String(err),
+            }));
           },
         }),
         { separator: true, label: "", onClick: () => {} },
@@ -383,13 +381,13 @@ export function useContextMenuBuilder({
 
       if (isContinuous) {
         menu.push({
-          label: `合并 ${targetSelectedIds.length} 个片段`,
+          label: t("contextMenu.mergeSegments", { count: targetSelectedIds.length }),
           onClick: () => mergeSegments(targetSelectedIds),
         });
       }
 
       menu.push({
-        label: "分割",
+        label: t("contextMenu.split"),
         onClick: () => {
           if (videoRef.current) splitSegment(videoRef.current.currentTime, id);
         },
@@ -398,7 +396,7 @@ export function useContextMenuBuilder({
       menu.push({ separator: true, label: "", onClick: () => {} });
 
       menu.push({
-        label: "删除",
+        label: t("contextMenu.delete"),
         danger: true,
         onClick: () => {
           deleteSegments(targetSelectedIds);
@@ -419,6 +417,7 @@ export function useContextMenuBuilder({
       addSegment,
       updateSegments,
       setContextMenu,
+      t,
       transcribeRegion,
       translateSegmentsWithSharedTargetLanguage,
       videoRef,

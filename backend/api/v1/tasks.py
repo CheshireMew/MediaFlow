@@ -1,96 +1,104 @@
 from fastapi import APIRouter, HTTPException
 
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service
-from backend.models.schemas import TaskView
+from backend.models.schemas import (
+    TaskCountActionResponse,
+    TaskDeleteActionResponse,
+    TaskStatusActionResponse,
+    TaskView,
+)
 from loguru import logger
 
-router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
+def create_router(*, task_manager, task_orchestrator) -> APIRouter:
+    router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
-@router.get("/queue/summary", response_model=dict)
-async def get_queue_summary():
-    """Get task queue runtime summary."""
-    return runtime_service(Services.TASK_MANAGER).get_queue_summary()
+    @router.get("/queue/summary", response_model=dict)
+    async def get_queue_summary():
+        return task_manager.get_queue_summary()
 
+    @router.get("/", response_model=list[TaskView])
+    async def list_tasks():
+        return await task_manager.get_history_snapshot()
 
-@router.get("/", response_model=list[TaskView])
-async def list_tasks():
-    """Get the persisted task history after the runtime startup path is ready."""
-    return await runtime_service(Services.TASK_MANAGER).get_history_snapshot()
+    @router.get("/{task_id}", response_model=TaskView)
+    async def get_task(task_id: str):
+        await task_manager.wait_until_tasks_loaded()
+        task = task_manager.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return task_manager.serialize_task(task)
 
+    @router.post("/pause-all", response_model=TaskCountActionResponse)
+    async def pause_all_tasks():
+        count = await task_manager.pause_all_tasks()
+        return {
+            "message_code": "pause_requested",
+            "message_params": {"count": count},
+            "count": count,
+        }
 
-@router.get("/{task_id}", response_model=TaskView)
-async def get_task(task_id: str):
-    """Get task status."""
-    tm = runtime_service(Services.TASK_MANAGER)
-    await tm.wait_until_tasks_loaded()
-    task = tm.get_task(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return tm.serialize_task(task)
+    @router.post("/cancel-all", response_model=TaskCountActionResponse)
+    async def cancel_all_tasks():
+        count = await task_manager.cancel_all_tasks()
+        return {
+            "message_code": "cancellation_requested",
+            "message_params": {"count": count},
+            "count": count,
+        }
 
+    @router.post("/{task_id}/pause", response_model=TaskStatusActionResponse)
+    async def pause_task(task_id: str):
+        if not await task_manager.pause_task(task_id):
+            raise HTTPException(status_code=404, detail="Task not found")
+        return {
+            "message_code": "pause_requested",
+            "message_params": {},
+            "status": "paused",
+        }
 
-@router.post("/pause-all")
-async def pause_all_tasks():
-    """Pause all active tasks."""
-    count = await runtime_service(Services.TASK_MANAGER).pause_all_tasks()
-    return {"message": f"Marked {count} tasks for pause", "count": count}
+    @router.post("/{task_id}/cancel", response_model=TaskStatusActionResponse)
+    async def cancel_task(task_id: str):
+        if not await task_manager.cancel_task(task_id):
+            raise HTTPException(status_code=404, detail="Task not found")
+        return {
+            "message_code": "cancellation_requested",
+            "message_params": {},
+            "status": "cancelled",
+        }
 
+    @router.post("/{task_id}/resume", response_model=TaskStatusActionResponse)
+    async def resume_task(task_id: str):
+        try:
+            return await task_orchestrator.resume_task(task_id)
+        except ValueError as e:
+            detail = str(e)
+            if detail == "Task not found":
+                raise HTTPException(status_code=404, detail=detail)
+            if detail == "Cannot resume task: Missing parameters":
+                raise HTTPException(status_code=400, detail=detail)
+            logger.error(f"Resume failed: {e}")
+            raise HTTPException(status_code=500, detail=detail)
+        except Exception as e:
+            logger.error(f"Resume failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to restart task: {e}")
 
-@router.post("/cancel-all")
-async def cancel_all_tasks():
-    """Cancel all active tasks."""
-    count = await runtime_service(Services.TASK_MANAGER).cancel_all_tasks()
-    return {"message": f"Marked {count} tasks for cancellation", "count": count}
+    @router.delete("/{task_id}", response_model=TaskDeleteActionResponse)
+    async def delete_task(task_id: str):
+        if not await task_manager.delete_task(task_id):
+            raise HTTPException(status_code=404, detail="Task not found")
+        return {
+            "message_code": "deleted",
+            "message_params": {},
+            "task_id": task_id,
+        }
 
+    @router.delete("/", response_model=TaskCountActionResponse)
+    async def delete_all_tasks():
+        count = await task_manager.delete_all_tasks()
+        return {
+            "message_code": "deleted_count",
+            "message_params": {"count": count},
+            "count": count,
+        }
 
-@router.post("/{task_id}/pause")
-async def pause_task(task_id: str):
-    """Pause a queued task or cooperatively pause a running task."""
-    success = await runtime_service(Services.TASK_MANAGER).pause_task(task_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {"message": "Pause requested", "status": "paused"}
-
-@router.post("/{task_id}/cancel")
-async def cancel_task(task_id: str):
-    """Cancel a task."""
-    success = await runtime_service(Services.TASK_MANAGER).cancel_task(task_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {"message": "Cancellation requested", "status": "cancelled"}
-
-
-@router.post("/{task_id}/resume")
-async def resume_task(task_id: str):
-    """Resume a paused/cancelled/failed task."""
-    try:
-        return await runtime_service(Services.TASK_ORCHESTRATOR).resume_task(task_id)
-    except ValueError as e:
-         detail = str(e)
-         if detail == "Task not found":
-             raise HTTPException(status_code=404, detail=detail)
-         if detail == "Cannot resume task: Missing parameters":
-             raise HTTPException(status_code=400, detail=detail)
-         logger.error(f"Resume failed: {e}")
-         raise HTTPException(status_code=500, detail=detail)
-    except Exception as e:
-         logger.error(f"Resume failed: {e}")
-         raise HTTPException(status_code=500, detail=f"Failed to restart task: {e}")
-
-
-@router.delete("/{task_id}")
-async def delete_task(task_id: str):
-    """Delete a task (remove from list)."""
-    success = await runtime_service(Services.TASK_MANAGER).delete_task(task_id)
-    if not success:
-         raise HTTPException(status_code=404, detail="Task not found")
-    return {"message": "Task deleted", "task_id": task_id}
-
-
-@router.delete("/")
-async def delete_all_tasks():
-    """Delete ALL tasks."""
-    count = await runtime_service(Services.TASK_MANAGER).delete_all_tasks()
-    return {"message": f"Deleted {count} tasks", "count": count}
+    return router

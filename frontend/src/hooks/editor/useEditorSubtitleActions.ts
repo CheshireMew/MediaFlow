@@ -1,43 +1,38 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import type { SubtitleSegment } from "../../types/task";
 import { isDesktopRuntime } from "../../services/domain";
 import { useEditorStore } from "../../stores/editorStore";
 import { fileService } from "../../services/fileService";
-import { normalizeMediaReference } from "../../services/ui/mediaReference";
+import { mediaReferenceFromPath } from "../../services/ui/mediaReference";
 import { serializeEditorSubtitles } from "./editorFileHelpers";
+import { toast } from "../../utils/toast";
 
 export function useEditorSubtitleActions() {
-  const currentFilePath = useEditorStore((state) => state.currentFilePath);
-  const currentSubtitlePath = useEditorStore(
-    (state) => state.currentSubtitlePath,
-  );
-  const setCurrentSubtitlePath = useEditorStore(
-    (state) => state.setCurrentSubtitlePath,
-  );
-  const setCurrentSubtitleRef = useEditorStore(
-    (state) => state.setCurrentSubtitleRef,
-  );
+  const { t } = useTranslation("editor");
+  const video = useEditorStore((state) => state.document.video);
+  const subtitle = useEditorStore((state) => state.document.subtitle);
+  const markDocumentSaved = useEditorStore((state) => state.markDocumentSaved);
 
   const saveSubtitleFile = useCallback(
     async (regionsToSave: SubtitleSegment[], saveAs = false) => {
-      const path = currentFilePath;
+      const path = video?.path;
       if (!path) {
-        alert("No file path found to save to.");
+        toast.error(t("document.missingVideoForSave"));
         return false;
       }
 
-      let targetPath = currentSubtitlePath || path.replace(/\.[^.]+$/, ".srt");
+      let targetPath = subtitle?.path || path.replace(/\.[^.]+$/, ".srt");
 
-      if (saveAs || !currentSubtitlePath) {
+      if (saveAs || !subtitle) {
         if (isDesktopRuntime()) {
           const result = await fileService.showSaveDialog({
             defaultPath: targetPath,
-            filters: [{ name: "Subtitle Files", extensions: ["srt"] }],
+            filters: [{ name: t("document.subtitleFileFilter"), extensions: ["srt"] }],
           });
 
           if (!result.canceled && result.filePath) {
             targetPath = result.filePath;
-            setCurrentSubtitlePath(targetPath);
           } else {
             return false;
           }
@@ -53,9 +48,11 @@ export function useEditorSubtitleActions() {
           if (didWrite === false) {
             throw new Error(`Failed to write subtitle file: ${targetPath}`);
           }
-          const subtitleRef = normalizeMediaReference(targetPath);
-          setCurrentSubtitlePath(targetPath);
-          setCurrentSubtitleRef(subtitleRef);
+          const subtitleRef = mediaReferenceFromPath(targetPath);
+          if (!subtitleRef) {
+            throw new Error(`Invalid subtitle path: ${targetPath}`);
+          }
+          markDocumentSaved(subtitleRef);
           return targetPath;
         } catch (error) {
           console.error("[EditorIO] Failed to save subtitle file", error);
@@ -66,7 +63,7 @@ export function useEditorSubtitleActions() {
       console.warn("Saving not supported in browser mode (yet)");
       return false;
     },
-    [currentFilePath, currentSubtitlePath, setCurrentSubtitlePath, setCurrentSubtitleRef],
+    [markDocumentSaved, subtitle, t, video?.path],
   );
 
   return { saveSubtitleFile };

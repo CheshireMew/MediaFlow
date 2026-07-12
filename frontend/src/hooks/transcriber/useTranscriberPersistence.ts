@@ -1,7 +1,10 @@
 import { useEffect } from "react";
 
 import { parseVersionedSnapshot, serializeVersionedSnapshot } from "../../services/persistence/versionedSnapshot";
-import { readUiStateValue, writeUiStateValue } from "../../services/persistence/uiStateSettings";
+import {
+  readWorkspaceStateValue,
+  writeWorkspaceStateValue,
+} from "../../services/persistence/workspaceState";
 import type { ElectronFile } from "../../types/electron";
 import type { TranscribeResult } from "../../types/transcriber";
 import { TASK_LIFECYCLE } from "../../contracts/runtimeContracts";
@@ -27,7 +30,7 @@ const TRANSCRIBER_SNAPSHOT_LIFECYCLE = {
 
 export function restoreStoredTranscriberSnapshot(): TranscriberSnapshotPayload | null {
   return parseVersionedSnapshot<TranscriberSnapshotPayload>(
-    readUiStateValue<string>(TRANSCRIBER_SNAPSHOT_KEY),
+    readWorkspaceStateValue<string>(TRANSCRIBER_SNAPSHOT_KEY),
     TRANSCRIBER_SNAPSHOT_VERSION,
   );
 }
@@ -56,7 +59,7 @@ export function useTranscriberPersistence(params: {
 
   useEffect(() => {
     const fileReference = mediaReferenceFromElectronFile(file);
-    writeUiStateValue(
+    writeWorkspaceStateValue(
       TRANSCRIBER_SNAPSHOT_KEY,
       serializeVersionedSnapshot(
         TRANSCRIBER_SNAPSHOT_VERSION,

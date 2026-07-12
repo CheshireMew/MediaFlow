@@ -1,6 +1,7 @@
 import type { PipelineRequest, PipelineStepRequest } from "../../../types/api";
 import type { Task } from "../../../types/task";
-import { executionService, settingsService } from "../../domain";
+import { executionService } from "../../domain/executionService";
+import { settingsService } from "../../domain/settingsService";
 import type { RetryHandler, RetrySubmission } from "./types";
 import {
   createRetryDescriptor,

@@ -2,6 +2,7 @@ import type { TranscriptionEngine } from "../../types/api";
 import { toast } from "../../utils/toast";
 import { NavigationService } from "../ui/navigation";
 import { settingsService } from "./settingsService";
+import i18n from "../../i18n";
 
 const AI_TRANSLATION_SETUP_REQUIRED = "AI_TRANSLATION_SETUP_REQUIRED";
 const CLI_TRANSCRIPTION_SETUP_REQUIRED = "CLI_TRANSCRIPTION_SETUP_REQUIRED";
@@ -10,7 +11,7 @@ export class AiTranslationSetupRequiredError extends Error {
   code = AI_TRANSLATION_SETUP_REQUIRED;
 
   constructor() {
-    super("请先在设置中填写并启用 AI 密钥");
+    super(i18n.t("setup.aiRequired", { ns: "common" }));
     this.name = "AiTranslationSetupRequiredError";
   }
 }
@@ -19,7 +20,7 @@ export class CliTranscriptionSetupRequiredError extends Error {
   code = CLI_TRANSCRIPTION_SETUP_REQUIRED;
 
   constructor() {
-    super("请先在设置中填写 faster-whisper CLI 路径");
+    super(i18n.t("setup.cliRequired", { ns: "common" }));
     this.name = "CliTranscriptionSetupRequiredError";
   }
 }
@@ -55,7 +56,7 @@ export async function ensureAiTranslationConfigured(): Promise<void> {
     return;
   }
 
-  toast.warning("请先在设置中填写并启用 AI 密钥", 3500);
+  toast.warning(i18n.t("setup.aiRequired", { ns: "common" }), 3500);
   NavigationService.navigate("settings", { settings_tab: "llm" });
   throw new AiTranslationSetupRequiredError();
 }
@@ -74,7 +75,7 @@ export async function ensureCliTranscriptionConfigured(
     return;
   }
 
-  toast.warning("请先在设置中填写 faster-whisper CLI 路径", 3500);
+  toast.warning(i18n.t("setup.cliRequired", { ns: "common" }), 3500);
   NavigationService.navigate("settings", { settings_tab: "general" });
   throw new CliTranscriptionSetupRequiredError();
 }

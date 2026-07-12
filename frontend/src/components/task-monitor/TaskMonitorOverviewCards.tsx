@@ -55,7 +55,7 @@ export const TaskMonitorOverviewCards = () => {
                 <div className="grid grid-cols-3 gap-2">
                     {taskStats.map((item) => (
                         <div key={item.key} className={`rounded-lg border px-3 py-2 flex flex-col gap-1 ${statBadgeClassNames[item.key]}`}>
-                            <div className="text-[10px] uppercase tracking-[0.18em] opacity-80">{item.label}</div>
+                            <div className="text-xs uppercase tracking-[0.18em] opacity-80">{item.label}</div>
                             <div className="text-xl font-semibold text-white leading-none">{item.value}</div>
                         </div>
                     ))}
@@ -65,12 +65,12 @@ export const TaskMonitorOverviewCards = () => {
                     <div className="flex flex-wrap gap-2">
                         {executionBadges.length > 0 ? (
                             executionBadges.map((badge) => (
-                                <span key={badge.key} className={`px-2 py-1 rounded-md border text-[10px] font-mono ${badge.className}`}>
+                                <span key={badge.key} className={`px-2 py-1 rounded-md border text-xs font-mono ${badge.className}`}>
                                     {badge.label} {badge.count}
                                 </span>
                             ))
                         ) : (
-                            <span className="text-[11px] text-slate-500">{t('dashboard:taskOverview.executionIdle')}</span>
+                            <span className="text-xs text-slate-400">{t('dashboard:taskOverview.executionIdle')}</span>
                         )}
                     </div>
                 </div>
@@ -91,7 +91,7 @@ export const TaskMonitorOverviewCards = () => {
                             {t('dashboard:runtimeOverview.sources')}
                         </div>
                         <div className="flex flex-wrap gap-3">
-                            <span className={`text-[10px] font-medium flex items-center gap-1.5 ${taskFeedReady ? statusClassNames.ready.text : statusClassNames.waiting.text}`}>
+                            <span className={`text-xs font-medium flex items-center gap-1.5 ${taskFeedReady ? statusClassNames.ready.text : statusClassNames.waiting.text}`}>
                                 <span className="relative flex h-2 w-2">
                                     <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${taskFeedReady ? statusClassNames.ready.ping : statusClassNames.waiting.ping}`}></span>
                                     <span className={`relative inline-flex rounded-full h-2 w-2 ${taskFeedReady ? statusClassNames.ready.dot : statusClassNames.waiting.dot}`}></span>

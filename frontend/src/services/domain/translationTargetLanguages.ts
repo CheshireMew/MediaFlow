@@ -1,19 +1,14 @@
-export const TRANSLATION_TARGET_LANGUAGES = [
-  { value: "SimplifiedChinese", labelKey: "languages.SimplifiedChinese", suffix: "_ZH-CN" },
-  { value: "TraditionalChinese", labelKey: "languages.TraditionalChinese", suffix: "_ZH-TW" },
-  { value: "English", labelKey: "languages.English", suffix: "_EN" },
-  { value: "Japanese", labelKey: "languages.Japanese", suffix: "_JP" },
-  { value: "Spanish", labelKey: "languages.Spanish", suffix: "_ES" },
-  { value: "French", labelKey: "languages.French", suffix: "_FR" },
-  { value: "German", labelKey: "languages.German", suffix: "_DE" },
-  { value: "Russian", labelKey: "languages.Russian", suffix: "_RU" },
-] as const;
+import {
+  DEFAULT_TRANSLATION_TARGET_LANGUAGE,
+  TRANSLATION_TARGET_LANGUAGES,
+} from "../../contracts/generatedTranslationTargetLanguages";
+import type { TranslationTargetLanguage } from "../../contracts/generatedTranslationTargetLanguages";
 
-export type TranslationTargetLanguage =
-  (typeof TRANSLATION_TARGET_LANGUAGES)[number]["value"];
-
-export const DEFAULT_TRANSLATION_TARGET_LANGUAGE: TranslationTargetLanguage =
-  "SimplifiedChinese";
+export {
+  DEFAULT_TRANSLATION_TARGET_LANGUAGE,
+  TRANSLATION_TARGET_LANGUAGES,
+};
+export type { TranslationTargetLanguage };
 
 const TRANSLATION_TARGET_LANGUAGE_VALUES = new Set<string>(
   TRANSLATION_TARGET_LANGUAGES.map(({ value }) => value),

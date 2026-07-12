@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
 from backend.models.task_model import Task
 from backend.services.task_queue_view import TaskQueueView
@@ -12,7 +15,8 @@ def create_task(task_id: str, status: str) -> Task:
         persistence_scope="history" if terminal else "runtime",
         lifecycle=TASK_LIFECYCLE["history_only"] if terminal else TASK_LIFECYCLE["resumable"],
         progress=0.0,
-        message="",
+        message_code="queued",
+        message_params={},
         request_params={},
     )
 
@@ -92,7 +96,8 @@ def test_serialize_pipeline_primary_operation_comes_from_first_step():
         type="pipeline",
         status="pending",
         progress=0.0,
-        message="",
+        message_code="queued",
+        message_params={},
         request_params={
             "pipeline_id": "transcriber_tool",
             "steps": [
@@ -139,13 +144,14 @@ def test_serialize_pipeline_primary_operation_comes_from_first_step():
 def test_serialize_video_output_ref_does_not_create_subtitle_artifact():
     view = TaskQueueView()
     task = Task(
-        id="task-enhancement",
-        type="enhancement",
+        id="task-synthesis",
+        type="synthesis",
         status="completed",
         persistence_scope="history",
         lifecycle=TASK_LIFECYCLE["history_only"],
         progress=100.0,
-        message="",
+        message_code="queued",
+        message_params={},
         request_params={
             "video_ref": {
                 "path": "E:/video/input.mp4",
@@ -155,16 +161,21 @@ def test_serialize_video_output_ref_does_not_create_subtitle_artifact():
             }
         },
         result={
-            "files": [{"type": "video", "path": "E:/video/input_4x.mp4"}],
-            "meta": {
-                "output_ref": {
-                    "path": "E:/video/input_4x.mp4",
-                    "name": "input_4x.mp4",
-                    "media_kind": "video",
+            "success": True,
+            "artifacts": [
+                {
+                    "kind": "video",
                     "role": "output",
-                    "origin": "task",
+                    "ref": {
+                        "path": "E:/video/output.mp4",
+                        "name": "output.mp4",
+                        "media_kind": "video",
+                        "role": "output",
+                        "origin": "task",
+                    },
                 }
-            },
+            ],
+            "meta": {},
         },
     )
 
@@ -180,7 +191,7 @@ def test_serialize_video_output_ref_does_not_create_subtitle_artifact():
         for artifact in payload["artifacts"]
     } == {
         ("video", "input", "E:/video/input.mp4"),
-        ("video", "output", "E:/video/input_4x.mp4"),
+        ("video", "output", "E:/video/output.mp4"),
     }
     assert not any(artifact["kind"] == "subtitle" for artifact in payload["artifacts"])
 
@@ -194,7 +205,8 @@ def test_serialize_synthesis_result_keeps_input_subtitle_out_of_output_artifacts
         persistence_scope="history",
         lifecycle=TASK_LIFECYCLE["history_only"],
         progress=100.0,
-        message="",
+        message_code="queued",
+        message_params={},
         request_params={
             "video_ref": {
                 "path": "E:/source/source.mp4",
@@ -208,28 +220,21 @@ def test_serialize_synthesis_result_keeps_input_subtitle_out_of_output_artifacts
             },
         },
         result={
-            "files": [{"type": "video", "path": "E:/renders/source_burned.mp4"}],
-            "meta": {
-                "video_ref": {
-                    "path": "E:/renders/source_burned.mp4",
-                    "name": "source_burned.mp4",
-                    "media_kind": "video",
+            "success": True,
+            "artifacts": [
+                {
+                    "kind": "video",
                     "role": "output",
-                    "origin": "task",
-                },
-                "output_ref": {
-                    "path": "E:/renders/source_burned.mp4",
-                    "name": "source_burned.mp4",
-                    "media_kind": "video",
-                    "role": "output",
-                    "origin": "task",
-                },
-                "subtitle_ref": {
-                    "path": "E:/source/source.srt",
-                    "name": "source.srt",
-                    "media_kind": "subtitle",
-                },
-            },
+                    "ref": {
+                        "path": "E:/renders/source_burned.mp4",
+                        "name": "source_burned.mp4",
+                        "media_kind": "video",
+                        "role": "output",
+                        "origin": "task",
+                    },
+                }
+            ],
+            "meta": {"options": {}},
         },
     )
 
@@ -250,7 +255,7 @@ def test_serialize_synthesis_result_keeps_input_subtitle_out_of_output_artifacts
     }
 
 
-def test_serialize_transport_stream_result_file_as_video_artifact():
+def test_serialize_task_rejects_legacy_result_files_at_wire_boundary():
     view = TaskQueueView()
     task = Task(
         id="task-ts-output",
@@ -259,36 +264,21 @@ def test_serialize_transport_stream_result_file_as_video_artifact():
         persistence_scope="history",
         lifecycle=TASK_LIFECYCLE["history_only"],
         progress=100.0,
-        message="",
+        message_code="queued",
+        message_params={},
         request_params={},
         result={
             "files": [{"path": "E:/video/capture.ts"}],
         },
     )
 
-    payload = view.serialize_task(
-        task,
-        running_ids=set(),
-        queued_ids=set(),
-        queued_order=[],
-    ).model_dump(mode="json")
-
-    assert payload["artifacts"] == [
-        {
-            "kind": "video",
-            "role": "output",
-            "ref": {
-                "path": "E:/video/capture.ts",
-                "name": "capture.ts",
-                "size": None,
-                "type": None,
-                "media_id": None,
-                "media_kind": "video",
-                "role": "output",
-                "origin": "task",
-            },
-        }
-    ]
+    with pytest.raises(ValidationError, match="result.files"):
+        view.serialize_task(
+            task,
+            running_ids=set(),
+            queued_ids=set(),
+            queued_order=[],
+        )
 
 
 def test_serialize_translate_task_does_not_add_empty_video_ref_slot():
@@ -298,7 +288,8 @@ def test_serialize_translate_task_does_not_add_empty_video_ref_slot():
         type="translate",
         status="running",
         progress=10.0,
-        message="",
+        message_code="queued",
+        message_params={},
         request_params={
             "context_ref": {
                 "path": "E:/subs/demo.srt",
@@ -327,7 +318,8 @@ def test_serialize_task_preserves_native_structured_refs_without_path_normalizat
         persistence_scope="history",
         lifecycle=TASK_LIFECYCLE["history_only"],
         progress=100.0,
-        message="",
+        message_code="queued",
+        message_params={},
         request_params={
             "context_ref": {
                 "path": "E:/subs/demo.srt",
@@ -338,23 +330,21 @@ def test_serialize_task_preserves_native_structured_refs_without_path_normalizat
             }
         },
         result={
-            "files": [{"type": "subtitle", "path": "E:/subs/demo_zh.srt"}],
-            "meta": {
-                "subtitle_ref": {
-                    "path": "E:/subs/demo_zh.srt",
-                    "name": "demo_zh.srt",
-                    "media_kind": "subtitle",
+            "success": True,
+            "artifacts": [
+                {
+                    "kind": "subtitle",
                     "role": "output",
-                    "origin": "task",
-                },
-                "output_ref": {
-                    "path": "E:/subs/demo_zh.srt",
-                    "name": "demo_zh.srt",
-                    "media_kind": "subtitle",
-                    "role": "output",
-                    "origin": "task",
-                },
-            },
+                    "ref": {
+                        "path": "E:/subs/demo_zh.srt",
+                        "name": "demo_zh.srt",
+                        "media_kind": "subtitle",
+                        "role": "output",
+                        "origin": "task",
+                    },
+                }
+            ],
+            "meta": {"language": "SimplifiedChinese"},
         },
     )
 
@@ -366,4 +356,5 @@ def test_serialize_task_preserves_native_structured_refs_without_path_normalizat
     ).model_dump(mode="json")
 
     assert payload["request_params"]["context_ref"]["path"] == "E:/subs/demo.srt"
-    assert payload["result"]["meta"]["subtitle_ref"]["path"] == "E:/subs/demo_zh.srt"
+    assert payload["result"]["artifacts"][0]["ref"]["path"] == "E:/subs/demo_zh.srt"
+    assert "subtitle_ref" not in payload["result"]["meta"]

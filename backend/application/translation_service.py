@@ -2,13 +2,11 @@ from typing import List, Optional
 
 from loguru import logger
 
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service, TaskRuntimeContext
-from backend.core.task_runner import BackgroundTaskRunner
+from backend.core.task_runtime import TaskRuntimeContext
 from backend.models.schemas import (
-    FileRef,
     MediaReference,
     SubtitleSegment,
+    TaskArtifact,
     TaskResult,
     TranslationRequest,
 )
@@ -38,15 +36,13 @@ def build_translation_task_result(
     mode: str,
     context_ref: Optional[MediaReference] = None,
 ) -> TaskResult:
-    files: list[FileRef] = []
+    artifacts: list[TaskArtifact] = []
     target_language_value = _target_language_value(target_language)
     meta = {
         "segments": [seg.model_dump(mode="json") for seg in segments],
         "language": target_language_value,
     }
     resolved_context_ref = context_ref
-    if resolved_context_ref:
-        meta["context_ref"] = resolved_context_ref.model_dump(mode="json")
 
     if resolved_context_ref and segments:
         try:
@@ -65,28 +61,32 @@ def build_translation_task_result(
             )
 
             saved_path = SubtitleWriter.save_srt(segments, str(save_path))
-            files.append(
-                FileRef(type="subtitle", path=str(saved_path), label="translation")
-            )
             output_ref = create_media_ref(
                 str(saved_path),
                 "application/x-subrip",
                 role="output",
             )
             if output_ref:
-                meta["subtitle_ref"] = output_ref
-                meta["output_ref"] = output_ref
+                artifacts.append(
+                    TaskArtifact(kind="subtitle", role="output", ref=output_ref)
+                )
         except Exception as exc:
             logger.error(f"Failed to save translated SRT: {exc}")
 
-    return TaskResult(success=True, files=files, meta=meta)
+    return TaskResult(success=True, artifacts=artifacts, meta=meta)
 
 
-async def _translation_background(task_id: str, req: TranslationRequest) -> None:
-    llm_translator = runtime_service(Services.LLM_TRANSLATOR)
-    runtime = TaskRuntimeContext.for_task(task_id)
+async def _translation_background(
+    task_id: str,
+    req: TranslationRequest,
+    *,
+    llm_translator,
+    task_manager,
+    background_runner,
+) -> None:
+    runtime = TaskRuntimeContext(task_id, task_manager=task_manager)
 
-    await BackgroundTaskRunner.run(
+    await background_runner.run(
         task_id=task_id,
         worker_fn=llm_translator.translate_segments,
         worker_kwargs={
@@ -96,8 +96,8 @@ async def _translation_background(task_id: str, req: TranslationRequest) -> None
             "batch_size": 10,
             "cancel_check": runtime.checkpoint,
         },
-        start_message="Starting translation...",
-        success_message="Translation completed",
+        start_message_code="translation_starting",
+        success_message_code="translation_completed",
         result_transformer=lambda segments: build_translation_task_result(
             segments,
             target_language=req.target_language.value,
@@ -110,9 +110,10 @@ async def _translation_background(task_id: str, req: TranslationRequest) -> None
 def _translation_immediate(
     req: TranslationRequest,
     *,
+    llm_translator,
     progress_callback=None,
 ):
-    translated_segments = runtime_service(Services.LLM_TRANSLATOR).translate_segments(
+    translated_segments = llm_translator.translate_segments(
         segments=req.segments,
         target_language=req.target_language.value,
         mode=req.mode,
@@ -125,11 +126,22 @@ def _translation_immediate(
         mode=req.mode,
         context_ref=req.context_ref,
     )
+    output_artifact = next(
+        (artifact for artifact in result.artifacts if artifact.kind == "subtitle"),
+        None,
+    )
+    output_ref = (
+        output_artifact.ref.model_dump(mode="json")
+        if output_artifact is not None
+        else None
+    )
     return {
         "segments": result.meta.get("segments", []),
         "language": req.target_language.value,
-        "context_ref": result.meta.get("context_ref"),
-        "subtitle_ref": result.meta.get("subtitle_ref"),
-        "output_ref": result.meta.get("output_ref"),
+        "context_ref": (
+            req.context_ref.model_dump(mode="json") if req.context_ref else None
+        ),
+        "subtitle_ref": output_ref,
+        "output_ref": output_ref,
         "mode": req.mode,
     }

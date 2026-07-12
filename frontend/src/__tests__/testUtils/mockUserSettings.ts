@@ -1,4 +1,4 @@
-import type { UserSettings } from "../../types/api";
+import type { ResolvedUserSettings as UserSettings } from "../../services/domain";
 
 export function createMockUserSettings(
   overrides: Partial<UserSettings> = {},

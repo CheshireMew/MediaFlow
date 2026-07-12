@@ -6,19 +6,50 @@
   "edit": "Edit",
   "add": "Add",
   "close": "Close",
+  "contextMenu": "Context menu",
   "loading": "Loading...",
   "success": "Success",
   "failed": "Failed",
   "active": "Active",
+  "enable": "Enable",
+  "disable": "Disable",
   "setActive": "Set Active",
+  "setup": {
+    "aiRequired": "Add and activate an AI provider in Settings first",
+    "cliRequired": "Set the faster-whisper CLI path in Settings first"
+  },
+  "windowControls": {
+    "minimize": "Minimize window",
+    "maximize": "Maximize or restore window",
+    "close": "Close window"
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "reload": "Reload application"
+  },
+  "executionMode": { "taskSubmission": "Queued task" },
+  "persistence": {
+    "workspaceReadFailed": "The saved workspace could not be loaded. MediaFlow started with the available fallback state.",
+    "workspaceWriteFailed": "Workspace changes are not being saved. Check disk access before closing the app.",
+    "preferencesWriteFailed": "Preference changes are not being saved. Check the backend connection before closing the app.",
+    "recovered": "Saving has recovered and the latest state is stored."
+  },
   "startup": {
     "status": {
       "waitingConfig": "Waiting for backend configuration...",
       "checkingHealth": "Backend discovered. Checking health...",
       "retryingHealth": "Backend is starting. Retrying health check...",
-      "retryingGeneric": "Startup check failed. Retrying...",
+      "retryingGeneric": "Startup check failed. Retry now, or wait for the automatic retry.",
+      "fatalContract": "The desktop runtime is incompatible with this frontend. Update or reinstall MediaFlow.",
       "ready": "Backend is ready.",
       "webMode": "Running without Electron backend bootstrap."
+    },
+    "action": {
+      "retry": "Retry now"
+    },
+    "fatal": {
+      "title": "Startup cannot continue",
+      "help": "This is a permanent version mismatch and repeated retries will not fix it. Install a desktop runtime that matches this frontend, then restart MediaFlow."
     }
   }
 }

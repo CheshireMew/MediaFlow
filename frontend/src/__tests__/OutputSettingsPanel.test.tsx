@@ -41,6 +41,5 @@ describe("OutputSettingsPanel batch mode", () => {
     expect(screen.getByText("output.batchFiles:3")).toBeInTheDocument();
     expect(screen.getByText("output.batchNaming")).toBeInTheDocument();
     expect(screen.queryByDisplayValue("demo_synthesized.mp4")).toBeNull();
-    expect(screen.queryByText("output.sr2x")).toBeNull();
   });
 });

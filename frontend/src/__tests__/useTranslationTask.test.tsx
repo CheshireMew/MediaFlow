@@ -6,30 +6,28 @@ import type { Task, TaskArtifact } from "../types/task";
 import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
 import { createMockUserSettings } from "./testUtils/mockUserSettings";
 import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
+import { apiClient } from "../api/client";
+import { translationService } from "../services/domain/translationService";
+import { TASK_CONTRACT_VERSION } from "../contracts/runtimeContracts";
 
-const translationServiceMock = vi.hoisted(() => ({
-  startTranslation: vi.fn(),
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-const apiClientMock = vi.hoisted(() => ({
-  getSettings: vi.fn(),
-}));
+const translationServiceMock = {
+  startTranslation: vi.spyOn(translationService, "startTranslation"),
+};
+
+const apiClientMock = {
+  getSettings: vi.spyOn(apiClient, "getSettings"),
+};
 
 const taskContextMock = vi.hoisted(() => ({
   tasks: [] as Task[],
   connected: true,
       remoteTasksReady: true,
       tasksSettled: true,
-  cancelTask: vi.fn(),
   addTask: vi.fn(),
-}));
-
-vi.mock("../services/domain/translationService", () => ({
-  translationService: translationServiceMock,
-}));
-
-vi.mock("../api/client", () => ({
-  apiClient: apiClientMock,
 }));
 
 vi.mock("../context/taskContext", () => ({
@@ -61,7 +59,6 @@ describe("useTranslationTask", () => {
       sourceSegments: [{ id: "1", start: 0, end: 1, text: "hello" }],
       targetSegments: [],
       glossary: [],
-      sourceFilePath: "E:/subs/demo.srt",
       sourceFileRef: {
         path: "E:/subs/demo.srt",
         name: "demo.srt",
@@ -96,12 +93,14 @@ describe("useTranslationTask", () => {
       task_id: "task-1",
       status: "pending",
       task_source: "backend",
-      task_contract_version: 2,
+      task_contract_version: TASK_CONTRACT_VERSION,
       persistence_scope: "runtime",
       lifecycle: "resumable",
       queue_state: "queued",
       queue_position: null,
       primary_operation: "translate",
+      message_code: "queued",
+      message_params: {},
     });
     clearElectronMock();
 
@@ -116,7 +115,7 @@ describe("useTranslationTask", () => {
         id: "task-1",
         type: "translate",
         task_source: "backend",
-        task_contract_version: 2,
+        task_contract_version: TASK_CONTRACT_VERSION,
         queue_state: "queued",
         request_params: expect.objectContaining({
           context_ref: expect.objectContaining({
@@ -143,10 +142,15 @@ describe("useTranslationTask", () => {
           progress: 100,
           created_at: 1,
           request_params: {
-            context_path: "E:/subs/demo.srt",
+            context_ref: {
+              path: "E:/subs/demo.srt",
+              name: "demo.srt",
+            },
             mode: "proofread",
           },
           result: {
+            success: true,
+            artifacts: [artifact("subtitle", "output", "E:/subs/demo_zh.srt", "demo_zh.srt")],
             meta: {
               segments: [{ id: "1", start: 0, end: 1, text: "fixed text" }],
             },
@@ -181,7 +185,6 @@ describe("useTranslationTask", () => {
         progress: 42,
         created_at: 1,
         request_params: {
-          context_path: "E:/subs/demo.srt",
           context_ref: {
             path: "E:/subs/demo.srt",
             name: "demo.srt",
@@ -218,7 +221,6 @@ describe("useTranslationTask", () => {
         progress: 100,
         created_at: 1,
         request_params: {
-          context_path: "E:/subs/demo.srt",
           context_ref: {
             path: "E:/subs/demo.srt",
             name: "demo.srt",
@@ -226,12 +228,10 @@ describe("useTranslationTask", () => {
           mode: "intelligent",
         },
         result: {
+          success: true,
+          artifacts: [artifact("subtitle", "output", "E:/subs/demo_zh.srt", "demo_zh.srt")],
           meta: {
             segments: [{ id: "1", start: 0, end: 1, text: "你好" }],
-            subtitle_ref: {
-              path: "E:/subs/demo_zh.srt",
-              name: "demo_zh.srt",
-            },
           },
         },
         artifacts: [
@@ -261,9 +261,8 @@ describe("useTranslationTask", () => {
     });
   });
 
-  test("recovers an active translate task using sourceFileRef when sourceFilePath is missing", () => {
+  test("recovers an active translate task using the canonical source reference", () => {
     useTranslatorStore.setState({
-      sourceFilePath: null,
       sourceFileRef: {
         path: "E:/canonical/demo.srt",
         name: "demo.srt",
@@ -279,7 +278,6 @@ describe("useTranslationTask", () => {
         progress: 42,
         created_at: 1,
         request_params: {
-          context_path: "E:/workspace/demo.srt",
           context_ref: {
             path: "E:/canonical/demo.srt",
             name: "demo.srt",
@@ -316,7 +314,10 @@ describe("useTranslationTask", () => {
         error: "Network unreachable while contacting LLM provider",
         created_at: 1,
         request_params: {
-          context_path: "E:/subs/demo.srt",
+          context_ref: {
+            path: "E:/subs/demo.srt",
+            name: "demo.srt",
+          },
           mode: "standard",
         },
       } as Task,
@@ -336,11 +337,14 @@ describe("useTranslationTask", () => {
       task_id: "backend-translate-task",
       status: "pending",
       task_source: "backend",
-      task_contract_version: 2,
+      task_contract_version: TASK_CONTRACT_VERSION,
       persistence_scope: "runtime",
       lifecycle: "resumable",
       queue_state: "queued",
       queue_position: null,
+      primary_operation: "translate",
+      message_code: "queued",
+      message_params: {},
     });
 
     installElectronMock();
@@ -378,10 +382,9 @@ describe("useTranslationTask", () => {
     }));
   });
 
-  test("uses sourceFileRef as the primary input when sourceFilePath is missing", async () => {
+  test("uses the canonical source reference as translation input", async () => {
     vi.useFakeTimers();
     useTranslatorStore.setState({
-      sourceFilePath: null,
       sourceFileRef: {
         path: "E:/canonical/demo.srt",
         name: "demo.srt",
@@ -391,11 +394,14 @@ describe("useTranslationTask", () => {
       task_id: "task-ref-only",
       status: "pending",
       task_source: "backend",
-      task_contract_version: 2,
+      task_contract_version: TASK_CONTRACT_VERSION,
       persistence_scope: "runtime",
       lifecycle: "resumable",
       queue_state: "queued",
       queue_position: null,
+      primary_operation: "translate",
+      message_code: "queued",
+      message_params: {},
     });
     clearElectronMock();
 

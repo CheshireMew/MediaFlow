@@ -6,6 +6,7 @@ import { createNavigationMediaPayload } from "../../services/ui/navigation";
 import { normalizeTranscribeResult } from "../../services/ui/transcribeResult";
 import type { TranscribeResult } from "../../types/transcriber";
 import { SubtitleFileContextMenu } from "../ui/SubtitleFileContextMenu";
+import { toast } from "../../utils/toast";
 
 interface TranscriptionResultsProps {
   result: TranscribeResult | null;
@@ -48,7 +49,7 @@ export function TranscriptionResults({
             <button
               onClick={onSmartSplit}
               disabled={isSmartSplitting}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 disabled:bg-white/5 text-amber-300 disabled:text-slate-500 border border-amber-500/20 disabled:border-white/5 text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 disabled:bg-white/5 text-amber-300 disabled:text-slate-400 border border-amber-500/20 disabled:border-white/5 text-sm font-medium transition-colors"
             >
               <Scissors className="w-4 h-4" />
               {isSmartSplitting ? t("actions.smartSplitting") : t("actions.smartSplit")}
@@ -70,10 +71,10 @@ export function TranscriptionResults({
           <div className="divide-y divide-white/5">
             {result.segments.map((seg, idx) => (
               <div key={seg.id} className="flex gap-4 p-4 hover:bg-white/[0.02] transition-colors group">
-                <div className="w-8 text-xs text-slate-600 font-mono pt-1 text-right shrink-0 select-none">
+                <div className="w-8 text-xs text-slate-400 font-mono pt-1 text-right shrink-0 select-none">
                   {idx + 1}
                 </div>
-                <div className="text-slate-500 w-20 shrink-0 select-none text-xs font-mono pt-1">
+                <div className="text-slate-400 w-20 shrink-0 select-none text-xs font-mono pt-1">
                   {new Date(seg.start * 1000).toISOString().substr(11, 8)}
                 </div>
                 <div className="text-slate-300 group-hover:text-white transition-colors text-sm leading-relaxed">
@@ -83,7 +84,7 @@ export function TranscriptionResults({
             ))}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-4">
+          <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
             <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
                <FileText className="w-8 h-8 opacity-20" />
             </div>
@@ -98,7 +99,7 @@ export function TranscriptionResults({
              {normalizedResult.subtitle_ref?.path && (
                  <button 
                   onClick={() => isDesktopRuntime() && void fileService.showInExplorer(normalizedResult.subtitle_ref!.path)}
-                  className="text-xs text-slate-500 hover:text-indigo-400 flex items-center gap-1.5 transition-colors px-3 py-2 rounded-lg hover:bg-white/5"
+                  className="text-xs text-slate-400 hover:text-indigo-400 flex items-center gap-1.5 transition-colors px-3 py-2 rounded-lg hover:bg-white/5"
                  >
                    <FolderOpen className="w-3.5 h-3.5" />
                    <span className="truncate max-w-[200px]">{normalizedResult.subtitle_ref.path}</span>
@@ -109,15 +110,13 @@ export function TranscriptionResults({
                 <button
                 onClick={() => {
                     const payload: TranslatorPayload = createNavigationMediaPayload({
-                        videoPath: null,
-                        subtitlePath: null,
                         videoRef: normalizedResult.video_ref ?? null,
                         subtitleRef: normalizedResult.subtitle_ref ?? null,
                     });
                     if (payload.video_ref?.path && payload.subtitle_ref?.path) {
                             onSendToTranslator(payload); 
                     } else {
-                        alert(t("results.missingSubtitleAlert"));
+                        toast.warning(t("results.missingSubtitleAlert"));
                     }
                 }}
                 className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 hover:border-indigo-500/30 rounded-xl text-sm font-medium transition-all"

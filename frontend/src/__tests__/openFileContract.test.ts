@@ -17,11 +17,25 @@ describe("openFileContract", () => {
     expect(buildHtmlFileAccept("transcriber-media")).not.toContain(".jpg");
   });
 
-  it("lets preprocessing accept images but not audio-only files", () => {
-    const filters = buildOpenFileDialogFilters("preprocessing-media");
-    expect(filters[0].extensions).toContain("png");
-    expect(filters[0].extensions).toContain("mp4");
-    expect(filters[0].extensions).not.toContain("mp3");
+  it("owns subtitle extensions in the generic file-dialog profile contract", () => {
+    const filters = buildOpenFileDialogFilters("subtitle");
+
+    expect(filters).toEqual([
+      {
+        name: "Subtitle Files",
+        extensions: ["srt", "vtt", "ass", "ssa", "txt", "sub", "sbv", "lrc"],
+      },
+      { name: "All Files", extensions: ["*"] },
+    ]);
+    expect(buildHtmlFileAccept("subtitle")).toBe(
+      ".srt,.vtt,.ass,.ssa,.txt,.sub,.sbv,.lrc",
+    );
+    expect(
+      fileMatchesOpenDialogProfile({ name: "captions.SRT" }, "subtitle"),
+    ).toBe(true);
+    expect(
+      fileMatchesOpenDialogProfile({ name: "movie.mp4" }, "subtitle"),
+    ).toBe(false);
   });
 
   it("matches dragged files against the same profile contract", () => {
@@ -35,18 +49,6 @@ describe("openFileContract", () => {
       fileMatchesOpenDialogProfile(
         { name: "cover.jpg", type: "image/jpeg" },
         "transcriber-media",
-      ),
-    ).toBe(false);
-    expect(
-      fileMatchesOpenDialogProfile(
-        { name: "frame.png", type: "image/png" },
-        "preprocessing-media",
-      ),
-    ).toBe(true);
-    expect(
-      fileMatchesOpenDialogProfile(
-        { name: "podcast.mp3", type: "audio/mpeg" },
-        "preprocessing-media",
       ),
     ).toBe(false);
     expect(

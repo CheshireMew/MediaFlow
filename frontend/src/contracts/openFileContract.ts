@@ -1,13 +1,19 @@
 export type OpenFileDialogProfile =
   | "editor-media"
   | "transcriber-media"
-  | "preprocessing-media"
+  | "subtitle"
   | "executable";
 
 export type OpenFileDialogRequest = {
   defaultPath?: string;
   profile: OpenFileDialogProfile;
 };
+
+export type OpenFileDialogResult = {
+  path: string;
+  name: string;
+  size: number;
+} | null;
 
 export type MediaKind = "audio" | "video" | "image";
 
@@ -17,19 +23,59 @@ export const MEDIA_EXTENSIONS = {
   image: ["jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif"],
 } as const satisfies Record<MediaKind, readonly string[]>;
 
-const OPEN_FILE_PROFILE_KINDS: Record<OpenFileDialogProfile, MediaKind[]> = {
-  "editor-media": ["audio", "video"],
-  "transcriber-media": ["audio", "video"],
-  "preprocessing-media": ["video", "image"],
-  executable: [],
+export const SUBTITLE_EXTENSIONS = [
+  "srt",
+  "vtt",
+  "ass",
+  "ssa",
+  "txt",
+  "sub",
+  "sbv",
+  "lrc",
+] as const;
+
+type OpenFileProfileDefinition = {
+  label: string;
+  mediaKinds: readonly MediaKind[];
+  extensions: readonly string[];
+};
+
+const OPEN_FILE_PROFILE_DEFINITIONS: Record<
+  OpenFileDialogProfile,
+  OpenFileProfileDefinition
+> = {
+  "editor-media": {
+    label: "Editor Media Files",
+    mediaKinds: ["audio", "video"],
+    extensions: [],
+  },
+  "transcriber-media": {
+    label: "Audio and Video Files",
+    mediaKinds: ["audio", "video"],
+    extensions: [],
+  },
+  subtitle: {
+    label: "Subtitle Files",
+    mediaKinds: [],
+    extensions: SUBTITLE_EXTENSIONS,
+  },
+  executable: {
+    label: "Executable Files",
+    mediaKinds: [],
+    extensions: ["exe"],
+  },
 };
 
 function getProfileKinds(profile: OpenFileDialogProfile) {
-  return OPEN_FILE_PROFILE_KINDS[profile];
+  return OPEN_FILE_PROFILE_DEFINITIONS[profile].mediaKinds;
 }
 
 function getProfileExtensions(profile: OpenFileDialogProfile): string[] {
-  return getProfileKinds(profile).flatMap((kind) => getMediaExtensions(kind));
+  const definition = OPEN_FILE_PROFILE_DEFINITIONS[profile];
+  return [
+    ...definition.mediaKinds.flatMap((kind) => getMediaExtensions(kind)),
+    ...definition.extensions,
+  ];
 }
 
 export function getMediaExtensions(kind: MediaKind): string[] {
@@ -41,16 +87,7 @@ export function getMediaExtensionsWithDot(kind: MediaKind): string[] {
 }
 
 function getProfileLabel(profile: OpenFileDialogProfile) {
-  switch (profile) {
-    case "editor-media":
-      return "Editor Media Files";
-    case "transcriber-media":
-      return "Audio and Video Files";
-    case "preprocessing-media":
-      return "Video and Image Files";
-    case "executable":
-      return "Executable Files";
-  }
+  return OPEN_FILE_PROFILE_DEFINITIONS[profile].label;
 }
 
 function getNormalizedExtension(fileName: string) {
@@ -59,19 +96,6 @@ function getNormalizedExtension(fileName: string) {
 }
 
 export function buildOpenFileDialogFilters(profile: OpenFileDialogProfile) {
-  if (profile === "executable") {
-    return [
-      {
-        name: "Executable Files",
-        extensions: ["exe"],
-      },
-      {
-        name: "All Files",
-        extensions: ["*"],
-      },
-    ];
-  }
-
   return [
     {
       name: getProfileLabel(profile),

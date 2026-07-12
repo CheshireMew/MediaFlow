@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { ReactElement, ReactNode } from 'react'
 import App from '../App'
@@ -6,6 +6,11 @@ import { installElectronMock } from './testUtils/electronMock'
 import { initializeUiStateSettings, resetUiStateSettingsForTests } from '../services/persistence/uiStateSettings'
 import { createMockUserSettings } from './testUtils/mockUserSettings'
 import { resetNavigationPersistenceForTests } from '../services/ui/navigationPersistence'
+import {
+  initializeWorkspaceState,
+  resetWorkspaceStateForTests,
+  writeWorkspaceStateValue,
+} from '../services/persistence/workspaceState'
 
 type MockIconComponent = (props: Record<string, unknown>) => ReactElement
 
@@ -19,6 +24,7 @@ afterEach(() => {
   window.location.hash = '#/'
   localStorage.clear()
   resetUiStateSettingsForTests()
+  resetWorkspaceStateForTests()
   resetNavigationPersistenceForTests()
 })
 
@@ -34,7 +40,7 @@ vi.mock('../services/asrCliPrewarm', () => ({
 
 // Mock Lucide icons and other complex components
 vi.mock('lucide-react', () => {
-  const icons = ['LayoutDashboard', 'Download', 'Type', 'Languages', 'Video', 'Settings', 'Clapperboard', 'Save', 'Scissors', 'Trash2', 'Plus', 'Play', 'Pause', 'Upload', 'CheckCircle', 'ChevronRight', 'X', 'Mic', 'Search', 'Clock', 'ChevronDown', 'Info', 'AlertCircle', 'Filter', 'ArrowLeftRight', 'Pencil', 'FileAudio', 'LogOut', 'MonitorPlay', 'Eraser', 'ScanText', 'Loader2', 'FolderOpen', 'ArrowRight', 'Wand2', 'Minus', 'Square', 'Activity', 'Globe']
+  const icons = ['LayoutDashboard', 'Download', 'Type', 'Languages', 'Video', 'Settings', 'Clapperboard', 'Save', 'Scissors', 'Trash2', 'Plus', 'Play', 'Pause', 'Upload', 'CheckCircle', 'ChevronRight', 'X', 'Mic', 'Search', 'Clock', 'ChevronDown', 'Info', 'AlertCircle', 'Filter', 'ArrowLeftRight', 'Pencil', 'FileAudio', 'LogOut', 'MonitorPlay', 'Eraser', 'ScanText', 'Loader2', 'FolderOpen', 'ArrowRight', 'Wand2', 'RefreshCw', 'Minus', 'Square', 'Activity', 'Globe']
   const mockIcons: Record<string, unknown> = {
     __esModule: true
   }
@@ -66,7 +72,6 @@ vi.mock('../context/taskContext', () => ({
     resumeTask: vi.fn(),
     deleteTask: vi.fn(),
     clearTasks: vi.fn(),
-    cancelTask: vi.fn(),
     addTask: vi.fn()
   })
 }))
@@ -82,7 +87,6 @@ vi.mock('../pages/DashboardPage', () => ({ DashboardPage: () => <div data-testid
 vi.mock('../pages/DownloaderPage', () => ({ DownloaderPage: () => <div data-testid="page-downloader">Downloader Page Mock</div> }))
 vi.mock('../pages/TranscriberPage', () => ({ TranscriberPage: () => <div data-testid="page-transcriber">Transcriber Page Mock</div> }))
 vi.mock('../pages/TranslatorPage', () => ({ TranslatorPage: () => <div data-testid="page-translator">Translator Page Mock</div> }))
-vi.mock('../pages/PreprocessingPage', () => ({ PreprocessingPage: () => <div data-testid="page-preprocessing">Preprocessing Page Mock</div> }))
 
 test('renders app with navigation sidebar', async () => {
   const { container } = render(<App />)
@@ -103,23 +107,14 @@ test('opens downloader on first launch', async () => {
   })
 })
 
-test('restores the last opened page from shared UI settings', async () => {
-  initializeUiStateSettings(createMockUserSettings({
-    ui_state: {
-      'mediaflow:last-route': 'translator',
-    },
-  }))
+test('restores the last opened page from workspace state', async () => {
+  initializeUiStateSettings(createMockUserSettings())
+  writeWorkspaceStateValue('mediaflow:last-route', 'translator')
+  await initializeWorkspaceState()
   render(<App />)
   await waitFor(() => {
     expect(screen.getByTestId('page-translator')).toBeInTheDocument()
   })
-})
-
-test('gates preprocessing page on backend readiness', async () => {
-  window.location.hash = '#/preprocessing'
-  render(<App appReady remoteBackendReady={false} startupMessage="Waiting" />)
-  expect(screen.queryByTestId('page-preprocessing')).not.toBeInTheDocument()
-  expect(screen.getByText('Waiting')).toBeInTheDocument()
 })
 
 test('gates editor page on backend readiness', async () => {
@@ -127,4 +122,20 @@ test('gates editor page on backend readiness', async () => {
   render(<App appReady remoteBackendReady={false} startupMessage="Waiting" />)
   expect(screen.queryByTestId('page-editor')).not.toBeInTheDocument()
   expect(screen.getByText('Waiting')).toBeInTheDocument()
+})
+
+test('exposes the startup retry action for recoverable failures', () => {
+  const onRetryStartup = vi.fn()
+  render(
+    <App
+      appReady={false}
+      remoteBackendReady={false}
+      startupMessage="Temporarily unavailable"
+      startupStatus="retryable-error"
+      onRetryStartup={onRetryStartup}
+    />,
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: /startup\.action\.retry/ }))
+  expect(onRetryStartup).toHaveBeenCalledTimes(1)
 })

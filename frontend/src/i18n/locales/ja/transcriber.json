@@ -4,6 +4,7 @@
   "taskPanel": { "title": "新しいタスク" },
   "progressCard": {
     "systemReady": "システム準備完了",
+    "modelDownload": "モデルダウンロード",
     "waitingMessage": "開始を待っています...",
     "processingMessage": "処理中..."
   },
@@ -21,6 +22,13 @@
     "smartSplitting": "分割中...",
     "translate": "翻訳",
     "openEditor": "エディターを開く"
+  },
+  "feedback": {
+    "filePathMissing": "選択したファイルのローカルパスを取得できません。デスクトップアプリから開き直してください。",
+    "taskName": "{{name}}を文字起こし",
+    "defaultMediaName": "メディア",
+    "startFailed": "文字起こしを開始できませんでした：{{detail}}",
+    "noSubtitleForTranslation": "翻訳できる字幕ファイルがありません"
   },
   "contextMenu": {
     "openSubtitleFolder": "字幕のフォルダーを開く"

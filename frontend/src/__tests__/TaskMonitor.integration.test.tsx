@@ -13,6 +13,8 @@ const resumeTaskMock = vi.fn();
 const addTaskMock = vi.fn();
 const canRetryTaskMock = vi.fn();
 const retryFailedTaskMock = vi.fn();
+const confirmActionMock = vi.fn();
+const toastErrorMock = vi.fn();
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -24,9 +26,17 @@ vi.mock("../context/taskContext", () => ({
   useTaskContext: () => useTaskContextMock(),
 }));
 
+vi.mock("../components/ui/confirmationContext", () => ({
+  useConfirmation: () => confirmActionMock,
+}));
+
 vi.mock("../services/tasks/retry", () => ({
   canRetryTask: (...args: unknown[]) => canRetryTaskMock(...args),
   retryFailedTask: (...args: unknown[]) => retryFailedTaskMock(...args),
+}));
+
+vi.mock("../utils/toast", () => ({
+  toast: { error: (...args: unknown[]) => toastErrorMock(...args) },
 }));
 
 vi.mock("../components/TaskTraceView", () => ({
@@ -40,6 +50,7 @@ describe("TaskMonitor integration", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    confirmActionMock.mockResolvedValue(true);
     useRuntimeExecutionStore.setState({ scopes: {} });
     useTaskContextMock.mockReturnValue({
       tasks: [
@@ -49,7 +60,8 @@ describe("TaskMonitor integration", () => {
           status: "pending",
           progress: 0,
           name: "Queued task",
-          message: "Queued",
+          message_code: "queued",
+          message_params: {},
           created_at: 3,
           queue_state: "queued",
           queue_position: 1,
@@ -60,7 +72,8 @@ describe("TaskMonitor integration", () => {
           status: "running",
           progress: 40,
           name: "Running task",
-          message: "Processing",
+          message_code: "running",
+          message_params: {},
           created_at: 2,
           queue_state: "running",
           queue_position: null,
@@ -71,7 +84,8 @@ describe("TaskMonitor integration", () => {
           status: "paused",
           progress: 25,
           name: "Paused task",
-          message: "Paused",
+          message_code: "paused",
+          message_params: {},
           created_at: 1,
           queue_state: "paused",
           queue_position: null,
@@ -96,7 +110,6 @@ describe("TaskMonitor integration", () => {
     retryFailedTaskMock.mockReset();
     canRetryTaskMock.mockReturnValue(false);
     retryFailedTaskMock.mockResolvedValue(undefined);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   it("renders queue badges and header summary from task context", () => {
@@ -109,9 +122,14 @@ describe("TaskMonitor integration", () => {
     expect(screen.getByText("queue.position")).toBeTruthy();
     expect(screen.getAllByText("queue.running").length).toBeGreaterThan(0);
     expect(screen.getAllByText("queue.paused").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "actions.pause.tooltip" })).toHaveLength(2);
+    expect(
+      screen.getAllByRole("progressbar", { name: "progress.label" })
+        .some((progressbar) => progressbar.getAttribute("aria-valuenow") === "40"),
+    ).toBe(true);
   });
 
-  it("calls pauseTask when pausing a running task card", () => {
+  it("calls pauseTask when pausing a running task card", async () => {
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
@@ -120,7 +138,8 @@ describe("TaskMonitor integration", () => {
           status: "pending",
           progress: 0,
           name: "Queued task",
-          message: "Queued",
+          message_code: "queued",
+          message_params: {},
           created_at: 3,
           queue_state: "queued",
           queue_position: 1,
@@ -131,7 +150,8 @@ describe("TaskMonitor integration", () => {
           status: "running",
           progress: 40,
           name: "Running task",
-          message: "Processing",
+          message_code: "running",
+          message_params: {},
           created_at: 2,
           queue_state: "running",
           queue_position: null,
@@ -155,7 +175,21 @@ describe("TaskMonitor integration", () => {
 
     fireEvent.click(within(runningTaskRow).getByTitle("actions.pause.tooltip"));
 
-    expect(pauseTaskMock).toHaveBeenCalledWith("running-task");
+    await waitFor(() => {
+      expect(pauseTaskMock).toHaveBeenCalledWith("running-task");
+    });
+  });
+
+  it("shows visible feedback when pausing a task fails", async () => {
+    pauseTaskMock.mockRejectedValueOnce(new Error("backend offline"));
+
+    render(<TaskMonitor />);
+    const runningTaskRow = screen.getByText("Running task").closest(".group") as HTMLElement;
+    fireEvent.click(within(runningTaskRow).getByTitle("actions.pause.tooltip"));
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith("messages.pauseFailed");
+    });
   });
 
   it("renders a single backend task source", () => {
@@ -173,7 +207,7 @@ describe("TaskMonitor integration", () => {
 
     render(<TaskMonitor />);
 
-    expect(screen.getByText("queued task 1")).toBeTruthy();
+    expect(screen.getByText("executionMode.taskSubmission 1")).toBeTruthy();
   });
 
   it("calls pauseAllTasks after confirming bulk pause", async () => {
@@ -205,7 +239,8 @@ describe("TaskMonitor integration", () => {
           status: "running",
           progress: 40,
           name: "Backend task",
-          message: "Processing",
+          message_code: "running",
+          message_params: {},
           created_at: 2,
           request_params: {
           },
@@ -243,7 +278,8 @@ describe("TaskMonitor integration", () => {
           status: "paused",
           progress: 40,
           name: "Paused backend task",
-          message: "Paused",
+          message_code: "paused",
+          message_params: {},
           created_at: 2,
           request_params: {
           },
@@ -282,7 +318,8 @@ describe("TaskMonitor integration", () => {
           status: "failed",
           progress: 0,
           name: "Failed download task",
-          message: "Download failed",
+          message_code: "failed",
+          message_params: {},
           error: "network error",
           created_at: 2,
           request_params: {
@@ -319,7 +356,8 @@ describe("TaskMonitor integration", () => {
           status: "failed",
           progress: 0,
           name: "Failed download task",
-          message: "Download failed",
+          message_code: "failed",
+          message_params: {},
           error: "network error",
           created_at: 2,
           request_params: {
@@ -346,7 +384,8 @@ describe("TaskMonitor integration", () => {
           status: "failed",
           progress: 0,
           name: "Failed translate task",
-          message: "Translate failed",
+          message_code: "failed",
+          message_params: {},
           error: "provider error",
           created_at: 2,
         },

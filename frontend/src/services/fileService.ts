@@ -14,13 +14,6 @@ export const fileService = {
     return await requireDesktopApiMethod("openFile", "Open file dialog is unavailable.")(request);
   },
 
-  async openSubtitleFile() {
-    return await requireDesktopApiMethod(
-      "openSubtitleFile",
-      "Subtitle file dialog is unavailable.",
-    )();
-  },
-
   async showSaveDialog(options: SaveFileDialogRequest) {
     return await requireDesktopApiMethod(
       "showSaveDialog",

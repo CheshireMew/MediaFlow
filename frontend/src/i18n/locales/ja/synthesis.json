@@ -1,4 +1,5 @@
 {
+  "feedback": { "watermarkProcessingFailed": "透かし画像を処理できませんでした" },
   "title": "動画書き出し",
   "clipExport": {
     "title": "クリップ書き出し",
@@ -13,6 +14,15 @@
     "sectionTitle": "字幕",
     "stylePreset": "スタイルプリセット",
     "deletePreset": "プリセットを削除",
+    "deletePresetNamed": "プリセット {{name}} を削除",
+    "fontUnavailable": "フォント「{{fontName}}」は使用できません。プレビューでは代替フォントを使用する場合があります。",
+    "presets": {
+      "classicWhite": "クラシック白字",
+      "yellowBold": "黄色字幕",
+      "cinematic": "シネマ風",
+      "cleanShadow": "クリーンシャドウ",
+      "backgroundPanel": "背景パネル"
+    },
     "savePresetTooltip": "現在の設定をプリセットとして保存",
     "save": "保存",
     "presetNamePlaceholder": "プリセット名...",
@@ -39,6 +49,7 @@
     "centerAligned": "中央揃え",
     "topAligned": "上揃え",
     "dragHint": "プレビューでテキストをドラッグして位置を調整。",
+    "positionControl": "字幕位置。上下矢印キーで調整し、Shift キーを押しながら操作すると大きく移動します。",
     "resetPosition": "位置をリセット",
     "subtitleDisabledHint": "字幕レンダリングがオフです。書き出し時に字幕は焼き込まれません。",
     "subtitleUnavailableHint": "利用可能な字幕がないため、字幕レンダリングはオフです。"
@@ -51,7 +62,9 @@
     "positionPreset": "位置プリセット",
     "scale": "スケール",
     "opacity": "不透明度",
-    "watermarkDisabledHint": "ウォーターマークレンダリングがオフです。書き出し時にウォーターマークは追加されません。"
+    "watermarkDisabledHint": "ウォーターマークレンダリングがオフです。書き出し時にウォーターマークは追加されません。",
+    "previewAlt": "透かしプレビュー",
+    "positionControl": "ウォーターマーク位置。矢印キーで移動し、Shift キーを押しながら操作すると大きく移動します。"
   },
   "output": {
     "sectionTitle": "出力",
@@ -60,9 +73,6 @@
     "cpuQuality": "CPU（高品質）",
     "resolution": "出力解像度",
     "original": "オリジナル",
-    "sr2x": "SR 2x",
-    "sr4x": "SR 4x",
-    "srNote": "AI超解像：字幕を焼く前に動画を拡大します。処理に時間がかかります。Real-ESRGANが必要です。",
     "filename": "ファイル名",
     "filenamePlaceholder": "video_synthesized.mp4",
     "batchFiles": "{{count}} 件の個別動画を書き出します",
@@ -81,6 +91,12 @@
     "qualitySmallDesc": "CRF 26（圧縮）",
     "trimVideo": "動画トリミング",
     "cropVideo": "画面クロップ",
+    "cropRegionControl": "クロップ領域。矢印キーで移動し、Shift キーを押しながら操作すると大きく移動します。",
+    "cropHandleTopLeft": "左上のクロップハンドル。矢印キーでサイズを調整し、Shift キーで大きく変更します。",
+    "cropHandleTopRight": "右上のクロップハンドル。矢印キーでサイズを調整し、Shift キーで大きく変更します。",
+    "cropHandleBottomLeft": "左下のクロップハンドル。矢印キーでサイズを調整し、Shift キーで大きく変更します。",
+    "cropHandleBottomRight": "右下のクロップハンドル。矢印キーでサイズを調整し、Shift キーで大きく変更します。",
+    "seek": "プレビュー再生位置",
     "trimStart": "開始:",
     "trimEnd": "終了:",
     "seconds": "秒",

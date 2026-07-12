@@ -1,5 +1,5 @@
 import type { Task, TaskRequestParams } from "../../../types/task";
-import { executionService } from "../../domain";
+import { executionService } from "../../domain/executionService";
 import type { RetryHandler, RetrySubmission } from "./types";
 import {
   createRetryDescriptor,
@@ -30,6 +30,7 @@ async function submitTranscribeRetry(task: Task): Promise<RetrySubmission | null
 
   const outcome = await executionService.transcribe({
     audio_ref: audioRef,
+    task_name: task.name || audioRef.name || audioRef.path,
     engine,
     model,
     device,
@@ -49,7 +50,6 @@ async function submitTranscribeRetry(task: Task): Promise<RetrySubmission | null
                 engine,
                 model,
                 device,
-                vad_filter: typeof params.vad_filter === "boolean" ? params.vad_filter : true,
                 language,
                 initial_prompt: initialPrompt,
               },

@@ -73,6 +73,8 @@ describe("ClipCandidateList export UX", () => {
       exportTask: {
         status: "completed",
         progress: 100,
+        message_code: "completed",
+        message_params: {},
         outputCount: 3,
         onOpenOutput,
       },
@@ -85,7 +87,12 @@ describe("ClipCandidateList export UX", () => {
 
   it("treats paused and cancelled tasks as non-spinning states", () => {
     const { container, rerender, props } = renderList({
-      exportTask: { status: "paused", progress: 45 },
+      exportTask: {
+        status: "paused",
+        progress: 45,
+        message_code: "paused",
+        message_params: {},
+      },
     });
     expect(screen.getByText("clips.exportPaused")).toBeInTheDocument();
     expect(container.querySelector(".animate-spin")).toBeNull();
@@ -93,7 +100,12 @@ describe("ClipCandidateList export UX", () => {
     rerender(
       <ClipCandidateList
         {...props}
-        exportTask={{ status: "cancelled", progress: 45 }}
+        exportTask={{
+          status: "cancelled",
+          progress: 45,
+          message_code: "cancelled",
+          message_params: {},
+        }}
       />,
     );
     expect(screen.getByText("clips.exportCancelled")).toBeInTheDocument();

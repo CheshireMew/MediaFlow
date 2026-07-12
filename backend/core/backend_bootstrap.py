@@ -9,7 +9,7 @@ from backend.config import settings
 POST_HEALTH_BOOTSTRAP_DELAY_SECONDS = 0.25
 
 
-def _create_fastapi_app():
+def _create_fastapi_app(dependencies):
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
     from backend.api.v1 import (
@@ -18,7 +18,6 @@ def _create_fastapi_app():
         cookies,
         editor,
         glossary,
-        ocr,
         pipeline,
         settings as settings_api,
         tasks,
@@ -35,25 +34,31 @@ def _create_fastapi_app():
     )
 
     routers = [
-        transcribe.router,
-        translate.router,
-        pipeline.router,
-        analyze.router,
-        ws.router,
-        tasks.router,
-        settings_api.router,
+        transcribe.create_router(dependencies.task_operations),
+        translate.create_router(dependencies.task_operations),
+        pipeline.create_router(dependencies.download),
+        analyze.create_router(dependencies.download),
+        cookies.create_router(dependencies.download),
+        ws.create_router(
+            notifier=dependencies.websocket_notifier,
+            task_manager=dependencies.task_manager,
+        ),
+        tasks.create_router(
+            task_manager=dependencies.task_manager,
+            task_orchestrator=dependencies.task_orchestrator,
+        ),
+        settings_api.create_router(
+            settings_application=dependencies.settings,
+            asr_service=dependencies.asr_service,
+        ),
         audio.router,
-        glossary.router,
-        editor.router,
+        glossary.create_router(dependencies.glossary),
+        editor.create_router(
+            task_operations=dependencies.task_operations,
+            highlight_application=dependencies.highlight,
+        ),
     ]
     prefixed_routers = [(router, "/api/v1") for router in routers]
-    prefixed_routers.append((ocr.router, "/api/v1/ocr"))
-
-    if settings.ENABLE_EXPERIMENTAL_PREPROCESSING:
-        from backend.api.v1 import preprocessing
-
-        prefixed_routers.append((preprocessing.router, "/api/v1/preprocessing"))
-
     for router, prefix in prefixed_routers:
         api_app.include_router(router, prefix=prefix)
 
@@ -133,6 +138,7 @@ class BackendBootstrap:
 
         self._ready_task = None
         self._background_task = None
+        self._api_app = None
         self._loop = None
 
     def _bind_running_loop(self) -> None:
@@ -143,6 +149,7 @@ class BackendBootstrap:
         self._runtime = None
         self._ready_task = None
         self._background_task = None
+        self._api_app = None
         self._lock = asyncio.Lock()
         self._loop = current_loop
 
@@ -150,9 +157,8 @@ class BackendBootstrap:
         if self._container is None:
             raise RuntimeError("Backend bootstrap is not configured.")
 
-        runtime_task = asyncio.create_task(self._start_runtime())
-        app_task = asyncio.create_task(self._load_api_app())
-        await asyncio.gather(runtime_task, app_task)
+        runtime = await self._start_runtime()
+        await self._load_api_app(runtime.build_api_dependencies())
 
     async def _start_runtime(self) -> None:
         from backend.core.app_runtime import ApplicationRuntime
@@ -161,12 +167,16 @@ class BackendBootstrap:
         registered_count = await runtime.start()
         self._runtime = runtime
         logger.info(f"Registered {registered_count} services")
+        return runtime
 
-    async def _load_api_app(self) -> None:
+    async def _load_api_app(self, dependencies) -> None:
         if self._api_app is not None:
             return
 
-        api_app, router_count = await asyncio.to_thread(_create_fastapi_app)
+        api_app, router_count = await asyncio.to_thread(
+            _create_fastapi_app,
+            dependencies,
+        )
         self._api_app = api_app
         logger.info(f"Loaded FastAPI app with {router_count} HTTP API routers")
 

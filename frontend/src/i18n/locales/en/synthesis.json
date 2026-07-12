@@ -1,4 +1,5 @@
 {
+  "feedback": { "watermarkProcessingFailed": "The watermark image could not be processed" },
   "title": "Video Export",
   "clipExport": {
     "title": "Clip Export",
@@ -13,6 +14,15 @@
     "sectionTitle": "Subtitles",
     "stylePreset": "Style Preset",
     "deletePreset": "Delete preset",
+    "deletePresetNamed": "Delete preset {{name}}",
+    "fontUnavailable": "Font \"{{fontName}}\" is unavailable. The preview may use a fallback font.",
+    "presets": {
+      "classicWhite": "Classic white",
+      "yellowBold": "Bold yellow",
+      "cinematic": "Cinematic",
+      "cleanShadow": "Clean shadow",
+      "backgroundPanel": "Background panel"
+    },
     "savePresetTooltip": "Save current settings as preset",
     "save": "Save",
     "presetNamePlaceholder": "Preset name...",
@@ -39,6 +49,7 @@
     "centerAligned": "Center aligned",
     "topAligned": "Top aligned",
     "dragHint": "Drag text in preview to adjust position.",
+    "positionControl": "Subtitle position. Use the Up and Down Arrow keys to adjust; hold Shift for larger steps.",
     "resetPosition": "Reset Position",
     "subtitleDisabledHint": "Subtitle rendering is off. Subtitles will not be burned into the video.",
     "subtitleUnavailableHint": "No subtitles are available for this video, so subtitle rendering is off."
@@ -51,7 +62,9 @@
     "positionPreset": "Position Preset",
     "scale": "Scale",
     "opacity": "Opacity",
-    "watermarkDisabledHint": "Watermark rendering is off. No watermark will be added to the video."
+    "watermarkDisabledHint": "Watermark rendering is off. No watermark will be added to the video.",
+    "previewAlt": "Watermark preview",
+    "positionControl": "Watermark position. Use the Arrow keys to move; hold Shift for larger steps."
   },
   "output": {
     "sectionTitle": "Output",
@@ -60,9 +73,6 @@
     "cpuQuality": "CPU (Quality)",
     "resolution": "Output Resolution",
     "original": "Original",
-    "sr2x": "SR 2x",
-    "sr4x": "SR 4x",
-    "srNote": "AI Super Resolution: Upscale video before burning subtitles. Takes longer. Requires Real-ESRGAN.",
     "filename": "Filename",
     "filenamePlaceholder": "video_synthesized.mp4",
     "batchFiles": "{{count}} separate video files will be exported",
@@ -81,6 +91,12 @@
     "qualitySmallDesc": "CRF 26 (Compressed)",
     "trimVideo": "Trim Video",
     "cropVideo": "Crop Video",
+    "cropRegionControl": "Crop region. Use the Arrow keys to move; hold Shift for larger steps.",
+    "cropHandleTopLeft": "Top-left crop handle. Use the Arrow keys to resize; hold Shift for larger steps.",
+    "cropHandleTopRight": "Top-right crop handle. Use the Arrow keys to resize; hold Shift for larger steps.",
+    "cropHandleBottomLeft": "Bottom-left crop handle. Use the Arrow keys to resize; hold Shift for larger steps.",
+    "cropHandleBottomRight": "Bottom-right crop handle. Use the Arrow keys to resize; hold Shift for larger steps.",
+    "seek": "Preview playback position",
     "trimStart": "Start:",
     "trimEnd": "End:",
     "seconds": "s",

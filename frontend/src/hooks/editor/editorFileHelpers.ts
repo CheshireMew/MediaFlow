@@ -1,7 +1,7 @@
 import { parseSRT } from "../../utils/subtitleParser";
 import type { SubtitleSegment } from "../../types/task";
 import { fileService } from "../../services/fileService";
-import { TRANSLATION_TARGET_LANGUAGES } from "../../services/domain/translationTargetLanguages";
+import { TRANSLATION_TARGET_LANGUAGES } from "../../services/domain";
 
 export const SUPPORTED_EDITOR_SUBTITLE_EXTENSIONS = [".srt"] as const;
 

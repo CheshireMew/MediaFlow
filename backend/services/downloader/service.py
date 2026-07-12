@@ -10,6 +10,7 @@ from loguru import logger
 
 from backend.config import settings
 from backend.models.schemas import TaskResult
+from backend.models.task_message import TaskProgressCallback
 from backend.services.cookie_manager import CookieManager
 from backend.services.download_errors import classify_download_error
 from backend.services.media_url import normalize_media_url
@@ -19,7 +20,7 @@ from backend.services.ytdlp_runtime_options import YtDlpRuntimeOptions
 from .artifacts import DownloadArtifactResolver, sanitize_filename
 from .config_builder import YtDlpConfigBuilder
 from .post_processor import DownloadPostProcessor
-from .progress import CancelCheckCallback, ProgressCallback, ProgressHook
+from .progress import CancelCheckCallback, ProgressHook
 
 
 class DownloaderService:
@@ -42,7 +43,7 @@ class DownloaderService:
         output_dir: Optional[str] = None,
         playlist_title: Optional[str] = None,
         playlist_items: Optional[str] = None,
-        progress_callback: Optional[ProgressCallback] = None,
+        progress_callback: Optional[TaskProgressCallback] = None,
         check_cancel_callback: Optional[CancelCheckCallback] = None,
         download_subs: bool = False,
         resolution: str = "best",
@@ -102,7 +103,7 @@ class DownloaderService:
         output_dir: Optional[str] = None,
         playlist_title: Optional[str] = None,
         playlist_items: Optional[str] = None,
-        progress_callback: Optional[ProgressCallback] = None,
+        progress_callback: Optional[TaskProgressCallback] = None,
         check_cancel_callback: Optional[CancelCheckCallback] = None,
         download_subs: bool = False,
         resolution: str = "best",
@@ -204,7 +205,7 @@ class DownloaderService:
                 subtitle_error = str(e)
                 logger.warning(f"Subtitle download failed after media completed: {e}")
                 if progress_callback:
-                    progress_callback(99.0, "Subtitle download failed, keeping media")
+                    progress_callback(99.0, "download_subtitle_failed", {})
 
         duration = media_info.get("duration", 0)
         title = media_info.get("title") or "Unknown Title"
@@ -222,19 +223,24 @@ class DownloaderService:
             return TaskResult(success=False, error=f"Download failed: {e}")
 
         if progress_callback:
-            progress_callback(100.0, "Download completed")
+            progress_callback(100.0, "download_completed", {})
 
         logger.success(f"Download complete: {artifacts.media_path}")
         return TaskResult(
             success=True,
-            files=artifacts.to_files(),
+            artifacts=artifacts.to_artifacts(),
             meta={
                 "id": task_id or str(uuid.uuid4()),
                 "title": title,
                 "duration": duration,
                 "filename": artifacts.media_path.name,
                 "source_url": url,
-                "download_artifacts": artifacts.to_meta(),
+                "warnings": list(artifacts.warnings),
+                "recovery_strategies": [
+                    item["strategy"]
+                    for item in artifacts.recovery
+                    if "strategy" in item
+                ],
             },
         )
 
@@ -269,14 +275,19 @@ class DownloaderService:
 
         return TaskResult(
             success=True,
-            files=artifacts.to_files(),
+            artifacts=artifacts.to_artifacts(),
             meta={
                 "id": task_id or str(uuid.uuid4()),
                 "title": final_name,
                 "duration": 0,
                 "filename": artifacts.media_path.name,
                 "source_url": url,
-                "download_artifacts": artifacts.to_meta(),
+                "warnings": list(artifacts.warnings),
+                "recovery_strategies": [
+                    item["strategy"]
+                    for item in artifacts.recovery
+                    if "strategy" in item
+                ],
             },
         )
 
@@ -404,18 +415,22 @@ class DownloaderService:
 
     def _build_phase_progress_callback(
         self,
-        progress_callback: Optional[ProgressCallback],
+        progress_callback: Optional[TaskProgressCallback],
         *,
         start: float,
         end: float,
-    ) -> Optional[ProgressCallback]:
+    ) -> Optional[TaskProgressCallback]:
         if not progress_callback:
             return None
 
         span = max(end - start, 0.0)
 
-        def report(progress: float, message: str) -> None:
+        def report(progress: float, message_code: str, message_params=None) -> None:
             bounded = max(0.0, min(100.0, float(progress)))
-            progress_callback(start + (bounded / 100.0) * span, message)
+            progress_callback(
+                start + (bounded / 100.0) * span,
+                message_code,
+                message_params or {},
+            )
 
         return report

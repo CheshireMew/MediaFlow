@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 import { isDesktopRuntime } from "../../services/domain";
 import { useTranslatorStore } from "../../stores/translatorStore";
@@ -8,42 +9,41 @@ import {
   NavigationService,
 } from "../../services/ui/navigation";
 import {
-  normalizeMediaReference,
+  mediaReferenceFromPath,
   type MediaReference,
 } from "../../services/ui/mediaReference";
 import {
   buildTranslatorOutputPath,
   formatTranslatorTimestamp,
   getTranslatorOutputSuffix,
-  stripTranslatorSubtitleExtension,
 } from "./translatorFileHelpers";
 import {
   findRelatedVideoForSubtitle,
   formatRelatedVideoCandidateSummary,
 } from "../../services/ui/relatedMedia";
+import { toast } from "../../utils/toast";
 
 export function createTranslatorEditorNavigationPayload(params: {
-  videoPath: string;
-  subtitlePath: string;
-  targetSubtitleRef: MediaReference | null;
+  video: MediaReference;
+  subtitle: MediaReference;
 }) {
-  const { videoPath, subtitlePath, targetSubtitleRef } = params;
   return createNavigationMediaPayload({
-    videoPath,
-    subtitlePath: targetSubtitleRef?.path ?? subtitlePath,
-    subtitleRef: targetSubtitleRef,
+    videoRef: params.video,
+    subtitleRef: params.subtitle,
   });
 }
 
 export function useTranslatorOutputActions() {
+  const { t } = useTranslation("translator");
   const {
-    sourceFilePath,
+    sourceFileRef,
     targetSubtitleRef,
     targetLang,
     mode,
     targetSegments,
     setTargetSubtitleRef,
   } = useTranslatorStore();
+  const sourceFilePath = sourceFileRef?.path ?? null;
 
   const exportSRT = useCallback(async () => {
     if (!sourceFilePath || !isDesktopRuntime()) return;
@@ -55,8 +55,8 @@ export function useTranslatorOutputActions() {
       const savePath = await fileService.showSaveDialog({
         defaultPath,
         filters: [
-          { name: "Subtitles", extensions: ["srt"] },
-          { name: "Text", extensions: ["txt"] },
+          { name: t("feedback.subtitleFileFilter"), extensions: ["srt"] },
+          { name: t("feedback.textFileFilter"), extensions: ["txt"] },
         ],
       });
 
@@ -79,32 +79,33 @@ export function useTranslatorOutputActions() {
       }
 
       setTargetSubtitleRef(
-        normalizeMediaReference(savePath.filePath, {
+        mediaReferenceFromPath(savePath.filePath, {
           type: savePath.filePath.toLowerCase().endsWith(".txt")
             ? "text/plain"
             : "application/x-subrip",
           origin: "translator-export",
         }),
       );
+      toast.success(t("feedback.exportSuccess", { path: savePath.filePath }));
     } catch (error) {
       console.error(error);
-      alert("Failed to save file: " + error);
+      toast.error(t("feedback.exportFailed"));
     }
-  }, [mode, setTargetSubtitleRef, sourceFilePath, targetLang, targetSegments]);
+  }, [mode, setTargetSubtitleRef, sourceFilePath, t, targetLang, targetSegments]);
 
   const handleOpenInEditor = useCallback(async () => {
     if (!sourceFilePath || targetSegments.length === 0 || !isDesktopRuntime()) {
       return;
     }
 
-    const basePath = stripTranslatorSubtitleExtension(sourceFilePath);
     const videoPath = await findRelatedVideoForSubtitle(sourceFilePath);
 
     if (!videoPath) {
       console.warn("Could not find associated video file.");
-      alert(
-        `Could not find an associated video next to the subtitle.\nTried: ${formatRelatedVideoCandidateSummary(sourceFilePath)}\nThe editor will open with a best-effort video path.`,
-      );
+      toast.warning(t("feedback.relatedVideoMissing", {
+        candidates: formatRelatedVideoCandidateSummary(sourceFilePath),
+      }));
+      return;
     }
 
     const suffix = getTranslatorOutputSuffix(targetLang, mode);
@@ -125,30 +126,34 @@ export function useTranslatorOutputActions() {
       }
     } catch (error) {
       console.error("Failed to auto-save translation before opening editor", error);
-      alert(
-        "Failed to save translation file. Editor might not load the correct file.",
-      );
+      toast.error(t("feedback.editorAutoSaveFailed"));
       return;
     }
 
     const resolvedTargetSubtitleRef =
       targetSubtitleRef ??
-      normalizeMediaReference(targetSrtPath, {
+      mediaReferenceFromPath(targetSrtPath, {
         type: "application/x-subrip",
         origin: "translator-editor-autosave",
       });
     setTargetSubtitleRef(resolvedTargetSubtitleRef);
 
-    const resolvedVideoPath = videoPath || basePath + ".mp4";
+    const resolvedVideoRef = mediaReferenceFromPath(videoPath, {
+      type: "video/mp4",
+      media_kind: "video",
+      role: "source",
+    });
+    if (!resolvedVideoRef || !resolvedTargetSubtitleRef) {
+      return;
+    }
     NavigationService.navigate(
       "editor",
       createTranslatorEditorNavigationPayload({
-        videoPath: resolvedVideoPath,
-        subtitlePath: targetSrtPath,
-        targetSubtitleRef: resolvedTargetSubtitleRef,
+        video: resolvedVideoRef,
+        subtitle: resolvedTargetSubtitleRef,
       }),
     );
-  }, [mode, setTargetSubtitleRef, sourceFilePath, targetLang, targetSegments, targetSubtitleRef]);
+  }, [mode, setTargetSubtitleRef, sourceFilePath, t, targetLang, targetSegments, targetSubtitleRef]);
 
   return {
     exportSRT,

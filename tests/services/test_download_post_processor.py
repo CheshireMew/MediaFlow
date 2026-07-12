@@ -1,4 +1,3 @@
-from pathlib import Path
 
 from backend.services.downloader.artifacts import DownloadArtifactResolver
 

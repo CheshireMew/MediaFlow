@@ -37,11 +37,6 @@ const PAGE_PRESENTATIONS: Record<PagePresentationRoute, PagePresentation> = {
     titleKey: "header.title",
     subtitleKey: "header.subtitle",
   },
-  preprocessing: {
-    namespace: "preprocessing",
-    titleKey: "title",
-    subtitleKey: "subtitle",
-  },
   settings: {
     namespace: "settings",
     titleKey: "title",

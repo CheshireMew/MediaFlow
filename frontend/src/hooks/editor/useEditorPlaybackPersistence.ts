@@ -5,14 +5,15 @@ import {
   restoreEditorPlaybackRate,
   restoreEditorPlaybackTime,
 } from "./editorPlaybackPersistence";
+import type { MediaReference } from "../../services/ui/mediaReference";
 
 type UseEditorPlaybackPersistenceArgs = {
-  currentFilePath: string | null;
+  video: MediaReference | null;
   videoRef: React.RefObject<HTMLVideoElement | null>;
 };
 
 export function useEditorPlaybackPersistence({
-  currentFilePath,
+  video: videoReference,
   videoRef,
 }: UseEditorPlaybackPersistenceArgs) {
   const playbackRateCleanupRef = useRef<(() => void) | null>(null);
@@ -46,26 +47,26 @@ export function useEditorPlaybackPersistence({
   }, []);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !currentFilePath) {
+    const videoElement = videoRef.current;
+    if (!videoElement || !videoReference) {
       return;
     }
 
     const saveTime = () => {
-      if (video.currentTime > 0) {
-        persistEditorPlaybackTime(currentFilePath, video.currentTime);
+      if (videoElement.currentTime > 0) {
+        persistEditorPlaybackTime(videoReference, videoElement.currentTime);
       }
     };
 
     const interval = setInterval(saveTime, 5000);
-    video.addEventListener("pause", saveTime);
+    videoElement.addEventListener("pause", saveTime);
 
     return () => {
       saveTime();
       clearInterval(interval);
-      video.removeEventListener("pause", saveTime);
+      videoElement.removeEventListener("pause", saveTime);
     };
-  }, [currentFilePath, videoRef]);
+  }, [videoReference, videoRef]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -80,7 +81,7 @@ export function useEditorPlaybackPersistence({
   }, [bindPlaybackRatePersistence, videoRef]);
 
   const handleLoadedMetadata = useCallback(() => {
-    if (!currentFilePath || !videoRef.current) {
+    if (!videoReference || !videoRef.current) {
       return;
     }
 
@@ -94,7 +95,7 @@ export function useEditorPlaybackPersistence({
     }
     bindPlaybackRatePersistence(videoRef.current);
 
-    const savedTime = restoreEditorPlaybackTime(currentFilePath);
+    const savedTime = restoreEditorPlaybackTime(videoReference);
     if (!savedTime) {
       return;
     }
@@ -103,7 +104,7 @@ export function useEditorPlaybackPersistence({
     if (!isNaN(time) && time > 0 && time < videoRef.current.duration) {
       videoRef.current.currentTime = time;
     }
-  }, [bindPlaybackRatePersistence, currentFilePath, videoRef]);
+  }, [bindPlaybackRatePersistence, videoReference, videoRef]);
 
   return { handleLoadedMetadata };
 }

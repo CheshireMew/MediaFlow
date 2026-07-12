@@ -7,8 +7,6 @@ import {
 describe("createNavigationMediaPayload", () => {
   it("keeps canonical refs as the only navigation media identity", () => {
     const payload = createNavigationMediaPayload({
-      videoPath: "E:/workspace/video.mp4",
-      subtitlePath: "E:/workspace/video.srt",
       videoRef: {
         path: "E:/canonical/video.mp4",
         name: "video.mp4",
@@ -51,15 +49,15 @@ describe("createNavigationMediaPayload", () => {
     });
   });
 
-  it("builds structured media references from source paths", () => {
+  it("normalizes structured media references", () => {
     const payload = createNavigationMediaPayload({
-      videoPath: "E:/video.mp4",
-      subtitlePath: "E:/video.srt",
-      videoMeta: {
+      videoRef: {
+        path: "E:/video.mp4",
         name: "video.mp4",
         size: 1024,
         type: "video/mp4",
       },
+      subtitleRef: { path: "E:/video.srt", name: "video.srt" },
     });
 
     expect(payload).toEqual({
@@ -75,7 +73,7 @@ describe("createNavigationMediaPayload", () => {
     });
   });
 
-  it("returns null refs when the source paths are missing", () => {
+  it("returns null refs when references are missing", () => {
     expect(createNavigationMediaPayload({})).toEqual({
       video_ref: null,
       subtitle_ref: null,
@@ -89,8 +87,6 @@ describe("createNavigationMediaPayload", () => {
     });
 
     expect(resolveNavigationMediaPayload(payload)).toEqual({
-      videoPath: "E:/canonical-video.mp4",
-      subtitlePath: "E:/canonical-video.srt",
       videoRef: {
         path: "E:/canonical-video.mp4",
         name: "canonical-video.mp4",

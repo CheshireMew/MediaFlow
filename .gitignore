@@ -1,5 +1,23 @@
 # Legacy Archive
 Archive/
+!archive/
+archive/*
+!archive/frontend-unused-components/
+!archive/frontend-unused-components/**
+!archive/frontend-unused-contracts/
+!archive/frontend-unused-contracts/**
+!archive/backend-unused-runtime/
+!archive/backend-unused-runtime/**
+!archive/frontend-unused-tests/
+!archive/frontend-unused-tests/**
+!archive/propainter-prototype/
+!archive/propainter-prototype/**
+!archive/debug-prototypes/
+!archive/debug-prototypes/**
+!archive/legacy-video-synthesizer-scripts/
+!archive/legacy-video-synthesizer-scripts/**
+!archive/removed-preprocessing-feature/
+!archive/removed-preprocessing-feature/**
 
 # Python
 __pycache__/
@@ -8,6 +26,7 @@ __pycache__/
 venv/
 .venv/
 .env
+.pdm-python
 site-packages/
 
 # Generated/Large Directories
@@ -59,6 +78,7 @@ user_data/
 
 # Electron / desktop packaging artifacts
 /frontend/release/
+/frontend/release-smoke/
 /frontend/win-unpacked/
 *.blockmap
 *.asar

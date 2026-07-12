@@ -2,9 +2,14 @@ import type { StateCreator } from "zustand";
 import type { SubtitleSegment } from "../../types/task";
 import type { EditorState } from "../editorStore";
 
+export interface EditorHistoryEntry {
+  regions: SubtitleSegment[];
+  revision: number;
+}
+
 export interface HistorySlice {
-  past: SubtitleSegment[][];
-  future: SubtitleSegment[][];
+  past: EditorHistoryEntry[];
+  future: EditorHistoryEntry[];
 
   undo: () => void;
   redo: () => void;
@@ -24,7 +29,13 @@ export const createHistorySlice: StateCreator<
 
   snapshot: () => {
     set((state) => {
-      const newPast = [...state.past, state.regions];
+      const newPast = [
+        ...state.past,
+        {
+          regions: state.document.regions,
+          revision: state.document.revision,
+        },
+      ];
       if (newPast.length > MAX_HISTORY_SIZE) {
         newPast.shift(); // Keep size in check
       }
@@ -42,9 +53,19 @@ export const createHistorySlice: StateCreator<
       const previous = newPast.pop();
       if (previous) {
         return {
-          regions: previous,
+          document: {
+            ...state.document,
+            regions: previous.regions,
+            revision: previous.revision,
+          },
           past: newPast,
-          future: [state.regions, ...state.future],
+          future: [
+            {
+              regions: state.document.regions,
+              revision: state.document.revision,
+            },
+            ...state.future,
+          ],
         };
       }
       return {};
@@ -57,12 +78,22 @@ export const createHistorySlice: StateCreator<
       const newFuture = [...state.future];
       const next = newFuture.shift();
       if (next) {
-        const newPast = [...state.past, state.regions];
+        const newPast = [
+          ...state.past,
+          {
+            regions: state.document.regions,
+            revision: state.document.revision,
+          },
+        ];
         if (newPast.length > MAX_HISTORY_SIZE) {
           newPast.shift();
         }
         return {
-          regions: next,
+          document: {
+            ...state.document,
+            regions: next.regions,
+            revision: next.revision,
+          },
           past: newPast,
           future: newFuture,
         };

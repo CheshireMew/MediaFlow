@@ -1,5 +1,5 @@
 import random
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+from playwright.async_api import async_playwright, Browser, BrowserContext
 from loguru import logger
 from typing import Optional
 from backend.services.utils.user_agents import get_random_user_agent

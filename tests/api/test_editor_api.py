@@ -32,15 +32,16 @@ def test_editor_synthesize_accepts_missing_subtitle_ref_when_disabled(
     video_path.write_bytes(b"video")
     captured = {}
 
-    async def fake_submit_task_operation(task_type, request):
+    async def fake_submit_task_operation(_self, task_type, request):
         captured["task_type"] = task_type
         captured["request"] = request
         return {
             "task_id": "synthesis-without-subtitles",
             "status": "pending",
-            "message": "Task queued",
+            "message_code": "queued",
+            "message_params": {},
             "task_source": "backend",
-            "task_contract_version": 2,
+            "task_contract_version": 3,
             "persistence_scope": "runtime",
             "lifecycle": "resumable",
             "queue_state": "queued",
@@ -49,7 +50,7 @@ def test_editor_synthesize_accepts_missing_subtitle_ref_when_disabled(
         }
 
     monkeypatch.setattr(
-        "backend.application.task_operations.submit_task_operation",
+        "backend.application.task_operations.TaskOperationService.submit",
         fake_submit_task_operation,
     )
 
@@ -69,6 +70,43 @@ def test_editor_synthesize_accepts_missing_subtitle_ref_when_disabled(
     assert captured["request"].options["skip_subtitles"] is True
 
 
+def test_editor_synthesize_validates_watermark_reference(client, tmp_path):
+    video_path = tmp_path / "demo.mp4"
+    video_path.write_bytes(b"video")
+    missing_watermark = tmp_path / "missing-watermark.png"
+
+    response = client.post(
+        "/api/v1/editor/synthesize",
+        json={
+            "video_ref": {"path": str(video_path), "name": video_path.name},
+            "watermark_ref": {
+                "path": str(missing_watermark),
+                "name": missing_watermark.name,
+            },
+            "options": {"skip_subtitles": True},
+        },
+    )
+
+    assert response.status_code == 404
+    assert "watermark_ref.path" in response.json()["detail"]
+
+
+def test_editor_synthesize_rejects_legacy_watermark_path(client, tmp_path):
+    video_path = tmp_path / "demo.mp4"
+    video_path.write_bytes(b"video")
+
+    response = client.post(
+        "/api/v1/editor/synthesize",
+        json={
+            "video_ref": {"path": str(video_path), "name": video_path.name},
+            "watermark_path": str(tmp_path / "legacy.png"),
+            "options": {"skip_subtitles": True},
+        },
+    )
+
+    assert response.status_code == 422
+
+
 def test_clip_export_rejects_invalid_range_at_request_boundary(client, tmp_path):
     video_path = tmp_path / "demo.mp4"
     video_path.write_bytes(b"video")
@@ -83,6 +121,28 @@ def test_clip_export_rejects_invalid_range_at_request_boundary(client, tmp_path)
     )
 
     assert response.status_code == 422
+
+
+def test_clip_export_validates_watermark_reference(client, tmp_path):
+    video_path = tmp_path / "demo.mp4"
+    video_path.write_bytes(b"video")
+    missing_watermark = tmp_path / "missing-watermark.png"
+
+    response = client.post(
+        "/api/v1/editor/clips/export",
+        json={
+            "video_ref": {"path": str(video_path), "name": video_path.name},
+            "watermark_ref": {
+                "path": str(missing_watermark),
+                "name": missing_watermark.name,
+            },
+            "render_mode": "source",
+            "segments": [{"id": "clip-1", "start": 0, "end": 1}],
+        },
+    )
+
+    assert response.status_code == 404
+    assert "watermark_ref.path" in response.json()["detail"]
 
 
 def test_clip_export_rejects_out_of_bounds_range_before_queueing(client, tmp_path, monkeypatch):

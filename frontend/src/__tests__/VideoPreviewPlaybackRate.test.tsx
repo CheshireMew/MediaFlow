@@ -4,6 +4,20 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VideoPreview } from "../components/editor/VideoPreview";
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string) => ({
+      "videoPreview.seek": "播放进度",
+      "videoPreview.volume": "音量",
+      "videoPreview.fullscreen": "全屏",
+      "videoPreview.playbackRate": "播放速度",
+      "videoPreview.playFrame": "播放视频画面",
+      "videoPreview.subtitlePosition": "字幕位置",
+      "videoPreview.normalSpeed": "正常",
+    } as Record<string, string>)[key] ?? key,
+  }),
+}));
+
 describe("VideoPreview playback rate menu", () => {
   let requestFullscreen: ReturnType<typeof vi.fn>;
 
@@ -41,6 +55,7 @@ describe("VideoPreview playback rate menu", () => {
     expect(screen.getByRole("slider", { name: "播放进度" })).toBeTruthy();
     expect(screen.getByRole("slider", { name: "音量" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "全屏" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "videoPreview.subtitleBackgroundOpacity" })).toHaveLength(3);
 
     fireEvent.click(screen.getByRole("button", { name: "播放速度" }));
     fireEvent.click(
@@ -85,6 +100,25 @@ describe("VideoPreview playback rate menu", () => {
     fireEvent.click(screen.getByRole("button", { name: "播放速度" }));
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("menu", { name: "播放速度" })).toBeNull();
+  });
+
+  it("moves the subtitle preview with the keyboard", () => {
+    const videoRef = React.createRef<HTMLVideoElement>();
+    render(
+      <VideoPreview
+        mediaUrl="file:///D:/video.mp4"
+        videoRef={videoRef}
+        regions={[{ id: "1", start: 0, end: 10, text: "键盘字幕" }]}
+      />,
+    );
+
+    const control = screen.getByRole("button", { name: "字幕位置" });
+    const layer = screen.getByTestId("editor-preview-subtitle-layer");
+    expect(layer).toHaveStyle({ left: "50%", top: "76%" });
+
+    fireEvent.keyDown(control, { key: "ArrowRight" });
+    fireEvent.keyDown(control, { key: "ArrowUp", shiftKey: true });
+    expect(layer).toHaveStyle({ left: "51%", top: "71%" });
   });
 
   it("toggles playback from the video frame and fullscreens the subtitle panel", () => {

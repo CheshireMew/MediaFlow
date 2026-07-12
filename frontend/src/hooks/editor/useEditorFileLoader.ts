@@ -1,8 +1,13 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useEditorStore } from "../../stores/editorStore";
 import { isDesktopRuntime } from "../../services/domain";
 import { fileService } from "../../services/fileService";
-import { normalizeMediaReference } from "../../services/ui/mediaReference";
+import {
+  mediaReferenceFromPath,
+  normalizeMediaReference,
+  type MediaReference,
+} from "../../services/ui/mediaReference";
 import {
   buildHtmlFileAccept,
   fileMatchesOpenDialogProfile,
@@ -15,110 +20,131 @@ import {
 import { findRelatedVideoForSubtitle } from "../../services/ui/relatedMedia";
 import { resolveEditorPreviewMediaUrl } from "./editorPreviewSource";
 import { useEditorDocumentWriters } from "./useEditorDocumentWriters";
-
-type ElectronMediaFile = {
-  path: string;
-  name: string;
-  size: number;
-};
+import { useConfirmation } from "../../components/ui/confirmationContext";
+import { toast } from "../../utils/toast";
 
 export function useEditorFileLoader() {
+  const { t } = useTranslation("editor");
+  const confirmAction = useConfirmation();
   const fileProfile = "editor-media" as const;
   const {
     replaceEditorDocument,
-    setMediaUrl,
-    setCurrentFilePath,
-    setCurrentSubtitlePath,
-    setCurrentFileRef,
-    setCurrentSubtitleRef,
   } = useEditorDocumentWriters();
 
-  const tryLoadRelatedSubtitle = useCallback(
+  const confirmDocumentSwitch = useCallback(async () => {
+    const { document } = useEditorStore.getState();
+    if (document.revision === document.savedRevision) {
+      return true;
+    }
+    return await confirmAction({
+      title: t("document.discardChangesTitle"),
+      message: t("document.discardChangesMessage"),
+      confirmLabel: t("document.discardChangesConfirm"),
+      cancelLabel: t("document.discardChangesCancel"),
+      tone: "danger",
+    });
+  }, [confirmAction, t]);
+
+  const findRelatedSubtitle = useCallback(
     async (videoPath: string) => {
       for (const subtitlePath of buildRelatedSubtitleCandidates(videoPath)) {
         try {
           const parsed = await loadEditorSubtitle(subtitlePath);
           if (parsed.length > 0) {
-            replaceEditorDocument(parsed, {
-              preserveSelection:
-                subtitlePath === useEditorStore.getState().currentSubtitlePath,
-            });
-            setCurrentSubtitlePath(subtitlePath);
-            setCurrentSubtitleRef(normalizeMediaReference(subtitlePath));
-            return;
+            const subtitle = mediaReferenceFromPath(subtitlePath);
+            if (!subtitle) {
+              continue;
+            }
+            return {
+              regions: parsed,
+              subtitle,
+            };
           }
         } catch {
           // Ignore missing files.
         }
       }
+      return null;
     },
-    [replaceEditorDocument, setCurrentSubtitlePath, setCurrentSubtitleRef],
+    [],
   );
 
   const loadMediaAndResources = useCallback(
-    async (path: string) => {
-      if (!path || typeof path !== "string") {
-        return;
+    async (fileRef: MediaReference) => {
+      const path = fileRef.path;
+      const currentVideoPath = useEditorStore.getState().document.video?.path;
+      if (path !== currentVideoPath && !(await confirmDocumentSwitch())) {
+        return false;
       }
 
-      replaceEditorDocument([]);
-      setCurrentFilePath(path);
-      setCurrentSubtitlePath(null);
-      const fileRef = normalizeMediaReference(path);
-      setCurrentFileRef(fileRef);
-      setCurrentSubtitleRef(null);
-      setMediaUrl(await resolveEditorPreviewMediaUrl(path, fileRef));
-      await tryLoadRelatedSubtitle(path);
+      const [previewUrl, relatedSubtitle] = await Promise.all([
+        resolveEditorPreviewMediaUrl(fileRef),
+        findRelatedSubtitle(path),
+      ]);
+      replaceEditorDocument({
+        video: fileRef,
+        subtitle: relatedSubtitle?.subtitle ?? null,
+        previewUrl,
+        regions: relatedSubtitle?.regions ?? [],
+      });
+      return true;
     },
     [
+      confirmDocumentSwitch,
+      findRelatedSubtitle,
       replaceEditorDocument,
-      setCurrentFilePath,
-      setCurrentFileRef,
-      setCurrentSubtitlePath,
-      setCurrentSubtitleRef,
-      setMediaUrl,
-      tryLoadRelatedSubtitle,
     ],
   );
 
   const loadSubtitleFromPath = useCallback(
-    async (path: string) => {
+    async (subtitleRef: MediaReference) => {
+      const path = subtitleRef.path;
       if (!isSupportedEditorSubtitlePath(path)) {
-        alert("Only SRT subtitle files are supported in the editor.");
-        return;
+        toast.warning(t("document.unsupportedSubtitle"));
+        return false;
+      }
+      const currentSubtitlePath = useEditorStore.getState().document.subtitle?.path;
+      if (path !== currentSubtitlePath && !(await confirmDocumentSwitch())) {
+        return false;
       }
 
       const videoPath = await findRelatedVideoForSubtitle(path);
-      if (videoPath) {
-        const videoRef = normalizeMediaReference(videoPath);
-        setCurrentFilePath(videoPath);
-        setCurrentFileRef(videoRef);
-        setMediaUrl(await resolveEditorPreviewMediaUrl(videoPath, videoRef));
-      }
 
       try {
         const parsed = await loadEditorSubtitle(path);
         if (parsed.length === 0) {
-          alert("Failed to parse subtitle file. Please provide a valid SRT file.");
-          return;
+          toast.error(t("document.invalidSubtitle"));
+          return false;
         }
-        replaceEditorDocument(parsed, {
-          preserveSelection: path === useEditorStore.getState().currentSubtitlePath,
+        const currentDocument = useEditorStore.getState().document;
+        const video = videoPath
+          ? mediaReferenceFromPath(videoPath)
+          : currentDocument.video;
+        if (videoPath && !video) {
+          return false;
+        }
+        const previewUrl = videoPath
+          ? await resolveEditorPreviewMediaUrl(video!)
+          : currentDocument.previewUrl;
+        replaceEditorDocument({
+          video,
+          subtitle: subtitleRef,
+          previewUrl,
+          regions: parsed,
+        }, {
+          preserveSelection: path === currentSubtitlePath,
         });
-        setCurrentSubtitlePath(path);
-        setCurrentSubtitleRef(normalizeMediaReference(path));
+        return true;
       } catch (error) {
         console.error("[EditorIO] Failed to load subtitle:", error);
-        alert("Failed to load subtitle file.");
+        toast.error(t("document.loadSubtitleError"));
+        return false;
       }
     },
     [
+      confirmDocumentSwitch,
       replaceEditorDocument,
-      setCurrentFileRef,
-      setCurrentFilePath,
-      setCurrentSubtitleRef,
-      setCurrentSubtitlePath,
-      setMediaUrl,
+      t,
     ],
   );
 
@@ -128,10 +154,10 @@ export function useEditorFileLoader() {
         const result = await fileService.openFile({
           profile: fileProfile,
         });
-        const path = (result as ElectronMediaFile | null)?.path;
+        const fileRef = normalizeMediaReference(result);
 
-        if (path) {
-          await loadMediaAndResources(path);
+        if (fileRef) {
+          await loadMediaAndResources(fileRef);
         }
       } catch (error) {
         console.error("Failed to open file:", error);
@@ -139,19 +165,25 @@ export function useEditorFileLoader() {
       return;
     }
 
-    const input = document.createElement("input");
+      const input = document.createElement("input");
     input.type = "file";
     input.accept = buildHtmlFileAccept(fileProfile);
-    input.onchange = () => {
+    input.onchange = async () => {
       const file = input.files?.[0];
       if (file && fileMatchesOpenDialogProfile(file, fileProfile)) {
-        setMediaUrl(URL.createObjectURL(file));
-        setCurrentFileRef(null);
-        setCurrentSubtitleRef(null);
+        if (!(await confirmDocumentSwitch())) {
+          return;
+        }
+        replaceEditorDocument({
+          video: null,
+          subtitle: null,
+          previewUrl: URL.createObjectURL(file),
+          regions: [],
+        });
       }
     };
     input.click();
-  }, [fileProfile, loadMediaAndResources, setCurrentFileRef, setCurrentSubtitleRef, setMediaUrl]);
+  }, [confirmDocumentSwitch, fileProfile, loadMediaAndResources, replaceEditorDocument]);
 
   const handleOpenSubtitle = useCallback(async () => {
     if (!isDesktopRuntime()) {
@@ -159,11 +191,11 @@ export function useEditorFileLoader() {
     }
 
     try {
-      const result = await fileService.openSubtitleFile();
-      const path = (result as { path?: string } | null)?.path;
+      const result = await fileService.openFile({ profile: "subtitle" });
+      const subtitleRef = normalizeMediaReference(result);
 
-      if (path) {
-        await loadSubtitleFromPath(path);
+      if (subtitleRef) {
+        await loadSubtitleFromPath(subtitleRef);
       }
     } catch (error) {
       console.error("Failed to open subtitle file:", error);
@@ -175,6 +207,7 @@ export function useEditorFileLoader() {
     handleOpenSubtitle,
     loadMediaAndResources,
     loadSubtitleFromPath,
-    tryLoadRelatedSubtitle,
+    findRelatedSubtitle,
+    confirmDocumentSwitch,
   };
 }

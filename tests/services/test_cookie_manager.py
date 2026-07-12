@@ -1,6 +1,4 @@
-import pytest
 import time
-from pathlib import Path
 import os
 from backend.services.cookie_manager import CookieManager
 

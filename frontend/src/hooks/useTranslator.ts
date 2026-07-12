@@ -8,8 +8,8 @@ import { useTranslationTask } from "./useTranslationTask";
 import { useGlossary } from "./useGlossary";
 import { useFileIO } from "./useFileIO";
 import type { SubtitleSegment } from "../types/task";
-import type { GlossaryTerm } from "../services/domain";
-import type { TranslationTargetLanguage } from "../services/domain/translationTargetLanguages";
+import type { GlossaryTerm, TranslationTargetLanguage } from "../services/domain";
+import type { MediaReference } from "../services/ui/mediaReference";
 
 // --- Types ---
 export type { TranslatorMode };
@@ -19,8 +19,8 @@ interface UseTranslatorReturn {
   sourceSegments: SubtitleSegment[];
   targetSegments: SubtitleSegment[];
   glossary: GlossaryTerm[];
-  sourceFilePath: string | null;
-  targetSubtitlePath: string | null;
+  sourceFileRef: MediaReference | null;
+  targetSubtitleRef: MediaReference | null;
 
   // UI State
   targetLang: TranslationTargetLanguage;
@@ -39,7 +39,7 @@ interface UseTranslatorReturn {
   updateTargetSegment: (index: number, text: string) => void;
   setTargetLang: (lang: TranslationTargetLanguage) => void;
   setMode: (m: TranslatorMode) => void;
-  handleFileUpload: (path: string) => Promise<void>;
+  handleFileUpload: (input: MediaReference) => Promise<void>;
   refreshGlossary: () => Promise<void>;
   startTranslation: () => Promise<void>;
   proofreadSubtitle: () => Promise<void>;
@@ -52,6 +52,7 @@ export const useTranslator = (): UseTranslatorReturn => {
   const {
     sourceSegments,
     targetSegments,
+    sourceFileRef,
     activeMode,
     resultMode,
     targetSubtitleRef,
@@ -70,8 +71,8 @@ export const useTranslator = (): UseTranslatorReturn => {
     sourceSegments,
     targetSegments,
     glossary: glo.glossary,
-    sourceFilePath: io.sourceFilePath,
-    targetSubtitlePath: targetSubtitleRef?.path ?? null,
+    sourceFileRef: io.sourceFileRef ?? sourceFileRef,
+    targetSubtitleRef,
 
     // UI State
     targetLang: task.targetLang,

@@ -1,5 +1,7 @@
 from typing import Optional
 
+from backend.models.task_message import TaskMessageParams
+
 
 class TaskControlService:
     @staticmethod
@@ -20,21 +22,24 @@ class TaskControlService:
         stop_requests: dict[str, str],
         task_id: str,
         request: Optional[str],
-        message: Optional[str] = None,
+        message_code: Optional[str] = None,
+        message_params: TaskMessageParams | None = None,
     ) -> None:
         if request == "pause":
             await task_manager.update_task(
                 task_id,
                 status="paused",
                 cancelled=False,
-                message=message or "Paused",
+                message_code=message_code or "paused",
+                message_params=message_params or {},
             )
         elif request == "cancel":
             await task_manager.update_task(
                 task_id,
                 status="cancelled",
                 cancelled=True,
-                message=message or "Cancelled",
+                message_code=message_code or "cancelled",
+                message_params=message_params or {},
             )
         self.clear_stop_request(stop_requests, task_id)
 
@@ -45,7 +50,11 @@ class TaskControlService:
 
         if task_manager.is_task_running(task_id) or task.status == "running":
             task_manager.set_stop_request(task_id, "pause")
-            await task_manager.update_task(task_id, message="Pause requested...")
+            await task_manager.update_task(
+                task_id,
+                message_code="pause_requested",
+                message_params={},
+            )
             return True
 
         if task.status == "pending":
@@ -55,7 +64,8 @@ class TaskControlService:
                 task_id,
                 status="paused",
                 cancelled=False,
-                message="Paused in queue",
+                message_code="paused_in_queue",
+                message_params={},
             )
             return True
 
@@ -68,7 +78,11 @@ class TaskControlService:
 
         if task_manager.is_task_running(task_id) or task.status == "running":
             task_manager.set_stop_request(task_id, "cancel")
-            await task_manager.update_task(task_id, message="Cancellation requested...")
+            await task_manager.update_task(
+                task_id,
+                message_code="cancellation_requested",
+                message_params={},
+            )
             return True
 
         if task.status == "pending":
@@ -78,7 +92,8 @@ class TaskControlService:
                 task_id,
                 status="cancelled",
                 cancelled=True,
-                message="Cancelled in queue",
+                message_code="cancelled_in_queue",
+                message_params={},
             )
             return True
 
@@ -88,7 +103,8 @@ class TaskControlService:
                 task_id,
                 status="cancelled",
                 cancelled=True,
-                message="Cancelled",
+                message_code="cancelled",
+                message_params={},
             )
             return True
 

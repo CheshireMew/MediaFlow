@@ -1,16 +1,17 @@
 import asyncio
 import concurrent.futures
 from collections.abc import Awaitable, Callable
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Dict, Optional
 
 from loguru import logger
 
-from backend.core.database import get_session_context, init_db
+from backend.core.database import init_db
 from backend.core.task_control import (
     TaskCancelRequested,
     TaskPauseRequested,
 )
 from backend.models.schemas import TaskView
+from backend.models.task_message import TaskMessageParams
 from backend.models.task_model import Task
 from backend.services.task_control_service import TaskControlService
 from backend.services.task_event_publisher import TaskEventPublisher
@@ -18,10 +19,6 @@ from backend.services.task_queue_runner import TaskQueueRunner
 from backend.services.task_queue_view import TaskQueueView
 from backend.services.task_repository import TaskRepository
 from backend.services.task_runtime_state import TaskRuntimeState
-
-if TYPE_CHECKING:
-    from backend.core.ws_notifier import WebSocketNotifier
-
 
 class TaskManager:
     def __init__(
@@ -32,13 +29,8 @@ class TaskManager:
         queue_view: TaskQueueView,
         control_service: TaskControlService,
         runtime_state: TaskRuntimeState,
-        notifier: Optional["WebSocketNotifier"] = None,
     ):
         self.tasks: Dict[str, Task] = {}
-        resolved_notifier = notifier
-        if resolved_notifier is None and event_publisher is not None:
-            resolved_notifier = getattr(event_publisher, "_notifier", None)
-        self._notifier: Optional["WebSocketNotifier"] = resolved_notifier
         self._repository = repository
         self._event_publisher = event_publisher
         self._queue_view = queue_view
@@ -52,6 +44,11 @@ class TaskManager:
         self._tasks_loaded = asyncio.Event()
         self._hydration_started = False
         self._startup_lock = asyncio.Lock()
+        # A task update changes one logical record across SQLite, the in-memory
+        # projection, history retention, and WebSocket clients. Keep that
+        # transition atomic so a terminal state cannot be paired with an older
+        # in-flight progress/control message.
+        self._task_update_lock = asyncio.Lock()
 
     async def init_async(self):
         """Initialize DB, load tasks, and start queue workers."""
@@ -203,14 +200,16 @@ class TaskManager:
     async def create_task(
         self,
         task_type: str,
-        initial_message: str = "Pending...",
+        initial_message_code: str = "queued",
+        initial_message_params: TaskMessageParams | None = None,
         request_params: Dict = None,
         task_name: str = None,
     ) -> str:
         await self._wait_for_mutation_boundary()
         new_task = await self._repository.create_task(
             task_type=task_type,
-            initial_message=initial_message,
+            initial_message_code=initial_message_code,
+            initial_message_params=initial_message_params,
             request_params=request_params,
             task_name=task_name,
         )
@@ -222,7 +221,8 @@ class TaskManager:
         self,
         task_id: str,
         runner: Callable[[], Awaitable[None]],
-        queued_message: Optional[str] = None,
+        queued_message_code: Optional[str] = None,
+        queued_message_params: TaskMessageParams | None = None,
     ) -> None:
         await self._wait_for_mutation_boundary()
         task = self.get_task(task_id)
@@ -234,8 +234,9 @@ class TaskManager:
 
         self.clear_stop_request(task_id)
         updates = {"status": "pending", "cancelled": False}
-        if queued_message is not None:
-            updates["message"] = queued_message
+        if queued_message_code is not None:
+            updates["message_code"] = queued_message_code
+            updates["message_params"] = queued_message_params or {}
         self._queue_runner.prepare_enqueue(task_id, runner)
         try:
             await self.update_task(task_id, **updates)
@@ -276,34 +277,42 @@ class TaskManager:
         if request == "cancel":
             raise TaskCancelRequested("Task cancelled by user")
 
-    async def mark_controlled_stop(self, task_id: str, request: Optional[str], message: Optional[str] = None):
+    async def mark_controlled_stop(
+        self,
+        task_id: str,
+        request: Optional[str],
+        message_code: Optional[str] = None,
+        message_params: TaskMessageParams | None = None,
+    ):
         await self._control_service.mark_controlled_stop(
             self,
             self._stop_requests,
             task_id,
             request,
-            message=message,
+            message_code=message_code,
+            message_params=message_params,
         )
 
     async def update_task(self, task_id: str, **kwargs):
         await self.ensure_started_async()
-        updated_task = await self._repository.update_task(
-            task_id,
-            cached_task=self.tasks.get(task_id),
-            **kwargs,
-        )
-        if updated_task:
-            self.tasks[task_id] = updated_task
-            pruned_task_ids: list[str] = []
-            if updated_task.persistence_scope == "history":
-                pruned_task_ids = await self._repository.trim_history()
-                for pruned_task_id in pruned_task_ids:
-                    self.tasks.pop(pruned_task_id, None)
+        async with self._task_update_lock:
+            updated_task = await self._repository.update_task(
+                task_id,
+                cached_task=self.tasks.get(task_id),
+                **kwargs,
+            )
+            if updated_task:
+                self.tasks[task_id] = updated_task
+                pruned_task_ids: list[str] = []
+                if updated_task.persistence_scope == "history":
+                    pruned_task_ids = await self._repository.trim_history()
+                    for pruned_task_id in pruned_task_ids:
+                        self.tasks.pop(pruned_task_id, None)
 
-            if task_id not in pruned_task_ids:
-                await self._event_publisher.publish_update(self.serialize_task(updated_task))
-            for pruned_task_id in pruned_task_ids:
-                await self._event_publisher.publish_delete(pruned_task_id)
+                if task_id not in pruned_task_ids:
+                    await self._event_publisher.publish_update(self.serialize_task(updated_task))
+                for pruned_task_id in pruned_task_ids:
+                    await self._event_publisher.publish_delete(pruned_task_id)
 
     async def pause_task(self, task_id: str) -> bool:
         await self._wait_for_mutation_boundary()
@@ -381,7 +390,3 @@ class TaskManager:
 
     def get_task(self, task_id: str) -> Optional[Task]:
         return self.tasks.get(task_id)
-
-    def is_cancelled(self, task_id: str) -> bool:
-        task = self.tasks.get(task_id)
-        return task.cancelled if task else False

@@ -1,12 +1,12 @@
 import type { AnalyzeResult, CookieStatusResponse, ElectronCookie } from "../../types/api";
 import { executeBackendDirectCall } from "./executionExecutor";
+import { apiClient } from "../../api/client";
 
 export const downloaderService = {
   async analyzeUrl(url: string): Promise<AnalyzeResult> {
     return await executeBackendDirectCall({
       payload: url,
-      backendCall: (nextUrl) =>
-        import("../../api/client").then(({ apiClient }) => apiClient.analyzeUrl(nextUrl)),
+      backendCall: (nextUrl) => apiClient.analyzeUrl(nextUrl),
     });
   },
 
@@ -14,9 +14,7 @@ export const downloaderService = {
     return await executeBackendDirectCall({
       payload: { domain, cookies },
       backendCall: ({ domain: nextDomain, cookies: nextCookies }) =>
-        import("../../api/client").then(({ apiClient }) =>
-          apiClient.saveCookies(nextDomain, nextCookies),
-        ),
+        apiClient.saveCookies(nextDomain, nextCookies),
     });
   },
 };

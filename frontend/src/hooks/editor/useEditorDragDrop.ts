@@ -1,14 +1,20 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { isDesktopRuntime } from "../../services/domain";
 import { fileService } from "../../services/fileService";
 import { fileMatchesOpenDialogProfile } from "../../contracts/openFileContract";
 import { isSupportedEditorSubtitlePath } from "./editorFileHelpers";
+import { toast } from "../../utils/toast";
+import {
+  mediaReferenceFromPath,
+  type MediaReference,
+} from "../../services/ui/mediaReference";
 
 type DragFileWithPath = File & { path?: string };
 
 type UseEditorDragDropArgs = {
-  loadVideo: (path: string) => Promise<void>;
-  loadSubtitleFromPath: (path: string) => Promise<void>;
+  loadVideo: (reference: MediaReference) => Promise<unknown>;
+  loadSubtitleFromPath: (reference: MediaReference) => Promise<unknown>;
 };
 
 function resolveDragFilePath(file: DragFileWithPath): string | undefined {
@@ -25,6 +31,7 @@ export function useEditorDragDrop({
   loadVideo,
   loadSubtitleFromPath,
 }: UseEditorDragDropArgs) {
+  const { t } = useTranslation("editor");
   const mediaProfile = "editor-media" as const;
   const handleVideoDrop = useCallback(
     async (event: React.DragEvent) => {
@@ -37,8 +44,16 @@ export function useEditorDragDrop({
       }
 
       const path = resolveDragFilePath(file);
-      if (path) {
-        await loadVideo(path);
+      const reference = path
+        ? mediaReferenceFromPath(path, {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            origin: "drag-drop",
+          })
+        : null;
+      if (reference) {
+        await loadVideo(reference);
       }
     },
     [loadVideo],
@@ -56,16 +71,24 @@ export function useEditorDragDrop({
       }
 
       if (!isSupportedEditorSubtitlePath(name)) {
-        alert("Only SRT subtitle files are supported in the editor.");
+        toast.warning(t("document.unsupportedSubtitle"));
         return;
       }
 
       const path = resolveDragFilePath(file);
-      if (path) {
-        await loadSubtitleFromPath(path);
+      const reference = path
+        ? mediaReferenceFromPath(path, {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            origin: "drag-drop",
+          })
+        : null;
+      if (reference) {
+        await loadSubtitleFromPath(reference);
       }
     },
-    [loadSubtitleFromPath],
+    [loadSubtitleFromPath, t],
   );
 
   const handleDragOver = useCallback((event: React.DragEvent) => {

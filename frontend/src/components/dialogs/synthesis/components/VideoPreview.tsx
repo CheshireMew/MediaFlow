@@ -69,6 +69,7 @@ export const VideoPreview: React.FC<Props> = ({
   actionLabel,
 }) => {
   const frameRef = useRef<HTMLDivElement>(null);
+  const outputViewportRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation("synthesis");
   const [isTrimOpen, setIsTrimOpen] = useState(false);
   const { mediaState, bindVideoEvents } = usePreviewMediaState({
@@ -76,9 +77,9 @@ export const VideoPreview: React.FC<Props> = ({
     videoRef,
     setVideoSize,
   });
-  const frameSize = usePreviewFrameMetrics(frameRef, mediaUrl);
+  const outputViewportSize = usePreviewFrameMetrics(outputViewportRef, mediaUrl);
   const { dragging, startDrag, startSubtitleDrag } = usePreviewDrag({
-    frameRef,
+    viewportRef: outputViewportRef,
     setWmPos: watermark.setWmPos,
     setSubPos: style.setSubPos,
   });
@@ -89,7 +90,12 @@ export const VideoPreview: React.FC<Props> = ({
     ? { w: mediaState.width, h: mediaState.height }
     : { w: 0, h: 0 };
   const effectiveDuration = metadataReady ? mediaState.duration : 0;
-  const previewViewportMetrics = resolvePreviewViewportMetrics({
+  const sourceViewportMetrics = resolvePreviewViewportMetrics({
+    sourceWidth: effectiveVideoSize.w,
+    sourceHeight: effectiveVideoSize.h,
+    crop: null,
+  });
+  const outputViewportMetrics = resolvePreviewViewportMetrics({
     sourceWidth: effectiveVideoSize.w,
     sourceHeight: effectiveVideoSize.h,
     crop: crop.isEnabled ? crop.crop : null,
@@ -185,20 +191,20 @@ export const VideoPreview: React.FC<Props> = ({
             onKeyDown={handlePreviewFrameKeyDown}
             className="relative shadow-2xl shadow-black/50 border border-white/10 bg-black rounded-lg overflow-hidden ring-1 ring-white/5 max-w-full max-h-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/70"
             style={{
-              aspectRatio: `${previewViewportMetrics.aspectRatio}`,
+              aspectRatio: `${sourceViewportMetrics.aspectRatio}`,
               width:
                 effectiveVideoSize.w > 0 && effectiveVideoSize.h > 0
                   ? "min(100%, calc((100vh - 240px) * var(--preview-aspect)))"
                   : undefined,
               height: "auto",
-              ["--preview-aspect" as string]: `${previewViewportMetrics.aspectRatio}`,
+              ["--preview-aspect" as string]: `${sourceViewportMetrics.aspectRatio}`,
             }}
           >
             <PreviewMediaElement
               mediaUrl={mediaUrl}
               videoRef={videoRef}
               isFrameReady={frameReady}
-              viewportMetrics={previewViewportMetrics}
+              viewportMetrics={sourceViewportMetrics}
               videoEvents={bindVideoEvents(mediaUrl, handlePreviewTimeUpdate)}
             />
 
@@ -217,7 +223,7 @@ export const VideoPreview: React.FC<Props> = ({
                 <span className="text-sm font-medium text-slate-300">
                   {t("preview.mediaLoadError")}
                 </span>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-slate-400">
                   {t("preview.mediaLoadErrorHint")}
                 </span>
               </div>
@@ -227,33 +233,46 @@ export const VideoPreview: React.FC<Props> = ({
               <CropOverlay crop={crop.crop} setCrop={crop.setCrop} containerRef={frameRef} />
             )}
 
-            {watermarkEnabled && watermark.watermarkPreviewUrl && frameReady && (
-              <WatermarkPreviewLayer
-                watermarkPreviewUrl={watermark.watermarkPreviewUrl}
-                wmScale={watermark.wmScale}
-                wmOpacity={watermark.wmOpacity}
-                wmPos={watermark.wmPos}
-                dragging={dragging}
-                onDragStart={startDrag}
-              />
-            )}
+            <div
+              ref={outputViewportRef}
+              data-testid="synthesis-output-viewport"
+              className="absolute overflow-hidden"
+              style={{
+                left: `${outputViewportMetrics.cropRegion.x * 100}%`,
+                top: `${outputViewportMetrics.cropRegion.y * 100}%`,
+                width: `${outputViewportMetrics.cropRegion.w * 100}%`,
+                height: `${outputViewportMetrics.cropRegion.h * 100}%`,
+              }}
+            >
+              {watermarkEnabled && watermark.watermarkPreviewUrl && frameReady && (
+                <WatermarkPreviewLayer
+                  watermarkPreviewUrl={watermark.watermarkPreviewUrl}
+                  wmScale={watermark.wmScale}
+                  wmOpacity={watermark.wmOpacity}
+                  wmPos={watermark.wmPos}
+                  dragging={dragging}
+                  onDragStart={startDrag}
+                  onPositionChange={watermark.setWmPos}
+                />
+              )}
 
-            {subtitleEnabled && frameReady && (
-              <SubtitlePreviewLayer
-                style={style}
-                frameSize={frameSize}
-                sourceSize={{
-                  width: previewViewportMetrics.outputSourceWidth,
-                  height: previewViewportMetrics.outputSourceHeight,
-                }}
-                fallbackText={t("preview.subtitlePosition")}
-                dragging={dragging}
-                onSubtitleDragStart={startSubtitleDrag}
-              />
-            )}
+              {subtitleEnabled && frameReady && (
+                <SubtitlePreviewLayer
+                  style={style}
+                  frameSize={outputViewportSize}
+                  sourceSize={{
+                    width: outputViewportMetrics.outputSourceWidth,
+                    height: outputViewportMetrics.outputSourceHeight,
+                  }}
+                  fallbackText={t("preview.subtitlePosition")}
+                  dragging={dragging}
+                  onSubtitleDragStart={startSubtitleDrag}
+                />
+              )}
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center w-full h-full text-slate-600 bg-white/[0.02] rounded-lg border border-white/10 ring-1 ring-white/5">
+          <div className="flex flex-col items-center justify-center w-full h-full text-slate-400 bg-white/[0.02] rounded-lg border border-white/10 ring-1 ring-white/5">
             <Play size={48} className="opacity-20 mb-4" />
             <span className="text-sm font-medium">{t("preview.noMediaLoaded")}</span>
           </div>

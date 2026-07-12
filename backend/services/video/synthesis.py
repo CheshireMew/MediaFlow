@@ -7,19 +7,16 @@ from backend.services.video.encoder_config import EncoderConfigResolver
 from backend.services.video.ffmpeg_runner import FfmpegRunner
 from backend.services.video.filter_graph_builder import FilterGraphBuilder
 from backend.services.video.media_prober import MediaProber
-from backend.services.video.super_resolution_stage import SuperResolutionStage
 
 
 class SynthesisOrchestrator:
     def __init__(
         self,
         *,
-        super_resolution_stage: SuperResolutionStage,
         filter_graph_builder: FilterGraphBuilder,
         encoder_config_resolver: EncoderConfigResolver,
         ffmpeg_runner: FfmpegRunner,
     ):
-        self._super_resolution_stage = super_resolution_stage
         self._filter_graph_builder = filter_graph_builder
         self._encoder_config_resolver = encoder_config_resolver
         self._ffmpeg_runner = ffmpeg_runner
@@ -36,27 +33,26 @@ class SynthesisOrchestrator:
         options = dict(options or {})
         temp_ass = None
         temp_fonts_dir = None
-        sr_result = self._super_resolution_stage.prepare(video_path, options, progress_callback)
         try:
-            self._ensure_media_inputs_exist(sr_result.video_path, srt_path, sr_result.options)
-            sr_result.options = self._resolve_timeline_options(sr_result.video_path, sr_result.options)
-            duration = self._calculate_duration(sr_result.video_path, sr_result.options)
-            input_video, audio = self._create_input_streams(sr_result.video_path, sr_result.options)
+            self._ensure_media_inputs_exist(video_path, srt_path, options)
+            options = self._resolve_timeline_options(video_path, options)
+            duration = self._calculate_duration(video_path, options)
+            input_video, audio = self._create_input_streams(video_path, options)
             video_stream, temp_ass, temp_fonts_dir = self._filter_graph_builder.build(
                 input_video,
-                sr_result.video_path,
+                video_path,
                 srt_path,
                 watermark_path,
-                sr_result.options,
+                options,
             )
-            output_kwargs = self._encoder_config_resolver.resolve(sr_result.options)
+            output_kwargs = self._encoder_config_resolver.resolve(options)
             self._ffmpeg_runner.run(
                 video_stream,
                 audio,
                 output_path,
                 output_kwargs,
                 duration,
-                sr_result.progress_callback,
+                progress_callback,
             )
             return output_path
         except Exception as exc:
@@ -64,12 +60,6 @@ class SynthesisOrchestrator:
             raise
         finally:
             self._filter_graph_builder.cleanup(temp_ass, temp_fonts_dir)
-            if sr_result.temp_path and os.path.exists(sr_result.temp_path):
-                try:
-                    os.remove(sr_result.temp_path)
-                    logger.debug(f"Deleted temp SR file: {sr_result.temp_path}")
-                except Exception as exc:
-                    logger.warning(f"Failed to delete temp SR file: {exc}")
 
     @staticmethod
     def _ensure_media_inputs_exist(video_path: str, srt_path: str | None, options: dict) -> None:

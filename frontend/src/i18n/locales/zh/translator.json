@@ -9,6 +9,7 @@
     "sourcePlaceholder": "原文",
     "targetPlaceholder": "译文",
     "addTerm": "添加术语",
+    "deleteTerm": "删除术语 {{term}}",
     "empty": "暂无术语"
   },
   "buttons": {
@@ -47,6 +48,25 @@
     "proofread": "校对"
   },
   "loading": { "message": "翻译中..." },
+  "task": {
+    "translateName": "翻译 {{name}}",
+    "proofreadName": "校对 {{name}}",
+    "subtitleFallback": "字幕"
+  },
+  "feedback": {
+    "exportSuccess": "译文字幕已保存到 {{path}}",
+    "exportFailed": "译文字幕保存失败",
+    "subtitleFileFilter": "字幕文件",
+    "textFileFilter": "文本文件",
+    "relatedVideoMissing": "字幕旁未找到匹配视频。已尝试：{{candidates}}。编辑器将使用推测路径。",
+    "editorAutoSaveFailed": "打开编辑器前无法保存译文字幕",
+    "unsupportedSubtitle": "翻译支持 .srt、.vtt、.ass 和 .ssa 字幕文件",
+    "emptySubtitle": "未在 {{path}} 中解析出带时间轴的字幕内容",
+    "loadFailed": "字幕文件加载失败：{{path}}",
+    "unknownError": "未知错误",
+    "startTranslationFailed": "启动翻译失败：{{detail}}",
+    "startProofreadFailed": "启动校对失败：{{detail}}"
+  },
   "uploader": {
     "dragText": "拖放字幕文件",
     "supportedFormats": "支持 .srt, .vtt, .ass, .ssa",

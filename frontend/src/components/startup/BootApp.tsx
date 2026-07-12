@@ -1,75 +1,73 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import App from "../../App";
 import {
   getDesktopRuntimeInfo,
   hasDesktopCapability,
   isDesktopRuntime,
+  resetDesktopRuntimeInfoCache,
 } from "../../services/desktop";
-import { settingsService } from "../../services/domain/settingsService";
+import { settingsService } from "../../services/domain";
 import { windowService } from "../../services/desktop";
 import { createDesktopRuntimeDiagnostic } from "../../services/debug/runtimeDiagnostics";
 import { DESKTOP_BRIDGE_CONTRACT_VERSION } from "../../contracts/runtimeContracts";
-import i18n from "../../i18n";
+import i18n, {
+  getStartupStatusFallback,
+  type StartupStatusKey,
+} from "../../i18n";
 import { resolveCurrentPresentationRoute } from "../../services/ui/pagePresentation";
 import { probeBackendHealth } from "../../startup/backendHealthProbe";
 import { initializeUiStateSettings } from "../../services/persistence/uiStateSettings";
+import { initializeWorkspaceState } from "../../services/persistence/workspaceState";
 import { configureApiRuntime } from "../../api/runtime";
-
-type StartupState = {
-  appReady: boolean;
-  remoteBackendReady: boolean;
-  message: string;
-};
+import {
+  clearStartupBootstrap,
+  getOrCreateStartupBootstrap,
+  isRendererReadyNotificationSent,
+  markRendererReadyNotificationSent,
+  publishStartupProgress,
+  subscribeStartupProgress,
+  type StartupSnapshot,
+} from "./bootStartupCoordinator";
 
 const REQUIRED_DESKTOP_CAPABILITIES = [
   "getDesktopRuntimeInfo",
+  "readWorkspaceState",
+  "writeWorkspaceState",
+  "writeWorkspaceStateSync",
 ] as const;
 
 const STARTUP_HEALTH_RETRY_DELAY_MS = 150;
 const STARTUP_HEALTH_TIMEOUT_MS = 60_000;
+const STARTUP_AUTO_RETRY_DELAY_MS = 5_000;
 
-const STARTUP_TEXT_FALLBACKS = {
-  retryingHealth: "后端正在启动中，正在重试健康检查...",
-  checkingHealth: "已发现后端，正在检查服务健康状态...",
-  retryingGeneric: "启动检查失败，正在重试...",
-  ready: "后端已就绪。",
-  webMode: "当前以无 Electron 后端引导的模式运行。",
-} as const;
-
-let startupBootstrapPromise: Promise<Partial<StartupState>> | null = null;
-let rendererReadyNotificationSent = false;
-const startupProgressListeners = new Set<(next: Partial<StartupState>) => void>();
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const getStartupText = (key: keyof typeof STARTUP_TEXT_FALLBACKS) => {
-  const translated = i18n.t(`startup.status.${key}`);
-  return translated === `startup.status.${key}`
-    ? STARTUP_TEXT_FALLBACKS[key]
-    : translated;
-};
-
-function publishStartupProgress(next: Partial<StartupState>) {
-  for (const listener of startupProgressListeners) {
-    listener(next);
+class PermanentStartupError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PermanentStartupError";
   }
 }
 
-function subscribeStartupProgress(listener: (next: Partial<StartupState>) => void) {
-  startupProgressListeners.add(listener);
-  return () => {
-    startupProgressListeners.delete(listener);
-  };
-}
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getStartupText = (key: StartupStatusKey) => {
+  const translated = i18n.t(`startup.status.${key}`);
+  return translated === `startup.status.${key}`
+    ? getStartupStatusFallback(key)
+    : translated;
+};
 
 async function waitForBackendHealth() {
   let retryMessageShown = false;
   const deadline = Date.now() + STARTUP_HEALTH_TIMEOUT_MS;
 
   while (Date.now() < deadline) {
-    const health = await probeBackendHealth();
-    if (health.ok) {
-      return true;
+    try {
+      const health = await probeBackendHealth();
+      if (health.ok) {
+        return;
+      }
+    } catch (error) {
+      console.warn("[Init] Backend health probe failed.", error);
     }
 
     if (!retryMessageShown) {
@@ -80,7 +78,9 @@ async function waitForBackendHealth() {
     await sleep(STARTUP_HEALTH_RETRY_DELAY_MS);
   }
 
-  throw new Error("Backend did not become healthy within 60000ms.");
+  throw new Error(
+    `Backend did not become healthy within ${STARTUP_HEALTH_TIMEOUT_MS}ms.`,
+  );
 }
 
 async function loadUserSettings() {
@@ -98,16 +98,19 @@ async function loadUserSettings() {
   }
 }
 
-async function bootstrapStartup(): Promise<Partial<StartupState>> {
+async function initializePersistentState() {
+  await Promise.all([loadUserSettings(), initializeWorkspaceState()]);
+}
+
+async function bootstrapStartup(forceRuntimeRefresh: boolean): Promise<StartupSnapshot> {
   const desktopRuntime = isDesktopRuntime();
   let runtimeInfo: Awaited<ReturnType<typeof getDesktopRuntimeInfo>> | null = null;
 
-  try {
-    if (desktopRuntime) {
-      runtimeInfo = await getDesktopRuntimeInfo();
+  if (desktopRuntime) {
+      runtimeInfo = await getDesktopRuntimeInfo(forceRuntimeRefresh);
       const resolvedRuntimeInfo = runtimeInfo;
       if (resolvedRuntimeInfo.contract_version < DESKTOP_BRIDGE_CONTRACT_VERSION) {
-        throw new Error(
+        throw new PermanentStartupError(
           `Desktop bridge contract mismatch. Required >= ${DESKTOP_BRIDGE_CONTRACT_VERSION}, received ${resolvedRuntimeInfo.contract_version}.`,
         );
       }
@@ -116,7 +119,7 @@ async function bootstrapStartup(): Promise<Partial<StartupState>> {
         (capability) => !hasDesktopCapability(resolvedRuntimeInfo, capability),
       );
       if (missingCapabilities.length > 0) {
-        throw new Error(
+        throw new PermanentStartupError(
           `Desktop bridge capability mismatch. Missing: ${missingCapabilities.join(", ")}.`,
         );
       }
@@ -134,51 +137,40 @@ async function bootstrapStartup(): Promise<Partial<StartupState>> {
         "[Init] Desktop runtime contract ready",
         createDesktopRuntimeDiagnostic(resolvedRuntimeInfo),
       );
-    }
+  }
 
-    const backendHealthReady = desktopRuntime && runtimeInfo?.backend.health_status === "ready";
-    if (!backendHealthReady) {
-      await waitForBackendHealth();
-    }
+  const backendHealthReady = desktopRuntime && runtimeInfo?.backend.health_status === "ready";
+  if (!backendHealthReady) {
+    await waitForBackendHealth();
+  }
 
-    if (!desktopRuntime) {
-      await loadUserSettings();
-      return {
-        appReady: true,
-        remoteBackendReady: true,
-        message: getStartupText("webMode"),
-      };
-    }
-
-    await loadUserSettings();
+  if (!desktopRuntime) {
+    await initializePersistentState();
     return {
       appReady: true,
       remoteBackendReady: true,
-      message: getStartupText("ready"),
-    };
-  } catch (error) {
-    console.error("Failed to bootstrap desktop runtime", error);
-    return {
-      message:
-        error instanceof Error && /mismatch/i.test(error.message)
-          ? error.message
-          : getStartupText("retryingGeneric"),
+      message: getStartupText("webMode"),
+      phase: "ready",
     };
   }
-}
 
-export function resetBootAppStartupForTests() {
-  startupBootstrapPromise = null;
-  rendererReadyNotificationSent = false;
-  startupProgressListeners.clear();
+  await initializePersistentState();
+  return {
+    appReady: true,
+    remoteBackendReady: true,
+    message: getStartupText("ready"),
+    phase: "ready",
+  };
 }
 
 export function BootApp() {
-  const [startupState, setStartupState] = useState<StartupState>({
+  const [startupState, setStartupState] = useState<StartupSnapshot>({
     appReady: false,
     remoteBackendReady: false,
     message: getStartupText("checkingHealth"),
+    phase: "starting",
   });
+  const [retryGeneration, setRetryGeneration] = useState(0);
 
   const startupVariant = useMemo(() => {
     const destination = resolveCurrentPresentationRoute();
@@ -189,7 +181,6 @@ export function BootApp() {
       case "downloader":
       case "transcriber":
       case "translator":
-      case "preprocessing":
       case "settings":
         return destination;
       default:
@@ -197,32 +188,75 @@ export function BootApp() {
     }
   }, []);
 
+  const retryStartup = useCallback(() => {
+    clearStartupBootstrap();
+    resetDesktopRuntimeInfoCache();
+    setStartupState({
+      appReady: false,
+      remoteBackendReady: false,
+      message: getStartupText("checkingHealth"),
+      phase: "starting",
+    });
+    setRetryGeneration((generation) => generation + 1);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: number | null = null;
 
-    const updateState = (next: Partial<StartupState>) => {
+    const updateState = (next: Partial<StartupSnapshot>) => {
       if (cancelled) return;
       setStartupState((prev) => ({ ...prev, ...next }));
     };
 
     const unsubscribe = subscribeStartupProgress(updateState);
-    startupBootstrapPromise ??= bootstrapStartup();
-    void startupBootstrapPromise.then(updateState);
+    const startupBootstrap = getOrCreateStartupBootstrap(
+      () => bootstrapStartup(retryGeneration > 0),
+    );
+    void startupBootstrap
+      .then(updateState)
+      .catch((error: unknown) => {
+        if (cancelled) return;
+
+        console.error("Failed to bootstrap desktop runtime", error);
+        if (error instanceof PermanentStartupError) {
+          updateState({
+            appReady: false,
+            remoteBackendReady: false,
+            phase: "fatal-error",
+            message: `${getStartupText("fatalContract")} ${error.message}`,
+          });
+          return;
+        }
+
+        updateState({
+          appReady: false,
+          remoteBackendReady: false,
+          phase: "retryable-error",
+          message: `${getStartupText("retryingGeneric")} ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+        retryTimer = window.setTimeout(retryStartup, STARTUP_AUTO_RETRY_DELAY_MS);
+      });
 
     return () => {
       cancelled = true;
+      if (retryTimer !== null) {
+        window.clearTimeout(retryTimer);
+      }
       unsubscribe();
     };
-  }, [startupVariant]);
+  }, [retryGeneration, retryStartup, startupVariant]);
 
   useEffect(() => {
-    if (rendererReadyNotificationSent) {
+    if (isRendererReadyNotificationSent()) {
       return;
     }
 
     let frameId = 0;
     frameId = window.requestAnimationFrame(() => {
-      rendererReadyNotificationSent = true;
+      markRendererReadyNotificationSent();
       windowService.notifyRendererReady();
     });
     return () => {
@@ -235,6 +269,14 @@ export function BootApp() {
       appReady={startupState.appReady}
       remoteBackendReady={startupState.remoteBackendReady}
       startupMessage={startupState.message}
+      startupStatus={
+        startupState.phase === "fatal-error"
+          ? "fatal-error"
+          : startupState.phase === "retryable-error"
+            ? "retryable-error"
+            : "loading"
+      }
+      onRetryStartup={retryStartup}
     />
   );
 }

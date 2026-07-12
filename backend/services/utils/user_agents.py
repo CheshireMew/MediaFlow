@@ -79,13 +79,3 @@ def get_random_user_agent() -> str:
         str: 随机选择的User-Agent字符串
     """
     return random.choice(USER_AGENTS)
-
-
-def get_user_agent_count() -> int:
-    """
-    获取User-Agent池大小
-    
-    Returns:
-        int: 可用的User-Agent数量
-    """
-    return len(USER_AGENTS)

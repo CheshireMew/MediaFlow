@@ -5,6 +5,8 @@
     "systemStatus": "系统状态",
     "backendConnection": "后端连接",
     "online": "在线",
+    "offline": "连接已断开",
+    "connecting": "正在连接",
     "computeResources": "计算资源",
     "autoScaling": "自动缩放"
   },

@@ -1,7 +1,7 @@
 import asyncio
 import random
 from loguru import logger
-from typing import Optional, Dict
+from typing import Optional
 
 # Configuration Constants
 MIN_VIDEO_URL_LENGTH = 50       # Minimum length for valid video URLs

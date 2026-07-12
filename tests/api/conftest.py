@@ -1,5 +1,4 @@
 import asyncio
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -54,6 +53,13 @@ def isolated_api_client(tmp_path, monkeypatch):
     container.reset()
 
     with TestClient(app) as client:
+        # The desktop bootstrap intentionally becomes ready in the background.
+        # API tests that access container services directly must first cross an
+        # inner API boundary that starts TaskManager on TestClient's lifespan
+        # loop; otherwise a pytest-asyncio loop can accidentally own its worker
+        # and hydration tasks while lifespan teardown runs on another loop.
+        readiness_response = client.get("/api/v1/tasks/")
+        assert readiness_response.status_code == 200
         yield client
 
     container.reset()

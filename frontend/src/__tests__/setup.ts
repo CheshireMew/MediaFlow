@@ -1,6 +1,9 @@
 import "@testing-library/jest-dom";
 import { beforeEach } from "vitest";
+import { initI18nWithNamespaces } from "../i18n";
 import { resetUiStateSettingsForTests } from "../services/persistence/uiStateSettings";
+
+await initI18nWithNamespaces("zh", ["common"]);
 
 // jsdom opaque-origin guard: localStorage/sessionStorage require a valid URL origin.
 // In vitest's vmThreads pool the jsdom instance starts with about:blank which makes

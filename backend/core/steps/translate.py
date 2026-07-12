@@ -2,16 +2,18 @@ from pathlib import Path
 from loguru import logger
 
 from backend.core.steps.base import PipelineStep
-from backend.core.steps.registry import StepRegistry
 from backend.core.context import PipelineContext
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service, TaskRuntimeContext
+from backend.core.task_runtime import TaskRuntimeContext
 from backend.utils.subtitle_writer import SubtitleWriter
-from backend.models.schemas import SubtitleSegment, FileRef
+from backend.models.schemas import MediaReference, SubtitleSegment
 from backend.models.translation_target_language import get_language_suffix, parse_translation_target_language
 from backend.services.generated_output_paths import build_suffixed_output_path
 
 class TranslateStep(PipelineStep):
+    def __init__(self, *, translator, task_manager):
+        self._translator = translator
+        self._task_manager = task_manager
+
     @property
     def name(self) -> str:
         return "translate"
@@ -32,12 +34,11 @@ class TranslateStep(PipelineStep):
         mode = params.get("mode", "standard")
 
         # 2. Dependencies
-        translator = runtime_service(Services.LLM_TRANSLATOR)
-        runtime = TaskRuntimeContext.for_task(task_id)
+        runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
 
         # 3. Execution
         translated_segments = await runtime.run_blocking(
-            lambda: translator.translate_segments(
+            lambda: self._translator.translate_segments(
                 segments, 
                 target_language=target_language,
                 mode=mode,
@@ -48,44 +49,41 @@ class TranslateStep(PipelineStep):
         if not translated_segments:
             raise Exception("Translation produced no segments")
 
-        # 4. Save Output
-        # Determine output path based on input specific inputs if available
-        # But usually we want it next to the source audio/video
-        # Let's use video_path or srt_path from context as base
-        base_path = (
-            ctx.get_media_path("subtitle_ref", "srt_path", "subtitle_path", "video_path")
-            or params.get("srt_path")
-            or (params.get("context_ref") or {}).get("path")
+        # 4. Save Output next to the canonical input reference.
+        base_ref = ctx.get_media("subtitle_ref", "video_ref")
+        if base_ref is None and params.get("context_ref"):
+            base_ref = MediaReference.model_validate(params["context_ref"])
+        if base_ref is None:
+            raise ValueError("Translate step requires a canonical input media reference")
+
+        p = Path(base_ref.path)
+        lang_suffix = "_PR" if mode == "proofread" else get_language_suffix(target_language)
+        output_path = build_suffixed_output_path(
+            p,
+            lang_suffix,
+            extension=".srt",
         )
-        
-        if base_path:
-            p = Path(base_path)
-            
-            lang_suffix = "_PR" if mode == "proofread" else get_language_suffix(target_language)
-            
-            # e.g., video.mp4 -> video_ZH-CN.srt
-            output_path = build_suffixed_output_path(
-                p,
-                lang_suffix,
-                extension=".srt",
-            )
-        else:
-            # Fallback
-            output_path = Path(f"translated_{target_language}.srt")
             
         saved_path = SubtitleWriter.save_srt(translated_segments, str(output_path))
         
         # 5. Update Context
-        ctx.set("translated_segments", [s.dict() for s in translated_segments])
+        ctx.set(
+            "translated_segments",
+            [segment.model_dump(mode="json") for segment in translated_segments],
+        )
+        from backend.services.media_refs import create_media_ref
+
+        output_ref = create_media_ref(
+            str(saved_path),
+            "application/x-subrip",
+            role="output",
+        )
+        if output_ref is None:
+            raise RuntimeError("Translation output reference could not be created")
         ctx.set_media(
-            path_key="srt_path",
-            ref_key="subtitle_ref",
-            path=saved_path,
-            media_type="application/x-subrip",
-            extra_ref_keys=("context_ref", "output_ref"),
+            "subtitle_ref",
+            output_ref,
+            kind="subtitle",
         )
         
         logger.success(f"Step Translate finished. Saved to: {saved_path}")
-
-# Register
-StepRegistry.register(TranslateStep())

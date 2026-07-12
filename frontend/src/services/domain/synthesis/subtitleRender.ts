@@ -2,7 +2,6 @@ import { hexToAss } from "./types";
 import { clampNormalizedPosition } from "./subtitlePlacement";
 import type { SubtitleMultilineAlign, SubtitleStyleValues } from "./styleTypes";
 
-const ASS_FONT_COMPENSATION = 1.25;
 const MIN_SIDE_MARGIN_PX = 10;
 const DEFAULT_SUBTITLE_REFERENCE_HEIGHT = 720;
 const DEFAULT_SUBTITLE_REFERENCE_FONT_SIZE = 44;
@@ -173,7 +172,7 @@ export function computeSubtitleExportFontSize(authoringFontSize: number): number
   if (authoringFontSize <= 0) {
     return 0;
   }
-  return Math.max(1, Math.round(authoringFontSize * ASS_FONT_COMPENSATION));
+  return Math.max(1, Math.round(authoringFontSize));
 }
 
 export function computeDefaultSubtitleFontSize(input: {

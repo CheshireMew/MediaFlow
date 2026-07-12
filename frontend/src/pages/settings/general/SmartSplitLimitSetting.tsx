@@ -17,7 +17,7 @@ export function SmartSplitLimitSetting({ controller, t }: SmartSplitLimitSetting
     settings,
     showNotification,
     smartSplitTextLimitInput,
-    updateSettingsField,
+    updatePreferences,
   } = controller;
 
   return (
@@ -36,8 +36,7 @@ export function SmartSplitLimitSetting({ controller, t }: SmartSplitLimitSetting
                 showNotification(t("general.smartSplitTextLimitInvalid"), "error");
                 return;
               }
-              await updateSettingsField({
-                ...settings,
+              await updatePreferences({
                 smart_split_text_limit: normalizeSmartSplitTextLimit(nextValue),
               });
             }}
@@ -49,8 +48,7 @@ export function SmartSplitLimitSetting({ controller, t }: SmartSplitLimitSetting
             onClick={async () => {
               if (!settings) return;
               setSmartSplitTextLimitInput(String(DEFAULT_SMART_SPLIT_TEXT_LIMIT));
-              await updateSettingsField({
-                ...settings,
+              await updatePreferences({
                 smart_split_text_limit: DEFAULT_SMART_SPLIT_TEXT_LIMIT,
               });
             }}
@@ -63,6 +61,7 @@ export function SmartSplitLimitSetting({ controller, t }: SmartSplitLimitSetting
     >
       <div className="mt-3 flex items-center gap-3">
         <input
+          aria-label={t("general.smartSplitTextLimit")}
           type="number"
           min={1}
           step={1}

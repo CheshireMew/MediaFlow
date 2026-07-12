@@ -6,9 +6,11 @@ import asyncio
 import threading
 from typing import Callable, Any, Optional, Dict
 from loguru import logger
+from pydantic import BaseModel
 
-from backend.core.runtime_access import TaskRuntimeContext
+from backend.core.task_runtime import TaskRuntimeContext
 from backend.core.task_control import TaskCancelRequested, TaskPauseRequested
+from backend.models.task_message import TaskMessageParams
 
 
 
@@ -21,13 +23,18 @@ class BackgroundTaskRunner:
     4. Updates task status to 'completed' or 'failed'
     """
 
-    @staticmethod
+    def __init__(self, task_manager):
+        self._task_manager = task_manager
+
     async def run(
+        self,
         task_id: str,
         worker_fn: Callable[..., Any],
         worker_kwargs: Dict[str, Any],
-        start_message: str = "Starting...",
-        success_message: str = "Completed successfully",
+        start_message_code: str = "starting",
+        start_message_params: TaskMessageParams | None = None,
+        success_message_code: str = "completed",
+        success_message_params: TaskMessageParams | None = None,
         result_transformer: Optional[Callable[[Any], Any]] = None,
         progress_key: str = "progress_callback"
     ):
@@ -38,8 +45,10 @@ class BackgroundTaskRunner:
             task_id: The task ID to track progress
             worker_fn: The blocking function to run (e.g., asr_service.transcribe)
             worker_kwargs: Keyword arguments to pass to worker_fn
-            start_message: Message to display when task starts
-            success_message: Message to display on completion
+            start_message_code: Stable message code displayed when the task starts
+            start_message_params: Interpolation params for the start message
+            success_message_code: Stable message code displayed on completion
+            success_message_params: Interpolation params for the completion message
             result_transformer: Optional function to transform the result before saving
             progress_key: The kwarg name for the progress callback in worker_fn
         """
@@ -61,19 +70,24 @@ class BackgroundTaskRunner:
                     continue
 
         try:
-            runtime = TaskRuntimeContext.for_task(task_id)
+            runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
             # 1. Update status to running
             await runtime.update(
                 status="running", 
                 cancelled=False,
-                message=start_message
+                message_code=start_message_code,
+                message_params=start_message_params or {},
             )
             
             # 2. Create thread-safe progress callback
             loop = runtime.loop
             task_manager = runtime.task_manager
             
-            def progress_callback(progress: int, message: str):
+            def progress_callback(
+                progress: int,
+                message_code: str,
+                message_params: TaskMessageParams | None = None,
+            ):
                 with progress_gate:
                     if not accept_progress_updates:
                         return
@@ -84,7 +98,8 @@ class BackgroundTaskRunner:
                         loop,
                         task_id,
                         progress=float(progress),
-                        message=message,
+                        message_code=message_code,
+                        message_params=message_params or {},
                     )
                     if future is not None:
                         progress_futures.append(future)
@@ -101,18 +116,16 @@ class BackgroundTaskRunner:
             final_result = result
             if result_transformer:
                 final_result = result_transformer(result)
-            elif hasattr(result, 'model_dump'):
+            elif isinstance(result, BaseModel):
                 final_result = result.model_dump(mode="json")
-            elif hasattr(result, 'dict'):
-                # Pydantic model - auto-serialize
-                final_result = result.dict()
             
             # 5. Update task as completed
             await runtime.update(
                 status="completed",
                 cancelled=False,
                 progress=100.0,
-                message=success_message,
+                message_code=success_message_code,
+                message_params=success_message_params or {},
                 result=final_result
             )
             logger.success(f"Task {task_id} completed.")
@@ -120,35 +133,29 @@ class BackgroundTaskRunner:
         except TaskPauseRequested as e:
             await flush_progress_updates()
             logger.info(f"Task {task_id} paused: {e}")
-            runtime = TaskRuntimeContext.for_task(task_id)
-            await runtime.mark_controlled_stop("pause", str(e))
+            runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
+            await runtime.mark_controlled_stop("pause", "paused", {})
         except TaskCancelRequested as e:
             await flush_progress_updates()
             logger.info(f"Task {task_id} cancelled: {e}")
-            runtime = TaskRuntimeContext.for_task(task_id)
-            await runtime.mark_controlled_stop("cancel", str(e))
+            runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
+            await runtime.mark_controlled_stop("cancel", "cancelled", {})
         except Exception as e:
-            runtime = TaskRuntimeContext.for_task(task_id)
+            runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
             control_request = runtime.get_stop_request()
             if control_request in {"pause", "cancel"}:
                 await flush_progress_updates()
                 logger.info(f"Task {task_id} stopped cooperatively during failure path: {e}")
-                await runtime.mark_controlled_stop(control_request, str(e))
+                await runtime.mark_controlled_stop(
+                    control_request,
+                    "paused" if control_request == "pause" else "cancelled",
+                    {},
+                )
                 return
             logger.error(f"Task {task_id} failed: {e}")
             await runtime.update(
                 status="failed",
-                message=str(e),
+                message_code="failed",
+                message_params={},
                 error=str(e)
             )
-
-
-# Convenience function for simple usage
-async def run_background_task(
-    task_id: str,
-    worker_fn: Callable,
-    worker_kwargs: Dict[str, Any],
-    **options
-):
-    """Shortcut to BackgroundTaskRunner.run()"""
-    await BackgroundTaskRunner.run(task_id, worker_fn, worker_kwargs, **options)

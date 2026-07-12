@@ -1,8 +1,11 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { TFunction } from "i18next";
-import type { LLMProvider, UserSettings } from "../../types/api";
-import { settingsService } from "../../services/domain";
+import {
+  settingsService,
+  type ResolvedLLMProvider as LLMProvider,
+  type ResolvedUserSettings as UserSettings,
+} from "../../services/domain";
 import {
   CUSTOM_LLM_PROVIDER_PRESET_KEY,
   DEFAULT_LLM_PROVIDER_PRESET_KEY,
@@ -15,6 +18,7 @@ import {
   type LLMProviderPresetKey,
 } from "../../config/llmProviderPresets";
 import type { ShowSettingsNotification } from "./useSettingsData";
+import { useConfirmation } from "../../components/ui/confirmationContext";
 
 type UseLlmProviderSettingsArgs = {
   fetchSettings: () => Promise<void>;
@@ -31,6 +35,7 @@ export function useLlmProviderSettings({
   showNotification,
   t,
 }: UseLlmProviderSettingsArgs) {
+  const confirmAction = useConfirmation();
   const [openModal, setOpenModal] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [selectedProviderPreset, setSelectedProviderPreset] = useState<LLMProviderPresetKey>(
@@ -76,7 +81,7 @@ export function useLlmProviderSettings({
     }
 
     try {
-      const res = await settingsService.updateSettings({ ...settings, llm_providers: newProviders });
+      const res = await settingsService.updatePreferences({ llm_providers: newProviders });
       setSettings(res);
       setOpenModal(false);
       showNotification(t("llm.providerSaved"));
@@ -99,10 +104,15 @@ export function useLlmProviderSettings({
         : t("llm.confirmDeleteActiveWithoutFallback")
       : t("llm.confirmDelete");
 
-    if (!confirm(confirmMessage)) return;
+    const confirmed = await confirmAction({
+      title: t("llm.deleteProviderTitle"),
+      message: confirmMessage,
+      tone: "danger",
+    });
+    if (!confirmed) return;
 
     try {
-      const res = await settingsService.updateSettings({ ...settings, llm_providers: remainingProviders });
+      const res = await settingsService.updatePreferences({ llm_providers: remainingProviders });
       setSettings(res);
       if (provider.is_active) {
         showNotification(

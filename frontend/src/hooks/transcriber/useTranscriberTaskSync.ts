@@ -15,7 +15,6 @@ type UseTranscriberTaskSyncParams = {
   tasksSettled: boolean;
   currentTranscriptionTaskId: string | null;
   fileRef: NonNullable<TranscribeResult["video_ref"]> | null;
-  filePath: string | null | undefined;
   currentResult: TranscribeResult | null;
   setCurrentTranscriptionTaskId: (taskId: string | null) => void;
   setResult: (result: TranscribeResult | null) => void;
@@ -27,7 +26,6 @@ export function useTranscriberTaskSync({
   tasksSettled,
   currentTranscriptionTaskId,
   fileRef,
-  filePath,
   currentResult,
   setCurrentTranscriptionTaskId,
   setResult,
@@ -35,19 +33,19 @@ export function useTranscriberTaskSync({
 }: UseTranscriberTaskSyncParams) {
   useEffect(() => {
     if (currentTranscriptionTaskId) return;
-    const runningTask = findActiveTranscribeTask(tasks, fileRef, filePath);
+    const runningTask = findActiveTranscribeTask(tasks, fileRef);
     if (runningTask) {
       setExecutionMode("task_submission");
       setCurrentTranscriptionTaskId(runningTask.id);
     }
-  }, [tasks, currentTranscriptionTaskId, filePath, fileRef, setCurrentTranscriptionTaskId, setExecutionMode]);
+  }, [tasks, currentTranscriptionTaskId, fileRef, setCurrentTranscriptionTaskId, setExecutionMode]);
 
   useEffect(() => {
     if (currentTranscriptionTaskId || currentResult || !tasksSettled) {
       return;
     }
 
-    const completedTask = findCompletedTranscribeTask(tasks, fileRef, filePath);
+    const completedTask = findCompletedTranscribeTask(tasks, fileRef);
     if (!completedTask) {
       return;
     }
@@ -56,7 +54,7 @@ export function useTranscriberTaskSync({
     if (mappedResult) {
       setResult(mappedResult);
     }
-  }, [tasks, tasksSettled, currentTranscriptionTaskId, currentResult, filePath, fileRef, setResult]);
+  }, [tasks, tasksSettled, currentTranscriptionTaskId, currentResult, fileRef, setResult]);
 
   useEffect(() => {
     if (!currentTranscriptionTaskId) return;
@@ -78,5 +76,5 @@ export function useTranscriberTaskSync({
       setExecutionMode(null);
       setCurrentTranscriptionTaskId(null);
     }
-  }, [tasks, currentTranscriptionTaskId, tasksSettled, filePath, fileRef, setCurrentTranscriptionTaskId, setExecutionMode, setResult]);
+  }, [tasks, currentTranscriptionTaskId, tasksSettled, fileRef, setCurrentTranscriptionTaskId, setExecutionMode, setResult]);
 }

@@ -12,7 +12,7 @@ export function LlmProvidersPanel({ controller, t, tc }: LlmProvidersPanelProps)
 
   return (
     <div className="w-full">
-      <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-[#1a1a1a] border-b border-white/5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+      <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-[#1a1a1a] border-b border-white/5 text-xs font-bold text-slate-400 uppercase tracking-wider">
         <div className="col-span-2">{t("llm.status")}</div>
         <div className="col-span-3">{t("llm.name")}</div>
         <div className="col-span-3">{t("llm.model")}</div>
@@ -33,6 +33,7 @@ export function LlmProvidersPanel({ controller, t, tc }: LlmProvidersPanelProps)
                 </span>
               ) : (
                 <button
+                  type="button"
                   onClick={() => handleSetActive(provider.id)}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10 hover:text-white hover:border-white/20 transition-all"
                 >
@@ -44,21 +45,25 @@ export function LlmProvidersPanel({ controller, t, tc }: LlmProvidersPanelProps)
             <div className="col-span-3 font-mono text-xs text-indigo-300/80 bg-indigo-500/5 px-2 py-1 rounded w-fit border border-indigo-500/10">
               {provider.model}
             </div>
-            <div className="col-span-3 text-xs text-slate-500 truncate font-mono" title={provider.base_url}>
+            <div className="col-span-3 text-xs text-slate-400 truncate font-mono" title={provider.base_url}>
               {provider.base_url}
             </div>
             <div className="col-span-1 flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
               <button
+                type="button"
+                aria-label={tc("edit")}
                 onClick={() => openEdit(provider)}
                 className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                title="Edit"
+                title={tc("edit")}
               >
                 <Edit2 size={16} />
               </button>
               <button
+                type="button"
+                aria-label={tc("delete")}
                 onClick={() => handleDelete(provider.id)}
                 className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors"
-                title="Delete"
+                title={tc("delete")}
               >
                 <Trash2 size={16} />
               </button>
@@ -67,7 +72,7 @@ export function LlmProvidersPanel({ controller, t, tc }: LlmProvidersPanelProps)
         ))}
 
         {(!settings?.llm_providers || settings.llm_providers.length === 0) && (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
             <Shield size={48} className="opacity-20 mb-4" />
             <p className="text-sm">{t("llm.noProviders")}</p>
           </div>

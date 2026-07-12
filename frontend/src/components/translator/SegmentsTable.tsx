@@ -4,8 +4,9 @@ import { Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
 import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
-import { createOpenSubtitleFolderMenuItem } from '../ui/SubtitleFileContextMenu';
+import { createOpenSubtitleFolderMenuItem } from '../ui/subtitleFileContextMenuItems';
 import { isDesktopRuntime } from '../../services/desktop';
+import type { MediaReference } from '../../services/ui/mediaReference';
 
 type ContentSizingStyle = CSSProperties & {
     fieldSizing: 'content';
@@ -15,7 +16,7 @@ interface SegmentsTableProps {
     sourceSegments: SubtitleSegment[];
     targetSegments: SubtitleSegment[];
     onUpdateTarget: (index: number, text: string) => void;
-    onFileSelect: (path: string) => void;
+    onFileSelect: (reference: MediaReference) => void;
     sourceSubtitlePath?: string | null;
     targetSubtitlePath?: string | null;
 }
@@ -112,7 +113,7 @@ export const SegmentsTable = ({
                                 >
                                     {srcSeg ? (
                                         <>
-                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono select-none">
+                                            <div className="flex items-center gap-2 text-xs text-slate-400 font-mono select-none">
                                                 <span className="opacity-50">#{srcSeg.id}</span>
                                                 <div className="flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded text-slate-400">
                                                     <Clock size={10} />
@@ -124,7 +125,7 @@ export const SegmentsTable = ({
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="h-full min-h-20 flex items-center justify-center text-xs text-slate-600 italic">
+                                        <div className="h-full min-h-20 flex items-center justify-center text-xs text-slate-400 italic">
                                             {t('table.noSourceSegment')}
                                         </div>
                                     )}
@@ -142,7 +143,7 @@ export const SegmentsTable = ({
                                 >
                                     {tgtSeg ? (
                                         <>
-                                            <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono mb-2 opacity-0 group-hover/edit:opacity-100 transition-opacity select-none absolute top-4 right-4 gap-2">
+                                            <div className="flex items-center justify-between text-xs text-slate-400 font-mono mb-2 opacity-0 group-hover/edit:opacity-100 group-focus-within/edit:opacity-100 transition-opacity select-none absolute top-4 right-4 gap-2">
                                                  <span className="bg-indigo-500/10 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/20">{t('table.targetLabel')}</span>
                                                  {!srcSeg && (
                                                     <span className="bg-amber-500/10 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/20">
@@ -150,7 +151,7 @@ export const SegmentsTable = ({
                                                     </span>
                                                  )}
                                             </div>
-                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono select-none mb-2">
+                                            <div className="flex items-center gap-2 text-xs text-slate-400 font-mono select-none mb-2">
                                                 <span className="opacity-50">#{tgtSeg.id}</span>
                                                 <div className="flex items-center gap-1 bg-indigo-500/10 px-1.5 py-0.5 rounded text-indigo-300">
                                                     <Clock size={10} />
@@ -158,7 +159,8 @@ export const SegmentsTable = ({
                                                 </div>
                                             </div>
                                              <textarea 
-                                                 className="w-full h-full bg-transparent text-sm text-indigo-100 placeholder-slate-600 focus:outline-none resize-none leading-relaxed whitespace-pre-wrap break-words overflow-hidden min-h-[min-content]"
+                                                 aria-label={t('table.targetLabel')}
+                                                 className="w-full h-full bg-transparent text-sm text-indigo-100 placeholder-slate-400 focus:outline-none resize-none leading-relaxed whitespace-pre-wrap break-words overflow-hidden min-h-[min-content]"
                                                  value={tgtSeg.text}
                                                  onChange={(e) => {
                                                      // Auto-grow
@@ -173,7 +175,7 @@ export const SegmentsTable = ({
                                         </>
                                     ) : (
                                         <div className="h-full flex items-center justify-center opacity-10">
-                                            <span className="text-xs text-slate-600">...</span>
+                                            <span className="text-xs text-slate-400">...</span>
                                         </div>
                                     )}
                                 </div>

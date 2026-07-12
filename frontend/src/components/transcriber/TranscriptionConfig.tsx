@@ -1,4 +1,5 @@
 import { Settings, Play } from "lucide-react";
+import { useId } from "react";
 import { useTranslation } from 'react-i18next';
 
 interface TranscriptionConfigProps {
@@ -28,6 +29,9 @@ export function TranscriptionConfig({
 }: TranscriptionConfigProps) {
   const { t } = useTranslation('transcriber');
   const isDisabled = !isFileSelected || !!currentTranscriptionTaskId || isSubmitting;
+  const engineId = useId();
+  const modelId = useId();
+  const deviceId = useId();
 
   return (
     <div className="flex flex-col gap-6">
@@ -39,9 +43,10 @@ export function TranscriptionConfig({
       
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-1">{t('config.engineLabel')}</label>
+          <label htmlFor={engineId} className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">{t('config.engineLabel')}</label>
           <div className="relative group">
             <select
+              id={engineId}
               value={engine}
               onChange={(e) => setEngine(e.target.value as "builtin" | "cli")}
               className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-xs text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 appearance-none cursor-pointer hover:bg-black/60 transition-all shadow-sm font-medium truncate pr-8"
@@ -56,9 +61,10 @@ export function TranscriptionConfig({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-1">{t('config.modelSizeLabel')}</label>
+          <label htmlFor={modelId} className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">{t('config.modelSizeLabel')}</label>
           <div className="relative group">
             <select 
+              id={modelId}
               value={model} 
               onChange={(e) => setModel(e.target.value)}
               className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-xs text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 appearance-none cursor-pointer hover:bg-black/60 transition-all shadow-sm font-medium truncate pr-8"
@@ -79,9 +85,10 @@ export function TranscriptionConfig({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-1">{t('config.deviceLabel')}</label>
+          <label htmlFor={deviceId} className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">{t('config.deviceLabel')}</label>
            <div className="relative group">
             <select 
+              id={deviceId}
               value={device} 
               onChange={(e) => setDevice(e.target.value)}
               className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-xs text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 appearance-none cursor-pointer hover:bg-black/60 transition-all shadow-sm font-medium truncate pr-8"
@@ -101,7 +108,7 @@ export function TranscriptionConfig({
         disabled={isDisabled}
         className={`w-full h-12 rounded-xl flex items-center justify-center gap-2.5 font-bold text-sm transition-all shadow-lg relative overflow-hidden group/btn
           ${isDisabled
-            ? 'bg-slate-800/50 border border-white/5 text-slate-500 cursor-not-allowed shadow-none' 
+            ? 'bg-slate-800/50 border border-white/5 text-slate-400 cursor-not-allowed shadow-none'
             : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-purple-500/20 hover:shadow-purple-500/40 hover:-translate-y-0.5 active:translate-y-0 border border-white/10'}
         `}
       >

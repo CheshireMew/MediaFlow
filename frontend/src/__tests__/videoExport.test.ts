@@ -20,10 +20,10 @@ describe("video export contract", () => {
   });
 
   it.each([
-    [{ subtitleEnabled: true, watermarkEnabled: false, watermarkPath: null }, "burned"],
-    [{ subtitleEnabled: false, watermarkEnabled: true, watermarkPath: "D:/wm.png" }, "burned"],
-    [{ subtitleEnabled: false, watermarkEnabled: true, watermarkPath: null }, "source"],
-    [{ subtitleEnabled: false, watermarkEnabled: false, watermarkPath: null }, "source"],
+    [{ subtitleEnabled: true, watermarkEnabled: false, watermarkRef: null }, "burned"],
+    [{ subtitleEnabled: false, watermarkEnabled: true, watermarkRef: { path: "D:/wm.png", name: "wm.png" } }, "burned"],
+    [{ subtitleEnabled: false, watermarkEnabled: true, watermarkRef: null }, "source"],
+    [{ subtitleEnabled: false, watermarkEnabled: false, watermarkRef: null }, "source"],
   ] as const)("resolves clip render mode from visible export settings", (submission, expected) => {
     expect(resolveClipRenderMode(submission)).toBe(expected);
   });

@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import {
-  readUiStateValue,
-  subscribeUiStateSettingsInitialized,
-  writeUiStateValue,
-} from "../services/persistence/uiStateSettings";
+  readWorkspaceStateValue,
+  subscribeWorkspaceStateInitialized,
+  writeWorkspaceStateValue,
+} from "../services/persistence/workspaceState";
 
 export interface DownloadHistoryItem {
   id: string;
@@ -53,7 +53,7 @@ function normalizeDownloaderSnapshot(
 
 function readDownloaderSnapshot() {
   return normalizeDownloaderSnapshot(
-    readUiStateValue<Partial<DownloaderSnapshot>>(DOWNLOADER_STORE_KEY),
+    readWorkspaceStateValue<Partial<DownloaderSnapshot>>(DOWNLOADER_STORE_KEY),
   );
 }
 
@@ -64,16 +64,23 @@ function persistDownloaderSnapshot(state: DownloaderState) {
     return;
   }
 
-  writeUiStateValue(DOWNLOADER_STORE_KEY, {
+  const snapshot = {
     url: state.url,
     resolution: state.resolution,
     codec: state.codec,
     downloadSubs: state.downloadSubs,
     history: state.history,
-  } satisfies DownloaderSnapshot);
+  } satisfies DownloaderSnapshot;
+  const serialized = JSON.stringify(snapshot);
+  if (serialized === lastPersistedDownloaderSnapshot) {
+    return;
+  }
+  lastPersistedDownloaderSnapshot = serialized;
+  writeWorkspaceStateValue(DOWNLOADER_STORE_KEY, snapshot);
 }
 
 const initialDownloaderSnapshot = readDownloaderSnapshot();
+let lastPersistedDownloaderSnapshot = JSON.stringify(initialDownloaderSnapshot);
 
 export const useDownloaderStore = create<DownloaderState>()((set) => ({
   ...initialDownloaderSnapshot,
@@ -93,8 +100,10 @@ export const useDownloaderStore = create<DownloaderState>()((set) => ({
 
 useDownloaderStore.subscribe(persistDownloaderSnapshot);
 
-subscribeUiStateSettingsInitialized(() => {
+subscribeWorkspaceStateInitialized(() => {
+  const snapshot = readDownloaderSnapshot();
   isHydratingDownloaderSnapshot = true;
-  useDownloaderStore.setState(readDownloaderSnapshot());
+  useDownloaderStore.setState(snapshot);
+  lastPersistedDownloaderSnapshot = JSON.stringify(snapshot);
   isHydratingDownloaderSnapshot = false;
 });

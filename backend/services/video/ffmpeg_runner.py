@@ -62,11 +62,15 @@ class FfmpegRunner:
             elif line.startswith("speed="):
                 raw = line.split("=", 1)[1].strip()
                 if raw and raw != "N/A":
-                    current_speed = f" ({raw})"
+                    current_speed = raw
             elif line == "progress=continue":
                 now = time.monotonic()
                 if progress_callback and (now - last_report >= 3.0) and current_pct > 0:
-                    progress_callback(current_pct, f"Encoding{current_speed}... {current_pct}%")
+                    progress_callback(
+                        current_pct,
+                        "synthesis_encoding",
+                        {"percent": current_pct, "speed": current_speed},
+                    )
                     last_report = now
             elif line == "progress=end":
                 break

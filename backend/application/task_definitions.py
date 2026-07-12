@@ -1,24 +1,22 @@
-from backend.core.container import Services
-from backend.core.runtime_access import runtime_service
 from backend.core.task_catalog import task_types
-from backend.core.tasks.registry import register_task_runner
+from backend.core.tasks.registry import TaskRunnerRegistry
 
 
-def _pipeline_runner(task):
+def _pipeline_runner(pipeline_runner, task):
     from backend.models.schemas import PipelineRequest
 
     request = PipelineRequest(**task.request_params)
-    return lambda: runtime_service(Services.PIPELINE).run(request.steps, task.id)
+    return lambda: pipeline_runner.run(request.steps, task.id)
 
 
-def _operation_runner(task):
-    from backend.application.task_operations import build_operation_runner
+def build_task_runner_registry(*, pipeline_runner, operation_executor) -> TaskRunnerRegistry:
+    registry = TaskRunnerRegistry()
+    pipeline_factory = lambda task: _pipeline_runner(pipeline_runner, task)
+    registry.register("pipeline", pipeline_factory)
+    registry.register("download", pipeline_factory)
 
-    return build_operation_runner(task)
+    for task_type in sorted(task_types() - {"pipeline", "download"}):
+        registry.register(task_type, operation_executor.build_runner)
 
-
-register_task_runner("pipeline", _pipeline_runner)
-register_task_runner("download", _pipeline_runner)
-
-for _task_type in sorted(task_types() - {"pipeline", "download"}):
-    register_task_runner(_task_type, _operation_runner)
+    registry.validate()
+    return registry

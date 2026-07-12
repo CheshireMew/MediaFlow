@@ -15,6 +15,10 @@ export function PanelToggle({
 }: PanelToggleProps) {
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      aria-label={enabled ? disableTitle : enableTitle}
       onClick={() => onToggle(!enabled)}
       disabled={disabled}
       className={`relative w-9 h-5 rounded-full transition-colors ${
