@@ -1,4 +1,5 @@
 
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Tuple
@@ -31,10 +32,11 @@ async def detect_silence(req: DetectSilenceRequest):
     try:
         from backend.utils.audio_processor import AudioProcessor
 
-        intervals = AudioProcessor.detect_silence(
+        intervals = await asyncio.to_thread(
+            AudioProcessor.detect_silence,
             audio_path,
-            silence_thresh=req.threshold, 
-            min_silence_dur=req.min_duration
+            silence_thresh=req.threshold,
+            min_silence_dur=req.min_duration,
         )
         return DetectSilenceResponse(silence_intervals=intervals)
     except Exception as e:

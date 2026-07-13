@@ -4,8 +4,9 @@ from backend.core.steps.base import PipelineStep
 from backend.core.context import PipelineContext
 from backend.core.task_runtime import TaskRuntimeContext
 from backend.models.schemas import MediaReference
-from backend.services.generated_output_paths import build_suffixed_output_path
 from backend.services.media_refs import create_media_ref
+from backend.models.schemas import SynthesisRequest
+from backend.application.synthesis_service import build_synthesis_worker_kwargs
 
 class SynthesizeStep(PipelineStep):
     def __init__(self, *, synthesis, task_manager):
@@ -30,22 +31,26 @@ class SynthesizeStep(PipelineStep):
             else None
         )
 
-        if not video_ref or not subtitle_ref:
-            raise ValueError("Synthesize step requires video_ref and srt_ref")
-        video_path = video_ref.path
-        srt_path = subtitle_ref.path
-
-        # 2. Output Path
-        output_path = build_suffixed_output_path(
-            video_path,
-            "_synthesized",
-            extension=".mp4",
+        options = params.get("options") or {}
+        if not video_ref:
+            raise ValueError("Synthesize step requires video_ref")
+        if not subtitle_ref and not options.get("skip_subtitles"):
+            raise ValueError("Synthesize step requires srt_ref unless subtitles are disabled")
+        requested_output_ref = (
+            MediaReference.model_validate(params["output_ref"])
+            if params.get("output_ref")
+            else None
+        )
+        request = SynthesisRequest(
+            video_ref=video_ref,
+            srt_ref=subtitle_ref,
+            output_ref=requested_output_ref,
+            watermark_ref=watermark_ref,
+            options=options,
         )
 
         # 3. Execution
         runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
-
-        options = params.get("options", {})
 
         if task_id:
             await runtime.update(
@@ -55,12 +60,12 @@ class SynthesizeStep(PipelineStep):
 
         output_file = await runtime.run_blocking(
             lambda: self._synthesis.synthesize(
-                video_path, 
-                srt_path, 
-                str(output_path), 
-                watermark_path=watermark_ref.path if watermark_ref else None,
-                options=options,
-                progress_callback=runtime.build_progress_callback(progress_transform=float)
+                **build_synthesis_worker_kwargs(
+                    request,
+                    progress_callback=runtime.build_progress_callback(
+                        progress_transform=float
+                    ),
+                )
             )
         )
         

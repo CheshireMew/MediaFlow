@@ -130,7 +130,35 @@ export function useEditorIO() {
       if (currentFilePath) {
         const document = useEditorStore.getState().document;
         if (document.video) {
-          setDocumentPreviewUrl(await resolveEditorPreviewMediaUrl(document.video));
+          const previewUrl = await resolveEditorPreviewMediaUrl(document.video);
+          const subtitlePath = document.subtitle?.path;
+          if (
+            subtitlePath &&
+            document.revision === document.savedRevision
+          ) {
+            try {
+              const regions = await loadEditorSubtitle(subtitlePath);
+              if (regions.length > 0) {
+                replaceEditorDocument(
+                  {
+                    video: document.video,
+                    subtitle: document.subtitle,
+                    previewUrl,
+                    regions,
+                    documentId: document.documentId,
+                  },
+                  { preserveSelection: true },
+                );
+                return;
+              }
+            } catch (error) {
+              console.warn(
+                "[EditorIO] Failed to reload the saved subtitle during recovery.",
+                error,
+              );
+            }
+          }
+          setDocumentPreviewUrl(previewUrl);
         }
       }
     };

@@ -20,6 +20,7 @@ def task_submission_response(
         "queue_state": task.queue_state,
         "queue_position": task.queue_position,
         "primary_operation": task.primary_operation,
+        "revision": task.revision,
     }
 
 
@@ -39,27 +40,10 @@ class PipelineSubmissionService:
         if existing_task_id:
             task = orchestrator.get_task(existing_task_id)
             if task:
-                if task.status in ["running", "pending"]:
-                    logger.info(f"Duplicate task request ignored: {existing_task_id}")
-                    return task_submission_response(
-                        orchestrator.serialize_task(task),
-                        "already_active",
-                        {},
-                    )
-
-                logger.info(f"Recycling existing task: {existing_task_id}")
-                await orchestrator.reset_task_for_reuse(
-                    existing_task_id,
-                    request_params=request_params,
-                )
-                await orchestrator.enqueue_existing_task(
-                    existing_task_id,
-                    queued_message_code="queued",
-                )
-                restarted = orchestrator.get_task(existing_task_id)
+                logger.info(f"Duplicate active task request ignored: {existing_task_id}")
                 return task_submission_response(
-                    orchestrator.serialize_task(restarted),
-                    "restarted",
+                    orchestrator.serialize_task(task),
+                    "already_active",
                     {},
                 )
 

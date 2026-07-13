@@ -9,8 +9,10 @@ import { registerWorkspaceStateHandlers } from "./ipc/workspace-state-handlers";
 import { startBundledBackend, stopBundledBackend } from "./backend/backendProcess";
 import {
   isDesktopDevMode,
+  migrateDesktopRuntimeData,
   resolveDesktopPreloadScript,
   resolveDesktopRendererTarget,
+  resolveDesktopWorkspaceDir,
 } from "./desktopRuntime";
 import {
   buildRendererLoadFailureDataUrl,
@@ -113,7 +115,7 @@ function createWindow() {
         {
           label: messages.menuOpenWorkspace,
           click: async () => {
-            await shell.openPath(app.getPath("userData"));
+            await shell.openPath(resolveDesktopWorkspaceDir());
           },
         },
       ],
@@ -122,24 +124,49 @@ function createWindow() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-app.on("ready", () => {
-  registerIpcHandlers();
-  startBundledBackend();
-  createWindow();
-});
+function registerAppLifecycle() {
+  app.on("ready", () => {
+    void migrateDesktopRuntimeData()
+      .then(() => {
+        registerIpcHandlers();
+        startBundledBackend();
+        createWindow();
+      })
+      .catch((error) => {
+        console.error("[Desktop] Failed to migrate runtime data.", error);
+        app.quit();
+      });
+  });
 
-app.on("before-quit", () => {
-  stopBundledBackend();
-});
+  app.on("before-quit", () => {
+    stopBundledBackend();
+  });
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
+    }
+  });
 
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
+}
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const mainWindow = BrowserWindow.getAllWindows()[0];
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+  registerAppLifecycle();
+}

@@ -39,9 +39,6 @@ class TaskQueueRunner:
     def queued_count(self) -> int:
         return len(self._runtime_state.queued_ids)
 
-    def request_delete_after_stop(self, task_id: str) -> None:
-        self._runtime_state.mark_delete_after_stop(task_id)
-
     def register_runner(self, task_id: str, runner: TaskRunner) -> None:
         self._execution_specs[task_id] = runner
 
@@ -52,8 +49,23 @@ class TaskQueueRunner:
     def discard_task(self, task_id: str) -> None:
         self._runtime_state.unmark_queued(task_id)
         self._runtime_state.unmark_running(task_id)
-        self._runtime_state.clear_delete_after_stop(task_id)
         self._execution_specs.pop(task_id, None)
+
+    async def wait_until_stopped(
+        self,
+        task_ids: set[str],
+        *,
+        timeout_seconds: float,
+    ) -> set[str]:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout_seconds
+        while True:
+            remaining = task_ids & self._runtime_state.running_ids
+            if not remaining:
+                return set()
+            if loop.time() >= deadline:
+                return set(remaining)
+            await asyncio.sleep(0.05)
 
     def clear(self) -> None:
         self._runtime_state.clear()
@@ -84,6 +96,7 @@ class TaskQueueRunner:
     async def _worker_loop(self, task_manager, worker_index: int) -> None:
         while True:
             task_id = await self._queue.get()
+            self._runtime_state.mark_running(task_id)
             self._runtime_state.unmark_queued(task_id)
             try:
                 task = task_manager.get_task(task_id)
@@ -117,7 +130,6 @@ class TaskQueueRunner:
                     )
                     continue
 
-                self._runtime_state.mark_running(task_id)
                 logger.info(f"[Queue:{worker_index}] Starting task {task_id}")
                 await runner()
             except TaskControlRequested as e:
@@ -137,6 +149,4 @@ class TaskQueueRunner:
             finally:
                 self._runtime_state.unmark_running(task_id)
                 self._execution_specs.pop(task_id, None)
-                if task_id in self._runtime_state.delete_after_stop:
-                    await task_manager.finalize_task_delete(task_id)
                 self._queue.task_done()

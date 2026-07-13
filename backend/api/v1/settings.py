@@ -23,6 +23,16 @@ class ProviderConnectionRequest(BaseModel):
     model: str
 
 
+class ActiveProviderResponse(BaseModel):
+    status: str
+    active_provider_id: str
+
+
+class ProviderConnectionResponse(BaseModel):
+    status: str
+    message: str
+
+
 class ToolUpdateResponse(BaseModel):
     status: str
     message: str
@@ -52,16 +62,16 @@ def create_router(*, settings_application, asr_service) -> APIRouter:
 
     @router.get("/", response_model=UserSettings)
     async def get_records():
-        return settings_application.get_settings()
+        return await asyncio.to_thread(settings_application.get_settings)
 
     @router.get("/cuda-readiness", response_model=CudaReadinessResponse)
     async def get_cuda_readiness():
-        return settings_application.get_cuda_readiness()
+        return await asyncio.to_thread(settings_application.get_cuda_readiness)
 
     @router.patch("/preferences", response_model=UserSettings)
     async def patch_preferences(patch: UserPreferencesPatch):
         try:
-            return settings_application.patch_preferences(patch)
+            return await asyncio.to_thread(settings_application.patch_preferences, patch)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
@@ -70,22 +80,25 @@ def create_router(*, settings_application, asr_service) -> APIRouter:
     @router.patch("/ui-state", response_model=UserSettings)
     async def patch_ui_state(patch: UiStatePatch):
         try:
-            return settings_application.patch_ui_state(patch)
+            return await asyncio.to_thread(settings_application.patch_ui_state, patch)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    @router.post("/active-provider")
+    @router.post("/active-provider", response_model=ActiveProviderResponse)
     async def set_active_provider(req: ActiveProviderRequest):
         try:
-            return settings_application.set_active_provider(req.provider_id)
+            return await asyncio.to_thread(
+                settings_application.set_active_provider,
+                req.provider_id,
+            )
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    @router.post("/test-provider")
+    @router.post("/test-provider", response_model=ProviderConnectionResponse)
     async def test_provider_connection(req: ProviderConnectionRequest):
         try:
             return await asyncio.to_thread(

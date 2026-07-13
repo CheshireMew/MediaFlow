@@ -1,5 +1,6 @@
 from typing import Optional, Dict, Any
 from sqlmodel import Field, SQLModel, JSON, Column
+from sqlalchemy import Integer
 import time
 from pydantic import ConfigDict, field_validator, model_validator
 
@@ -28,6 +29,11 @@ class Task(SQLModel, table=True):
     persistence_scope: str = Field(default="runtime")
     lifecycle: str = Field(default=TASK_LIFECYCLE["resumable"])
     progress: float = Field(default=0.0)
+    revision: int = Field(
+        default=0,
+        ge=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
     message_code: str = Field(default="queued")
     message_params: Dict[str, Any] = Field(
         default_factory=dict,

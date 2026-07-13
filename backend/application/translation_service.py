@@ -76,6 +76,25 @@ def build_translation_task_result(
     return TaskResult(success=True, artifacts=artifacts, meta=meta)
 
 
+def build_translation_worker_kwargs(
+    req: TranslationRequest,
+    *,
+    progress_callback=None,
+    cancel_check=None,
+) -> dict:
+    kwargs = {
+        "segments": req.segments,
+        "target_language": req.target_language.value,
+        "mode": req.mode,
+        "batch_size": req.batch_size,
+    }
+    if progress_callback is not None:
+        kwargs["progress_callback"] = progress_callback
+    if cancel_check is not None:
+        kwargs["cancel_check"] = cancel_check
+    return kwargs
+
+
 async def _translation_background(
     task_id: str,
     req: TranslationRequest,
@@ -89,13 +108,10 @@ async def _translation_background(
     await background_runner.run(
         task_id=task_id,
         worker_fn=llm_translator.translate_segments,
-        worker_kwargs={
-            "segments": req.segments,
-            "target_language": req.target_language,
-            "mode": req.mode,
-            "batch_size": 10,
-            "cancel_check": runtime.checkpoint,
-        },
+        worker_kwargs=build_translation_worker_kwargs(
+            req,
+            cancel_check=runtime.checkpoint,
+        ),
         start_message_code="translation_starting",
         success_message_code="translation_completed",
         result_transformer=lambda segments: build_translation_task_result(
@@ -114,11 +130,10 @@ def _translation_immediate(
     progress_callback=None,
 ):
     translated_segments = llm_translator.translate_segments(
-        segments=req.segments,
-        target_language=req.target_language.value,
-        mode=req.mode,
-        batch_size=10,
-        progress_callback=progress_callback,
+        **build_translation_worker_kwargs(
+            req,
+            progress_callback=progress_callback,
+        )
     )
     result = build_translation_task_result(
         translated_segments,
@@ -136,12 +151,12 @@ def _translation_immediate(
         else None
     )
     return {
+        "status": "completed",
         "segments": result.meta.get("segments", []),
         "language": req.target_language.value,
         "context_ref": (
             req.context_ref.model_dump(mode="json") if req.context_ref else None
         ),
         "subtitle_ref": output_ref,
-        "output_ref": output_ref,
         "mode": req.mode,
     }

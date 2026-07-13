@@ -68,12 +68,6 @@ def _media_kind_from_ref(ref: MediaReference, fallback_key: str | None = None) -
     return "file"
 
 
-def _normalize_role(value: str | None, fallback: str) -> str:
-    if value in {"input", "output", "context"}:
-        return value
-    return fallback
-
-
 def _media_ref(value: Any) -> MediaReference | None:
     if isinstance(value, MediaReference):
         return value
@@ -98,7 +92,8 @@ def _append_ref_artifact(
         return
 
     kind = _media_kind_from_ref(ref, key)
-    role = _normalize_role(ref.role, default_role)
+    role = default_role
+    ref = ref.model_copy(update={"role": role})
     dedupe_key = (kind, role, ref.path)
     if dedupe_key in seen:
         return

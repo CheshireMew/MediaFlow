@@ -1,5 +1,5 @@
 import { app } from "electron";
-import { existsSync } from "fs";
+import { existsSync, promises as fs } from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
 
@@ -7,6 +7,7 @@ const MEDIAFLOW_RENDERER_DEV_URL_ENV = "MEDIAFLOW_RENDERER_DEV_URL";
 const DESKTOP_RUNTIME_DIRNAME = "runtime";
 const MEDIAFLOW_RUNTIME_DIR_ENV = "MEDIAFLOW_RUNTIME_DIR";
 const MEDIAFLOW_BACKEND_PORT_ENV = "PORT";
+const WINDOWS_SHARED_RUNTIME_ROOT = "D:\\Tools\\MediaFlow\\runtime";
 
 export function isDesktopDevMode() {
   return process.env.IS_DEV === "true";
@@ -90,11 +91,69 @@ export function resolveDesktopRendererTarget() {
 }
 
 export function resolveDesktopRuntimeDataRoot() {
+  const configuredRuntimeRoot = process.env[MEDIAFLOW_RUNTIME_DIR_ENV]?.trim();
+  if (configuredRuntimeRoot) {
+    return path.resolve(configuredRuntimeRoot);
+  }
   if (isDesktopDevMode()) {
     return resolveDesktopDevProjectRoot();
   }
 
+  if (process.platform === "win32" && existsSync("D:\\")) {
+    return WINDOWS_SHARED_RUNTIME_ROOT;
+  }
+
   return path.join(app.getPath("userData"), DESKTOP_RUNTIME_DIRNAME);
+}
+
+export function resolveDesktopWorkspaceStatePath() {
+  return path.join(resolveDesktopRuntimeDataRoot(), "user_data", "workspace-state.json");
+}
+
+function samePath(left: string, right: string) {
+  const normalizedLeft = path.resolve(left);
+  const normalizedRight = path.resolve(right);
+  return process.platform === "win32"
+    ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+    : normalizedLeft === normalizedRight;
+}
+
+async function copyLegacyPathIfMissing(source: string, target: string) {
+  if (samePath(source, target) || existsSync(target) || !existsSync(source)) {
+    return;
+  }
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.cp(source, target, {
+    recursive: true,
+    force: false,
+    errorOnExist: false,
+    preserveTimestamps: true,
+  });
+}
+
+export async function migrateDesktopRuntimeData() {
+  const runtimeRoot = resolveDesktopRuntimeDataRoot();
+  const legacyUserDataRoot = app.getPath("userData");
+  const legacyRuntimeRoot = path.join(legacyUserDataRoot, DESKTOP_RUNTIME_DIRNAME);
+
+  if (!samePath(legacyRuntimeRoot, runtimeRoot) && existsSync(legacyRuntimeRoot)) {
+    await fs.mkdir(path.dirname(runtimeRoot), { recursive: true });
+    await fs.cp(legacyRuntimeRoot, runtimeRoot, {
+      recursive: true,
+      force: false,
+      errorOnExist: false,
+      preserveTimestamps: true,
+    });
+  }
+
+  await copyLegacyPathIfMissing(
+    path.join(runtimeRoot, "workspace-state.json"),
+    resolveDesktopWorkspaceStatePath(),
+  );
+  await copyLegacyPathIfMissing(
+    path.join(legacyUserDataRoot, "user-preferences.json"),
+    path.join(runtimeRoot, "user_data", "user-preferences.json"),
+  );
 }
 
 export function resolveDesktopResourceDir() {

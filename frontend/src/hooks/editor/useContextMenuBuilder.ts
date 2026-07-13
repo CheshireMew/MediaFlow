@@ -108,16 +108,8 @@ export function useContextMenuBuilder({
           target_language: targetLanguage,
           mode,
         });
-        if (res.status === "completed" && res.segments) {
-          return {
-            segments: res.segments as SubtitleSegment[],
-            targetLanguage,
-          };
-        }
-
-        toast.info(t("contextMenu.taskPending", { taskId: res.task_id }), 3000);
         return {
-          segments: null,
+          segments: res.segments as SubtitleSegment[],
           targetLanguage,
         };
       } catch (err) {
@@ -132,7 +124,7 @@ export function useContextMenuBuilder({
         throw err;
       }
     },
-    [t],
+    [],
   );
 
   const transcribeRegion = useCallback(

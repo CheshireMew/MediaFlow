@@ -41,6 +41,24 @@ class ASRServiceProtocol(Protocol):
     ) -> TaskResult: ...
 
 
+def build_transcription_worker_kwargs(
+    req: TranscribeRequest,
+    *,
+    task_id: str | None,
+    progress_callback: TaskProgressCallback | None = None,
+) -> dict:
+    return {
+        "audio_path": req.audio_ref.path,
+        "model_name": req.model,
+        "device": req.device,
+        "engine": req.engine,
+        "language": req.language,
+        "vad_filter": req.vad_filter,
+        "task_id": task_id,
+        "initial_prompt": req.initial_prompt,
+        "progress_callback": progress_callback,
+    }
+
 async def _transcription_background(
     task_id: str,
     req: TranscribeRequest,
@@ -48,50 +66,12 @@ async def _transcription_background(
     asr_service: ASRServiceProtocol,
     background_runner,
 ):
-    audio_path = req.audio_ref.path
     await background_runner.run(
         task_id=task_id,
         worker_fn=asr_service.transcribe,
-        worker_kwargs={
-            "audio_path": audio_path,
-            "model_name": req.model,
-            "device": req.device,
-            "engine": req.engine,
-            "language": req.language,
-            "vad_filter": req.vad_filter,
-            "task_id": task_id,
-            "initial_prompt": req.initial_prompt,
-        },
+        worker_kwargs=build_transcription_worker_kwargs(req, task_id=task_id),
         start_message_code="transcription_starting",
         success_message_code="transcription_completed",
-    )
-
-
-async def _transcription_segment_background(
-    task_id: str,
-    req: TranscribeSegmentRequest,
-    *,
-    asr_service: ASRServiceProtocol,
-    background_runner,
-) -> None:
-    audio_path = req.audio_ref.path
-    await background_runner.run(
-        task_id=task_id,
-        worker_fn=asr_service.transcribe_segment,
-        worker_kwargs={
-            "audio_path": audio_path,
-            "start": req.start,
-            "end": req.end,
-            "model_name": req.model,
-            "device": req.device,
-            "engine": req.engine,
-            "language": req.language,
-            "vad_filter": req.vad_filter,
-            "task_id": task_id,
-            "initial_prompt": req.initial_prompt,
-        },
-        start_message_code="transcription_segment_processing",
-        success_message_code="transcription_segment_completed",
     )
 
 
@@ -106,20 +86,15 @@ async def _transcription_segment_immediate(
     from functools import partial
 
     loop = asyncio.get_running_loop()
-    audio_path = req.audio_ref.path
     func = partial(
         asr_service.transcribe_segment,
-        audio_path=audio_path,
+        **build_transcription_worker_kwargs(
+            req,
+            task_id=task_id,
+            progress_callback=progress_callback,
+        ),
         start=req.start,
         end=req.end,
-        model_name=req.model,
-        device=req.device,
-        language=req.language,
-        engine=req.engine,
-        vad_filter=req.vad_filter,
-        task_id=task_id,
-        initial_prompt=req.initial_prompt,
-        progress_callback=progress_callback,
     )
     result = await loop.run_in_executor(None, func)
     if not result.success:

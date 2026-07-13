@@ -178,13 +178,6 @@ export function useTranslationTaskSync({
       return;
     }
 
-    if (task.status === "processing_result") {
-      setTaskStatus("processing_result");
-      setTaskError(null);
-      setExecutionMode("task_submission");
-      return;
-    }
-
     if (task.status === "paused") {
       setTaskStatus("paused");
       setExecutionMode("task_submission");
@@ -203,7 +196,7 @@ export function useTranslationTaskSync({
         setTargetSubtitleRef(taskMediaRefs.targetSubtitleRef);
         setResultMode(completedTaskMode);
       }
-      setTaskStatus("processing_result");
+      setTaskStatus("finalizing");
       setProgress(100);
       setTaskError(null);
       setExecutionMode("task_submission");

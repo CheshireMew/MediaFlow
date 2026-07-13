@@ -7,6 +7,7 @@ from backend.models.schemas import (
     EditorPreviewMediaResponse,
     HighlightDetectionRequest,
     HighlightDetectionResponse,
+    ImagePreviewResponse,
     MediaReference,
     MediaVisibleStartRequest,
     MediaVisibleStartResponse,
@@ -23,7 +24,7 @@ async def upload_watermark_for_preview(file: UploadFile):
     try:
         from backend.application.watermark_preview_service import save_watermark_preview
 
-        return save_watermark_preview(file.filename, file.file)
+        return await asyncio.to_thread(save_watermark_preview, file.filename, file.file)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -35,7 +36,7 @@ async def get_current_watermark():
     """
     from backend.application.watermark_preview_service import get_latest_watermark_preview
 
-    return get_latest_watermark_preview()
+    return await asyncio.to_thread(get_latest_watermark_preview)
 
 
 async def get_media_visible_start(req: MediaVisibleStartRequest):
@@ -46,7 +47,10 @@ async def get_media_visible_start(req: MediaVisibleStartRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    visible_start = MediaProber.detect_leading_black_end(req.video_ref.path)
+    visible_start = await asyncio.to_thread(
+        MediaProber.detect_leading_black_end,
+        req.video_ref.path,
+    )
     return MediaVisibleStartResponse(
         visible_start=visible_start,
         has_leading_black=visible_start > 0,
@@ -64,7 +68,10 @@ async def resolve_preview_media_source(req: EditorPreviewMediaRequest):
     try:
         from backend.application.editor_preview_service import resolve_editor_preview_media
 
-        source_ref, media_ref, remuxed = resolve_editor_preview_media(str(source_path))
+        source_ref, media_ref, remuxed = await asyncio.to_thread(
+            resolve_editor_preview_media,
+            str(source_path),
+        )
         return EditorPreviewMediaResponse(
             source_ref=source_ref,
             media_ref=media_ref,
@@ -175,11 +182,13 @@ def create_router(*, task_operations, highlight_application) -> APIRouter:
         "/preview/upload-watermark",
         upload_watermark_for_preview,
         methods=["POST"],
+        response_model=ImagePreviewResponse,
     )
     router.add_api_route(
         "/preview/watermark/latest",
         get_current_watermark,
         methods=["GET"],
+        response_model=ImagePreviewResponse | None,
     )
     router.add_api_route(
         "/preview/media/visible-start",

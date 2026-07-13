@@ -82,6 +82,13 @@ type TranslatorSnapshot = Pick<
 function normalizeTranslatorSnapshot(
   payload: Partial<TranslatorSnapshot> | null | undefined,
 ): TranslatorSnapshot {
+  const sourceFileRef = normalizeMediaReference(payload?.sourceFileRef);
+  const candidateTargetSubtitleRef = normalizeMediaReference(payload?.targetSubtitleRef);
+  const targetSubtitleRef =
+    sourceFileRef?.path === candidateTargetSubtitleRef?.path
+      ? null
+      : candidateTargetSubtitleRef;
+
   return {
     sourceSegments: Array.isArray(payload?.sourceSegments)
       ? payload.sourceSegments
@@ -89,8 +96,8 @@ function normalizeTranslatorSnapshot(
     targetSegments: Array.isArray(payload?.targetSegments)
       ? payload.targetSegments
       : [],
-    sourceFileRef: normalizeMediaReference(payload?.sourceFileRef),
-    targetSubtitleRef: normalizeMediaReference(payload?.targetSubtitleRef),
+    sourceFileRef,
+    targetSubtitleRef,
     resultMode:
       payload?.resultMode === "standard" ||
       payload?.resultMode === "intelligent" ||
@@ -174,8 +181,21 @@ export const useTranslatorStore = create<TranslatorState>()((set, get) => ({
         }),
 
       setGlossary: (terms) => set({ glossary: terms }),
-      setSourceFileRef: (sourceFileRef) => set({ sourceFileRef }),
-      setTargetSubtitleRef: (targetSubtitleRef) => set({ targetSubtitleRef }),
+      setSourceFileRef: (sourceFileRef) =>
+        set((state) => ({
+          sourceFileRef,
+          targetSubtitleRef:
+            sourceFileRef?.path === state.targetSubtitleRef?.path
+              ? null
+              : state.targetSubtitleRef,
+        })),
+      setTargetSubtitleRef: (targetSubtitleRef) =>
+        set((state) => ({
+          targetSubtitleRef:
+            state.sourceFileRef?.path === targetSubtitleRef?.path
+              ? null
+              : targetSubtitleRef,
+        })),
       setTargetLang: (lang) => {
         persistStoredTranslationPreferences({
           ...restoreStoredTranslationPreferences(),

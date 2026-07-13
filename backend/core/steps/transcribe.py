@@ -3,7 +3,8 @@ from loguru import logger
 from backend.core.steps.base import PipelineStep
 from backend.core.context import PipelineContext
 from backend.core.task_runtime import TaskRuntimeContext
-from backend.models.schemas import DEFAULT_ASR_VAD_FILTER, MediaReference
+from backend.models.schemas import MediaReference, TranscribeRequest
+from backend.application.transcription_service import build_transcription_worker_kwargs
 
 
 class TranscribeStep(PipelineStep):
@@ -21,14 +22,12 @@ class TranscribeStep(PipelineStep):
             input_ref = MediaReference.model_validate(params["audio_ref"])
         if input_ref is None:
             raise ValueError("Transcribe step requires audio_ref or a downloaded media reference")
-        audio_path = input_ref.path
-
-        model = params.get("model", "base")
-        device = params.get("device", "cpu")
-        engine = params.get("engine", "builtin")
-        language = params.get("language")
-        vad_filter = params.get("vad_filter", DEFAULT_ASR_VAD_FILTER)
-        initial_prompt = params.get("initial_prompt")
+        request = TranscribeRequest.model_validate(
+            {
+                **params,
+                "audio_ref": input_ref,
+            }
+        )
         
         # Also run transcribe in executor because it blocks!
         runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
@@ -36,15 +35,11 @@ class TranscribeStep(PipelineStep):
         
         result = await runtime.run_blocking(
             lambda: self._asr_service.transcribe(
-                audio_path=audio_path,
-                model_name=model,
-                device=device,
-                engine=engine,
-                language=language,
-                vad_filter=vad_filter,
-                initial_prompt=initial_prompt,
-                task_id=task_id,
-                progress_callback=progress_cb
+                **build_transcription_worker_kwargs(
+                    request,
+                    task_id=task_id,
+                    progress_callback=progress_cb,
+                )
             )
         )
         
@@ -54,7 +49,7 @@ class TranscribeStep(PipelineStep):
 
         text = result.meta.get("text", "")
         segments = result.meta.get("segments", [])
-        detected_language = result.meta.get("language", language or "auto")
+        detected_language = result.meta.get("language", request.language or "auto")
 
         ctx.set("text", text)
         ctx.set("transcript", text)

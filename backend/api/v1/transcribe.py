@@ -1,7 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from backend.models.schemas import TranscribeRequest, TranscribeSegmentRequest, TaskResponse
+from backend.models.schemas import (
+    TaskResponse,
+    TranscribeRequest,
+    TranscribeSegmentRequest,
+    TranscribeSegmentResponse,
+)
 from backend.utils.path_validator import validate_input_file
 
 def create_router(task_operations) -> APIRouter:
@@ -31,7 +36,7 @@ def create_router(task_operations) -> APIRouter:
             logger.error(f"Failed to submit task: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
-    @router.post("/segment")
+    @router.post("/segment", response_model=TranscribeSegmentResponse)
     async def transcribe_segment(req: TranscribeSegmentRequest):
         duration = req.end - req.start
         if duration <= 0:
@@ -46,17 +51,10 @@ def create_router(task_operations) -> APIRouter:
         logger.info(
             f"Segment Transcription Request: {duration:.2f}s ({req.start}-{req.end})"
         )
-        if duration > 30:
-            response = await task_operations.submit("transcribe_segment", req)
-            return TaskResponse.model_validate(
-                {
-                    **response,
-                    "message_code": "queued_long_segment",
-                    "message_params": {},
-                }
-            )
         try:
-            return await task_operations.run("transcribe_segment", req)
+            return TranscribeSegmentResponse.model_validate(
+                await task_operations.run("transcribe_segment", req)
+            )
         except HTTPException:
             raise
         except Exception as e:

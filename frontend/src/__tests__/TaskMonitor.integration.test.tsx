@@ -10,9 +10,9 @@ const clearTasksMock = vi.fn();
 const deleteTaskMock = vi.fn();
 const pauseTaskMock = vi.fn();
 const resumeTaskMock = vi.fn();
+const retryTaskMock = vi.fn();
 const addTaskMock = vi.fn();
 const canRetryTaskMock = vi.fn();
-const retryFailedTaskMock = vi.fn();
 const confirmActionMock = vi.fn();
 const toastErrorMock = vi.fn();
 
@@ -32,7 +32,6 @@ vi.mock("../components/ui/confirmationContext", () => ({
 
 vi.mock("../services/tasks/retry", () => ({
   canRetryTask: (...args: unknown[]) => canRetryTaskMock(...args),
-  retryFailedTask: (...args: unknown[]) => retryFailedTaskMock(...args),
 }));
 
 vi.mock("../utils/toast", () => ({
@@ -97,6 +96,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
+      retryTask: retryTaskMock,
       addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
@@ -107,9 +107,9 @@ describe("TaskMonitor integration", () => {
     deleteTaskMock.mockResolvedValue(undefined);
     addTaskMock.mockReset();
     canRetryTaskMock.mockReset();
-    retryFailedTaskMock.mockReset();
+    retryTaskMock.mockReset();
     canRetryTaskMock.mockReturnValue(false);
-    retryFailedTaskMock.mockResolvedValue(undefined);
+    retryTaskMock.mockResolvedValue(undefined);
   });
 
   it("renders queue badges and header summary from task context", () => {
@@ -163,6 +163,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
+      retryTask: retryTaskMock,
       addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
@@ -252,6 +253,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
+      retryTask: retryTaskMock,
       addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
@@ -291,6 +293,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
+      retryTask: retryTaskMock,
       addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
@@ -336,6 +339,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
+      retryTask: retryTaskMock,
       addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
@@ -349,26 +353,7 @@ describe("TaskMonitor integration", () => {
     fireEvent.click(within(taskRow).getByTitle("actions.resume.tooltip"));
 
     await waitFor(() => {
-      expect(retryFailedTaskMock).toHaveBeenCalledWith(
-        {
-          id: "failed-download-task",
-          type: "download",
-          status: "failed",
-          progress: 0,
-          name: "Failed download task",
-          message_code: "failed",
-          message_params: {},
-          error: "network error",
-          created_at: 2,
-          request_params: {
-            url: "https://example.com/video",
-            download_subs: true,
-            resolution: "best",
-            codec: "best",
-          },
-        },
-        addTaskMock,
-      );
+      expect(retryTaskMock).toHaveBeenCalledWith("failed-download-task");
     });
 
     expect(resumeTaskMock).not.toHaveBeenCalled();
@@ -396,6 +381,7 @@ describe("TaskMonitor integration", () => {
       pauseAllTasks: pauseAllTasksMock,
       pauseTask: pauseTaskMock,
       resumeTask: resumeTaskMock,
+      retryTask: retryTaskMock,
       addTask: addTaskMock,
       deleteTask: deleteTaskMock,
       clearTasks: clearTasksMock,
@@ -409,10 +395,7 @@ describe("TaskMonitor integration", () => {
     fireEvent.click(within(taskRow).getByTitle("actions.resume.tooltip"));
 
     await waitFor(() => {
-      expect(retryFailedTaskMock).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "failed-translate-task", type: "translate" }),
-        addTaskMock,
-      );
+      expect(retryTaskMock).toHaveBeenCalledWith("failed-translate-task");
     });
   });
 

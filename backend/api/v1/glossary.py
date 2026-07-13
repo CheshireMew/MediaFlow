@@ -4,6 +4,7 @@ from typing import List
 from backend.models.schemas import (
     CreateGlossaryTermRequest,
     GlossaryTerm,
+    GlossaryDeleteResponse,
     UpdateGlossaryTermRequest,
 )
 
@@ -26,7 +27,7 @@ def create_router(glossary_application) -> APIRouter:
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
-    @router.delete("/{term_id}")
+    @router.delete("/{term_id}", response_model=GlossaryDeleteResponse)
     def delete_term(term_id: str):
         try:
             return glossary_application.delete_term(term_id)

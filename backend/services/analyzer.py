@@ -1,6 +1,7 @@
 """
 URL Analyzer Service - Detects playlists and extracts metadata using yt-dlp.
 """
+import asyncio
 import yt_dlp
 from loguru import logger
 from backend.services.platforms.factory import PlatformFactory
@@ -61,10 +62,12 @@ class AnalyzerService:
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # yt-dlp is blocking, so we should technically run this in a thread pool executor
-            # but for now we keep it simple as this is a fast operation in flat mode.
             try:
-                info = ydl.extract_info(url, download=False)
+                info = await asyncio.to_thread(
+                    ydl.extract_info,
+                    url,
+                    download=False,
+                )
             except Exception as e:
                 classified_error = classify_download_error(e, url=url)
                 logger.error(

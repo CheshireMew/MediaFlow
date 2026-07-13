@@ -56,6 +56,7 @@ Mediaflow/
 
 - `backend/`、`frontend/`、`tests/`、`scripts/` 是长期维护的源码目录。
 - `workspace/`、`output/`、`models/`、`user_data/` 是本地运行数据目录，不应提交到 Git。
+- Windows 桌面生产版优先把可变运行数据、模型和工具写入 `D:\Tools\MediaFlow\runtime`；可通过 `MEDIAFLOW_RUNTIME_DIR` 显式覆盖。仅在 D 盘不可用且未配置该变量时才回退到系统用户数据目录。
 - `scripts/debug/` 和 `scripts/verify/` 用于手工排查与验证，不属于 `pytest` 自动测试集合。
 
 ## 🚀 快速启动

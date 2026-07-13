@@ -4,7 +4,7 @@ from backend.models.task_message import TaskMessageParams
 
 
 class TaskResumeService:
-    async def reset_task_for_reuse(
+    async def reset_paused_task(
         self,
         task_manager,
         task_id: str,
@@ -28,4 +28,4 @@ class TaskResumeService:
             task_id,
             **updates,
         )
-        logger.info(f"Task {task_id} reset for reuse")
+        logger.info(f"Paused task {task_id} reset for resume")

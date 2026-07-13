@@ -15,21 +15,32 @@ import {
   buildOpenFileDialogFilters,
   type OpenFileDialogRequest,
 } from "../../src/contracts/openFileContract";
-import { resolveDesktopWorkspaceDir } from "../desktopRuntime";
+import {
+  resolveDesktopRuntimeDataRoot,
+  resolveDesktopWorkspaceDir,
+} from "../desktopRuntime";
 import { desktopFileAccess } from "./file-access";
 
 function getStorePath() {
-  return path.join(app.getPath("userData"), "user-preferences.json");
+  return path.join(
+    resolveDesktopRuntimeDataRoot(),
+    "user_data",
+    "user-preferences.json",
+  );
 }
 
-function loadLastOpenDir(): string | undefined {
+async function loadLastOpenDir(): Promise<string | undefined> {
   try {
     const storePath = getStorePath();
-    if (fs.existsSync(storePath)) {
-      const data = JSON.parse(fs.readFileSync(storePath, "utf-8")) as {
+    try {
+      const data = JSON.parse(await fs.promises.readFile(storePath, "utf-8")) as {
         lastOpenDir?: string;
       };
       return data.lastOpenDir;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw error;
+      }
     }
   } catch {
     // Preference corruption should not block the file picker.
@@ -37,43 +48,59 @@ function loadLastOpenDir(): string | undefined {
   return undefined;
 }
 
-function saveLastOpenDir(dirPath: string) {
+async function saveLastOpenDir(dirPath: string) {
   try {
-    fs.writeFileSync(getStorePath(), JSON.stringify({ lastOpenDir: dirPath }));
+    await fs.promises.mkdir(path.dirname(getStorePath()), { recursive: true });
+    await fs.promises.writeFile(
+      getStorePath(),
+      JSON.stringify({ lastOpenDir: dirPath }),
+      "utf-8",
+    );
   } catch (error) {
     console.error("Save preferences failed", error);
   }
 }
 
 let lastOpenDir: string | undefined;
-let isLoaded = false;
+let loadPromise: Promise<void> | null = null;
 
-function ensureLoaded() {
-  if (!isLoaded) {
-    lastOpenDir = loadLastOpenDir();
-    isLoaded = true;
+async function ensureLoaded() {
+  if (!loadPromise) {
+    loadPromise = loadLastOpenDir().then((loadedDir) => {
+      lastOpenDir = loadedDir;
+    });
+  }
+  await loadPromise;
+}
+
+async function pathExists(candidate: string) {
+  try {
+    await fs.promises.access(candidate);
+    return true;
+  } catch {
+    return false;
   }
 }
 
-function getDefaultStartPath(): string | undefined {
+async function getDefaultStartPath(): Promise<string | undefined> {
   const appPath = app.getAppPath();
   const workspaceDir = resolveDesktopWorkspaceDir();
   const startPath = lastOpenDir;
 
   if (!startPath) {
-    return fs.existsSync(workspaceDir) ? workspaceDir : appPath;
+    return await pathExists(workspaceDir) ? workspaceDir : appPath;
   }
-  if (!fs.existsSync(startPath)) {
-    return fs.existsSync(workspaceDir) ? workspaceDir : appPath;
+  if (!await pathExists(startPath)) {
+    return await pathExists(workspaceDir) ? workspaceDir : appPath;
   }
   return startPath;
 }
 
-function rememberFile(filePath: string) {
+async function rememberFile(filePath: string) {
   desktopFileAccess.grantRendererReadFile(filePath);
   lastOpenDir = path.dirname(filePath);
   if (lastOpenDir) {
-    saveLastOpenDir(lastOpenDir);
+    await saveLastOpenDir(lastOpenDir);
   }
 }
 
@@ -94,11 +121,11 @@ export function registerDialogHandlers() {
   ipcMain.handle(
     DESKTOP_FILE_SYSTEM_CHANNELS.openFile,
     async (_event: IpcMainInvokeEvent, request: OpenFileDialogRequest) => {
-      ensureLoaded();
+      await ensureLoaded();
 
       const options: OpenDialogOptions = {
         properties: ["openFile"],
-        defaultPath: request.defaultPath || getDefaultStartPath(),
+        defaultPath: request.defaultPath || await getDefaultStartPath(),
         filters: buildOpenFileDialogFilters(request.profile),
       };
       const { canceled, filePaths } = await dialog.showOpenDialog(options);
@@ -109,10 +136,10 @@ export function registerDialogHandlers() {
       const selectedPath = filePaths[0];
       desktopFileAccess.grantRendererReadFile(selectedPath);
       const filePath = selectedPath;
-      rememberFile(filePath);
+      await rememberFile(filePath);
 
       try {
-        const stats = fs.statSync(filePath);
+        const stats = await fs.promises.stat(filePath);
         return {
           path: filePath,
           name: path.basename(filePath),
@@ -132,7 +159,7 @@ export function registerDialogHandlers() {
   ipcMain.handle(
     DESKTOP_FILE_SYSTEM_CHANNELS.selectDirectory,
     async (_event: IpcMainInvokeEvent, request?: SelectDirectoryRequest) => {
-      ensureLoaded();
+      await ensureLoaded();
 
       const { canceled, filePaths } = await dialog.showOpenDialog({
         properties: ["openDirectory"],
@@ -149,7 +176,7 @@ export function registerDialogHandlers() {
         desktopFileAccess.grantRendererReadDirectory(dirPath);
       }
       lastOpenDir = dirPath;
-      saveLastOpenDir(dirPath);
+      await saveLastOpenDir(dirPath);
       return dirPath;
     },
   );
@@ -170,7 +197,7 @@ export function registerDialogHandlers() {
       }
 
       desktopFileAccess.grantRendererWriteFile(filePath);
-      rememberFile(filePath);
+      await rememberFile(filePath);
       return { canceled: false, filePath };
     },
   );
@@ -180,8 +207,11 @@ export function registerDialogHandlers() {
     async (_event: IpcMainInvokeEvent, filePath: string) => {
       try {
         desktopFileAccess.assertRendererReadAccess(filePath, "Read file");
-        return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf-8") : null;
+        return await fs.promises.readFile(filePath, "utf-8");
       } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          return null;
+        }
         console.error("[IPC] readTextFile error:", error);
         return null;
       }
@@ -193,7 +223,7 @@ export function registerDialogHandlers() {
     async (_event: IpcMainInvokeEvent, filePath: string, content: string) => {
       try {
         desktopFileAccess.assertRendererWriteAccess(filePath, "Write file");
-        fs.writeFileSync(filePath, content, "utf-8");
+        await fs.promises.writeFile(filePath, content, "utf-8");
         return true;
       } catch (error) {
         console.error("[IPC] writeTextFile error:", error);
@@ -207,7 +237,14 @@ export function registerDialogHandlers() {
     async (_event: IpcMainInvokeEvent, filePath: string) => {
       try {
         desktopFileAccess.assertRendererReadAccess(filePath, "Get file size");
-        return fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
+        try {
+          return (await fs.promises.stat(filePath)).size;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            return 0;
+          }
+          throw error;
+        }
       } catch (error) {
         console.error("[IPC] getFileSize error:", error);
         return 0;

@@ -1,6 +1,7 @@
 """
 Cookie Management API endpoints.
 """
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
@@ -15,7 +16,12 @@ class CookieSaveRequest(BaseModel):
 class CookieStatusResponse(BaseModel):
     domain: str
     has_valid_cookies: bool
-    cookie_path: str = None
+    cookie_path: str | None = None
+
+
+class CookieClearResponse(BaseModel):
+    success: bool
+    domain: str
 
 
 def create_router(download_application) -> APIRouter:
@@ -26,7 +32,11 @@ def create_router(download_application) -> APIRouter:
         try:
             if not req.cookies:
                 raise HTTPException(status_code=400, detail="No cookies provided")
-            download_application.save_cookies(req.domain, req.cookies)
+            await asyncio.to_thread(
+                download_application.save_cookies,
+                req.domain,
+                req.cookies,
+            )
             return CookieStatusResponse(
                 domain=req.domain,
                 has_valid_cookies=True,
@@ -41,13 +51,16 @@ def create_router(download_application) -> APIRouter:
     @router.get("/status/{domain}", response_model=CookieStatusResponse)
     async def check_cookie_status(domain: str):
         return CookieStatusResponse.model_validate(
-            download_application.cookie_status(domain)
+            await asyncio.to_thread(download_application.cookie_status, domain)
         )
 
-    @router.delete("/{domain}")
+    @router.delete("/{domain}", response_model=CookieClearResponse)
     async def clear_cookies(domain: str):
         return {
-            "success": download_application.clear_cookies(domain),
+            "success": await asyncio.to_thread(
+                download_application.clear_cookies,
+                domain,
+            ),
             "domain": domain,
         }
 

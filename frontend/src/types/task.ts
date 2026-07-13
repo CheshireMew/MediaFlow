@@ -65,6 +65,7 @@ export interface Task extends Omit<
   | "message_code"
   | "message_params"
   | "error"
+  | "revision"
 > {
   type: TaskType;
   status: TaskStatus;
@@ -76,6 +77,7 @@ export interface Task extends Omit<
   message_code: TaskMessageCode;
   message_params: Record<string, string | number | boolean | null>;
   error?: string | null;
+  revision?: number;
   result?: TaskResult;
   request_params?: TaskRequestParams;
   queue_state: TaskQueueState;

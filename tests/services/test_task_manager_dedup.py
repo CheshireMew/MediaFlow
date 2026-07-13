@@ -75,6 +75,7 @@ def test_download_dedup_distinguishes_resolution_and_codec():
         def __init__(self, task_id: str, request_params: dict):
             self.id = task_id
             self.type = "download"
+            self.status = "pending"
             self.request_params = request_params
 
     manager.tasks["task-a"] = DummyTask("task-a", params_720p)
@@ -114,6 +115,7 @@ def test_download_dedup_distinguishes_subtitle_setting():
         def __init__(self, task_id: str, request_params: dict):
             self.id = task_id
             self.type = "download"
+            self.status = "pending"
             self.request_params = request_params
 
     manager.tasks["task-b"] = DummyTask("task-b", params_without_subs)

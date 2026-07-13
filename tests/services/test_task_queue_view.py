@@ -57,22 +57,6 @@ def test_serialize_task_marks_terminal_backend_tasks_as_history():
     assert payload["lifecycle"] == "history-only"
 
 
-def test_serialize_processing_result_uses_contract_queue_projection():
-    view = TaskQueueView()
-    task = create_task("task-processing", "processing_result")
-
-    payload = view.serialize_task(
-        task,
-        running_ids=set(),
-        queued_ids=set(),
-        queued_order=[],
-    ).model_dump(mode="json")
-
-    assert payload["queue_state"] == "running"
-    assert payload["persistence_scope"] == "runtime"
-    assert payload["lifecycle"] == "resumable"
-
-
 def test_serialize_paused_task_status_wins_over_runtime_membership():
     view = TaskQueueView()
     task = create_task("task-paused", "paused")
@@ -134,7 +118,7 @@ def test_serialize_pipeline_primary_operation_comes_from_first_step():
                 "type": None,
                 "media_id": None,
                 "media_kind": "audio",
-                "role": None,
+                    "role": "input",
                 "origin": None,
             },
         }
@@ -358,3 +342,58 @@ def test_serialize_task_preserves_native_structured_refs_without_path_normalizat
     assert payload["request_params"]["context_ref"]["path"] == "E:/subs/demo.srt"
     assert payload["result"]["artifacts"][0]["ref"]["path"] == "E:/subs/demo_zh.srt"
     assert "subtitle_ref" not in payload["result"]["meta"]
+
+
+def test_serialize_translate_task_uses_request_field_as_artifact_role_source():
+    view = TaskQueueView()
+    task = Task(
+        id="task-translate-stale-context-role",
+        type="translate",
+        status="completed",
+        persistence_scope="history",
+        lifecycle=TASK_LIFECYCLE["history_only"],
+        progress=100.0,
+        message_code="queued",
+        message_params={},
+        request_params={
+            "context_ref": {
+                "path": "E:/subs/demo.srt",
+                "name": "demo.srt",
+                "media_kind": "subtitle",
+                "role": "output",
+                "origin": "task",
+            }
+        },
+        result={
+            "success": True,
+            "artifacts": [
+                {
+                    "kind": "subtitle",
+                    "role": "output",
+                    "ref": {
+                        "path": "E:/subs/demo_ZH-CN.srt",
+                        "name": "demo_ZH-CN.srt",
+                        "media_kind": "subtitle",
+                        "role": "output",
+                        "origin": "task",
+                    },
+                }
+            ],
+            "meta": {"language": "SimplifiedChinese"},
+        },
+    )
+
+    payload = view.serialize_task(
+        task,
+        running_ids=set(),
+        queued_ids=set(),
+        queued_order=[],
+    ).model_dump(mode="json")
+
+    assert [
+        (artifact["role"], artifact["ref"]["role"], artifact["ref"]["path"])
+        for artifact in payload["artifacts"]
+    ] == [
+        ("context", "context", "E:/subs/demo.srt"),
+        ("output", "output", "E:/subs/demo_ZH-CN.srt"),
+    ]

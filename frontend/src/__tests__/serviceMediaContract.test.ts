@@ -27,6 +27,7 @@ const backendReceipt = (task_id: string): TaskResponse => ({
   status: "pending",
   task_source: "backend",
   task_contract_version: TASK_CONTRACT_VERSION,
+  revision: 0,
   persistence_scope: "runtime",
   lifecycle: "resumable",
   queue_state: "queued",

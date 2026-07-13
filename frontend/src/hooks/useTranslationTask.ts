@@ -26,7 +26,7 @@ export const useTranslationTask = () => {
     const shouldClearProofreadExecution =
       !translatorStore.taskId &&
       translatorStore.activeMode === "proofread" &&
-      (translatorStore.taskStatus === "processing_result" || translatorStore.taskStatus === "completed");
+      (translatorStore.taskStatus === "finalizing" || translatorStore.taskStatus === "completed");
 
     if (shouldClearProofreadExecution) {
       translatorStore.setActiveMode(null);
@@ -36,7 +36,7 @@ export const useTranslationTask = () => {
   const isTranslating =
     translatorStore.taskStatus === "translating" ||
     translatorStore.taskStatus === "starting" ||
-    translatorStore.taskStatus === "processing_result" ||
+    translatorStore.taskStatus === "finalizing" ||
     translatorStore.taskStatus === "running" ||
     translatorStore.taskStatus === "pending";
 

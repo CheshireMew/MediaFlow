@@ -16,6 +16,7 @@ export type {
   ElectronCookie,
   CookieStatusResponse,
   GlossaryTerm,
+  GlossaryDeleteResponse,
   LLMProvider,
   UserSettings,
   UserPreferencesPatch,
@@ -41,7 +42,7 @@ export type {
   TranscribeSegmentRequest,
   TranscribeSegmentResponse,
   TranslationRequest,
-  TranslateResponse,
+  ImmediateTranslationResponse,
 } from "../types/api";
 
 // Internal imports (used within this file)
@@ -55,6 +56,7 @@ import type {
   ElectronCookie,
   CookieStatusResponse,
   GlossaryTerm,
+  GlossaryDeleteResponse,
   UserSettings,
   UserPreferencesPatch,
   UiStatePatch,
@@ -78,7 +80,7 @@ import type {
   TranscribeSegmentRequest,
   TranscribeSegmentResponse,
   TranslationRequest,
-  TranslateResponse,
+  ImmediateTranslationResponse,
 } from "../types/api";
 import type { Task } from "../types/task";
 
@@ -190,14 +192,14 @@ export const apiClient = {
     return request<TranscribeSegmentResponse>("/transcribe/segment", {
       method: "POST",
       body: JSON.stringify(payload),
-    });
+    }, 1_800_000);
   },
 
   translateSegments: (payload: TranslationRequest) => {
-    return request<TranslateResponse>("/translate/segment", {
+    return request<ImmediateTranslationResponse>("/translate/segment", {
       method: "POST",
       body: JSON.stringify(payload),
-    });
+    }, 1_800_000);
   },
 
   analyzeUrl: (url: string) => {
@@ -224,13 +226,13 @@ export const apiClient = {
   },
 
   deleteGlossaryTerm: (termId: string) => {
-    return request<void>(`/glossary/${termId}`, {
+    return request<GlossaryDeleteResponse>(`/glossary/${termId}`, {
       method: "DELETE",
     });
   },
 
   startTranslation: (payload: TranslationRequest) => {
-    return request<TranslateResponse>("/translate/", {
+    return request<TaskResponse>("/translate/", {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -263,6 +265,12 @@ export const apiClient = {
 
   resumeTask: (taskId: string) => {
     return request<TaskStatusActionResponse>(`/tasks/${taskId}/resume`, {
+      method: "POST",
+    });
+  },
+
+  retryTask: (taskId: string) => {
+    return request<TaskResponse>(`/tasks/${taskId}/retry`, {
       method: "POST",
     });
   },

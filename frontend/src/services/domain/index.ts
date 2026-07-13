@@ -94,7 +94,7 @@ export {
 } from "./executionAccess";
 export type {
   TranslationRequest,
-  TranslateResponse,
+  ImmediateTranslationResponse,
 } from "../../types/api";
 export { downloaderService } from "./downloaderService";
 export {

@@ -1,11 +1,11 @@
-import { app } from "electron";
-import { existsSync } from "fs";
+import { existsSync, promises as fs } from "fs";
 import { spawn, type ChildProcess } from "child_process";
 import net from "net";
 import {
   buildDesktopBackendEnv,
   isDesktopDevMode,
   resolveBundledBackendExecutable,
+  resolveDesktopRuntimeDataRoot,
   resolvePreferredDesktopBackendPort,
 } from "../desktopRuntime";
 import {
@@ -206,8 +206,10 @@ async function startManagedBackend(): Promise<DesktopBackendRuntimeInfo> {
   }
 
   const port = await resolveManagedBackendPort();
+  const runtimeRoot = resolveDesktopRuntimeDataRoot();
+  await fs.mkdir(runtimeRoot, { recursive: true });
   backendProcess = spawn(executable, [], {
-    cwd: app.getPath("userData"),
+    cwd: runtimeRoot,
     detached: false,
     stdio: ["ignore", "pipe", "pipe"],
     env: {

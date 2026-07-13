@@ -16,6 +16,11 @@ def build_task_runner_registry(*, pipeline_runner, operation_executor) -> TaskRu
     registry.register("download", pipeline_factory)
 
     for task_type in sorted(task_types() - {"pipeline", "download"}):
+        operation = operation_executor.task_operation(task_type)
+        if operation.background is None:
+            raise RuntimeError(
+                f"Task catalog type has no background operation: {task_type}"
+            )
         registry.register(task_type, operation_executor.build_runner)
 
     registry.validate()

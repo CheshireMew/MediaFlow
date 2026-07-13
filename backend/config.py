@@ -113,6 +113,10 @@ class Settings:
         self.TOOL_DIR = self.RUNTIME_DIR / "tools"
         self.TOOL_DOWNLOAD_DIR = self.TOOL_DIR / "downloads"
         self.PYTHON_TOOL_PACKAGES_DIR = self.TOOL_DIR / "python-packages"
+        self.CACHE_DIR = self.RUNTIME_DIR / ".cache"
+        self.HUGGINGFACE_CACHE_DIR = self.CACHE_DIR / "huggingface"
+        self.MODELSCOPE_CACHE_DIR = self.CACHE_DIR / "modelscope"
+        self.PIP_CACHE_DIR = self.CACHE_DIR / "pip"
         self.BIN_DIR = self.RESOURCE_DIR / "bin"
 
         self.FFMPEG_PATH = "ffmpeg"
@@ -130,6 +134,7 @@ class Settings:
         self.DOWNLOADER_FORMATS = DEFAULT_DOWNLOADER_FORMATS.copy()
 
         self._apply_env()
+        self._configure_external_caches()
         self._configure_mutable_python_packages()
         self._auto_detect_binaries()
         self.init_dirs()
@@ -138,6 +143,15 @@ class Settings:
         package_path = str(self.PYTHON_TOOL_PACKAGES_DIR)
         if package_path not in sys.path:
             sys.path.insert(0, package_path)
+
+    def _configure_external_caches(self):
+        os.environ.setdefault("HF_HOME", str(self.HUGGINGFACE_CACHE_DIR))
+        os.environ.setdefault(
+            "HUGGINGFACE_HUB_CACHE",
+            str(self.HUGGINGFACE_CACHE_DIR / "hub"),
+        )
+        os.environ.setdefault("MODELSCOPE_CACHE", str(self.MODELSCOPE_CACHE_DIR))
+        os.environ.setdefault("PIP_CACHE_DIR", str(self.PIP_CACHE_DIR))
 
     def _apply_env(self):
         env_file = self.RESOURCE_DIR / ".env"
@@ -240,6 +254,10 @@ class Settings:
         if not getattr(sys, "frozen", False):
             return self.RESOURCE_DIR
 
+        windows_data_drive = Path("D:/")
+        if os.name == "nt" and windows_data_drive.exists():
+            return windows_data_drive / "Tools" / "MediaFlow" / "runtime"
+
         appdata = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA")
         if appdata:
             return Path(appdata).expanduser().resolve() / "mediaflow-ui" / "runtime"
@@ -256,6 +274,10 @@ class Settings:
             self.TOOL_DIR,
             self.TOOL_DOWNLOAD_DIR,
             self.PYTHON_TOOL_PACKAGES_DIR,
+            self.CACHE_DIR,
+            self.HUGGINGFACE_CACHE_DIR,
+            self.MODELSCOPE_CACHE_DIR,
+            self.PIP_CACHE_DIR,
         ]:
             path.mkdir(parents=True, exist_ok=True)
 

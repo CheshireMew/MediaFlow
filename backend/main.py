@@ -92,12 +92,15 @@ backend_bootstrap.configure(container)
 
 async def health_check(_request):
     """Heartbeat endpoint to check if core is running."""
+    from backend.models.schemas import HealthResponse
+
+    response = HealthResponse(
+        status="online",
+        service=settings.APP_NAME,
+        version=settings.APP_VERSION,
+    )
     return JSONResponse(
-        {
-            "status": "online",
-            "service": settings.APP_NAME,
-            "version": settings.APP_VERSION,
-        }
+        response.model_dump(mode="json")
     )
 
 

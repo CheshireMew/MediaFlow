@@ -32,8 +32,12 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
     },
     [applyMessage],
   );
+  const handleSocketDisconnected = useCallback(() => {
+    setRemoteSnapshotReady(false);
+  }, []);
   const { connected: wsConnected, sendPause } = useTaskSocket({
     onMessage: applySocketMessage,
+    onDisconnected: handleSocketDisconnected,
     enabled,
   });
   const connected = enabled && wsConnected;
@@ -65,6 +69,12 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
     await apiClient.resumeTask(taskId);
   };
 
+  const retryTask = async (taskId: string) => {
+    const receipt = await apiClient.retryTask(taskId);
+    const task = await apiClient.getTaskStatus(receipt.task_id);
+    applyMessage({ type: "merge_one", task });
+  };
+
   const deleteTask = async (taskId: string) => {
     await apiClient.deleteTask(taskId);
     removeLocalTask(taskId);
@@ -89,7 +99,7 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
       .listTasks()
       .then((historyTasks) => {
         if (!cancelled) {
-          applyMessage({ type: "snapshot", tasks: historyTasks });
+          applyMessage({ type: "merge", tasks: historyTasks });
         }
       })
       .catch((error) => {
@@ -128,7 +138,7 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
 
         taskResults.forEach((task) => {
           if (task) {
-            applyMessage({ type: "update", task });
+            applyMessage({ type: "merge_one", task });
           }
         });
       } catch (error) {
@@ -159,6 +169,7 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
         pauseAllTasks,
         pauseTask,
         resumeTask,
+        retryTask,
         addTask,
         deleteTask,
         clearTasks,

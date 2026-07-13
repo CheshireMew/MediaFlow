@@ -124,6 +124,8 @@ describe("TaskProvider", () => {
   function sendRemoteTaskSnapshot() {
     sendSocketMessage({
       type: "snapshot",
+      stream_id: "test-stream",
+      sequence: 1,
       tasks: [
       {
         id: "remote-task",
@@ -227,6 +229,8 @@ describe("TaskProvider", () => {
 
     sendSocketMessage({
       type: "snapshot",
+      stream_id: "test-stream",
+      sequence: 1,
       tasks: [
         {
           id: "remote-task",

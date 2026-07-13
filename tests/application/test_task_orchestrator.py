@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -27,8 +28,35 @@ class FakeTaskManager:
         self.tasks = tasks or {}
         self.updated = []
         self.enqueued = []
+        self.created = 0
+
+    async def create_task(
+        self,
+        *,
+        task_type,
+        task_name,
+        request_params,
+        initial_message_code,
+        initial_message_params,
+    ):
+        self.created += 1
+        task_id = "task-new" if self.created == 1 else f"task-new-{self.created}"
+        self.tasks[task_id] = SimpleNamespace(
+            id=task_id,
+            type=task_type,
+            name=task_name,
+            status="pending",
+            revision=0,
+            message_code=initial_message_code,
+            message_params=initial_message_params or {},
+            request_params=request_params,
+        )
+        return task_id
 
     def get_task(self, task_id):
+        return self.tasks.get(task_id)
+
+    async def get_task_record(self, task_id):
         return self.tasks.get(task_id)
 
     async def wait_until_tasks_loaded(self):
@@ -67,6 +95,7 @@ class FakeTaskManager:
             queue_state="queued" if task.status == "pending" else task.status,
             queue_position=None,
             primary_operation=task.type,
+            revision=task.revision,
         )
 
 
@@ -107,7 +136,7 @@ def test_deduplication_key_keeps_all_download_result_inputs():
 
 
 @pytest.mark.asyncio
-async def test_submit_pipeline_recycles_matching_completed_task():
+async def test_submit_pipeline_creates_a_new_attempt_for_matching_completed_task():
     task = SimpleNamespace(
         id="task-1",
         type="pipeline",
@@ -118,6 +147,7 @@ async def test_submit_pipeline_recycles_matching_completed_task():
             "pipeline_id": "downloader_tool",
             "steps": [{"step_name": "download", "params": {"url": "https://example.com/video"}}],
         },
+        revision=7,
     )
     task_manager = FakeTaskManager(tasks={"task-1": task})
     orchestrator = create_orchestrator(task_manager)
@@ -132,21 +162,44 @@ async def test_submit_pipeline_recycles_matching_completed_task():
 
     result = await orchestrator.submit_pipeline(req)
 
+    new_task = task_manager.tasks["task-new"]
     assert result == task_submission_response(
-        task_manager.serialize_task(task),
-        "restarted",
+        task_manager.serialize_task(new_task),
+        "queued",
         {},
     )
-    assert task_manager.updated
-    updated_task_id, updates = task_manager.updated[0]
-    assert updated_task_id == "task-1"
-    assert updates["status"] == "pending"
-    assert updates["progress"] == 0.0
-    assert updates["message_code"] == "resumed"
-    assert updates["message_params"] == {}
-    assert updates["request_params"] == req.model_dump(mode="json")
-    assert task_manager.enqueued[0][0] == "task-1"
+    assert task_manager.updated == []
+    assert task.status == "completed"
+    assert task.revision == 7
+    assert task_manager.enqueued[0][0] == "task-new"
     assert task_manager.enqueued[0][2:] == ("queued", {})
+
+
+@pytest.mark.asyncio
+async def test_concurrent_matching_pipeline_submissions_create_one_active_task():
+    task_manager = FakeTaskManager()
+    orchestrator = create_orchestrator(task_manager)
+    req = PipelineRequest.model_validate(
+        {
+            "pipeline_id": "downloader_tool",
+            "steps": [
+                {
+                    "step_name": "download",
+                    "params": {"url": "https://example.com/video"},
+                }
+            ],
+        }
+    )
+
+    first, second = await asyncio.gather(
+        orchestrator.submit_pipeline(req),
+        orchestrator.submit_pipeline(req),
+    )
+
+    assert task_manager.created == 1
+    assert first["task_id"] == "task-new"
+    assert second["task_id"] == "task-new"
+    assert second["message_code"] == "already_active"
 
 
 @pytest.mark.asyncio
@@ -180,3 +233,28 @@ async def test_resume_task_enqueues_runner_from_registered_definition():
     assert task_manager.updated[0][0] == "task-2"
     assert task_manager.updated[0][1]["status"] == "pending"
     assert task_manager.enqueued == [("task-2", runner, "queued", {})]
+
+
+@pytest.mark.asyncio
+async def test_retry_failed_task_creates_a_new_attempt_and_preserves_history():
+    failed_task = SimpleNamespace(
+        id="failed-task",
+        type="transcribe",
+        name="Failed transcription",
+        status="failed",
+        revision=4,
+        message_code="failed",
+        message_params={},
+        request_params={"audio_ref": {"path": "D:/media/audio.wav"}},
+    )
+    task_manager = FakeTaskManager(tasks={failed_task.id: failed_task})
+    registry = TaskRunnerRegistry()
+    registry.register("transcribe", lambda _task: object())
+    orchestrator = create_orchestrator(task_manager, registry)
+
+    result = await orchestrator.retry_task(failed_task.id)
+
+    assert result["task_id"] == "task-new"
+    assert task_manager.tasks[failed_task.id].status == "failed"
+    assert task_manager.tasks[failed_task.id].revision == 4
+    assert task_manager.tasks["task-new"].request_params == failed_task.request_params

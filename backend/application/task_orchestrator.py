@@ -1,7 +1,9 @@
+import asyncio
 from typing import TYPE_CHECKING
 
 from backend.models.schemas import PipelineRequest
 from backend.models.task_message import TaskMessageParams
+from backend.application.pipeline_submission_service import task_submission_response
 from backend.services.settings_manager import UserSettings
 
 if TYPE_CHECKING:
@@ -29,6 +31,7 @@ class TaskOrchestrator:
         self._task_resume_service = task_resume_service
         self._pipeline_submission_service = pipeline_submission_service
         self._task_runner_registry = task_runner_registry
+        self._submission_lock = asyncio.Lock()
 
     def prepare_pipeline_request(self, req: PipelineRequest) -> PipelineRequest:
         if req.pipeline_id not in {"downloader_tool", "transcriber_tool"} or not req.steps:
@@ -58,6 +61,9 @@ class TaskOrchestrator:
     def get_task(self, task_id: str):
         return self._task_manager.get_task(task_id)
 
+    async def get_task_record(self, task_id: str):
+        return await self._task_manager.get_task_record(task_id)
+
     def serialize_task(self, task):
         if task is None:
             raise ValueError("Task not found")
@@ -82,14 +88,14 @@ class TaskOrchestrator:
             queued_message_params=queued_message_params,
         )
 
-    async def reset_task_for_reuse(
+    async def reset_paused_task(
         self,
         task_id: str,
         message_code: str = "resumed",
         message_params: TaskMessageParams | None = None,
         request_params: dict | None = None,
     ) -> None:
-        await self._task_resume_service.reset_task_for_reuse(
+        await self._task_resume_service.reset_paused_task(
             self._task_manager,
             task_id,
             message_code=message_code,
@@ -108,11 +114,12 @@ class TaskOrchestrator:
         task_type = "pipeline"
         if self._download_workflow_service is not None:
             task_type = self._download_workflow_service.infer_task_type(req)
-        return await self._pipeline_submission_service.submit_pipeline(
-            orchestrator=self,
-            req=req,
-            task_type=task_type,
-        )
+        async with self._submission_lock:
+            return await self._pipeline_submission_service.submit_pipeline(
+                orchestrator=self,
+                req=req,
+                task_type=task_type,
+            )
 
     async def submit_task(
         self,
@@ -142,8 +149,6 @@ class TaskOrchestrator:
             queued_message_code=queued_message_code,
             queued_message_params=queued_message_params,
         )
-        from backend.application.pipeline_submission_service import task_submission_response
-
         return task_submission_response(
             self.serialize_task(self.get_task(task_id)),
             queued_message_code,
@@ -163,7 +168,38 @@ class TaskOrchestrator:
                 "message_params": {},
                 "status": "running",
             }
+        if task.status != "paused":
+            raise ValueError("Only paused tasks can be resumed")
 
-        await self.reset_task_for_reuse(task_id)
+        await self.reset_paused_task(task_id)
         await self.enqueue_existing_task(task_id, queued_message_code="queued")
         return {"message_code": "resumed", "message_params": {}, "status": "pending"}
+
+    async def retry_task(self, task_id: str) -> dict:
+        await self.wait_until_task_state_ready()
+        async with self._submission_lock:
+            task = await self.get_task_record(task_id)
+            if not task:
+                raise ValueError("Task not found")
+            if task.status != "failed":
+                raise ValueError("Only failed tasks can be retried")
+            if not task.request_params:
+                raise ValueError("Cannot retry task: Missing parameters")
+
+            existing_task_id = self.find_existing_task(task.type, task.request_params)
+            if existing_task_id:
+                existing_task = self.get_task(existing_task_id)
+                if existing_task:
+                    return task_submission_response(
+                        self.serialize_task(existing_task),
+                        "already_active",
+                        {},
+                    )
+
+            return await self.submit_task(
+                task_type=task.type,
+                task_name=task.name or task.type,
+                request_params=task.request_params,
+                initial_message_code="queued",
+                queued_message_code="queued",
+            )

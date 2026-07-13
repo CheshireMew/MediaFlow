@@ -28,6 +28,7 @@ TASK_PERSISTENCE_SCOPES = set(RUNTIME_CONTRACT["task_persistence_scopes"])
 TASK_QUEUE_STATES = set(RUNTIME_CONTRACT["task_queue_states"])
 TASK_MESSAGE_CODES = set(RUNTIME_CONTRACT["task_message_codes"])
 TASK_STATUS_PROJECTION = RUNTIME_CONTRACT["task_status_projection"]
+TASK_STATUS_TRANSITIONS = RUNTIME_CONTRACT["task_status_transitions"]
 ASR_EXECUTION_PREFERENCES = RUNTIME_CONTRACT["asr_execution_preferences"]
 
 
@@ -54,3 +55,13 @@ def task_lifecycle(status: str) -> str:
 
 def task_queue_state(status: str) -> str:
     return str(task_status_projection(status)["queue_state"])
+
+
+def require_task_status_transition(current: str, target: str) -> None:
+    if current == target:
+        return
+    allowed = TASK_STATUS_TRANSITIONS.get(current)
+    if allowed is None:
+        raise ValueError(f"Unknown current task status: {current}")
+    if target not in allowed:
+        raise ValueError(f"Invalid task status transition: {current} -> {target}")

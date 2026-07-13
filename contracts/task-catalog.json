@@ -2,7 +2,6 @@
   "task_types": [
     "download",
     "transcribe",
-    "transcribe_segment",
     "translate",
     "pipeline",
     "synthesis",

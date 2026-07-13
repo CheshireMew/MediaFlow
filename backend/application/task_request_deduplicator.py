@@ -19,7 +19,11 @@ class TaskRequestDeduplicator:
         target_key = self.get_comparison_key(request_params)
 
         for task in tasks:
-            if task.type != task_type or not task.request_params:
+            if (
+                task.type != task_type
+                or task.status not in {"pending", "running", "paused"}
+                or not task.request_params
+            ):
                 continue
             current_key = self.get_comparison_key(task.request_params)
             if current_key == target_key:

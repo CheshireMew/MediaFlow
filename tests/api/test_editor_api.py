@@ -1,3 +1,6 @@
+from backend.contracts import TASK_CONTRACT_VERSION
+
+
 def test_editor_synthesize_requires_video_ref(client):
     response = client.post(
         "/api/v1/editor/synthesize",
@@ -41,7 +44,8 @@ def test_editor_synthesize_accepts_missing_subtitle_ref_when_disabled(
             "message_code": "queued",
             "message_params": {},
             "task_source": "backend",
-            "task_contract_version": 3,
+                "task_contract_version": TASK_CONTRACT_VERSION,
+                "revision": 0,
             "persistence_scope": "runtime",
             "lifecycle": "resumable",
             "queue_state": "queued",

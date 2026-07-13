@@ -49,6 +49,14 @@ export interface SubtitleSegment {
   end: number;
   text: string;
 }
+export interface TranscribeSegmentData {
+  text: string;
+  segments: SubtitleSegment[];
+}
+export interface TranscribeSegmentResponse {
+  status: "completed";
+  data: TranscribeSegmentData;
+}
 export interface TaskSubmissionMetadata {
   task_source: "backend";
   task_contract_version: number;
@@ -57,6 +65,7 @@ export interface TaskSubmissionMetadata {
   queue_state: string;
   queue_position: number | null;
   primary_operation: string;
+  revision: number;
 }
 export interface TaskResponse {
   task_source: "backend";
@@ -66,6 +75,7 @@ export interface TaskResponse {
   queue_state: string;
   queue_position: number | null;
   primary_operation: string;
+  revision: number;
   task_id: string;
   status: string;
   message_code: string;
@@ -90,6 +100,16 @@ export interface TaskDeleteActionResponse {
   message_params: Record<string, string | number | boolean | null>;
   task_id: string;
 }
+export interface TaskQueueSummary {
+  max_concurrent: number;
+  running: number;
+  queued: number;
+}
+export interface HealthResponse {
+  status: string;
+  service: string;
+  version: string;
+}
 export interface TaskView {
   id: string;
   type: string;
@@ -99,6 +119,7 @@ export interface TaskView {
   persistence_scope: string;
   lifecycle: string;
   progress: number;
+  revision: number;
   name?: string | null;
   message_code: string;
   message_params: Record<string, string | number | boolean | null>;
@@ -111,19 +132,13 @@ export interface TaskView {
   queue_state: string;
   queue_position?: number | null;
 }
-export interface TranslateResponse {
-  task_source: "backend";
-  task_contract_version: number;
-  persistence_scope: string;
-  lifecycle: string;
-  queue_state: string;
-  queue_position: number | null;
-  primary_operation: string;
-  task_id: string;
-  status: string;
-  segments?: SubtitleSegment[] | null;
-  message_code: string;
-  message_params: Record<string, string | number | boolean | null>;
+export interface ImmediateTranslationResponse {
+  status: "completed";
+  segments: SubtitleSegment[];
+  language: string;
+  context_ref?: MediaReference | null;
+  subtitle_ref?: MediaReference | null;
+  mode: string;
 }
 export interface DownloadParams {
   url: string;
@@ -159,6 +174,7 @@ export interface TranslationRequest {
   target_language?: TranslationTargetLanguage;
   mode?: string;
   context_ref?: MediaReference | null;
+  batch_size?: number;
 }
 export interface SynthesizeParams {
   video_ref?: MediaReference | null;
@@ -188,6 +204,12 @@ export interface EditorPreviewMediaResponse {
   source_ref: MediaReference;
   media_ref: MediaReference;
   remuxed: boolean;
+}
+export interface ImagePreviewResponse {
+  png_path: string;
+  data_url: string;
+  width: number;
+  height: number;
 }
 export interface ClipCandidate {
   id: string;
@@ -276,6 +298,9 @@ export interface UpdateGlossaryTermRequest {
   note?: string | null;
   category?: string | null;
 }
+export interface GlossaryDeleteResponse {
+  status: "ok";
+}
 export interface AnalyzeRequest {
   url: string;
 }
@@ -294,7 +319,11 @@ export interface CookieSaveRequest {
 export interface CookieStatusResponse {
   domain: string;
   has_valid_cookies: boolean;
-  cookie_path?: string;
+  cookie_path?: string | null;
+}
+export interface CookieClearResponse {
+  success: boolean;
+  domain: string;
 }
 export interface ActiveProviderRequest {
   provider_id: string;
@@ -304,6 +333,14 @@ export interface ProviderConnectionRequest {
   base_url: string;
   api_key: string;
   model: string;
+}
+export interface ActiveProviderResponse {
+  status: string;
+  active_provider_id: string;
+}
+export interface ProviderConnectionResponse {
+  status: string;
+  message: string;
 }
 export interface ToolUpdateResponse {
   status: string;

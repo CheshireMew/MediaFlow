@@ -1,10 +1,9 @@
 {
-  "task_contract_version": 4,
+  "task_contract_version": 6,
   "desktop_bridge_contract_version": 4,
   "task_statuses": [
     "pending",
     "running",
-    "processing_result",
     "completed",
     "failed",
     "cancelled",
@@ -28,7 +27,6 @@
   ],
   "task_message_codes": [
     "queued",
-    "queued_long_segment",
     "starting",
     "running",
     "completed",
@@ -45,7 +43,6 @@
     "resumed",
     "already_running",
     "already_active",
-    "restarted",
     "execution_spec_missing",
     "pipeline_starting",
     "pipeline_step_running",
@@ -58,8 +55,6 @@
     "transcription_starting",
     "transcription_progress",
     "transcription_completed",
-    "transcription_segment_processing",
-    "transcription_segment_completed",
     "asr_cli_warmup_waiting",
     "asr_audio_splitting",
     "asr_chunks_progress",
@@ -96,13 +91,6 @@
       "is_active": true,
       "is_running": true
     },
-    "processing_result": {
-      "persistence_scope": "runtime",
-      "lifecycle": "resumable",
-      "queue_state": "running",
-      "is_active": true,
-      "is_running": true
-    },
     "completed": {
       "persistence_scope": "history",
       "lifecycle": "history-only",
@@ -131,6 +119,27 @@
       "is_active": true,
       "is_running": false
     }
+  },
+  "task_status_transitions": {
+    "pending": [
+      "running",
+      "paused",
+      "cancelled",
+      "failed"
+    ],
+    "running": [
+      "completed",
+      "failed",
+      "cancelled",
+      "paused"
+    ],
+    "paused": [
+      "pending",
+      "cancelled"
+    ],
+    "completed": [],
+    "failed": [],
+    "cancelled": []
   },
   "asr_execution_preferences": {
     "key": "asr_execution_preferences",

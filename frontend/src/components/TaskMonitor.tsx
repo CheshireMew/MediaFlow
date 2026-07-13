@@ -4,7 +4,7 @@ import { FolderOpen } from "lucide-react";
 import { useTaskContext } from "../context/taskContext";
 import type { Task, TaskResult } from "../types/task";
 import { useTaskMonitorOverview } from "./task-monitor/useTaskMonitorOverview";
-import { canRetryTask, retryFailedTask } from "../services/tasks/retry";
+import { canRetryTask } from "../services/tasks/retry";
 import { TaskMonitorHeader } from "./task-monitor/TaskMonitorHeader";
 import { TaskMonitorItem } from "./task-monitor/TaskMonitorItem";
 import { toast } from "../utils/toast";
@@ -16,7 +16,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
   showHeaderOverview = true,
 }) => {
   const { t } = useTranslation("taskmonitor");
-  const { pauseTask, resumeTask, addTask, deleteTask } = useTaskContext();
+  const { pauseTask, resumeTask, retryTask, deleteTask } = useTaskContext();
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const {
     connected,
@@ -44,9 +44,9 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
     }
 
     if (task.status === "failed" && canRetryTask(task)) {
-      await retryFailedTask(task, addTask);
+      await retryTask(task.id);
     }
-  }, [addTask, resumeTask]);
+  }, [resumeTask, retryTask]);
 
   const runTaskAction = React.useCallback(
     (action: () => void | Promise<void>, failureMessage: string) => {

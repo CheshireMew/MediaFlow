@@ -127,4 +127,17 @@ describe("Editor recovery", () => {
     });
     expect(sessionStorage.getItem("mediaflow:pending_file")).toBeNull();
   });
+
+  it("reloads a clean persisted subtitle from disk instead of trusting stale regions", async () => {
+    renderHook(() => useEditorIO(), { wrapper: ConfirmationProvider });
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().document.regions).toEqual([
+        { id: "1", start: 0, end: 1, text: "New subtitle" },
+      ]);
+    });
+    expect(useEditorStore.getState().document.subtitle?.path).toBe(
+      "E:/old-video.srt",
+    );
+  });
 });

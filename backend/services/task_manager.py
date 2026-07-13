@@ -1,11 +1,13 @@
 import asyncio
 import concurrent.futures
+import threading
 from collections.abc import Awaitable, Callable
 from typing import Dict, Optional
 
 from loguru import logger
 
 from backend.core.database import init_db
+from backend.contracts import require_task_status_transition
 from backend.core.task_control import (
     TaskCancelRequested,
     TaskPauseRequested,
@@ -19,6 +21,15 @@ from backend.services.task_queue_runner import TaskQueueRunner
 from backend.services.task_queue_view import TaskQueueView
 from backend.services.task_repository import TaskRepository
 from backend.services.task_runtime_state import TaskRuntimeState
+
+class TaskDeletionBlockedError(RuntimeError):
+    def __init__(self, task_ids: set[str]):
+        self.task_ids = set(task_ids)
+        super().__init__(
+            "Tasks are still stopping and were not deleted: "
+            + ", ".join(sorted(self.task_ids))
+        )
+
 
 class TaskManager:
     def __init__(
@@ -39,6 +50,10 @@ class TaskManager:
         self._stop_requests: Dict[str, str] = self._runtime_state.stop_requests
         self._queue_runner = TaskQueueRunner(self._runtime_state)
         self._threadsafe_update_futures: set[concurrent.futures.Future] = set()
+        self._threadsafe_update_task_ids: dict[concurrent.futures.Future, str] = {}
+        self._progress_update_lock = threading.Lock()
+        self._pending_progress_updates: dict[str, dict] = {}
+        self._progress_flush_futures: dict[str, concurrent.futures.Future] = {}
         self._accept_threadsafe_updates = True
         self._startup_load_task: asyncio.Task | None = None
         self._tasks_loaded = asyncio.Event()
@@ -99,7 +114,11 @@ class TaskManager:
         await self.drain_threadsafe_updates()
         await self._queue_runner.shutdown()
         self._queue_runner.clear()
-        self._threadsafe_update_futures.clear()
+        with self._progress_update_lock:
+            self._threadsafe_update_futures.clear()
+            self._threadsafe_update_task_ids.clear()
+            self._pending_progress_updates.clear()
+            self._progress_flush_futures.clear()
         self._accept_threadsafe_updates = True
         self._tasks_loaded.clear()
         self._hydration_started = False
@@ -107,23 +126,52 @@ class TaskManager:
     def submit_threadsafe_update(self, loop: asyncio.AbstractEventLoop, task_id: str, **kwargs):
         if not self._accept_threadsafe_updates or loop.is_closed():
             return None
-        try:
-            future = asyncio.run_coroutine_threadsafe(
-                self.update_task(task_id, **kwargs),
-                loop,
-            )
-        except RuntimeError:
-            return None
-        self._threadsafe_update_futures.add(future)
+        with self._progress_update_lock:
+            self._pending_progress_updates[task_id] = dict(kwargs)
+            existing = self._progress_flush_futures.get(task_id)
+            if existing is not None and not existing.done():
+                return existing
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    self._flush_progress_updates(task_id),
+                    loop,
+                )
+            except RuntimeError:
+                self._pending_progress_updates.pop(task_id, None)
+                return None
+            self._progress_flush_futures[task_id] = future
+            self._threadsafe_update_futures.add(future)
+            self._threadsafe_update_task_ids[future] = task_id
 
         def _cleanup(done_future):
-            self._threadsafe_update_futures.discard(done_future)
+            with self._progress_update_lock:
+                self._threadsafe_update_futures.discard(done_future)
+                self._threadsafe_update_task_ids.pop(done_future, None)
 
         future.add_done_callback(_cleanup)
         return future
 
-    async def drain_threadsafe_updates(self):
-        pending = list(self._threadsafe_update_futures)
+    async def _flush_progress_updates(self, task_id: str) -> None:
+        while self._accept_threadsafe_updates:
+            with self._progress_update_lock:
+                payload = self._pending_progress_updates.pop(task_id, None)
+                if payload is None:
+                    self._progress_flush_futures.pop(task_id, None)
+                    return
+            await self.update_task(task_id, **payload)
+            await asyncio.sleep(0.1)
+
+        with self._progress_update_lock:
+            self._pending_progress_updates.pop(task_id, None)
+            self._progress_flush_futures.pop(task_id, None)
+
+    async def drain_threadsafe_updates(self, task_id: str | None = None):
+        with self._progress_update_lock:
+            pending = [
+                future
+                for future in self._threadsafe_update_futures
+                if task_id is None or self._threadsafe_update_task_ids.get(future) == task_id
+            ]
         for future in pending:
             try:
                 await asyncio.wrap_future(future)
@@ -295,7 +343,13 @@ class TaskManager:
 
     async def update_task(self, task_id: str, **kwargs):
         await self.ensure_started_async()
+        if kwargs.get("status") in {"completed", "failed", "cancelled", "paused"}:
+            await self.drain_threadsafe_updates(task_id)
         async with self._task_update_lock:
+            current_task = self.tasks.get(task_id)
+            incoming_status = kwargs.get("status")
+            if current_task is not None and incoming_status is not None:
+                require_task_status_transition(current_task.status, str(incoming_status))
             updated_task = await self._repository.update_task(
                 task_id,
                 cached_task=self.tasks.get(task_id),
@@ -304,15 +358,20 @@ class TaskManager:
             if updated_task:
                 self.tasks[task_id] = updated_task
                 pruned_task_ids: list[str] = []
+                pruned_revisions: dict[str, int] = {}
                 if updated_task.persistence_scope == "history":
-                    pruned_task_ids = await self._repository.trim_history()
+                    pruned_revisions = await self._repository.trim_history()
+                    pruned_task_ids = list(pruned_revisions)
                     for pruned_task_id in pruned_task_ids:
                         self.tasks.pop(pruned_task_id, None)
 
                 if task_id not in pruned_task_ids:
                     await self._event_publisher.publish_update(self.serialize_task(updated_task))
                 for pruned_task_id in pruned_task_ids:
-                    await self._event_publisher.publish_delete(pruned_task_id)
+                    await self._event_publisher.publish_delete(
+                        pruned_task_id,
+                        pruned_revisions.get(pruned_task_id, 1),
+                    )
 
     async def pause_task(self, task_id: str) -> bool:
         await self._wait_for_mutation_boundary()
@@ -324,39 +383,57 @@ class TaskManager:
 
     async def delete_task(self, task_id: str) -> bool:
         await self._wait_for_mutation_boundary()
-        task = self.get_task(task_id)
-        if task and task.status == "running":
-            self._queue_runner.request_delete_after_stop(task_id)
+        task = await self.get_task_record(task_id)
+        if task and task.status in {"pending", "running", "paused"}:
             await self.cancel_task(task_id)
-            logger.info(f"Task {task_id} scheduled for deletion after stop")
-            return True
+            remaining = await self._queue_runner.wait_until_stopped(
+                {task_id},
+                timeout_seconds=10.0,
+            )
+            if remaining:
+                raise TaskDeletionBlockedError(remaining)
 
-        if task and task.status in {"pending", "paused"}:
-            self._queue_runner.discard_task(task_id)
-            self.clear_stop_request(task_id)
-            return await self.finalize_task_delete(task_id)
+        return await self.finalize_task_delete(
+            task_id,
+            delete_revision=int(task.revision if task else 0) + 1,
+        )
 
-        return await self.finalize_task_delete(task_id)
-
-    async def finalize_task_delete(self, task_id: str) -> bool:
+    async def finalize_task_delete(
+        self,
+        task_id: str,
+        *,
+        delete_revision: int,
+    ) -> bool:
         task_exists = await self._repository.delete_task(task_id)
         if task_exists:
             self._queue_runner.discard_task(task_id)
             self.clear_stop_request(task_id)
             self.tasks.pop(task_id, None)
 
-            await self._event_publisher.publish_delete(task_id)
+            await self._event_publisher.publish_delete(task_id, delete_revision)
             logger.info(f"Task {task_id} deleted")
             return True
         return False
 
     async def delete_all_tasks(self) -> int:
         await self._wait_for_mutation_boundary()
-        count = await self._repository.delete_all_tasks()
+        task_ids = set(self.tasks)
+        for task in list(self.tasks.values()):
+            if task.status in {"pending", "running", "paused"}:
+                await self.cancel_task(task.id)
+        remaining = await self._queue_runner.wait_until_stopped(
+            task_ids,
+            timeout_seconds=10.0,
+        )
+        if remaining:
+            raise TaskDeletionBlockedError(remaining)
+        delete_revisions = await self._repository.delete_all_tasks()
+        count = len(delete_revisions)
         self.tasks.clear()
         self._queue_runner.clear()
 
-        await self._event_publisher.publish_snapshot([])
+        for task_id, revision in delete_revisions.items():
+            await self._event_publisher.publish_delete(task_id, revision)
         logger.info(f"Deleted all {count} tasks")
         return count
 
@@ -390,3 +467,7 @@ class TaskManager:
 
     def get_task(self, task_id: str) -> Optional[Task]:
         return self.tasks.get(task_id)
+
+    async def get_task_record(self, task_id: str) -> Optional[Task]:
+        await self.wait_until_tasks_loaded()
+        return self.tasks.get(task_id) or await self._repository.get_task(task_id)

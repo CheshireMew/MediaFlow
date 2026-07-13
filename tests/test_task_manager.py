@@ -65,12 +65,12 @@ async def task_manager(test_engine, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_create_task(task_manager):
-    task_id = await task_manager.create_task("test_type", "starting")
+    task_id = await task_manager.create_task("transcribe", "starting")
     assert task_id is not None
     assert task_id in task_manager.tasks
     task = task_manager.tasks[task_id]
     assert task.status == "pending"
-    assert task.type == "test_type"
+    assert task.type == "transcribe"
 
     async with db_module.get_session_context() as session:
         db_task = await session.get(Task, task_id)
@@ -80,7 +80,7 @@ async def test_create_task(task_manager):
 
 @pytest.mark.asyncio
 async def test_update_task(task_manager):
-    task_id = await task_manager.create_task("test_type")
+    task_id = await task_manager.create_task("transcribe")
     await task_manager.update_task(task_id, status="running", progress=50.0)
     task = task_manager.tasks[task_id]
     assert task.status == "running"
@@ -94,7 +94,7 @@ async def test_update_task(task_manager):
 
 @pytest.mark.asyncio
 async def test_update_task_serializes_terminal_control_updates(task_manager, monkeypatch):
-    task_id = await task_manager.create_task("test_type")
+    task_id = await task_manager.create_task("transcribe")
     first_update_started = asyncio.Event()
     release_first_update = asyncio.Event()
     active_updates = 0
@@ -149,8 +149,38 @@ async def test_update_task_serializes_terminal_control_updates(task_manager, mon
 
 
 @pytest.mark.asyncio
+async def test_threadsafe_progress_updates_are_coalesced(task_manager, monkeypatch):
+    task_id = await task_manager.create_task("transcribe")
+    await task_manager.update_task(task_id, status="running")
+    repository_update = task_manager._repository.update_task
+    progress_update_count = 0
+
+    async def count_progress_updates(*args, **kwargs):
+        nonlocal progress_update_count
+        if "progress" in kwargs:
+            progress_update_count += 1
+        return await repository_update(*args, **kwargs)
+
+    monkeypatch.setattr(task_manager._repository, "update_task", count_progress_updates)
+    loop = asyncio.get_running_loop()
+    for progress in range(25):
+        task_manager.submit_threadsafe_update(
+            loop,
+            task_id,
+            progress=float(progress),
+            message_code="transcription_progress",
+            message_params={"percent": progress},
+        )
+
+    await task_manager.drain_threadsafe_updates(task_id)
+
+    assert progress_update_count == 1
+    assert task_manager.tasks[task_id].progress == 24.0
+
+
+@pytest.mark.asyncio
 async def test_cancel_task(task_manager):
-    task_id = await task_manager.create_task("test_type")
+    task_id = await task_manager.create_task("transcribe")
     await task_manager.cancel_task(task_id)
     task = task_manager.tasks[task_id]
     assert task.cancelled is True
@@ -163,7 +193,7 @@ async def test_cancel_task(task_manager):
 
 @pytest.mark.asyncio
 async def test_delete_task(task_manager):
-    task_id = await task_manager.create_task("test_type")
+    task_id = await task_manager.create_task("transcribe")
     deleted = await task_manager.delete_task(task_id)
     assert deleted is True
     assert task_id not in task_manager.tasks
@@ -171,6 +201,29 @@ async def test_delete_task(task_manager):
     async with db_module.get_session_context() as session:
         db_task = await session.get(Task, task_id)
         assert db_task is None
+
+
+@pytest.mark.asyncio
+async def test_delete_historical_task_uses_persisted_revision(task_manager, monkeypatch):
+    task_id = await task_manager.create_task("transcribe")
+    await task_manager.update_task(task_id, status="running")
+    await task_manager.update_task(
+        task_id,
+        status="failed",
+        message_code="failed",
+        message_params={},
+    )
+    persisted_revision = task_manager.tasks[task_id].revision
+    task_manager.tasks.pop(task_id)
+    published = []
+
+    async def capture_delete(deleted_task_id, revision):
+        published.append((deleted_task_id, revision))
+
+    monkeypatch.setattr(task_manager._event_publisher, "publish_delete", capture_delete)
+
+    assert await task_manager.delete_task(task_id) is True
+    assert published == [(task_id, persisted_revision + 1)]
 
 
 @pytest.mark.asyncio
@@ -185,9 +238,10 @@ async def test_completed_task_history_is_trimmed_in_memory_and_database(task_man
 
     task_ids = []
     for _ in range(history_limit + 3):
-        task_id = await task_manager.create_task("transcribe")
-        task_ids.append(task_id)
-        await task_manager.update_task(task_id, status="completed", progress=100.0)
+            task_id = await task_manager.create_task("transcribe")
+            task_ids.append(task_id)
+            await task_manager.update_task(task_id, status="running")
+            await task_manager.update_task(task_id, status="completed", progress=100.0)
 
     history_task_ids = {
         task.id for task in task_manager.tasks.values() if task.persistence_scope == "history"

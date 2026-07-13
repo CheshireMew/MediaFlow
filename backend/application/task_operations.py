@@ -40,7 +40,7 @@ class TaskOperation:
     task_type: str
     request_model: type[BaseModel]
     task_name: Callable[[Any], str]
-    background: TaskHandler
+    background: TaskHandler | None
     immediate: TaskExecutor | None = None
     before_queue: Callable[[Any], None] | None = None
     initial_message_code: str = "queued"
@@ -105,10 +105,8 @@ class TaskOperationExecutor:
                 task_type="transcribe_segment",
                 request_model=TranscribeSegmentRequest,
                 task_name=lambda request: f"Segment {request.start}-{request.end}",
-                background=self._run_transcription_segment_background,
+                background=None,
                 immediate=self._run_transcription_segment_immediate,
-                initial_message_code="queued_long_segment",
-                queued_message_code="queued_long_segment",
             ),
             "translate": TaskOperation(
                 task_type="translate",
@@ -139,6 +137,8 @@ class TaskOperationExecutor:
 
     def build_runner(self, task: "Task"):
         operation = self.task_operation(task.type)
+        if operation.background is None:
+            raise ValueError(f"Task operation cannot run in the background: {task.type}")
         request = operation.request_model.model_validate(task.request_params)
         return lambda: operation.background(task.id, request)
 
@@ -174,16 +174,6 @@ class TaskOperationExecutor:
             background_runner=self._background_runner,
         )
 
-    async def _run_transcription_segment_background(self, task_id, request) -> None:
-        from backend.application.transcription_service import _transcription_segment_background
-
-        await _transcription_segment_background(
-            task_id,
-            request,
-            asr_service=self._asr_service,
-            background_runner=self._background_runner,
-        )
-
     async def _run_transcription_segment_immediate(
         self,
         request,
@@ -211,7 +201,7 @@ class TaskOperationExecutor:
             background_runner=self._background_runner,
         )
 
-    def _run_translation_immediate(
+    async def _run_translation_immediate(
         self,
         request,
         *,
@@ -220,7 +210,10 @@ class TaskOperationExecutor:
     ):
         from backend.application.translation_service import _translation_immediate
 
-        return _translation_immediate(
+        import asyncio
+
+        return await asyncio.to_thread(
+            _translation_immediate,
             request,
             llm_translator=self._llm_translator,
             progress_callback=progress_callback,
@@ -255,6 +248,8 @@ class TaskOperationService:
 
     async def submit(self, task_type: str, request: BaseModel) -> dict:
         operation = self._executor.task_operation(task_type)
+        if operation.background is None:
+            raise ValueError(f"Task operation cannot be submitted: {task_type}")
         typed_request = operation.request_model.model_validate(request)
         if operation.before_queue:
             operation.before_queue(typed_request)

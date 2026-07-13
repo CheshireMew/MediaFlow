@@ -6,7 +6,6 @@
  * frontend-only option bags that do not exist as backend Pydantic models.
  */
 
-import type { SubtitleSegment } from "./task";
 import type {
   PipelineRequest,
   SynthesisRequest as GeneratedSynthesisRequest,
@@ -28,9 +27,14 @@ export type {
   EditorPreviewMediaRequest,
   EditorPreviewMediaResponse,
   GlossaryTerm,
+  GlossaryDeleteResponse,
   HighlightDetectionRequest,
   HighlightDetectionResponse,
+  HealthResponse,
+  ImagePreviewResponse,
   LLMProvider,
+  ActiveProviderResponse,
+  ProviderConnectionResponse,
   MediaReference,
   MediaVisibleStartRequest,
   MediaVisibleStartResponse,
@@ -50,7 +54,8 @@ export type {
   TranslationRequest,
   TranslationTargetLanguage,
   TranslateParams,
-  TranslateResponse,
+  ImmediateTranslationResponse,
+  TranscribeSegmentResponse,
   FasterWhisperCliInstallResponse,
   FasterWhisperCliPrewarmRequest,
   FasterWhisperCliPrewarmResponse,
@@ -65,25 +70,12 @@ export type {
 export interface TaskSubmissionReceipt extends TaskResponse {
   task_source: import("../contracts/runtimeContracts").TaskSource;
   task_contract_version: number;
-  persistence_scope: "runtime" | "history";
+  persistence_scope: import("../contracts/runtimeContracts").TaskPersistenceScope;
   lifecycle: import("../contracts/runtimeContracts").TaskLifecycle;
-  queue_state:
-    | "queued"
-    | "running"
-    | "paused"
-    | "cancelled"
-    | "completed"
-    | "failed"
-    | "idle";
+  queue_state: import("../contracts/runtimeContracts").TaskQueueState;
   queue_position: number | null;
   message_code: import("../contracts/runtimeContracts").TaskMessageCode;
   message_params: Record<string, string | number | boolean | null>;
-}
-
-export interface HealthResponse {
-  status: string;
-  service: string;
-  version: string;
 }
 
 export interface ElectronCookie {
@@ -94,23 +86,6 @@ export interface ElectronCookie {
   expirationDate?: number;
   httpOnly?: boolean;
   secure?: boolean;
-}
-
-export interface ActiveProviderResponse {
-  status: string;
-  active_provider_id: string;
-}
-
-export interface ProviderConnectionResponse {
-  status: string;
-  message: string;
-}
-
-export interface ImagePreviewResponse {
-  png_path: string;
-  data_url: string;
-  width: number;
-  height: number;
 }
 
 export interface SynthesizeOptions {
@@ -159,17 +134,6 @@ export type SynthesizeRequest = Omit<GeneratedSynthesisRequest, "options"> & {
 };
 
 export type TranscribeSegmentRequest = GeneratedTranscribeSegmentRequest;
-
-export interface TranscribeSegmentResponse {
-  status: "completed" | "pending";
-  task_id?: string;
-  data?: {
-    text: string;
-    segments: SubtitleSegment[];
-  };
-  message_code?: import("../contracts/runtimeContracts").TaskMessageCode;
-  message_params?: Record<string, string | number | boolean | null>;
-}
 
 export type TranscriptionEngine = NonNullable<GeneratedTranscribeSegmentRequest["engine"]>;
 

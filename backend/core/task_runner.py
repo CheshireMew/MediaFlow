@@ -52,7 +52,7 @@ class BackgroundTaskRunner:
             result_transformer: Optional function to transform the result before saving
             progress_key: The kwarg name for the progress callback in worker_fn
         """
-        progress_futures = []
+        progress_futures = set()
         accept_progress_updates = True
         progress_gate = threading.Lock()
 
@@ -60,10 +60,7 @@ class BackgroundTaskRunner:
             nonlocal accept_progress_updates
             with progress_gate:
                 accept_progress_updates = False
-            index = 0
-            while index < len(progress_futures):
-                future = progress_futures[index]
-                index += 1
+            for future in list(progress_futures):
                 try:
                     await asyncio.wrap_future(future)
                 except Exception:
@@ -102,7 +99,7 @@ class BackgroundTaskRunner:
                         message_params=message_params or {},
                     )
                     if future is not None:
-                        progress_futures.append(future)
+                        progress_futures.add(future)
             
             # Inject progress callback into worker kwargs
             worker_kwargs[progress_key] = progress_callback

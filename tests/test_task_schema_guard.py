@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from sqlalchemy import JSON, Boolean, Column, Float, Integer, MetaData, String, Table, text
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -473,13 +475,16 @@ async def test_v2_message_migration_uses_status_codes_and_removes_legacy_column(
         async with async_session_maker() as session:
             result = await session.execute(select(Task).order_by(Task.id))
             tasks = result.scalars().all()
-        assert {
-            task.status: (task.message_code, task.message_params)
-            for task in tasks
-        } == {
-            status: (message_code, {})
-            for status, message_code in expected_codes.items()
-        }
+        migrated_by_id = {task.id: task for task in tasks}
+        for status, message_code in expected_codes.items():
+            task = migrated_by_id[f"v2-{status}"]
+            if status == "processing_result":
+                assert task.status == "paused"
+                assert task.message_code == "interrupted_by_restart"
+            else:
+                assert task.status == status
+                assert task.message_code == message_code
+            assert task.message_params == {}
         assert all(task.task_contract_version == TASK_CONTRACT_VERSION for task in tasks)
 
         async with engine.begin() as conn:
@@ -616,6 +621,21 @@ async def test_v4_catalog_migration_removes_retired_tasks_and_upgrades_remaining
                         "created_at": 1_700_000_000_000,
                         "cancelled": False,
                     },
+                    {
+                        "id": "retired-segment-task",
+                        "name": "Queued segment",
+                        "type": "transcribe_segment",
+                        "status": "pending",
+                        "task_source": "backend",
+                        "task_contract_version": 3,
+                        "persistence_scope": "runtime",
+                        "lifecycle": "resumable",
+                        "progress": 0.0,
+                        "message_code": "queued",
+                        "message_params": {},
+                        "created_at": 1_700_000_000_000,
+                        "cancelled": False,
+                    },
                 ],
             )
 
@@ -623,6 +643,7 @@ async def test_v4_catalog_migration_removes_retired_tasks_and_upgrades_remaining
 
         async with async_session_maker() as session:
             assert await session.get(Task, "retired-task") is None
+            assert await session.get(Task, "retired-segment-task") is None
             active_task = await session.get(Task, "active-task")
         assert active_task is not None
         assert active_task.task_contract_version == TASK_CONTRACT_VERSION
@@ -637,7 +658,25 @@ async def test_v4_catalog_migration_removes_retired_tasks_and_upgrades_remaining
                     {"component": TASK_SCHEMA_COMPONENT},
                 )
             ).scalar_one()
+            archived_payload = (
+                await conn.execute(
+                    text(
+                        "SELECT payload FROM mediaflow_retired_task_archive "
+                        "WHERE id = 'retired-task'"
+                    )
+                )
+            ).scalar_one()
+            archived_segment_payload = (
+                await conn.execute(
+                    text(
+                        "SELECT payload FROM mediaflow_retired_task_archive "
+                        "WHERE id = 'retired-segment-task'"
+                    )
+                )
+            ).scalar_one()
         assert version == TASK_SCHEMA_VERSION
+        assert json.loads(archived_payload)["type"] == "cleanup"
+        assert json.loads(archived_segment_payload)["type"] == "transcribe_segment"
     finally:
         await engine.dispose()
 

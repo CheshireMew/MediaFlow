@@ -1,36 +1,37 @@
 import runtimeContract from "../../../contracts/runtime-contract.json";
 import {
+  TASK_LIFECYCLES,
   TASK_MESSAGE_CODES,
+  TASK_PERSISTENCE_SCOPES,
+  TASK_QUEUE_STATES,
+  TASK_SOURCES,
+  TASK_STATUSES,
+  TASK_STATUS_TRANSITIONS,
+  type TaskLifecycle,
   type TaskMessageCode,
+  type TaskPersistenceScope,
+  type TaskQueueState,
+  type TaskSource,
+  type TaskStatus,
 } from "./generatedTaskMessageCatalog";
-export type { TaskMessageCode } from "./generatedTaskMessageCatalog";
-
-export type TaskLifecycle = "runtime-only" | "history-only" | "resumable" | "ephemeral-ui";
-export type TaskSource = "backend";
-export type TaskPersistenceScope = "runtime" | "history";
-export type TaskQueueState =
-  | "queued"
-  | "running"
-  | "paused"
-  | "cancelled"
-  | "completed"
-  | "failed"
-  | "idle";
-export type TaskStatus =
-  | "pending"
-  | "running"
-  | "processing_result"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "paused";
+export type {
+  TaskLifecycle,
+  TaskMessageCode,
+  TaskPersistenceScope,
+  TaskQueueState,
+  TaskSource,
+  TaskStatus,
+} from "./generatedTaskMessageCatalog";
 
 type RuntimeContractShape = {
   task_contract_version: number;
   desktop_bridge_contract_version: number;
   task_persistence_scopes: TaskPersistenceScope[];
   task_queue_states: TaskQueueState[];
+  task_statuses: TaskStatus[];
+  task_sources: TaskSource[];
   task_message_codes: TaskMessageCode[];
+  task_status_transitions: Record<TaskStatus, TaskStatus[]>;
   task_status_projection: Record<
     TaskStatus,
     {
@@ -69,9 +70,15 @@ if (
 
 export const TASK_CONTRACT_VERSION = contract.task_contract_version;
 export const DESKTOP_BRIDGE_CONTRACT_VERSION = contract.desktop_bridge_contract_version;
-export const TASK_PERSISTENCE_SCOPES = contract.task_persistence_scopes;
-export const TASK_QUEUE_STATES = contract.task_queue_states;
-export { TASK_MESSAGE_CODES };
+export {
+  TASK_LIFECYCLES,
+  TASK_MESSAGE_CODES,
+  TASK_PERSISTENCE_SCOPES,
+  TASK_QUEUE_STATES,
+  TASK_SOURCES,
+  TASK_STATUSES,
+  TASK_STATUS_TRANSITIONS,
+};
 export const TASK_STATUS_PROJECTION = contract.task_status_projection;
 export const ASR_EXECUTION_PREFERENCES = contract.asr_execution_preferences;
 export const TASK_LIFECYCLE = contract.task_lifecycle;

@@ -116,6 +116,16 @@ class SubtitleSegment(BaseModel):
     text: str
 
 
+class TranscribeSegmentData(BaseModel):
+    text: str
+    segments: List[SubtitleSegment]
+
+
+class TranscribeSegmentResponse(BaseModel):
+    status: Literal["completed"]
+    data: TranscribeSegmentData
+
+
 class TaskSubmissionMetadata(BaseModel):
     task_source: Literal["backend"]
     task_contract_version: int
@@ -124,6 +134,7 @@ class TaskSubmissionMetadata(BaseModel):
     queue_state: str
     queue_position: Optional[int]
     primary_operation: str
+    revision: int
 
 
 class TaskResponse(TaskSubmissionMetadata):
@@ -150,6 +161,18 @@ class TaskDeleteActionResponse(TaskActionResponse):
     task_id: str
 
 
+class TaskQueueSummary(BaseModel):
+    max_concurrent: int
+    running: int
+    queued: int
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+    version: str
+
+
 class TaskView(BaseModel):
     id: str
     type: str
@@ -159,6 +182,7 @@ class TaskView(BaseModel):
     persistence_scope: str
     lifecycle: str
     progress: float
+    revision: int
     name: Optional[str] = None
     message_code: TaskMessageCode
     message_params: TaskMessageParams
@@ -172,12 +196,13 @@ class TaskView(BaseModel):
     queue_position: Optional[int] = None
 
 
-class TranslateResponse(TaskSubmissionMetadata):
-    task_id: str
-    status: str
-    segments: Optional[List[SubtitleSegment]] = None
-    message_code: TaskMessageCode
-    message_params: TaskMessageParams
+class ImmediateTranslationResponse(BaseModel):
+    status: Literal["completed"]
+    segments: List[SubtitleSegment]
+    language: str
+    context_ref: Optional[MediaReference] = None
+    subtitle_ref: Optional[MediaReference] = None
+    mode: str
 
 
 # Step Params (used in PipelineStepRequest discriminated union)
@@ -222,6 +247,7 @@ class TranslationRequest(BaseModel):
     target_language: TranslationTargetLanguage = DEFAULT_TRANSLATION_TARGET_LANGUAGE
     mode: str = "standard"
     context_ref: Optional[MediaReference] = None
+    batch_size: int = Field(default=10, ge=1)
 
 
 class SynthesizeParams(BaseModel):
@@ -263,6 +289,13 @@ class EditorPreviewMediaResponse(BaseModel):
     source_ref: MediaReference
     media_ref: MediaReference
     remuxed: bool
+
+
+class ImagePreviewResponse(BaseModel):
+    png_path: str
+    data_url: str
+    width: int
+    height: int
 
 
 class ClipCandidate(BaseModel):
@@ -409,3 +442,7 @@ class UpdateGlossaryTermRequest(BaseModel):
     target: Optional[str] = None
     note: Optional[str] = None
     category: Optional[str] = None
+
+
+class GlossaryDeleteResponse(BaseModel):
+    status: Literal["ok"]

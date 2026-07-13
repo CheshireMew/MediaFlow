@@ -10,6 +10,7 @@ from sqlmodel import delete, select
 from backend.config import settings
 from backend.contracts import TASK_CONTRACT_VERSION, TASK_STATUSES, task_lifecycle, task_persistence_scope
 from backend.core.database import get_session_context
+from backend.core.task_catalog import require_task_type
 from backend.models.task_model import Task, task_timestamp_ms
 from backend.models.schemas import TaskResult
 from backend.models.task_message import TaskMessageParams, validate_task_message
@@ -17,12 +18,16 @@ from backend.models.task_message import TaskMessageParams, validate_task_message
 TASK_HISTORY_STATUSES = tuple(
     status for status in TASK_STATUSES if task_persistence_scope(status) == "history"
 )
+TASK_RUNTIME_STATUSES = tuple(
+    status for status in TASK_STATUSES if task_persistence_scope(status) == "runtime"
+)
 _IMMUTABLE_TASK_FIELDS = {
     "id",
     "type",
     "task_source",
     "task_contract_version",
     "created_at",
+    "revision",
 }
 _MUTABLE_TASK_FIELDS = set(Task.model_fields) - _IMMUTABLE_TASK_FIELDS
 
@@ -61,23 +66,27 @@ def _json_payload(value: Any) -> Dict | None:
 
 
 class TaskRepository:
-    async def trim_history(self) -> list[str]:
+    async def trim_history(self) -> dict[str, int]:
         async with get_session_context() as session:
-            pruned_task_ids = await self._trim_history(session)
-            if pruned_task_ids:
+            pruned_revisions = await self._trim_history(session)
+            if pruned_revisions:
                 await session.commit()
-        return pruned_task_ids
+        return pruned_revisions
 
-    async def _trim_history(self, session) -> list[str]:
+    async def _trim_history(self, session) -> dict[str, int]:
         history_limit = settings.TASK_HISTORY_LIMIT
         statement = (
-            select(Task.id)
+            select(Task.id, Task.revision)
             .where(Task.status.in_(TASK_HISTORY_STATUSES))
             .order_by(Task.created_at.desc(), Task.id.desc())
             .offset(history_limit)
         )
         result = await session.execute(statement)
-        pruned_task_ids = list(result.scalars().all())
+        pruned_revisions = {
+            task_id: int(revision or 0) + 1
+            for task_id, revision in result.all()
+        }
+        pruned_task_ids = list(pruned_revisions)
         if pruned_task_ids:
             await session.execute(delete(Task).where(Task.id.in_(pruned_task_ids)))
             logger.info(
@@ -85,18 +94,19 @@ class TaskRepository:
                 len(pruned_task_ids),
                 history_limit,
             )
-        return pruned_task_ids
+        return pruned_revisions
 
     async def load_runtime_tasks(self) -> dict[str, Task]:
         tasks_by_id: dict[str, Task] = {}
         async with get_session_context() as session:
-            statement = select(Task).where(Task.status.in_(["running", "pending", "paused"]))
+            statement = select(Task).where(Task.status.in_(TASK_RUNTIME_STATUSES))
             result = await session.execute(statement)
             tasks = result.scalars().all()
 
             for task in tasks:
-                if task.status in ["running", "pending"]:
+                if task.status != "paused":
                     task.status = "paused"
+                    task.revision = int(task.revision or 0) + 1
                     task.message_code = "interrupted_by_restart"
                     task.message_params = {}
                     task.cancelled = False
@@ -113,10 +123,6 @@ class TaskRepository:
     async def load_history(self) -> dict[str, Task]:
         tasks_by_id: dict[str, Task] = {}
         async with get_session_context() as session:
-            pruned_task_ids = await self._trim_history(session)
-            if pruned_task_ids:
-                await session.commit()
-
             statement = (
                 select(Task)
                 .where(Task.status.in_(TASK_HISTORY_STATUSES))
@@ -129,6 +135,10 @@ class TaskRepository:
                 tasks_by_id[task.id] = task
         return tasks_by_id
 
+    async def get_task(self, task_id: str) -> Task | None:
+        async with get_session_context() as session:
+            return await session.get(Task, task_id)
+
     async def create_task(
         self,
         task_type: str,
@@ -137,6 +147,7 @@ class TaskRepository:
         request_params: Dict | None = None,
         task_name: str | None = None,
     ) -> Task:
+        task_type = require_task_type(task_type)
         task_id = str(uuid.uuid4())
         final_name = task_name or f"{task_type.capitalize()} {task_id}"
 
@@ -212,6 +223,7 @@ class TaskRepository:
                     kwargs["lifecycle"] = task_lifecycle(str(incoming_status))
                 for key, value in kwargs.items():
                     setattr(db_task, key, value)
+                db_task.revision = int(db_task.revision or 0) + 1
 
                 session.add(db_task)
                 await session.commit()
@@ -223,6 +235,7 @@ class TaskRepository:
                     return None
                 for key, value in kwargs.items():
                     setattr(cached_task, key, value)
+                cached_task.revision = int(cached_task.revision or 0) + 1
                 updated_task = cached_task
 
         return updated_task
@@ -236,17 +249,20 @@ class TaskRepository:
             await session.commit()
             return True
 
-    async def delete_all_tasks(self) -> int:
-        count = 0
+    async def delete_all_tasks(self) -> dict[str, int]:
+        delete_revisions: dict[str, int] = {}
         async with get_session_context() as session:
             statement = select(Task)
             result = await session.execute(statement)
             tasks = result.scalars().all()
-            count = len(tasks)
+            delete_revisions = {
+                task.id: int(task.revision or 0) + 1
+                for task in tasks
+            }
 
-            if count > 0:
+            if delete_revisions:
                 delete_statement = delete(Task)
                 await session.execute(delete_statement)
                 await session.commit()
 
-        return count
+        return delete_revisions

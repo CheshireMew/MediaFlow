@@ -57,6 +57,7 @@ release/
 
 # User Data (DB, local config)
 user_data/
+/workspace-state.json
 
 # Logs
 *.log

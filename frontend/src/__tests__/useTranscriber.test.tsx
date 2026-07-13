@@ -160,6 +160,7 @@ describe("useTranscriber", () => {
       status: "pending",
       task_source: "backend",
       task_contract_version: TASK_CONTRACT_VERSION,
+      revision: 0,
       persistence_scope: "runtime",
       lifecycle: "resumable",
       queue_state: "queued",
@@ -212,6 +213,7 @@ describe("useTranscriber", () => {
         type: "pipeline",
         task_source: "backend",
         task_contract_version: TASK_CONTRACT_VERSION,
+        revision: 0,
         queue_state: "queued",
         request_params: expect.objectContaining({
           pipeline_id: "transcriber_tool",
@@ -246,6 +248,7 @@ describe("useTranscriber", () => {
       status: "pending",
       task_source: "backend",
       task_contract_version: TASK_CONTRACT_VERSION,
+      revision: 0,
       persistence_scope: "runtime",
       lifecycle: "resumable",
       queue_state: "queued",

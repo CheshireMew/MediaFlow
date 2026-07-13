@@ -19,6 +19,12 @@ async def test_task_repository_rejects_unknown_update_fields():
 
 
 @pytest.mark.asyncio
+async def test_task_repository_rejects_types_outside_the_task_catalog():
+    with pytest.raises(ValueError, match="Unknown task type"):
+        await TaskRepository().create_task(task_type="retired-operation")
+
+
+@pytest.mark.asyncio
 async def test_task_repository_serializes_pydantic_objects_in_result(tmp_path, monkeypatch):
     db_path = tmp_path / "mediaflow.db"
     engine = create_async_engine(
@@ -66,7 +72,10 @@ async def test_task_repository_serializes_pydantic_objects_in_result(tmp_path, m
 
 
 @pytest.mark.asyncio
-async def test_task_repository_keeps_only_recent_history_tasks(tmp_path, monkeypatch):
+async def test_task_repository_returns_recent_history_without_mutating_older_records(
+    tmp_path,
+    monkeypatch,
+):
     db_path = tmp_path / "mediaflow.db"
     engine = create_async_engine(
         f"sqlite+aiosqlite:///{db_path}",
@@ -107,6 +116,6 @@ async def test_task_repository_keeps_only_recent_history_tasks(tmp_path, monkeyp
         async with database_module.get_session_context() as session:
             result = await session.execute(select(Task).where(Task.status == "completed"))
             remaining_tasks = result.scalars().all()
-            assert len(remaining_tasks) == history_limit
+            assert len(remaining_tasks) == history_limit + 5
     finally:
         await engine.dispose()

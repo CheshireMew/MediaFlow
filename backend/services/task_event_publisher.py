@@ -18,9 +18,11 @@ class TaskEventPublisher:
         if self._notifier:
             await self._notifier.broadcast({"type": "update", "task": _task_payload(task_payload)})
 
-    async def publish_delete(self, task_id: str) -> None:
+    async def publish_delete(self, task_id: str, revision: int) -> None:
         if self._notifier:
-            await self._notifier.broadcast({"type": "delete", "task_id": task_id})
+            await self._notifier.broadcast(
+                {"type": "delete", "task_id": task_id, "revision": revision}
+            )
 
     async def publish_snapshot(self, tasks_payload: list[TaskView]) -> None:
         if self._notifier:

@@ -9,7 +9,7 @@ import type {
   MediaVisibleStartResponse,
   TranscribeSegmentResponse,
   TranslationRequest,
-  TranslateResponse,
+  ImmediateTranslationResponse,
 } from "../../types/api";
 import { executeBackendDirectCall, executeTaskSubmission } from "./executionExecutor";
 import type { ExecutionOutcome } from "./taskSubmission";
@@ -42,7 +42,7 @@ export const editorService = {
     });
   },
 
-  async translateSegments(payload: TranslationRequest): Promise<TranslateResponse> {
+  async translateSegments(payload: TranslationRequest): Promise<ImmediateTranslationResponse> {
     await ensureAiTranslationConfigured();
 
     return await executeBackendDirectCall({

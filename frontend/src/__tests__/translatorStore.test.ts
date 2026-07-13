@@ -78,4 +78,19 @@ describe("translatorStore persistence", () => {
       "\"mode\":\"intelligent\"",
     );
   });
+
+  it("never treats the source subtitle as the translated subtitle", () => {
+    const source = { path: "E:/subs/demo.srt", name: "demo.srt" };
+    const target = { path: "E:/subs/demo_ZH-CN.srt", name: "demo_ZH-CN.srt" };
+
+    useTranslatorStore.getState().setSourceFileRef(source);
+    useTranslatorStore.getState().setTargetSubtitleRef(source);
+    expect(useTranslatorStore.getState().targetSubtitleRef).toBeNull();
+
+    useTranslatorStore.getState().setTargetSubtitleRef(target);
+    expect(useTranslatorStore.getState().targetSubtitleRef).toEqual(target);
+
+    useTranslatorStore.getState().setSourceFileRef(target);
+    expect(useTranslatorStore.getState().targetSubtitleRef).toBeNull();
+  });
 });

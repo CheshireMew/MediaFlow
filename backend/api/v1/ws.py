@@ -12,8 +12,10 @@ def create_router(*, notifier, task_manager) -> APIRouter:
             await notifier.connect(websocket)
             try:
                 await task_manager.ensure_started_async()
-                snapshot = task_manager.get_tasks_snapshot()
-                await notifier.send_snapshot(websocket, snapshot)
+                await notifier.send_snapshot(
+                    websocket,
+                    task_manager.get_tasks_snapshot,
+                )
             except Exception as e:
                 logger.error(f"Failed to send initial snapshot: {e}")
                 raise

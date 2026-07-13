@@ -5,7 +5,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
-from sqlalchemy import MetaData, Table, case, func, inspect, literal, select, text
+from sqlalchemy import Column, Integer, JSON, MetaData, String, Table, case, func, inspect, literal, select, text
 
 from backend.config import settings
 from backend.contracts import (
@@ -39,7 +39,7 @@ async_session_maker = sessionmaker(
 
 
 TASK_SCHEMA_COMPONENT = "task"
-TASK_SCHEMA_VERSION = 4
+TASK_SCHEMA_VERSION = 6
 SCHEMA_VERSION_TABLE = "mediaflow_schema_version"
 _TASK_MIGRATION_TABLE = "task__migration_v1"
 _TASK_MESSAGE_MIGRATION_TABLE = "task__migration_v3"
@@ -70,6 +70,7 @@ _TASK_COLUMN_DEFAULTS = {
     "persistence_scope": "runtime",
     "lifecycle": TASK_LIFECYCLE["resumable"],
     "progress": 0.0,
+    "revision": 0,
     "message_code": "queued",
     "message_params": "{}",
     "created_at": task_timestamp_ms,
@@ -341,6 +342,8 @@ def _migrate_task_messages_v2_to_v3(sync_connection) -> None:
             )
         elif column_name == "message_params":
             source_expressions.append(literal("{}").label(column_name))
+        elif column_name == "revision":
+            source_expressions.append(literal(0).label(column_name))
         else:
             source_expressions.append(legacy_task.c[column_name].label(column_name))
 
@@ -359,24 +362,101 @@ def _migrate_task_messages_v2_to_v3(sync_connection) -> None:
     )
 
 
-def _migrate_task_catalog_v3_to_v4(sync_connection) -> None:
+def _archive_retired_tasks(sync_connection, retired_task_types: tuple[str, ...]) -> None:
     task_table = Table(
         Task.__tablename__,
         MetaData(),
         autoload_with=sync_connection,
     )
-    removed_task_types = ("enhancement", "cleanup", "extract")
-    result = sync_connection.execute(
-        task_table.delete().where(task_table.c.type.in_(removed_task_types))
+    retired_rows = sync_connection.execute(
+        select(task_table).where(task_table.c.type.in_(retired_task_types))
+    ).mappings().all()
+    if retired_rows:
+        archive_table = Table(
+            "mediaflow_retired_task_archive",
+            MetaData(),
+            Column("id", String, primary_key=True),
+            Column("archived_at", Integer, nullable=False),
+            Column("reason", String, nullable=False),
+            Column("payload", JSON, nullable=False),
+        )
+        archive_table.create(sync_connection, checkfirst=True)
+        sync_connection.execute(
+            archive_table.insert().prefix_with("OR IGNORE"),
+            [
+                {
+                    "id": str(row["id"]),
+                    "archived_at": task_timestamp_ms(),
+                    "reason": "retired_task_type",
+                    "payload": dict(row),
+                }
+                for row in retired_rows
+            ],
+        )
+        sync_connection.execute(
+            task_table.delete().where(task_table.c.type.in_(retired_task_types))
+        )
+        logger.info(
+            "Archived {} persisted tasks for retired media operations.",
+            len(retired_rows),
+        )
+
+
+def _migrate_task_catalog_v3_to_v4(sync_connection) -> None:
+    _archive_retired_tasks(sync_connection, ("enhancement", "cleanup", "extract"))
+    task_table = Table(
+        Task.__tablename__,
+        MetaData(),
+        autoload_with=sync_connection,
+    )
+
+    sync_connection.execute(
+        task_table.update().values(task_contract_version=TASK_CONTRACT_VERSION)
+    )
+
+
+def _migrate_task_revision_v4_to_v5(sync_connection) -> None:
+    existing_columns = {
+        column["name"]
+        for column in inspect(sync_connection).get_columns(Task.__tablename__)
+    }
+    if "revision" not in existing_columns:
+        sync_connection.execute(
+            text(f'ALTER TABLE "{Task.__tablename__}" ADD COLUMN revision INTEGER NOT NULL DEFAULT 0')
+        )
+    task_table = Table(
+        Task.__tablename__,
+        MetaData(),
+        autoload_with=sync_connection,
+    )
+    _archive_retired_tasks(sync_connection, ("transcribe_segment",))
+    sync_connection.execute(
+        task_table.update().values(task_contract_version=TASK_CONTRACT_VERSION)
+    )
+
+
+def _migrate_task_status_v5_to_v6(sync_connection) -> None:
+    task_table = Table(
+        Task.__tablename__,
+        MetaData(),
+        autoload_with=sync_connection,
+    )
+    sync_connection.execute(
+        task_table.update()
+        .where(task_table.c.status == "processing_result")
+        .values(
+            status="paused",
+            persistence_scope=task_persistence_scope("paused"),
+            lifecycle=task_lifecycle("paused"),
+            message_code="interrupted_by_restart",
+            message_params={},
+            cancelled=False,
+            revision=task_table.c.revision + 1,
+        )
     )
     sync_connection.execute(
         task_table.update().values(task_contract_version=TASK_CONTRACT_VERSION)
     )
-    if result.rowcount:
-        logger.info(
-            "Removed {} persisted tasks for retired media operations.",
-            result.rowcount,
-        )
 
 
 _TASK_MIGRATIONS = {
@@ -384,6 +464,8 @@ _TASK_MIGRATIONS = {
     1: _migrate_task_payloads_v1_to_v2,
     2: _migrate_task_messages_v2_to_v3,
     3: _migrate_task_catalog_v3_to_v4,
+    4: _migrate_task_revision_v4_to_v5,
+    5: _migrate_task_status_v5_to_v6,
 }
 
 

@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getWsUrl } from "../../api/runtime";
-import type { TaskSocketMessage } from "./useTaskStore";
+import { isTaskSocketMessage, type TaskSocketMessage } from "./useTaskStore";
 
 type UseTaskSocketArgs = {
   onMessage: (message: TaskSocketMessage) => void;
+  onDisconnected?: () => void;
   enabled?: boolean;
 };
 
-export function useTaskSocket({ onMessage, enabled = true }: UseTaskSocketArgs) {
+export function useTaskSocket({
+  onMessage,
+  onDisconnected,
+  enabled = true,
+}: UseTaskSocketArgs) {
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -31,6 +36,7 @@ export function useTaskSocket({ onMessage, enabled = true }: UseTaskSocketArgs) 
 
     ws.onclose = () => {
       setConnected(false);
+      onDisconnected?.();
       wsRef.current = null;
       reconnectTimeoutRef.current = setTimeout(() => connectRef.current(), 3000);
     };
@@ -42,14 +48,18 @@ export function useTaskSocket({ onMessage, enabled = true }: UseTaskSocketArgs) 
 
     ws.onmessage = (event) => {
       try {
-        onMessage(JSON.parse(event.data) as TaskSocketMessage);
+        const message: unknown = JSON.parse(event.data);
+        if (!isTaskSocketMessage(message)) {
+          throw new Error("Invalid task socket message envelope");
+        }
+        onMessage(message);
       } catch (error) {
         console.error("Error parsing WS message:", error);
       }
     };
 
     wsRef.current = ws;
-  }, [onMessage]);
+  }, [onDisconnected, onMessage]);
 
   useEffect(() => {
     connectRef.current = connect;

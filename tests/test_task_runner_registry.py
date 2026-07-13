@@ -9,6 +9,13 @@ def test_composed_task_runner_registry_covers_catalog_task_types():
 
     class FakeOperationExecutor:
         @staticmethod
+        def task_operation(_task_type):
+            class Operation:
+                background = staticmethod(lambda _task_id, _request: None)
+
+            return Operation()
+
+        @staticmethod
         def build_runner(_task):
             return lambda: None
 
