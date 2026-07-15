@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Tuple
 from loguru import logger
-from backend.models.schemas import MediaReference
+from backend.models.media_contracts import MediaReference
 from backend.utils.path_validator import validate_input_file
 
 router = APIRouter(tags=["Audio"])

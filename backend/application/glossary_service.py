@@ -1,8 +1,4 @@
-from backend.models.schemas import (
-    CreateGlossaryTermRequest,
-    GlossaryTerm,
-    UpdateGlossaryTermRequest,
-)
+from backend.models.glossary_contracts import CreateGlossaryTermRequest, GlossaryTerm, UpdateGlossaryTermRequest
 
 
 class GlossaryApplicationService:

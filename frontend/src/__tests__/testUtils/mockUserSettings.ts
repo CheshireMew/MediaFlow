@@ -21,6 +21,7 @@ export function createMockUserSettings(
       overrides.faster_whisper_cli_path ?? "C:/tools/faster-whisper-cli.exe",
     language: overrides.language ?? "zh",
     auto_execute_flow: overrides.auto_execute_flow ?? false,
+    auto_trim_silence: overrides.auto_trim_silence ?? false,
     smart_split_text_limit: overrides.smart_split_text_limit ?? 18,
     ui_state: overrides.ui_state ?? {},
   };

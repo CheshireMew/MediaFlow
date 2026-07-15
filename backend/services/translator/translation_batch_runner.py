@@ -3,7 +3,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import Any, Callable, List, Optional
 
 from backend.config import settings
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.models.task_message import TaskProgressCallback
 from backend.services.translator.translation_models import TranslationBatch
 

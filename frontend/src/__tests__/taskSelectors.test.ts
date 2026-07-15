@@ -8,6 +8,7 @@ import {
   findActiveTranslationTask,
   findCompletedTranscribeTask,
   findCompletedTranslationTask,
+  getTranslationTaskSegments,
   getTranslationTaskMediaRefs,
   mapTaskToTranscribeResult,
 } from "../hooks/tasks/taskSelectors";
@@ -19,6 +20,17 @@ const artifact = (
   path: string,
   name: string,
 ): TaskArtifact => ({ kind, role, ref: { path, name } });
+
+const transcriptionOutput = (
+  text: string,
+  segments: Array<{ id: string; start: number; end: number; text: string }> = [],
+) => ({
+  task_id: "transcribe-test",
+  language: "auto",
+  duration: 1,
+  segments,
+  text,
+});
 
 describe("taskSelectors transcribe media matching", () => {
   it("matches an active transcribe task using structured media refs", () => {
@@ -100,8 +112,8 @@ describe("taskSelectors transcribe media matching", () => {
       result: {
         success: true,
         artifacts: [],
-        meta: {
-          transcript: "hello",
+        outputs: {
+          transcription: transcriptionOutput("hello"),
         },
       },
       artifacts: [artifact("video", "input", "E:/canonical/sample.mp4", "sample.mp4")],
@@ -133,9 +145,11 @@ describe("taskSelectors transcribe media matching", () => {
       result: {
         success: true,
         artifacts: [],
-        meta: {
-          transcript: "hello",
-          segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
+        outputs: {
+          transcription: transcriptionOutput(
+            "hello",
+            [{ id: "1", start: 0, end: 1, text: "hello" }],
+          ),
         },
       },
     };
@@ -186,17 +200,22 @@ describe("taskSelectors transcribe media matching", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate",
-      type: "translate",
+      type: "pipeline",
       primary_operation: "translate",
       status: "running",
       progress: 15,
       created_at: Date.now(),
       request_params: {
-        context_ref: {
-          path: "E:/subs/demo.srt",
-          name: "demo.srt",
-        },
-        mode: "standard",
+        steps: [{
+          step_name: "translate",
+          params: {
+            context_ref: {
+              path: "E:/subs/demo.srt",
+              name: "demo.srt",
+            },
+            mode: "standard",
+          },
+        }],
       },
       artifacts: [artifact("subtitle", "context", "E:/subs/demo.srt", "demo.srt")],
     };
@@ -213,17 +232,22 @@ describe("taskSelectors transcribe media matching", () => {
     const translateTask: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-ref",
-      type: "translate",
+      type: "pipeline",
       primary_operation: "translate",
       status: "running",
       progress: 15,
       created_at: Date.now(),
       request_params: {
-        context_ref: {
-          path: "E:/canonical/demo.srt",
-          name: "demo.srt",
-        },
-        mode: "standard",
+        steps: [{
+          step_name: "translate",
+          params: {
+            context_ref: {
+              path: "E:/canonical/demo.srt",
+              name: "demo.srt",
+            },
+            mode: "standard",
+          },
+        }],
       },
       artifacts: [artifact("subtitle", "input", "E:/canonical/demo.srt", "demo.srt")],
     };
@@ -242,8 +266,8 @@ describe("taskSelectors transcribe media matching", () => {
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/sample.srt", "sample.srt")],
-        meta: {
-          transcript: "hello",
+        outputs: {
+          transcription: transcriptionOutput("hello"),
         },
       },
       artifacts: [
@@ -274,16 +298,16 @@ describe("taskSelectors transcribe media matching", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-refs",
-      type: "translate",
+      type: "pipeline",
       primary_operation: "translate",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
-        meta: {},
+        outputs: {},
       },
       artifacts: [
         artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt"),
@@ -315,19 +339,61 @@ describe("taskSelectors transcribe media matching", () => {
     });
   });
 
+  it("reads translated segments from the pipeline result contract", () => {
+    const task: Task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
+      id: "task-translate-result",
+      type: "pipeline",
+      primary_operation: "translate",
+      status: "completed",
+      progress: 100,
+      created_at: Date.now(),
+      request_params: {
+        steps: [{
+          step_name: "translate",
+          params: {
+            segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
+            context_ref: { path: "E:/canonical/source.srt", name: "source.srt" },
+            target_language: "SimplifiedChinese",
+            mode: "standard",
+          },
+        }],
+      },
+      result: {
+        success: true,
+        artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
+        outputs: {
+          translation: {
+            segments: [{ id: "1", start: 0, end: 1, text: "你好" }],
+            language: "SimplifiedChinese",
+            mode: "standard",
+          },
+        },
+      },
+      artifacts: [
+        artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt"),
+        artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
+      ],
+    };
+
+    expect(getTranslationTaskSegments(task)).toEqual([
+      { id: "1", start: 0, end: 1, text: "你好" },
+    ]);
+  });
+
   it("requires published task artifacts for translation media identity", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-translate-no-artifacts",
-      type: "translate",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [],
-        meta: {},
+        outputs: {},
       },
     };
 

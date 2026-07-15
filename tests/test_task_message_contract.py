@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from backend.contracts import TASK_MESSAGE_CODES
-from backend.models.schemas import TaskView
+from backend.models.task_contracts import TaskView
 from backend.models.task_message import validate_task_message
 from backend.models.task_model import Task
 

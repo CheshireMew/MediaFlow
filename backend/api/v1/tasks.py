@@ -1,13 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from backend.models.schemas import (
-    TaskCountActionResponse,
-    TaskDeleteActionResponse,
-    TaskResponse,
-    TaskQueueSummary,
-    TaskStatusActionResponse,
-    TaskView,
-)
+from backend.models.task_contracts import TaskCountActionResponse, TaskDeleteActionResponse, TaskResponse, TaskQueueSummary, TaskStatusActionResponse, TaskView
 from loguru import logger
 from backend.services.task_manager import TaskDeletionBlockedError
 

@@ -13,7 +13,7 @@ from typing import List
 from fastapi import WebSocket
 from loguru import logger
 
-from backend.models.schemas import TaskView
+from backend.models.task_contracts import TaskView
 
 WEBSOCKET_SEND_TIMEOUT_SECONDS = 2.0
 

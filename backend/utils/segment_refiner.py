@@ -5,7 +5,7 @@ Whisper segment normalization and timing helpers.
 """
 from typing import List
 from loguru import logger
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.utils.subtitle_text_splitter import (
     MAX_WORD_COUNT_CJK,
     MAX_WORD_COUNT_ENGLISH,

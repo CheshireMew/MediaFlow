@@ -10,7 +10,8 @@ from loguru import logger
 from backend.core.adapters.base import BaseAdapter
 from backend.config import settings
 from backend.utils.subtitle_parser import SubtitleParser
-from backend.models.schemas import DEFAULT_ASR_VAD_FILTER, SubtitleSegment
+from backend.models.transcription_contracts import DEFAULT_ASR_VAD_FILTER
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.models.task_message import TaskProgressCallback
 
 

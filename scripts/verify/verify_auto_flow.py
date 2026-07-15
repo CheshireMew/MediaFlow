@@ -5,9 +5,9 @@ from pathlib import Path
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-from backend.core.app_runtime import ApplicationRuntime
+from backend.runtime.application_runtime import ApplicationRuntime
 from backend.core.container import ServiceContainer, Services
-from backend.core.task_catalog import pipeline_step_names
+from backend.contracts import pipeline_step_names
 
 
 def main():

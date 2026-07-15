@@ -27,7 +27,7 @@ export type TranslatorMode = TranslationExecutionMode;
 export type TranslatorResultMode = TranslatorMode | null;
 export type TranslatorExecutionMode = NullableExecutionMode;
 
-interface TranslatorState {
+export interface TranslatorState {
   // Data
   sourceSegments: SubtitleSegment[];
   targetSegments: SubtitleSegment[];

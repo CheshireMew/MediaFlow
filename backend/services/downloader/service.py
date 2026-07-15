@@ -9,7 +9,8 @@ import yt_dlp
 from loguru import logger
 
 from backend.config import settings
-from backend.models.schemas import TaskResult
+from backend.models.media_contracts import TaskResult
+from backend.models.task_result_contracts import DownloadOutput, PipelineOutputs
 from backend.models.task_message import TaskProgressCallback
 from backend.services.cookie_manager import CookieManager
 from backend.services.download_errors import classify_download_error
@@ -229,19 +230,21 @@ class DownloaderService:
         return TaskResult(
             success=True,
             artifacts=artifacts.to_artifacts(),
-            meta={
-                "id": task_id or str(uuid.uuid4()),
-                "title": title,
-                "duration": duration,
-                "filename": artifacts.media_path.name,
-                "source_url": url,
-                "warnings": list(artifacts.warnings),
-                "recovery_strategies": [
-                    item["strategy"]
-                    for item in artifacts.recovery
-                    if "strategy" in item
-                ],
-            },
+            outputs=PipelineOutputs(
+                download=DownloadOutput(
+                    id=task_id or str(uuid.uuid4()),
+                    title=title,
+                    duration=duration,
+                    filename=artifacts.media_path.name,
+                    source_url=url,
+                    warnings=list(artifacts.warnings),
+                    recovery_strategies=[
+                        item["strategy"]
+                        for item in artifacts.recovery
+                        if "strategy" in item
+                    ],
+                )
+            ),
         )
 
     def _handle_local_source(
@@ -276,19 +279,21 @@ class DownloaderService:
         return TaskResult(
             success=True,
             artifacts=artifacts.to_artifacts(),
-            meta={
-                "id": task_id or str(uuid.uuid4()),
-                "title": final_name,
-                "duration": 0,
-                "filename": artifacts.media_path.name,
-                "source_url": url,
-                "warnings": list(artifacts.warnings),
-                "recovery_strategies": [
-                    item["strategy"]
-                    for item in artifacts.recovery
-                    if "strategy" in item
-                ],
-            },
+            outputs=PipelineOutputs(
+                download=DownloadOutput(
+                    id=task_id or str(uuid.uuid4()),
+                    title=final_name,
+                    duration=0,
+                    filename=artifacts.media_path.name,
+                    source_url=url,
+                    warnings=list(artifacts.warnings),
+                    recovery_strategies=[
+                        item["strategy"]
+                        for item in artifacts.recovery
+                        if "strategy" in item
+                    ],
+                )
+            ),
         )
 
     def _execute_yt_dlp_download(

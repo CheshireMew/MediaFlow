@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Optional
 
-from backend.models.schemas import TaskView
+from backend.models.task_contracts import TaskView
 
 if TYPE_CHECKING:
     from backend.core.ws_notifier import WebSocketNotifier

@@ -27,16 +27,8 @@ def test_get_translation_output_suffix_uses_proofread_suffix():
     assert get_translation_output_suffix("Japanese", "standard") == "_JP"
 
 
-def test_translate_endpoint_returns_400_for_client_value_errors(monkeypatch):
+def test_retired_background_translate_endpoint_does_not_exist():
     client = TestClient(app)
-
-    async def fake_submit_task_operation(_self, _task_type, _req):
-        raise ValueError("bad translation request")
-
-    monkeypatch.setattr(
-        "backend.application.task_operations.TaskOperationService.submit",
-        fake_submit_task_operation,
-    )
 
     response = client.post(
         "/api/v1/translate/",
@@ -47,5 +39,4 @@ def test_translate_endpoint_returns_400_for_client_value_errors(monkeypatch):
         },
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "bad translation request"
+    assert response.status_code == 404

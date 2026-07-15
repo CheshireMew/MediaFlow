@@ -73,11 +73,12 @@ class SynthesisOrchestrator:
         next_options = dict(options)
         if next_options.get("disable_auto_trim"):
             return next_options
-        if float(next_options.get("trim_start", 0) or 0) > 0:
-            return next_options
 
-        leading_black_end = MediaProber.detect_leading_black_end(video_path)
-        if leading_black_end > 0:
+        manual_trim_start = float(next_options.get("trim_start", 0) or 0)
+        if manual_trim_start <= 0:
+            leading_black_end = MediaProber.detect_leading_black_end(video_path)
+            if leading_black_end <= 0:
+                return next_options
             next_options["trim_start"] = leading_black_end
             logger.info(
                 f"Auto-trimmed leading black frames at synthesis start: {leading_black_end:.6f}s"

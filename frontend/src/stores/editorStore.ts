@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import { createDataSlice, type DataSlice } from "./slices/dataSlice";
-import { createUISlice, type UISlice } from "./slices/uiSlice";
-import { createHistorySlice, type HistorySlice } from "./slices/historySlice";
+import { createDataSlice } from "./slices/dataSlice";
+import { createUISlice } from "./slices/uiSlice";
+import { createHistorySlice } from "./slices/historySlice";
 import {
   normalizeMediaReference,
 } from "../services/ui/mediaReference";
@@ -15,8 +15,7 @@ import {
   createEmptyEditorDocument,
   type EditorDocument,
 } from "./editorDocument";
-
-export type EditorState = DataSlice & UISlice & HistorySlice;
+import type { EditorState } from "./editorStoreTypes";
 
 const EDITOR_STORE_KEY = "editor-storage";
 

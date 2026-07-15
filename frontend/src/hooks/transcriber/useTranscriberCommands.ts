@@ -129,7 +129,6 @@ export function useTranscriberCommands({
                 },
               },
             ],
-            video_ref: submissionAudioRef,
           },
         },
       });

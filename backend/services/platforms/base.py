@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Union, List
-from backend.models.schemas import AnalyzeResult
+from backend.models.download_contracts import AnalyzeResult
 
 class BasePlatform(ABC):
     """Abstract base class for platform-specific handlers."""

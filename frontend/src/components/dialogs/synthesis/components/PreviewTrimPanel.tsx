@@ -6,13 +6,21 @@ type PreviewTrimPanelProps = {
   output: OutputSettingsState;
   currentTime: number;
   duration: number;
+  automaticRange?: { start: number; end: number } | null;
 };
 
-export function PreviewTrimPanel({ output, currentTime, duration }: PreviewTrimPanelProps) {
+export function PreviewTrimPanel({
+  output,
+  currentTime,
+  duration,
+  automaticRange = null,
+}: PreviewTrimPanelProps) {
   const { t } = useTranslation("synthesis");
   const { trimStart, setTrimStart, trimEnd, setTrimEnd } = output;
   const trimStartId = useId();
   const trimEndId = useId();
+  const displayedTrimStart = trimStart > 0 ? trimStart : automaticRange?.start ?? 0;
+  const displayedTrimEnd = trimEnd > 0 ? trimEnd : automaticRange?.end ?? 0;
 
   return (
     <div className="bg-[#1a1a1a] border-b border-white/5 px-6 py-3 flex items-center gap-6 animate-in slide-in-from-top-2 duration-200">
@@ -23,9 +31,9 @@ export function PreviewTrimPanel({ output, currentTime, duration }: PreviewTrimP
             id={trimStartId}
             type="number"
             min={0}
-            max={trimEnd || duration || 100}
+            max={displayedTrimEnd || duration || 100}
             step={0.1}
-            value={trimStart}
+            value={displayedTrimStart}
             onChange={(e) => setTrimStart(Number(e.target.value))}
             className="bg-black/20 border border-white/10 rounded px-2 py-1 w-16 text-slate-200 focus:border-indigo-500 outline-none"
           />
@@ -48,10 +56,10 @@ export function PreviewTrimPanel({ output, currentTime, duration }: PreviewTrimP
           <input
             id={trimEndId}
             type="number"
-            min={trimStart}
+            min={displayedTrimStart}
             max={duration || 10000}
             step={0.1}
-            value={trimEnd}
+            value={displayedTrimEnd}
             onChange={(e) => setTrimEnd(Number(e.target.value))}
             className="bg-black/20 border border-white/10 rounded px-2 py-1 w-16 text-slate-200 focus:border-indigo-500 outline-none"
           />

@@ -109,6 +109,7 @@
     "mediaLoadErrorHint": "Reopen the export panel or check the video codec",
     "subtitlePosition": "(Subtitle Position)",
     "startExport": "Export Video",
-    "submitting": "Submitting..."
+    "submitting": "Submitting...",
+    "detectingTrim": "Reading the speech timeline..."
   }
 }

@@ -6,7 +6,7 @@ SRT and ASS subtitle output helpers.
 from pathlib import Path
 from typing import List
 from loguru import logger
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.services.media_extensions import MEDIA_EXTENSIONS
 from backend.utils.subtitle_parser import SubtitleParser
 from backend.utils.text_shaper import shape

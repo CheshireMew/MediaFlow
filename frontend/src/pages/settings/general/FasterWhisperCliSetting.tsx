@@ -2,6 +2,7 @@ import { Cpu, Download } from "lucide-react";
 import { fileService } from "../../../services/fileService";
 import type { SettingsController, SettingsT } from "../settingsTypes";
 import { SettingCard } from "./SettingCard";
+import { SettingsActionButton } from "./SettingsActionButton";
 
 type FasterWhisperCliSettingProps = {
   controller: SettingsController;
@@ -36,7 +37,7 @@ export function FasterWhisperCliSetting({ controller, t }: FasterWhisperCliSetti
               ? `${Math.round(fasterWhisperCliInstallProgress.progress)}%`
               : t("general.cliInstall")}
           </button>
-          <button
+          <SettingsActionButton
             onClick={async () => {
               if (!settings) return;
               const selected = await fileService.openFile({ profile: "executable" });
@@ -45,30 +46,28 @@ export function FasterWhisperCliSetting({ controller, t }: FasterWhisperCliSetti
               setSettings(nextSettings);
               await updatePreferences({ faster_whisper_cli_path: selected.path });
             }}
-            className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors"
           >
             {t("general.chooseFile")}
-          </button>
-          <button
+          </SettingsActionButton>
+          <SettingsActionButton
             onClick={async () => {
               if (!settings) return;
               await updatePreferences({
                 faster_whisper_cli_path: settings.faster_whisper_cli_path?.trim() || null,
               });
             }}
-            className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors"
           >
             {t("general.savePath")}
-          </button>
-          <button
+          </SettingsActionButton>
+          <SettingsActionButton
+            variant="quiet"
             onClick={async () => {
               if (!settings) return;
               await updatePreferences({ faster_whisper_cli_path: null });
             }}
-            className="px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
           >
             {t("general.clearFolder")}
-          </button>
+          </SettingsActionButton>
         </>
       }
     >

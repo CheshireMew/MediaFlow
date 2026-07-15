@@ -74,14 +74,14 @@ describe("TaskMonitor navigation actions", () => {
           message_code: "pipeline_completed",
           message_params: {},
           created_at: Date.now(),
-          request_params: {},
+          request_params: { steps: [] },
           result: {
             success: true,
             artifacts: [
               artifact("video", "output", "E:/sample.mp4", "sample.mp4"),
               artifact("subtitle", "output", "E:/sample.srt", "sample.srt"),
             ],
-            meta: {},
+            outputs: {},
           },
           artifacts: [
             artifact("video", "output", "E:/sample.mp4", "sample.mp4"),
@@ -235,22 +235,22 @@ describe("TaskMonitor navigation actions", () => {
         {
           ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-synthesis-folder",
-          type: "synthesis",
+          type: "pipeline",
           primary_operation: "synthesis",
           status: "completed",
           progress: 100,
           name: "Synthesize source.mp4",
-          message_code: "synthesis_completed",
+          message_code: "pipeline_completed",
           message_params: {},
           created_at: Date.now(),
-          request_params: {},
+          request_params: { steps: [] },
           result: {
             success: true,
             artifacts: [
               artifact("subtitle", "output", "E:/source/source.srt", "source.srt"),
               artifact("video", "output", "E:/renders/source_synthesized.mp4", "source_synthesized.mp4"),
             ],
-            meta: {},
+            outputs: {},
           },
           artifacts: [
             artifact("video", "input", "E:/source/source.mp4", "source.mp4"),
@@ -300,7 +300,7 @@ describe("TaskMonitor navigation actions", () => {
           result: {
             success: true,
             artifacts: [artifact("video", "output", "E:/sample.mp4", "sample.mp4")],
-            meta: {},
+            outputs: {},
           },
           artifacts: [artifact("video", "output", "E:/sample.mp4", "sample.mp4")],
         },
@@ -361,14 +361,14 @@ describe("TaskMonitor navigation actions", () => {
           message_code: "pipeline_completed",
           message_params: {},
           created_at: Date.now(),
-          request_params: {},
+          request_params: { steps: [] },
           result: {
             success: true,
             artifacts: [
               artifact("video", "output", "E:/canonical/sample.mp4", "sample.mp4"),
               artifact("subtitle", "output", "E:/canonical/sample_ZH-CN.srt", "sample_ZH-CN.srt"),
             ],
-            meta: {},
+            outputs: {},
           },
           artifacts: [
             artifact("video", "output", "E:/canonical/sample.mp4", "sample.mp4"),
@@ -415,7 +415,7 @@ describe("TaskMonitor navigation actions", () => {
         {
           ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-history",
-          type: "download",
+          type: "pipeline",
           primary_operation: "download",
           status: "completed",
           persistence_scope: "history",
@@ -430,7 +430,7 @@ describe("TaskMonitor navigation actions", () => {
           result: {
             success: true,
             artifacts: [artifact("video", "output", "E:/sample.mp4", "sample.mp4")],
-            meta: {},
+            outputs: {},
           },
           artifacts: [artifact("video", "output", "E:/sample.mp4", "sample.mp4")],
         },

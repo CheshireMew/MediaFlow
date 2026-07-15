@@ -13,7 +13,19 @@ sys.path.insert(0, str(REPO_ROOT))
 from pydantic import BaseModel
 
 from backend.api.v1 import analyze, audio, cookies, settings as settings_api
-from backend.models import schemas
+from backend.models import (
+    download_contracts,
+    editor_contracts,
+    glossary_contracts,
+    media_contracts,
+    pipeline_contracts,
+    subtitle_contracts,
+    synthesis_contracts,
+    task_result_contracts,
+    task_contracts,
+    transcription_contracts,
+    translation_contracts,
+)
 from backend.models.translation_target_language import (
     DEFAULT_TRANSLATION_TARGET_LANGUAGE,
     TranslationTargetLanguage,
@@ -39,7 +51,17 @@ TRANSLATION_LANGUAGE_CATALOG_OUTPUT = (
 )
 
 WIRE_MODEL_MODULES: tuple[ModuleType, ...] = (
-    schemas,
+    media_contracts,
+    subtitle_contracts,
+    transcription_contracts,
+    translation_contracts,
+    synthesis_contracts,
+    task_result_contracts,
+    download_contracts,
+    glossary_contracts,
+    editor_contracts,
+    task_contracts,
+    pipeline_contracts,
     analyze,
     audio,
     cookies,

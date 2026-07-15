@@ -10,6 +10,9 @@ from backend.config import settings
 class AudioProcessor:
     STRONG_ANTIPHASE_MEDIAN_THRESHOLD = -0.75
     STRONG_ANTIPHASE_FRAME_RATIO = 0.60
+    _SILENCE_EVENT_PATTERN = re.compile(
+        r"silence_(?P<event>start|end):\s*(?P<time>-?\d+(?:\.\d+)?)"
+    )
 
     @staticmethod
     def get_audio_duration(audio_path: str) -> float:
@@ -33,6 +36,75 @@ class AudioProcessor:
             return 0.0
 
     @staticmethod
+    def parse_silence_intervals(
+        ffmpeg_output: str,
+        *,
+        media_duration: float | None = None,
+    ) -> List[Tuple[float, float]]:
+        """Parse ordered silencedetect events into complete silence intervals."""
+        intervals: List[Tuple[float, float]] = []
+        current_start: float | None = None
+        for match in AudioProcessor._SILENCE_EVENT_PATTERN.finditer(ffmpeg_output):
+            event = match.group("event")
+            timestamp = max(0.0, float(match.group("time")))
+            if event == "start":
+                current_start = timestamp
+                continue
+            if current_start is None:
+                continue
+            intervals.append((current_start, max(current_start, timestamp)))
+            current_start = None
+
+        if (
+            current_start is not None
+            and media_duration is not None
+            and media_duration >= current_start
+        ):
+            intervals.append((current_start, media_duration))
+        return intervals
+
+    @staticmethod
+    def _run_silence_detection(
+        audio_path: str,
+        *,
+        silence_thresh: str,
+        min_silence_dur: float,
+    ) -> str:
+        cmd = [
+            settings.FFMPEG_PATH,
+            "-hide_banner",
+            "-v",
+            "info",
+            "-nostats",
+            "-i",
+            audio_path,
+            "-map",
+            "0:a:0",
+            "-vn",
+            "-af",
+            f"silencedetect=noise={silence_thresh}:d={min_silence_dur}",
+            "-f",
+            "null",
+            "-",
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            shell=False,
+        )
+        if result.returncode != 0:
+            logger.warning(
+                "Silence detection exited with code {}: {}",
+                result.returncode,
+                (result.stderr or "")[-500:],
+            )
+            return ""
+        return "\n".join(part for part in (result.stdout, result.stderr) if part)
+
+    @staticmethod
     def detect_silence(audio_path: str, silence_thresh: str = "-30dB", min_silence_dur: float = 0.5) -> List[Tuple[float, float]]:
         """
         Detect silence intervals using ffmpeg silencedetect filter.
@@ -43,41 +115,15 @@ class AudioProcessor:
              logger.error(f"Audio file not found: {audio_path}")
              return []
 
-        cmd = [
-            settings.FFMPEG_PATH,
-            "-i", audio_path,
-            "-af", f"silencedetect=noise={silence_thresh}:d={min_silence_dur}",
-            "-f", "null",
-            "-"
-        ]
-        
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", shell=False)
-            # ffmpeg writes silencedetect output to stderr
-            output = result.stderr
-            
-            silence_starts = []
-            silence_ends = []
-            
-            # Parse output
-            for line in output.split('\n'):
-                if "silence_start" in line:
-                    match = re.search(r"silence_start: (\d+(\.\d+)?)", line)
-                    if match:
-                        silence_starts.append(float(match.group(1)))
-                elif "silence_end" in line:
-                    match = re.search(r"silence_end: (\d+(\.\d+)?)", line)
-                    if match:
-                        silence_ends.append(float(match.group(1)))
-            
-            # Combine into intervals
-            intervals = []
-            for s, e in zip(silence_starts, silence_ends):
-                intervals.append((s, e))
-                
+            output = AudioProcessor._run_silence_detection(
+                audio_path,
+                silence_thresh=silence_thresh,
+                min_silence_dur=min_silence_dur,
+            )
+            intervals = AudioProcessor.parse_silence_intervals(output)
             logger.debug(f"Detected {len(intervals)} silence intervals.")
             return intervals
-            
         except Exception as e:
             logger.warning(f"Silence detection failed: {e}")
             return []

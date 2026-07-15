@@ -44,7 +44,7 @@ describe("runtimeDiagnostics", () => {
         {
           ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-1",
-          type: "translate",
+          type: "pipeline",
           primary_operation: "translate",
           status: "running",
           progress: 42,
@@ -55,11 +55,19 @@ describe("runtimeDiagnostics", () => {
           queue_state: "running",
           queue_position: null,
           request_params: {
-            mode: "standard",
-            context_ref: {
-              path: "E:/canonical/demo.srt",
-              name: "demo.srt",
-            },
+            pipeline_id: "translator_tool",
+            steps: [{
+              step_name: "translate",
+              params: {
+                mode: "standard",
+                target_language: "SimplifiedChinese",
+                segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
+                context_ref: {
+                  path: "E:/canonical/demo.srt",
+                  name: "demo.srt",
+                },
+              },
+            }],
           },
           result: {
             success: true,
@@ -71,8 +79,12 @@ describe("runtimeDiagnostics", () => {
                 name: "demo.zh.srt",
               },
             }],
-            meta: {
-              language: "SimplifiedChinese",
+            outputs: {
+              translation: {
+                segments: [{ id: "1", start: 0, end: 1, text: "你好" }],
+                language: "SimplifiedChinese",
+                mode: "standard",
+              },
             },
           },
           artifacts: [
@@ -107,11 +119,15 @@ describe("runtimeDiagnostics", () => {
       persistence_scope: "runtime",
       queue_state: "running",
       queue_position: null,
-      type: "translate",
+      type: "pipeline",
       status: "running",
-      params_keys: ["mode", "context_ref"],
-      result_meta: {
-        language: "SimplifiedChinese",
+      params_keys: ["pipeline_id", "steps"],
+      result_outputs: {
+        translation: {
+          segments: [{ id: "1", start: 0, end: 1, text: "你好" }],
+          language: "SimplifiedChinese",
+          mode: "standard",
+        },
       },
       artifacts: [
         {
@@ -137,23 +153,28 @@ describe("runtimeDiagnostics", () => {
     });
   });
 
-  it("preserves non-media result metadata in diagnostics", () => {
+  it("preserves typed task outputs in diagnostics", () => {
     expect(
       createTaskDiagnostic(
         {
           ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-result-meta",
-          type: "translate",
+          type: "pipeline",
           status: "completed",
           progress: 100,
           task_contract_version: 2,
-          request_params: {},
+          request_params: { steps: [] },
           result: {
             success: true,
             artifacts: [],
-            meta: {
-              language: "en",
-              batch_count: 3,
+            outputs: {
+              transcription: {
+                task_id: "task-result-meta",
+                language: "en",
+                duration: 1,
+                segments: [],
+                text: "hello",
+              },
             },
           },
           created_at: 1,
@@ -163,9 +184,14 @@ describe("runtimeDiagnostics", () => {
         },
       ),
     ).toMatchObject({
-      result_meta: {
-        language: "en",
-        batch_count: 3,
+      result_outputs: {
+        transcription: {
+          task_id: "task-result-meta",
+          language: "en",
+          duration: 1,
+          segments: [],
+          text: "hello",
+        },
       },
     });
   });

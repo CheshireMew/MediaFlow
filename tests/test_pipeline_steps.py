@@ -5,11 +5,12 @@ Converted from tests/verify_auto_flow.py (Issue #7).
 Verifies that all catalogued pipeline steps are registered in the StepRegistry.
 """
 
-from backend.core.steps.download import DownloadStep
-from backend.core.steps.registry import StepRegistry
-from backend.core.steps.synthesize import SynthesizeStep
-from backend.core.steps.transcribe import TranscribeStep
-from backend.core.steps.translate import TranslateStep
+from backend.application.pipeline_steps.download import DownloadStep
+from backend.application.pipeline_steps.clip_export import ClipExportStep
+from backend.application.pipeline_steps.registry import StepRegistry
+from backend.application.pipeline_steps.synthesize import SynthesizeStep
+from backend.application.pipeline_steps.transcribe import TranscribeStep
+from backend.application.pipeline_steps.translate import TranslateStep
 
 
 def _registry() -> StepRegistry:
@@ -20,13 +21,14 @@ def _registry() -> StepRegistry:
             TranscribeStep(asr_service=dependency, task_manager=dependency),
             TranslateStep(translator=dependency, task_manager=dependency),
             SynthesizeStep(synthesis=dependency, task_manager=dependency),
+            ClipExportStep(video_synthesis=dependency, task_manager=dependency),
         ]
     )
 
 
 def test_all_pipeline_steps_registered():
     """All required auto-execute flow steps must be registered."""
-    from backend.core.task_catalog import pipeline_step_names
+    from backend.contracts import pipeline_step_names
 
     registered = _registry().list_steps()
 

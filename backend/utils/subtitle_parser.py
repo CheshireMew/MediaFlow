@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List
 import re
 from loguru import logger
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 
 
 class SubtitleParser:

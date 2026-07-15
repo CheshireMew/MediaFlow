@@ -5,6 +5,7 @@ const taskSocketUrl = "ws://127.0.0.1:8800/api/v1/ws/tasks";
 
 type BackendMockOptions = {
   analyzeFailure?: boolean;
+  translationWorkflow?: boolean;
 };
 
 const userSettings = {
@@ -30,6 +31,8 @@ async function installBackendMock(
   page: Page,
   options: BackendMockOptions = {},
 ) {
+  let sendCompletedTranslation: ((requestParams: unknown) => void) | null = null;
+
   await page.route(`${backendOrigin}/**`, async (route) => {
     const request = route.request();
     const { pathname } = new URL(request.url());
@@ -75,6 +78,32 @@ async function installBackendMock(
       return;
     }
 
+    if (
+      options.translationWorkflow &&
+      request.method() === "POST" &&
+      pathname === "/api/v1/pipeline/run"
+    ) {
+      const requestParams: unknown = request.postDataJSON();
+      await route.fulfill({
+        json: {
+          task_id: "e2e-translation-task",
+          status: "pending",
+          task_source: "backend",
+          task_contract_version: 9,
+          revision: 0,
+          persistence_scope: "runtime",
+          lifecycle: "resumable",
+          queue_state: "queued",
+          queue_position: null,
+          primary_operation: "translate",
+          message_code: "queued",
+          message_params: {},
+        },
+      });
+      sendCompletedTranslation?.(requestParams);
+      return;
+    }
+
     await route.fulfill({
       status: 404,
       contentType: "application/json",
@@ -83,11 +112,85 @@ async function installBackendMock(
   });
 
   await page.routeWebSocket(taskSocketUrl, (socket) => {
+    const streamId = "e2e-task-stream";
     const snapshotTimer = setTimeout(() => {
-      socket.send(JSON.stringify({ type: "snapshot", tasks: [] }));
+      socket.send(JSON.stringify({
+        type: "snapshot",
+        tasks: [],
+        stream_id: streamId,
+        sequence: 1,
+      }));
     }, 25);
 
-    socket.onClose(() => clearTimeout(snapshotTimer));
+    sendCompletedTranslation = (requestParams) => {
+      setTimeout(() => {
+        const outputArtifact = {
+          kind: "subtitle",
+          role: "output",
+          ref: {
+            path: "E:/subs/e2e_zh.srt",
+            name: "e2e_zh.srt",
+          },
+        };
+        socket.send(JSON.stringify({
+          type: "update",
+          stream_id: streamId,
+          sequence: 2,
+          task: {
+            id: "e2e-translation-task",
+            type: "pipeline",
+            status: "completed",
+            task_source: "backend",
+            task_contract_version: 9,
+            persistence_scope: "history",
+            lifecycle: "history-only",
+            progress: 100,
+            revision: 1,
+            name: "e2e.srt",
+            message_code: "pipeline_completed",
+            message_params: {},
+            result: {
+              success: true,
+              artifacts: [outputArtifact],
+              outputs: {
+                translation: {
+                  segments: [{
+                    id: "1",
+                    start: 0,
+                    end: 2,
+                    text: "Playwright 已显示翻译结果",
+                  }],
+                  language: "SimplifiedChinese",
+                  mode: "standard",
+                },
+              },
+              execution_trace: [],
+            },
+            request_params: requestParams,
+            primary_operation: "translate",
+            artifacts: [
+              {
+                kind: "subtitle",
+                role: "context",
+                ref: {
+                  path: "E:/subs/e2e.srt",
+                  name: "e2e.srt",
+                },
+              },
+              outputArtifact,
+            ],
+            created_at: Date.now(),
+            queue_state: "completed",
+            queue_position: null,
+          },
+        }));
+      }, 100);
+    };
+
+    socket.onClose(() => {
+      clearTimeout(snapshotTimer);
+      sendCompletedTranslation = null;
+    });
   });
 }
 
@@ -224,4 +327,41 @@ test("shows a visible error when backend analysis fails", async ({ page }) => {
 
   await expect(page.getByText("E2E analysis unavailable", { exact: true })).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
+});
+
+test("translates a subtitle and renders the completed task output", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "mediaflow:workspace-state:v1",
+      JSON.stringify({
+        "translator-storage": {
+          sourceSegments: [{
+            id: "1",
+            start: 0,
+            end: 2,
+            text: "Playwright translation source",
+          }],
+          targetSegments: [],
+          sourceFileRef: {
+            path: "E:/subs/e2e.srt",
+            name: "e2e.srt",
+          },
+          targetSubtitleRef: null,
+          resultMode: null,
+        },
+      }),
+    );
+  });
+  await installBackendMock(page, { translationWorkflow: true });
+  await page.goto("/#/translator");
+
+  await expect(page.getByRole("heading", { name: "AI Translator" })).toBeVisible();
+  await expect(page.getByText("Playwright translation source", { exact: true })).toBeVisible();
+
+  await page
+    .getByRole("banner")
+    .getByRole("button", { name: /Translate/i })
+    .click();
+
+  await expect(page.locator("textarea")).toHaveValue("Playwright 已显示翻译结果");
 });

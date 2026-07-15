@@ -20,15 +20,15 @@ describe("taskMediaResolver", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "resolver-structured",
-      type: "translate",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: 1,
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
-        meta: {},
+        outputs: {},
       },
       artifacts: [
         artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt"),
@@ -57,15 +57,15 @@ describe("taskMediaResolver", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "resolver-empty-translate",
-      type: "translate",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: 1,
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [],
-        meta: {},
+        outputs: {},
       },
     };
 
@@ -79,15 +79,15 @@ describe("taskMediaResolver", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "resolver-candidates",
-      type: "synthesis",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: 1,
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [],
-        meta: {},
+        outputs: {},
       },
     };
 
@@ -108,11 +108,11 @@ describe("taskMediaResolver", () => {
       progress: 100,
       created_at: 1,
       primary_operation: "transcribe",
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/canonical/sample.srt", "sample.srt")],
-        meta: {},
+        outputs: {},
       },
       artifacts: [
         artifact("video", "input", "E:/canonical/sample.mp4", "sample.mp4"),

@@ -20,6 +20,12 @@ def test_settings_manager_defaults_auto_execute_flow_disabled():
     assert settings.auto_execute_flow is False
 
 
+def test_settings_manager_defaults_auto_trim_silence_disabled():
+    settings = UserSettings()
+
+    assert settings.auto_trim_silence is False
+
+
 def test_settings_manager_defaults_smart_split_threshold():
     settings = UserSettings()
 
@@ -246,3 +252,13 @@ def test_preference_patch_can_explicitly_clear_nullable_path(tmp_path, monkeypat
     manager.patch_preferences(UserPreferencesPatch(default_download_path=None))
 
     assert manager.get_settings().default_download_path is None
+
+
+def test_preference_patch_persists_auto_trim_silence(tmp_path, monkeypatch):
+    settings_path = tmp_path / "user_settings.json"
+    monkeypatch.setattr(SettingsManager, "_file_path", settings_path)
+    manager = SettingsManager()
+
+    manager.patch_preferences(UserPreferencesPatch(auto_trim_silence=True))
+
+    assert manager.get_settings().auto_trim_silence is True

@@ -1,290 +1,62 @@
+from __future__ import annotations
+
 import os
-import time
 import shutil
-import subprocess
-import threading
-import wave
-import tempfile
-from pathlib import Path
+import uuid
 from concurrent.futures import ThreadPoolExecutor
+
 from loguru import logger
+
 from backend.config import settings
-from backend.models.schemas import (
-    DEFAULT_ASR_VAD_FILTER,
-    SubtitleSegment,
-    TaskArtifact,
-    TaskResult,
-    TranscriptionEngine,
-)
-from backend.utils.audio_processor import AudioProcessor
-from backend.utils.subtitle_writer import SubtitleWriter
-from backend.utils.segment_refiner import SegmentRefiner
 from backend.core.adapters.faster_whisper import FasterWhisperAdapter, FasterWhisperConfig
 from backend.core.task_control import TaskControlRequested
-from backend.services.runtime_diagnostics import RuntimeDiagnosticsService
+from backend.models.media_contracts import TaskArtifact, TaskResult
+from backend.models.task_result_contracts import PipelineOutputs, TranscriptionOutput
+from backend.models.transcription_contracts import (
+    DEFAULT_ASR_VAD_FILTER,
+    TranscriptionEngine,
+)
 from backend.services.media_refs import create_media_ref
+from backend.utils.audio_processor import AudioProcessor
+from backend.utils.segment_refiner import SegmentRefiner
+from backend.utils.subtitle_writer import SubtitleWriter
 
-from .model_manager import ModelManager
+from .cli_prewarm import CliPrewarmManager
 from .core_strategies import CoreStrategies
+from .engine_executor import ASREngineExecutor
+from .model_manager import ModelManager
+from .workspace import create_segment_audio_path, create_transcription_work_dir
+
 
 class ASRService:
-    CLI_PREWARM_FRESH_SECONDS = 20 * 60
-    CLI_PREWARM_JOIN_TIMEOUT_SECONDS = 180
-
-    _cli_prewarm_lock = threading.Lock()
-    _cli_prewarmed_profiles: dict[tuple[str, str, str], float] = {}
-    _cli_prewarm_threads: dict[tuple[str, str, str], threading.Thread] = {}
-    _cli_prewarm_processes: dict[tuple[str, str, str], subprocess.Popen] = {}
-    _cli_prewarm_cancelled_profiles: set[tuple[str, str, str]] = set()
-
-    def __init__(self):
-        self.executor = ThreadPoolExecutor(max_workers=settings.ASR_MAX_WORKERS)
-        self.model_manager = ModelManager()
-        self.adapter = FasterWhisperAdapter()
-        self.core_strategies = CoreStrategies(self.executor)
+    def __init__(
+        self,
+        *,
+        model_manager=None,
+        adapter=None,
+        core_strategies=None,
+        prewarm_manager=None,
+        engine_executor=None,
+    ):
+        model_manager = model_manager or ModelManager()
+        adapter = adapter or FasterWhisperAdapter()
+        if core_strategies is None:
+            core_strategies = CoreStrategies(
+                ThreadPoolExecutor(max_workers=settings.ASR_MAX_WORKERS)
+            )
+        self._model_manager = model_manager
+        self._prewarm = prewarm_manager or CliPrewarmManager(
+            model_manager=model_manager,
+            adapter=adapter,
+        )
+        self._engines = engine_executor or ASREngineExecutor(
+            model_manager=model_manager,
+            adapter=adapter,
+            core_strategies=core_strategies,
+        )
 
     def start_cli_prewarm(self, model_name: str = "base", device: str = "cpu") -> bool:
-        profile_key = self._cli_prewarm_profile_key(model_name, device)
-        if profile_key is None:
-            logger.info("Faster-Whisper CLI prewarm skipped: executable is not configured.")
-            return False
-
-        with ASRService._cli_prewarm_lock:
-            if self._is_cli_prewarm_fresh_locked(profile_key):
-                logger.debug("Faster-Whisper CLI prewarm still fresh for {}", profile_key)
-                return False
-
-            existing_thread = ASRService._cli_prewarm_threads.get(profile_key)
-            if existing_thread and existing_thread.is_alive():
-                logger.debug("Faster-Whisper CLI prewarm is already running for {}", profile_key)
-                return False
-
-            thread = threading.Thread(
-                target=self._run_cli_prewarm,
-                args=profile_key,
-                name="faster-whisper-cli-prewarm",
-                daemon=True,
-            )
-            ASRService._cli_prewarm_threads[profile_key] = thread
-            thread.start()
-            return True
-
-    def _join_running_cli_prewarm(
-        self,
-        model_name: str,
-        device: str,
-        reason: str,
-        progress_callback=None,
-    ) -> None:
-        profile_key = self._cli_prewarm_profile_key(model_name, device)
-        if profile_key is None:
-            return
-
-        with ASRService._cli_prewarm_lock:
-            thread = ASRService._cli_prewarm_threads.get(profile_key)
-            process = ASRService._cli_prewarm_processes.get(profile_key)
-            if not thread or not thread.is_alive():
-                return
-
-        logger.info("Waiting for Faster-Whisper CLI prewarm for {}: {}", profile_key, reason)
-        if progress_callback:
-            progress_callback(0, "asr_cli_warmup_waiting", {})
-
-        thread.join(timeout=self.CLI_PREWARM_JOIN_TIMEOUT_SECONDS)
-        if not thread.is_alive():
-            logger.info("Faster-Whisper CLI prewarm finished before real transcription for {}", profile_key)
-            return
-
-        with ASRService._cli_prewarm_lock:
-            ASRService._cli_prewarm_cancelled_profiles.add(profile_key)
-
-        logger.warning(
-            "Faster-Whisper CLI prewarm exceeded {}s while {}; stopping it and continuing.",
-            self.CLI_PREWARM_JOIN_TIMEOUT_SECONDS,
-            reason,
-        )
-
-        if process and process.poll() is None:
-            try:
-                process.terminate()
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                logger.warning("Faster-Whisper CLI prewarm did not terminate promptly; killing process.")
-                process.kill()
-                process.wait(timeout=5)
-            except Exception as exc:
-                logger.warning("Failed to stop Faster-Whisper CLI prewarm process: {}", exc)
-
-        thread.join(timeout=5)
-
-    @classmethod
-    def _is_cli_prewarm_fresh_locked(cls, profile_key: tuple[str, str, str]) -> bool:
-        completed_at = cls._cli_prewarmed_profiles.get(profile_key)
-        if completed_at is None:
-            return False
-
-        age = time.monotonic() - completed_at
-        if age <= cls.CLI_PREWARM_FRESH_SECONDS:
-            return True
-
-        cls._cli_prewarmed_profiles.pop(profile_key, None)
-        logger.debug(
-            "Faster-Whisper CLI prewarm expired for {} after {:.1f}s",
-            profile_key,
-            age,
-        )
-        return False
-
-    @staticmethod
-    def _available_cli_path() -> Path | None:
-        configured_path = settings.FASTER_WHISPER_CLI_PATH or ""
-        if not configured_path:
-            return None
-        cli_path = Path(configured_path)
-        return cli_path.resolve() if cli_path.exists() else None
-
-    @staticmethod
-    def _cli_prewarm_profile_key(model_name: str, device: str) -> tuple[str, str, str] | None:
-        cli_path = ASRService._available_cli_path()
-        if cli_path is None:
-            return None
-
-        return (
-            str(cli_path),
-            model_name or "base",
-            device or "cpu",
-        )
-
-    def _run_cli_prewarm(self, cli_path: str, model_name: str, device: str) -> None:
-        profile_key = (cli_path, model_name, device)
-        started_at = time.perf_counter()
-        logger.info(
-            "Faster-Whisper CLI prewarm started: model={} device={} cli={}",
-            model_name,
-            device,
-            cli_path,
-        )
-
-        try:
-            cached_model_path = self.model_manager.get_cached_model_path(model_name)
-            if not cached_model_path.exists() or not any(cached_model_path.iterdir()):
-                logger.info(
-                    "Faster-Whisper CLI prewarm skipped: model is not cached locally: {}",
-                    cached_model_path,
-                )
-                return
-
-            audio_path = self._ensure_cli_prewarm_audio()
-            output_dir = settings.TEMP_DIR / "faster-whisper-cli-prewarm" / self._prewarm_profile_dir_name(
-                model_name,
-                device,
-            )
-            if output_dir.exists():
-                shutil.rmtree(output_dir, ignore_errors=True)
-
-            config = FasterWhisperConfig(
-                audio_path=audio_path,
-                output_dir=output_dir,
-                model_name=model_name,
-                model_dir=settings.ASR_MODEL_DIR,
-                language="en",
-                initial_prompt=None,
-                vad_filter=False,
-                max_line_count=None,
-                device=device,
-                sentence=False,
-            )
-            cmd = self.adapter.build_command(config)
-            cmd[0] = cli_path
-
-            with ASRService._cli_prewarm_lock:
-                if profile_key in ASRService._cli_prewarm_cancelled_profiles:
-                    logger.info("Faster-Whisper CLI prewarm aborted before process spawn for {}", profile_key)
-                    return
-
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-            )
-            with ASRService._cli_prewarm_lock:
-                ASRService._cli_prewarm_processes[profile_key] = process
-
-            returncode = process.wait(timeout=300)
-            elapsed = time.perf_counter() - started_at
-            with ASRService._cli_prewarm_lock:
-                was_cancelled = profile_key in ASRService._cli_prewarm_cancelled_profiles
-
-            if was_cancelled:
-                logger.info(
-                    "Faster-Whisper CLI prewarm stopped after {:.3f}s: model={} device={}",
-                    elapsed,
-                    model_name,
-                    device,
-                )
-            elif returncode == 0:
-                with ASRService._cli_prewarm_lock:
-                    ASRService._cli_prewarmed_profiles[profile_key] = time.monotonic()
-                logger.info(
-                    "Faster-Whisper CLI prewarm completed in {:.3f}s: model={} device={}",
-                    elapsed,
-                    model_name,
-                    device,
-                )
-            else:
-                logger.warning(
-                    "Faster-Whisper CLI prewarm exited with code {} after {:.3f}s",
-                    returncode,
-                    elapsed,
-                )
-        except subprocess.TimeoutExpired:
-            logger.warning(
-                "Faster-Whisper CLI prewarm timed out after {:.3f}s",
-                time.perf_counter() - started_at,
-            )
-        except Exception as exc:
-            logger.warning("Faster-Whisper CLI prewarm failed: {}", exc)
-        finally:
-            with ASRService._cli_prewarm_lock:
-                ASRService._cli_prewarm_threads.pop(profile_key, None)
-                ASRService._cli_prewarm_processes.pop(profile_key, None)
-                ASRService._cli_prewarm_cancelled_profiles.discard(profile_key)
-
-    @staticmethod
-    def _ensure_cli_prewarm_audio() -> Path:
-        audio_path = settings.TEMP_DIR / "faster-whisper-cli-prewarm.wav"
-        if audio_path.exists():
-            return audio_path
-
-        audio_path.parent.mkdir(parents=True, exist_ok=True)
-        with wave.open(str(audio_path), "wb") as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(16000)
-            wav_file.writeframes(b"\x00\x00" * 16000)
-        return audio_path
-
-    @staticmethod
-    def _prewarm_profile_dir_name(model_name: str, device: str) -> str:
-        raw_name = f"{model_name}-{device}"
-        return "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in raw_name)
-
-    @staticmethod
-    def _create_transcription_work_dir(task_id: str | None) -> Path:
-        base_dir = settings.TEMP_DIR / "asr-work"
-        base_dir.mkdir(parents=True, exist_ok=True)
-        safe_task_id = "".join(
-            char if char.isascii() and (char.isalnum() or char in {"-", "_"}) else "_"
-            for char in (task_id or "sync")
-        )[:32] or "sync"
-        return Path(tempfile.mkdtemp(prefix=f"transcribe-{safe_task_id}-", dir=base_dir))
-
-    @staticmethod
-    def _create_segment_audio_path(segment_id: str) -> Path:
-        segment_dir = settings.TEMP_DIR / "asr-segments"
-        segment_dir.mkdir(parents=True, exist_ok=True)
-        return segment_dir / f"segment_{segment_id}.wav"
+        return self._prewarm.start(model_name=model_name, device=device)
 
     def transcribe(
         self,
@@ -299,30 +71,16 @@ class ASRService:
         initial_prompt: str | None = None,
         progress_callback=None,
     ) -> TaskResult:
-        """
-        Main entry point for transcription. Dispatches to specific strategies.
-        """
         if not os.path.exists(audio_path):
-            logger.error(f"Audio file not found: {audio_path}")
+            logger.error("Audio file not found: {}", audio_path)
             return TaskResult(success=False, error=f"File not found: {audio_path}")
 
-        # Calculate duration once for all paths
-        try:
-            duration = AudioProcessor.get_audio_duration(audio_path)
-            logger.info(f"Audio Duration: {duration:.2f}s")
-        except Exception as e:
-            logger.error(f"Failed to get duration: {e}")
-            duration = 0.0
-
-        # Engine selection is request-driven. Do not silently switch engines.
-        cli_available = self._available_cli_path() is not None
+        duration = self._audio_duration(audio_path)
         use_cli = engine == "cli"
-        if use_cli and not cli_available:
+        if use_cli and self._prewarm.available_cli_path() is None:
             return TaskResult(success=False, error="CLI transcription engine is unavailable")
-        if use_cli:
-            logger.info("Faster-Whisper CLI enabled. Using CLI transcription path.")
 
-        work_dir = self._create_transcription_work_dir(task_id)
+        work_dir = create_transcription_work_dir(task_id)
         try:
             prepared_audio_path = AudioProcessor.prepare_for_transcription(
                 audio_path,
@@ -336,62 +94,20 @@ class ASRService:
                 error=f"Failed to prepare audio for transcription: {error}",
             )
 
-        final_segments = []
-        
-        if use_cli:
-            try:
-                # 1. Ensure model is available locally
-                # ModelManager returns path to model dir (or model name if fallback)
-                self.model_manager.ensure_model_downloaded(model_name, progress_callback)
-                self._join_running_cli_prewarm(
+        try:
+            if use_cli:
+                segments = self._transcribe_cli(
+                    audio_path=prepared_audio_path,
+                    work_dir=work_dir,
                     model_name=model_name,
                     device=device,
-                    reason="real transcription is starting",
-                    progress_callback=progress_callback,
-                )
-                
-                # 2. Configure Adapter
-                config = FasterWhisperConfig(
-                    audio_path=prepared_audio_path,
-                    output_dir=work_dir,
-                    model_name=model_name,
-                    # Pass the root model directory so CLI can find "faster-whisper-{model}" inside it
-                    # OR pass the specific path if it's "large-v3" inside "faster-whisper-large-v3"
-                    # FasterWhisperAdapter logic: cmd.extend(["--model_dir", str(config.model_dir)])
-                    # The CLI --model_dir usually expects the directory containing the model folder, OR the model folder itself?
-                    # If I pass the specific folder, then --model arg should be "."? 
-                    # Standard Faster-Whisper CLI usage: --model large-v3 --model_dir /path/to/models
-                    # It looks for /path/to/models/large-v3 (or faster-whisper-large-v3 depending on impl).
-                    # Our ModelManager downloads to settings.ASR_MODEL_DIR / f"faster-whisper-{model_name}"
-                    # So we should pass settings.ASR_MODEL_DIR as model_dir.
-                    model_dir=settings.ASR_MODEL_DIR,
                     language=language,
                     initial_prompt=initial_prompt,
                     vad_filter=vad_filter,
-                    device=device,
+                    progress_callback=progress_callback,
                 )
-
-                final_segments = self._execute_cli_with_device_fallback(
-                    config,
-                    progress_callback,
-                )
-                
-            except TaskControlRequested:
-                raise
-            except Exception as e:
-                logger.error(f"CLI Transcription failed: {e}.")
-                return TaskResult(success=False, error=f"CLI transcription failed: {e}")
-            finally:
-                # Cleanup temp output
-                if work_dir.exists():
-                     try:
-                         shutil.rmtree(work_dir, ignore_errors=True)
-                     except OSError:
-                         pass
-
-        if not use_cli:
-            try:
-                all_segments = self._transcribe_builtin(
+            else:
+                segments = self._transcribe_builtin_with_fallback(
                     audio_path=str(prepared_audio_path),
                     duration=duration,
                     model_name=model_name,
@@ -401,148 +117,116 @@ class ASRService:
                     vad_filter=vad_filter,
                     progress_callback=progress_callback,
                 )
-            except TaskControlRequested:
+        except TaskControlRequested:
+            raise
+        except Exception as error:
+            label = "CLI" if use_cli else "Built-in"
+            logger.error("{} transcription failed: {}", label, error)
+            return TaskResult(success=False, error=f"{label} transcription failed: {error}")
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+        return self._build_result(
+            segments,
+            audio_path=audio_path,
+            duration=duration,
+            language=language,
+            task_id=task_id,
+            progress_callback=progress_callback,
+        )
+
+    def _transcribe_cli(
+        self,
+        *,
+        audio_path,
+        work_dir,
+        model_name,
+        device,
+        language,
+        initial_prompt,
+        vad_filter,
+        progress_callback,
+    ):
+        self._model_manager.ensure_model_downloaded(model_name, progress_callback)
+        self._prewarm.join_running(
+            model_name=model_name,
+            device=device,
+            reason="real transcription is starting",
+            progress_callback=progress_callback,
+        )
+        config = FasterWhisperConfig(
+            audio_path=audio_path,
+            output_dir=work_dir,
+            model_name=model_name,
+            model_dir=settings.ASR_MODEL_DIR,
+            language=language,
+            initial_prompt=initial_prompt,
+            vad_filter=vad_filter,
+            device=device,
+        )
+        return self._engines.execute_cli_with_device_fallback(config, progress_callback)
+
+    def _transcribe_builtin_with_fallback(self, **kwargs):
+        try:
+            return self._engines.transcribe_builtin(**kwargs)
+        except RuntimeError as error:
+            if kwargs["device"] != "cuda" or not self._engines.is_cuda_unavailable_error(error):
                 raise
-            except RuntimeError as error:
-                if device == "cuda" and self._is_cuda_runtime_unavailable_error(error):
-                    logger.warning(f"Built-in CUDA runtime unavailable, retrying on CPU: {error}")
-                    self.model_manager.clear_loaded_model()
-                    if progress_callback:
-                        progress_callback(
-                            8,
-                            "asr_cuda_cpu_fallback",
-                            {"device": "cpu"},
-                        )
-                    all_segments = self._transcribe_builtin(
-                        audio_path=str(prepared_audio_path),
-                        duration=duration,
-                        model_name=model_name,
-                        device="cpu",
-                        language=language,
-                        initial_prompt=initial_prompt,
-                        vad_filter=vad_filter,
-                        progress_callback=progress_callback,
-                    )
-                else:
-                    raise
-            finally:
-                shutil.rmtree(work_dir, ignore_errors=True)
-
+            logger.warning("Built-in CUDA runtime unavailable, retrying on CPU: {}", error)
+            self._model_manager.clear_loaded_model()
+            progress_callback = kwargs.get("progress_callback")
             if progress_callback:
-                progress_callback(95, "asr_finalizing", {})
-            all_segments.sort(key=lambda x: x.start)
-            final_segments = all_segments
+                progress_callback(8, "asr_cuda_cpu_fallback", {"device": "cpu"})
+            return self._engines.transcribe_builtin(**{**kwargs, "device": "cpu"})
 
-        # Unified post-processing for both CLI and Python API paths
-        logger.info("Applying smart segment merging...")
-        if final_segments:
-            final_segments = SegmentRefiner.normalize_segments(final_segments, rebalance=False)
-        else:
-            final_segments = []
+    @staticmethod
+    def _audio_duration(audio_path: str) -> float:
+        try:
+            duration = AudioProcessor.get_audio_duration(audio_path)
+            logger.info("Audio duration: {:.2f}s", duration)
+            return duration
+        except Exception as error:
+            logger.error("Failed to get audio duration: {}", error)
+            return 0.0
 
-        # Generate full text
-        full_text = "\n".join([s.text for s in final_segments])
-            
-        logger.success(f"Transcription complete. Total segments: {len(final_segments)}")
+    @staticmethod
+    def _build_result(
+        segments,
+        *,
+        audio_path,
+        duration,
+        language,
+        task_id,
+        progress_callback,
+    ) -> TaskResult:
+        normalized = SegmentRefiner.normalize_segments(segments, rebalance=False) if segments else []
+        full_text = "\n".join(segment.text for segment in normalized)
         if progress_callback:
             progress_callback(100, "transcription_completed", {})
-        
-        # 5. Save SRT file
-        srt_path = SubtitleWriter.save_srt(final_segments, audio_path)
-        logger.success(f"SRT file saved to: {srt_path}")
 
+        srt_path = SubtitleWriter.save_srt(normalized, audio_path)
         subtitle_ref = create_media_ref(
             str(srt_path),
             "application/x-subrip",
             role="output",
         )
+        if subtitle_ref is None:
+            return TaskResult(success=False, error="Transcription output could not be referenced")
 
+        logger.success("Transcription complete. Total segments: {}", len(normalized))
         return TaskResult(
             success=True,
-            artifacts=[
-                TaskArtifact(kind="subtitle", role="output", ref=subtitle_ref)
-            ],
-            meta={
-                "task_id": task_id or "sync_task",
-                "language": language or "auto",
-                "duration": duration,
-                "segments": [s.model_dump() for s in final_segments],
-                "text": full_text,
-            }
+            artifacts=[TaskArtifact(kind="subtitle", role="output", ref=subtitle_ref)],
+            outputs=PipelineOutputs(
+                transcription=TranscriptionOutput(
+                    task_id=task_id or "sync_task",
+                    language=language or "auto",
+                    duration=duration,
+                    segments=normalized,
+                    text=full_text,
+                )
+            ),
         )
-
-    def _execute_cli_with_device_fallback(
-        self,
-        config: FasterWhisperConfig,
-        progress_callback=None,
-    ) -> list[SubtitleSegment]:
-        """Run CLI transcription, retrying only when the requested device is unavailable."""
-        active_config = config
-
-        while True:
-            try:
-                return self.adapter.execute(active_config, progress_callback)
-            except RuntimeError as cli_error:
-                if (
-                    active_config.device == "cuda"
-                    and self._is_cli_cuda_unavailable_error(cli_error)
-                ):
-                    logger.warning(
-                        "CLI CUDA unavailable, retrying on CPU: {}",
-                        cli_error,
-                    )
-                    if progress_callback:
-                        progress_callback(
-                            0,
-                            "asr_cuda_cpu_fallback",
-                            {"device": "cpu"},
-                        )
-                    active_config = active_config.model_copy(update={"device": "cpu"})
-                    continue
-                raise
-
-    def _transcribe_builtin(
-        self,
-        *,
-        audio_path: str,
-        duration: float,
-        model_name: str,
-        device: str,
-        language: str | None,
-        initial_prompt: str | None,
-        vad_filter: bool,
-        progress_callback=None,
-    ) -> list:
-        model = self.model_manager.load_model(model_name, device, progress_callback)
-        logger.info(f"Audio Duration: {duration:.2f}s")
-
-        if duration > 900:
-            return self.core_strategies.transcribe_smart_split(
-                audio_path,
-                duration,
-                model,
-                language,
-                initial_prompt,
-                vad_filter,
-                progress_callback,
-            )
-        return self.core_strategies.transcribe_direct(
-            audio_path,
-            duration,
-            model,
-            language,
-            initial_prompt,
-            vad_filter,
-            progress_callback,
-        )
-
-    @staticmethod
-    def _is_cli_cuda_unavailable_error(error: Exception) -> bool:
-        return RuntimeDiagnosticsService.is_cuda_runtime_unavailable_error(error)
-
-    @staticmethod
-    def _is_cuda_runtime_unavailable_error(error: Exception) -> bool:
-        return RuntimeDiagnosticsService.is_cuda_runtime_unavailable_error(error)
 
     def transcribe_segment(
         self,
@@ -559,21 +243,10 @@ class ASRService:
         initial_prompt: str | None = None,
         progress_callback=None,
     ) -> TaskResult:
-        """
-        Transcribe a specific segment of the audio file.
-        This is a synchronous blocking call designed for short segments (<60s).
-        """
-        import uuid
-        temp_id = str(uuid.uuid4())[:8]
-        segment_path = self._create_segment_audio_path(temp_id)
-        
+        segment_id = str(uuid.uuid4())[:8]
+        segment_path = create_segment_audio_path(segment_id)
         try:
-            # 1. Extract Segment
             AudioProcessor.extract_segment(audio_path, start, end, str(segment_path))
-            
-            # 2. Transcribe (Recursive call but with short audio)
-            # We force internal engine for speed on short segments? 
-            # Actually, standard transcribe logic is fine, it handles short files via direct strategy.
             result = self.transcribe(
                 audio_path=str(segment_path),
                 model_name=model_name,
@@ -581,24 +254,27 @@ class ASRService:
                 language=language,
                 engine=engine,
                 vad_filter=vad_filter,
-                task_id=task_id or f"seg_{temp_id}",
+                task_id=task_id or f"seg_{segment_id}",
                 initial_prompt=initial_prompt,
                 progress_callback=progress_callback,
             )
-            
-            # 3. Adjust timestamps relative to original audio
-            if result.success and result.meta and "segments" in result.meta:
-                for seg in result.meta["segments"]:
-                    seg["start"] += start
-                    seg["end"] += start
-            
+            if result.success:
+                transcription_output = result.outputs.transcription
+                if transcription_output is None:
+                    return TaskResult(
+                        success=False,
+                        error="Transcription completed without a typed output",
+                    )
+                for segment in transcription_output.segments:
+                    segment.start += start
+                    segment.end += start
             return result
-
-        except Exception as e:
-            logger.error(f"Segment transcription failed: {e}")
-            return TaskResult(success=False, error=str(e))
+        except TaskControlRequested:
+            raise
+        except Exception as error:
+            logger.error("Segment transcription failed: {}", error)
+            return TaskResult(success=False, error=str(error))
         finally:
-            # Cleanup
             if segment_path.exists():
                 try:
                     os.remove(segment_path)

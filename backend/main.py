@@ -9,7 +9,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
 from backend.config import settings
-from backend.core.backend_bootstrap import backend_bootstrap
+from backend.runtime.backend_bootstrap import backend_bootstrap
 from backend.core.container import container
 
 RENDERER_DEV_ORIGIN_ENV = "MEDIAFLOW_RENDERER_DEV_ORIGIN"
@@ -92,7 +92,7 @@ backend_bootstrap.configure(container)
 
 async def health_check(_request):
     """Heartbeat endpoint to check if core is running."""
-    from backend.models.schemas import HealthResponse
+    from backend.models.task_contracts import HealthResponse
 
     response = HealthResponse(
         status="online",

@@ -35,8 +35,8 @@ export type {
   HighlightDetectionResponse,
   ClipExportRequest,
   ImagePreviewResponse,
-  MediaVisibleStartRequest,
-  MediaVisibleStartResponse,
+  MediaExportTimelineRequest,
+  MediaExportTimelineResponse,
   SynthesizeOptions,
   SynthesizeRequest,
   TranscribeSegmentRequest,
@@ -72,11 +72,9 @@ import type {
   EditorPreviewMediaResponse,
   HighlightDetectionRequest,
   HighlightDetectionResponse,
-  ClipExportRequest,
   ImagePreviewResponse,
-  MediaVisibleStartRequest,
-  MediaVisibleStartResponse,
-  SynthesizeRequest,
+  MediaExportTimelineRequest,
+  MediaExportTimelineResponse,
   TranscribeSegmentRequest,
   TranscribeSegmentResponse,
   TranslationRequest,
@@ -231,13 +229,6 @@ export const apiClient = {
     });
   },
 
-  startTranslation: (payload: TranslationRequest) => {
-    return request<TaskResponse>("/translate/", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
   getTaskStatus: (taskId: string) => {
     return request<Task>(`/tasks/${taskId}`);
   },
@@ -350,13 +341,6 @@ export const apiClient = {
     return request<CudaReadinessResponse>("/settings/cuda-readiness");
   },
 
-  synthesizeVideo: (payload: SynthesizeRequest) => {
-    return request<TaskResponse>("/editor/synthesize", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
   uploadWatermark: (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
@@ -372,11 +356,11 @@ export const apiClient = {
     );
   },
 
-  getMediaVisibleStart: (payload: MediaVisibleStartRequest) => {
-    return request<MediaVisibleStartResponse>("/editor/preview/media/visible-start", {
+  getMediaExportTimeline: (payload: MediaExportTimelineRequest) => {
+    return request<MediaExportTimelineResponse>("/editor/preview/media/export-timeline", {
       method: "POST",
       body: JSON.stringify(payload),
-    });
+    }, 300_000);
   },
 
   resolveEditorPreviewMediaSource: (payload: EditorPreviewMediaRequest) => {
@@ -393,11 +377,5 @@ export const apiClient = {
     }, 300_000);
   },
 
-  exportClipSegments: (payload: ClipExportRequest) => {
-    return request<TaskResponse>("/editor/clips/export", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
 
 };

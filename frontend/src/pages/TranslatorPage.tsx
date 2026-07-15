@@ -127,6 +127,7 @@ export const TranslatorPage = () => {
                              icon={isTranslating && activeMode !== 'proofread' ? Loader2 : Wand2}
                              variant="primary"
                              className={isTranslating && activeMode !== 'proofread' ? '[&>svg]:animate-spin' : ''}
+                             title={t('buttons.translate.tooltip')}
                          >
                              <span className="hidden lg:inline">{t('buttons.translate.label')}</span>
                          </ToolbarButton>

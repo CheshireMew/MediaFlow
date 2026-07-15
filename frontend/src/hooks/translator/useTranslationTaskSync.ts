@@ -9,10 +9,13 @@ import {
   findActiveTranslationTask,
   getTranslationTaskMediaRefs,
   getTranslationTaskMode,
-  getTranslationTaskSegments,
+  getTranslationTaskOutput,
   selectTaskById,
 } from "../tasks/taskSelectors";
 import type { MediaReference } from "../../services/ui/mediaReference";
+
+const MISSING_TRANSLATION_RESULT_ERROR =
+  "Translation task completed without a valid translation result";
 
 type UseTranslationTaskSyncParams = {
   tasks: Task[];
@@ -111,10 +114,15 @@ export function useTranslationTaskSync({
     }
     recoveredCompletedTaskIdRef.current = completedTask.id;
 
-    const segments = getTranslationTaskSegments(completedTask);
-    if (segments.length === 0) {
+    const translationOutput = getTranslationTaskOutput(completedTask);
+    if (!translationOutput || translationOutput.segments.length === 0) {
+      setTaskStatus("failed");
+      setTaskError(MISSING_TRANSLATION_RESULT_ERROR);
+      setProgress(100);
+      setExecutionMode("task_submission");
       return;
     }
+    const segments = translationOutput.segments;
 
     const taskMediaRefs = getTranslationTaskMediaRefs(completedTask);
     const completedTaskMode =
@@ -185,17 +193,25 @@ export function useTranslationTaskSync({
     }
 
     if (task.status === "completed") {
-      const segments = getTranslationTaskSegments(task);
+      const translationOutput = getTranslationTaskOutput(task);
+      if (!translationOutput || translationOutput.segments.length === 0) {
+        setTaskStatus("failed");
+        setTaskError(MISSING_TRANSLATION_RESULT_ERROR);
+        setProgress(100);
+        setExecutionMode("task_submission");
+        setActiveMode(null);
+        setTaskId(null);
+        return;
+      }
+      const segments = translationOutput.segments;
       const completedTaskMode =
         getTranslationTaskMode(task) ?? activeTaskModeRef.current;
-      if (segments.length > 0) {
-        setTargetSegments(segments);
-        if (taskMediaRefs.sourceSubtitleRef) {
-          setSourceFileRef(taskMediaRefs.sourceSubtitleRef);
-        }
-        setTargetSubtitleRef(taskMediaRefs.targetSubtitleRef);
-        setResultMode(completedTaskMode);
+      setTargetSegments(segments);
+      if (taskMediaRefs.sourceSubtitleRef) {
+        setSourceFileRef(taskMediaRefs.sourceSubtitleRef);
       }
+      setTargetSubtitleRef(taskMediaRefs.targetSubtitleRef);
+      setResultMode(completedTaskMode);
       setTaskStatus("finalizing");
       setProgress(100);
       setTaskError(null);

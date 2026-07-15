@@ -1,41 +1,23 @@
-from backend.application.pipeline_submission_service import PipelineSubmissionService
-from backend.application.download_workflow_service import DownloadWorkflowService
-from backend.application.task_orchestrator import TaskOrchestrator
-from backend.application.task_request_deduplicator import TaskRequestDeduplicator
-from backend.application.task_resume_service import TaskResumeService
-from backend.core.tasks.registry import TaskRunnerRegistry
-from backend.application.transcriber_workflow_service import (
-    TranscriberWorkflowService,
-)
-from backend.models.schemas import PipelineRequest
+from backend.application.pipeline_request_preparer import PipelineRequestPreparer
+from backend.models.pipeline_contracts import PipelineRequest
 from backend.services.settings_manager import UserSettings
 
 
-class StubSettingsManager:
-    def get_settings(self) -> UserSettings:
-        return UserSettings(
-            default_download_path="E:/Downloads",
-            auto_execute_flow=True,
-        )
-
-
-def _create_orchestrator() -> TaskOrchestrator:
-    task_runners = TaskRunnerRegistry()
-    task_runners.register("pipeline", lambda _task: object())
-    return TaskOrchestrator(
-        task_manager=None,
-        settings_manager=StubSettingsManager(),
-        download_workflow_service=DownloadWorkflowService(),
-        transcriber_workflow_service=TranscriberWorkflowService(),
-        task_request_deduplicator=TaskRequestDeduplicator(),
-        task_resume_service=TaskResumeService(),
-        pipeline_submission_service=PipelineSubmissionService(),
-        task_runner_registry=task_runners,
+def prepare(
+    payload: dict,
+    *,
+    default_download_path: str | None = "E:/Downloads",
+) -> dict:
+    request = PipelineRequest.model_validate(payload)
+    settings = UserSettings(
+        default_download_path=default_download_path,
+        auto_execute_flow=True,
     )
+    return PipelineRequestPreparer().prepare(request, settings).model_dump(mode="json")
 
 
-def test_prepare_pipeline_request_applies_downloader_defaults():
-    request = PipelineRequest.model_validate(
+def test_prepare_pipeline_request_applies_download_default_to_the_download_step():
+    payload = prepare(
         {
             "pipeline_id": "downloader_tool",
             "task_name": "demo",
@@ -48,42 +30,68 @@ def test_prepare_pipeline_request_applies_downloader_defaults():
                         "resolution": "best",
                         "codec": "avc",
                     },
-                },
+                }
             ],
         }
     )
-
-    prepared = _create_orchestrator().prepare_pipeline_request(request)
-    payload = prepared.model_dump(mode="json")
 
     assert payload["steps"][0]["params"]["output_dir"] == "E:/Downloads"
     assert [step["step_name"] for step in payload["steps"]] == ["download"]
 
 
-def test_prepare_pipeline_request_keeps_transcriber_pipeline_unchanged():
-    request = PipelineRequest.model_validate(
+def test_prepare_pipeline_request_does_not_change_non_download_steps():
+    payload = prepare(
         {
             "pipeline_id": "transcriber_tool",
-            "task_name": "demo",
             "steps": [
                 {
                     "step_name": "transcribe",
                     "params": {
-                        "audio_ref": {
-                            "path": "E:/demo.mp4",
-                            "name": "demo.mp4",
-                        },
+                        "audio_ref": {"path": "E:/demo.mp4", "name": "demo.mp4"},
                         "model": "small",
                         "device": "cpu",
-                        "vad_filter": True,
                     },
-                },
+                }
             ],
         }
     )
 
-    prepared = _create_orchestrator().prepare_pipeline_request(request)
-    payload = prepared.model_dump(mode="json")
-
-    assert [step["step_name"] for step in payload["steps"]] == ["transcribe"]
+    assert payload["steps"][0]["step_name"] == "transcribe"
     assert payload["steps"][0]["params"]["model"] == "small"
+
+
+def test_prepare_pipeline_request_preserves_explicit_download_output_dir():
+    payload = prepare(
+        {
+            "steps": [
+                {
+                    "step_name": "download",
+                    "params": {
+                        "url": "https://example.com/video",
+                        "output_dir": "D:/Explicit",
+                    },
+                }
+            ]
+        }
+    )
+    assert payload["steps"][0]["params"]["output_dir"] == "D:/Explicit"
+
+
+def test_prepare_pipeline_request_does_not_inject_ui_export_timeline_settings():
+    payload = prepare(
+        {
+            "steps": [
+                {
+                    "step_name": "synthesize",
+                    "params": {
+                        "video_ref": {"path": "E:/demo.mp4", "name": "demo.mp4"},
+                        "options": {"skip_subtitles": True},
+                    },
+                }
+            ]
+        },
+    )
+
+    assert payload["steps"][0]["params"]["options"] == {
+        "skip_subtitles": True,
+    }

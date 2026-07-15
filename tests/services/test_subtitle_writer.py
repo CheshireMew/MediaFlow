@@ -2,7 +2,7 @@ from pathlib import Path
 
 from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils import text_shaper
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 
 
 def test_convert_srt_to_ass_preserves_single_line_margin_v(tmp_path: Path):

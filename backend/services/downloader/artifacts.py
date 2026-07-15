@@ -7,7 +7,7 @@ import re
 
 from loguru import logger
 
-from backend.models.schemas import MediaReference, TaskArtifact
+from backend.models.media_contracts import MediaReference, TaskArtifact
 from backend.services.media_extensions import MEDIA_EXTENSIONS, media_kind_from_extension
 from backend.utils.subtitle_parser import SubtitleParser
 

@@ -1,25 +1,14 @@
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  editorService,
-  isAiTranslationSetupRequiredError,
-} from "../../services/domain";
-import { restoreStoredAsrExecutionPreferences } from "../../services/persistence/asrExecutionPreferences";
-import { restoreStoredTranslationPreferences } from "../../services/persistence/translationPreferences";
 import { createOpenSubtitleFolderMenuItem } from "../../components/ui/subtitleFileContextMenuItems";
 import type { MediaReference } from "../../services/ui/mediaReference";
 import { formatSRTTime } from "../../utils/subtitleParser";
 import type { ContextMenuItem } from "../../components/ui/ContextMenu";
 import type { SubtitleSegment } from "../../types/task";
-import type { TranscribeSegmentResponse } from "../../types/api";
 import { toast } from "../../utils/toast";
+import { useSegmentProcessingActions } from "./useSegmentProcessingActions";
 
 type ContextMenuEvent = MouseEvent | React.MouseEvent;
-
-type SegmentTranscriptionPayload = {
-  segments?: Array<Pick<SubtitleSegment, "start" | "end" | "text">>;
-  text?: string;
-};
 
 interface ContextMenuState {
   position: { x: number; y: number };
@@ -67,137 +56,12 @@ export function useContextMenuBuilder({
   regionsRef.current = regions;
   const selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
-  const videoReferenceRef = useRef(video);
-  videoReferenceRef.current = video;
   const subtitleReferenceRef = useRef(subtitle);
   subtitleReferenceRef.current = subtitle;
-
-  const buildSegmentsFromTranscription = useCallback(
-    (
-      payload: SegmentTranscriptionPayload,
-      fallbackRegion: { start: number; end: number },
-    ): SubtitleSegment[] => {
-      if (payload.segments && payload.segments.length > 0) {
-        return payload.segments.map((seg, idx) => ({
-          id: String(Date.now() + idx),
-          start: seg.start,
-          end: seg.end,
-          text: String(seg.text || "").trim(),
-        }));
-      }
-
-      return [
-        {
-          id: String(Date.now()),
-          start: fallbackRegion.start,
-          end: fallbackRegion.end,
-          text: (payload.text || "").trim() || t("contextMenu.noSpeechFallback"),
-        },
-      ];
-    },
-    [t],
-  );
-
-  const translateSegmentsWithSharedTargetLanguage = useCallback(
-    async (segments: SubtitleSegment[]) => {
-      const { targetLanguage, mode } = restoreStoredTranslationPreferences();
-
-      try {
-        const res = await editorService.translateSegments({
-          segments,
-          target_language: targetLanguage,
-          mode,
-        });
-        return {
-          segments: res.segments as SubtitleSegment[],
-          targetLanguage,
-        };
-      } catch (err) {
-        console.error(err);
-        if (isAiTranslationSetupRequiredError(err)) {
-          return {
-            segments: null,
-            targetLanguage,
-            aborted: true,
-          };
-        }
-        throw err;
-      }
-    },
-    [],
-  );
-
-  const transcribeRegion = useCallback(
-    async (region: { start: number; end: number }, translateAfterTranscribe: boolean) => {
-      const currentMediaRef = videoReferenceRef.current;
-
-      if (!currentMediaRef) {
-        toast.warning(t("contextMenu.mediaRequired"));
-        return;
-      }
-
-      toast.info(
-        translateAfterTranscribe
-          ? t("contextMenu.transcribeTranslateStarting")
-          : t("contextMenu.transcribeStarting"),
-        2000,
-      );
-
-      try {
-        const asrPreferences = restoreStoredAsrExecutionPreferences();
-        const res = (await editorService.transcribeSegment({
-          audio_ref: currentMediaRef,
-          start: region.start,
-          end: region.end,
-          engine: asrPreferences.engine,
-          model: asrPreferences.model,
-          device: asrPreferences.device,
-        })) as TranscribeSegmentResponse;
-
-        if (res.status !== "completed" || !res.data) {
-          throw new Error(t("contextMenu.noSyncTranscription"));
-        }
-
-        const recognizedSegments = buildSegmentsFromTranscription(res.data, region);
-        let finalSegments = recognizedSegments;
-
-        if (translateAfterTranscribe) {
-          const translated = await translateSegmentsWithSharedTargetLanguage(
-            recognizedSegments,
-          );
-          if (translated.segments) {
-            finalSegments = translated.segments;
-            addSegments(finalSegments);
-            toast.success(t("contextMenu.transcribeTranslateComplete", {
-              language: translated.targetLanguage,
-            }));
-            return;
-          }
-
-          if (translated.aborted) {
-            return;
-          }
-
-          addSegments(finalSegments);
-          toast.success(t("contextMenu.translateQueued"));
-          return;
-        }
-
-        addSegments(finalSegments);
-        toast.success(
-          finalSegments.length > 1
-            ? t("contextMenu.transcribeMultipleSuccess", { count: finalSegments.length })
-            : t("contextMenu.transcribeSuccess"),
-        );
-      } catch (err) {
-        console.error(err);
-        toast.error(t("contextMenu.transcribeFailed", {
-          detail: err instanceof Error ? err.message : String(err),
-        }));
-      }
-    },
-    [addSegments, buildSegmentsFromTranscription, t, translateSegmentsWithSharedTargetLanguage],
-  );
+  const { transcribeRegion, translateSegments } = useSegmentProcessingActions({
+    video,
+    addSegments,
+  });
 
   const handleContextMenu = useCallback(
     (e: ContextMenuEvent, id: string, regionData?: { start: number; end: number }) => {
@@ -278,7 +142,7 @@ export function useContextMenuBuilder({
             toast.info(t("contextMenu.translating"), 2000);
 
             try {
-              const translated = await translateSegmentsWithSharedTargetLanguage(selected);
+              const translated = await translateSegments(selected);
               if (translated.segments) {
                 updateSegments(translated.segments);
                 toast.success(t("contextMenu.translationComplete"));
@@ -411,7 +275,7 @@ export function useContextMenuBuilder({
       setContextMenu,
       t,
       transcribeRegion,
-      translateSegmentsWithSharedTargetLanguage,
+      translateSegments,
       videoRef,
     ],
   );

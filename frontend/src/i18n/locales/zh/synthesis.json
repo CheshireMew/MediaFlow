@@ -109,6 +109,7 @@
     "mediaLoadErrorHint": "请重新打开导出面板或检查视频编码",
     "subtitlePosition": "（字幕位置）",
     "startExport": "导出视频",
-    "submitting": "正在提交..."
+    "submitting": "正在提交...",
+    "detectingTrim": "正在读取人声时间范围..."
   }
 }

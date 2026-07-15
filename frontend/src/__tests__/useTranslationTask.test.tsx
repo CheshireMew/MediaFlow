@@ -7,19 +7,15 @@ import { clearElectronMock, installElectronMock } from "./testUtils/electronMock
 import { createMockUserSettings } from "./testUtils/mockUserSettings";
 import { BACKEND_TASK_CONTRACT_FIELDS } from "./testFixtures";
 import { apiClient } from "../api/client";
-import { translationService } from "../services/domain/translationService";
 import { TASK_CONTRACT_VERSION } from "../contracts/runtimeContracts";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-const translationServiceMock = {
-  startTranslation: vi.spyOn(translationService, "startTranslation"),
-};
-
 const apiClientMock = {
   getSettings: vi.spyOn(apiClient, "getSettings"),
+  runPipeline: vi.spyOn(apiClient, "runPipeline"),
 };
 
 const taskContextMock = vi.hoisted(() => ({
@@ -29,6 +25,21 @@ const taskContextMock = vi.hoisted(() => ({
       tasksSettled: true,
   addTask: vi.fn(),
 }));
+
+function translationRequestParams(path: string, mode: "standard" | "intelligent" | "proofread") {
+  return {
+    pipeline_id: "translator_tool",
+    steps: [{
+      step_name: "translate" as const,
+      params: {
+        segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
+        context_ref: { path, name: "demo.srt" },
+        target_language: "SimplifiedChinese" as const,
+        mode,
+      },
+    }],
+  };
+}
 
 vi.mock("../context/taskContext", () => ({
   useTaskContext: () => taskContextMock,
@@ -73,7 +84,7 @@ describe("useTranslationTask", () => {
       progress: 0,
       taskError: null,
     });
-    translationServiceMock.startTranslation.mockReset();
+    apiClientMock.runPipeline.mockReset();
     apiClientMock.getSettings.mockReset();
     apiClientMock.getSettings.mockResolvedValue(createMockUserSettings());
     taskContextMock.addTask.mockReset();
@@ -89,7 +100,7 @@ describe("useTranslationTask", () => {
   test("proofread uses activeMode/resultMode without overwriting the selected mode", async () => {
     vi.useFakeTimers();
     useTranslatorStore.setState({ mode: "intelligent" });
-    translationServiceMock.startTranslation.mockResolvedValue({
+    apiClientMock.runPipeline.mockResolvedValue({
       task_id: "task-1",
       status: "pending",
       task_source: "backend",
@@ -114,18 +125,24 @@ describe("useTranslationTask", () => {
     expect(taskContextMock.addTask).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "task-1",
-        type: "translate",
+        type: "pipeline",
         task_source: "backend",
         task_contract_version: TASK_CONTRACT_VERSION,
         revision: 0,
         queue_state: "queued",
         request_params: expect.objectContaining({
-          context_ref: expect.objectContaining({
-            path: "E:/subs/demo.srt",
-            name: "demo.srt",
-          }),
-          target_language: "SimplifiedChinese",
-          mode: "proofread",
+          pipeline_id: "translator_tool",
+          steps: [{
+            step_name: "translate",
+            params: expect.objectContaining({
+              context_ref: expect.objectContaining({
+                path: "E:/subs/demo.srt",
+                name: "demo.srt",
+              }),
+              target_language: "SimplifiedChinese",
+              mode: "proofread",
+            }),
+          }],
         }),
       }),
     );
@@ -138,23 +155,21 @@ describe("useTranslationTask", () => {
         {
           ...BACKEND_TASK_CONTRACT_FIELDS,
           id: "task-1",
-          type: "translate",
+          type: "pipeline",
           primary_operation: "translate",
           status: "completed",
           progress: 100,
           created_at: 1,
-          request_params: {
-            context_ref: {
-              path: "E:/subs/demo.srt",
-              name: "demo.srt",
-            },
-            mode: "proofread",
-          },
+          request_params: translationRequestParams("E:/subs/demo.srt", "proofread"),
           result: {
             success: true,
             artifacts: [artifact("subtitle", "output", "E:/subs/demo_zh.srt", "demo_zh.srt")],
-            meta: {
-              segments: [{ id: "1", start: 0, end: 1, text: "fixed text" }],
+            outputs: {
+              translation: {
+                segments: [{ id: "1", start: 0, end: 1, text: "fixed text" }],
+                language: "SimplifiedChinese",
+                mode: "proofread",
+              },
             },
           },
           artifacts: [
@@ -181,18 +196,12 @@ describe("useTranslationTask", () => {
       {
         ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-recover",
-        type: "translate",
+        type: "pipeline",
         primary_operation: "translate",
         status: "running",
         progress: 42,
         created_at: 1,
-        request_params: {
-          context_ref: {
-            path: "E:/subs/demo.srt",
-            name: "demo.srt",
-          },
-          mode: "intelligent",
-        },
+        request_params: translationRequestParams("E:/subs/demo.srt", "intelligent"),
         artifacts: [artifact("subtitle", "context", "E:/subs/demo.srt", "demo.srt")],
       } as Task,
     ];
@@ -217,23 +226,21 @@ describe("useTranslationTask", () => {
       {
         ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-history",
-        type: "translate",
+        type: "pipeline",
         primary_operation: "translate",
         status: "completed",
         progress: 100,
         created_at: 1,
-        request_params: {
-          context_ref: {
-            path: "E:/subs/demo.srt",
-            name: "demo.srt",
-          },
-          mode: "intelligent",
-        },
+        request_params: translationRequestParams("E:/subs/demo.srt", "intelligent"),
         result: {
           success: true,
           artifacts: [artifact("subtitle", "output", "E:/subs/demo_zh.srt", "demo_zh.srt")],
-          meta: {
-            segments: [{ id: "1", start: 0, end: 1, text: "你好" }],
+          outputs: {
+            translation: {
+              segments: [{ id: "1", start: 0, end: 1, text: "你好" }],
+              language: "SimplifiedChinese",
+              mode: "intelligent",
+            },
           },
         },
         artifacts: [
@@ -274,18 +281,12 @@ describe("useTranslationTask", () => {
       {
         ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-recover-ref",
-        type: "translate",
+        type: "pipeline",
         primary_operation: "translate",
         status: "running",
         progress: 42,
         created_at: 1,
-        request_params: {
-          context_ref: {
-            path: "E:/canonical/demo.srt",
-            name: "demo.srt",
-          },
-          mode: "intelligent",
-        },
+        request_params: translationRequestParams("E:/canonical/demo.srt", "intelligent"),
         artifacts: [artifact("subtitle", "context", "E:/canonical/demo.srt", "demo.srt")],
       } as Task,
     ];
@@ -310,18 +311,12 @@ describe("useTranslationTask", () => {
       {
         ...BACKEND_TASK_CONTRACT_FIELDS,
         id: "task-fail",
-        type: "translate",
+        type: "pipeline",
         status: "failed",
         progress: 12,
         error: "Network unreachable while contacting LLM provider",
         created_at: 1,
-        request_params: {
-          context_ref: {
-            path: "E:/subs/demo.srt",
-            name: "demo.srt",
-          },
-          mode: "standard",
-        },
+        request_params: translationRequestParams("E:/subs/demo.srt", "standard"),
       } as Task,
     ];
 
@@ -335,7 +330,7 @@ describe("useTranslationTask", () => {
   });
 
   test("submits translation as a backend task in desktop runtime", async () => {
-    translationServiceMock.startTranslation.mockResolvedValue({
+    apiClientMock.runPipeline.mockResolvedValue({
       task_id: "backend-translate-task",
       status: "pending",
       task_source: "backend",
@@ -358,16 +353,22 @@ describe("useTranslationTask", () => {
       await result.current.startTranslation();
     });
 
-    expect(translationServiceMock.startTranslation).toHaveBeenCalledWith(expect.objectContaining({
-      segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
-      target_language: "SimplifiedChinese",
-      mode: "standard",
-      context_ref: expect.objectContaining({
-        path: "E:/subs/demo.srt",
-        name: "demo.srt",
-      }),
+    expect(apiClientMock.runPipeline).toHaveBeenCalledWith(expect.objectContaining({
+      pipeline_id: "translator_tool",
+      steps: [{
+        step_name: "translate",
+        params: expect.objectContaining({
+          segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
+          target_language: "SimplifiedChinese",
+          mode: "standard",
+          context_ref: expect.objectContaining({
+            path: "E:/subs/demo.srt",
+            name: "demo.srt",
+          }),
+        }),
+      }],
     }));
-    expect(translationServiceMock.startTranslation.mock.calls[0]?.[0]).not.toHaveProperty("context_path");
+    expect(apiClientMock.runPipeline.mock.calls[0]?.[0].steps[0].params).not.toHaveProperty("context_path");
     expect(useTranslatorStore.getState().targetSegments).toEqual([]);
     expectTranslatorMediaState({
       sourceFileRef: {
@@ -379,7 +380,7 @@ describe("useTranslationTask", () => {
     expect(useTranslatorStore.getState().resultMode).toBeNull();
     expect(taskContextMock.addTask).toHaveBeenCalledWith(expect.objectContaining({
       id: "backend-translate-task",
-      type: "translate",
+      type: "pipeline",
       status: "pending",
       task_source: "backend",
     }));
@@ -393,7 +394,7 @@ describe("useTranslationTask", () => {
         name: "demo.srt",
       },
     });
-    translationServiceMock.startTranslation.mockResolvedValue({
+    apiClientMock.runPipeline.mockResolvedValue({
       task_id: "task-ref-only",
       status: "pending",
       task_source: "backend",
@@ -415,23 +416,33 @@ describe("useTranslationTask", () => {
       await result.current.startTranslation();
     });
 
-    expect(translationServiceMock.startTranslation).toHaveBeenCalledWith(expect.objectContaining({
-      segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
-      target_language: "SimplifiedChinese",
-      mode: "standard",
-      context_ref: expect.objectContaining({
-        path: "E:/canonical/demo.srt",
-        name: "demo.srt",
-      }),
-    }));
-    expect(translationServiceMock.startTranslation.mock.calls[0]?.[0]).not.toHaveProperty("context_path");
-    expect(taskContextMock.addTask).toHaveBeenCalledWith(
-      expect.objectContaining({
-        request_params: expect.objectContaining({
+    expect(apiClientMock.runPipeline).toHaveBeenCalledWith(expect.objectContaining({
+      steps: [{
+        step_name: "translate",
+        params: expect.objectContaining({
+          segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
+          target_language: "SimplifiedChinese",
+          mode: "standard",
           context_ref: expect.objectContaining({
             path: "E:/canonical/demo.srt",
             name: "demo.srt",
           }),
+        }),
+      }],
+    }));
+    expect(apiClientMock.runPipeline.mock.calls[0]?.[0].steps[0].params).not.toHaveProperty("context_path");
+    expect(taskContextMock.addTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request_params: expect.objectContaining({
+          steps: [{
+            step_name: "translate",
+            params: expect.objectContaining({
+              context_ref: expect.objectContaining({
+                path: "E:/canonical/demo.srt",
+                name: "demo.srt",
+              }),
+            }),
+          }],
         }),
       }),
     );

@@ -1,5 +1,5 @@
 {
-  "task_contract_version": 6,
+  "task_contract_version": 9,
   "desktop_bridge_contract_version": 4,
   "task_statuses": [
     "pending",
@@ -64,15 +64,10 @@
     "asr_model_initializing",
     "asr_model_loaded",
     "asr_cuda_cpu_fallback",
-    "asr_finalizing",
-    "translation_starting",
     "translation_batch_progress",
     "translation_completed",
-    "synthesis_preparing",
     "synthesis_starting",
     "synthesis_encoding",
-    "synthesis_completed",
-    "clip_export_preparing",
     "clip_exporting",
     "clip_export_completed"
   ],

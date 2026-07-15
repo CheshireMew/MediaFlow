@@ -6,7 +6,7 @@ from backend.config import settings
 
 class MediaProber:
     _nvenc_available: bool | None = None  # Cached detection result
-    _leading_black_pattern = re.compile(
+    _black_interval_pattern = re.compile(
         r"black_start:(?P<start>\d+(?:\.\d+)?)\s+"
         r"black_end:(?P<end>\d+(?:\.\d+)?)\s+"
         r"black_duration:(?P<duration>\d+(?:\.\d+)?)"
@@ -63,7 +63,7 @@ class MediaProber:
     @staticmethod
     def parse_leading_black_end(ffmpeg_output: str, max_auto_trim: float = 0.15) -> float:
         """Return the end time of a short black run that starts at the media origin."""
-        for match in MediaProber._leading_black_pattern.finditer(ffmpeg_output):
+        for match in MediaProber._black_interval_pattern.finditer(ffmpeg_output):
             start = float(match.group("start"))
             end = float(match.group("end"))
             if start <= 0.01 and 0 < end <= max_auto_trim:
@@ -101,6 +101,112 @@ class MediaProber:
             return MediaProber.parse_leading_black_end(output, max_auto_trim=max_auto_trim)
         except Exception as exc:
             logger.debug(f"Leading black probe failed: {exc}")
+            return 0.0
+
+    @staticmethod
+    def parse_trailing_black_start(
+        ffmpeg_output: str,
+        probe_duration: float,
+        end_tolerance: float = 0.15,
+    ) -> float | None:
+        """Return a probe-relative black start only when that black run reaches the end."""
+        matches = list(MediaProber._black_interval_pattern.finditer(ffmpeg_output))
+        for match in reversed(matches):
+            start = float(match.group("start"))
+            end = float(match.group("end"))
+            if 0 <= start < end and end >= max(0.0, probe_duration - end_tolerance):
+                return start
+        return None
+
+    @staticmethod
+    def _probe_trailing_black_window(
+        video_path: str,
+        *,
+        probe_start: float,
+        probe_duration: float,
+    ) -> str:
+        """Run blackdetect on one tail window and return timestamps relative to that window."""
+        result = subprocess.run(
+            [
+                settings.FFMPEG_PATH,
+                "-hide_banner",
+                "-v",
+                "info",
+                "-ss",
+                f"{probe_start:.6f}",
+                "-i",
+                video_path,
+                "-t",
+                f"{probe_duration:.6f}",
+                "-vf",
+                "setpts=PTS-STARTPTS,blackdetect=d=0.01:pix_th=0.10",
+                "-an",
+                "-f",
+                "null",
+                "-",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=max(30.0, probe_duration * 2.0),
+        )
+        if result.returncode != 0:
+            logger.debug(
+                f"Trailing black probe exited with code {result.returncode}: {result.stderr[-500:]}"
+            )
+            return ""
+        return "\n".join(part for part in (result.stdout, result.stderr) if part)
+
+    @staticmethod
+    def detect_trailing_black_start(
+        video_path: str,
+        initial_probe_duration: float = 30.0,
+        end_tolerance: float = 0.15,
+    ) -> float:
+        """Return the absolute start of a trailing black run, or zero when none is found.
+
+        This detector is experimental and intentionally is not connected to synthesis or
+        export. Real-world validation is still needed for fades, intentionally black endings,
+        and dark footage before it can safely populate ``trim_end``.
+
+        The probe window doubles while it is completely black. This avoids a fixed maximum
+        trailing-black duration while keeping ordinary videos cheap to inspect.
+        """
+        try:
+            media_duration = MediaProber.get_duration(video_path)
+            if media_duration <= 0 or initial_probe_duration <= 0:
+                return 0.0
+
+            probe_duration = min(media_duration, initial_probe_duration)
+            while True:
+                probe_start = max(0.0, media_duration - probe_duration)
+                actual_probe_duration = media_duration - probe_start
+                output = MediaProber._probe_trailing_black_window(
+                    video_path,
+                    probe_start=probe_start,
+                    probe_duration=actual_probe_duration,
+                )
+                relative_black_start = MediaProber.parse_trailing_black_start(
+                    output,
+                    probe_duration=actual_probe_duration,
+                    end_tolerance=end_tolerance,
+                )
+                if relative_black_start is None:
+                    return 0.0
+
+                # A non-zero start means this window contains the visible-to-black boundary.
+                if relative_black_start > 0.01:
+                    return probe_start + relative_black_start
+
+                # Reaching the media origin while still black means the whole video is black;
+                # returning zero prevents a future caller from trimming the entire file away.
+                if probe_start <= 0.01:
+                    return 0.0
+
+                probe_duration = min(media_duration, probe_duration * 2.0)
+        except Exception as exc:
+            logger.debug(f"Trailing black probe failed: {exc}")
             return 0.0
 
     @staticmethod

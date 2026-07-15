@@ -22,7 +22,7 @@ import { ensureI18nNamespaces } from "./i18n";
 import { ROUTE_PAGE_MODULES } from "./startup/routePageDefinitions";
 import { prewarmFasterWhisperCliFromStoredPreferences } from "./services/asrCliPrewarm";
 
-import { TaskProvider } from "./context/taskContext";
+import { TaskProvider } from "./context/TaskProvider";
 import { TaskSummaryProvider } from "./context/taskSummaryContext";
 
 function createLazyPage<TModule>(

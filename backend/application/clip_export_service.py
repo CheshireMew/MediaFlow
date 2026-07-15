@@ -7,12 +7,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from backend.models.schemas import (
-    ClipExportSegment,
-    MediaReference,
-    TaskArtifact,
-    TaskResult,
-)
+from backend.models.editor_contracts import ClipExportSegment
+from backend.models.media_contracts import MediaReference
 from backend.services.media_refs import create_media_ref
 from backend.services.video.media_prober import MediaProber
 
@@ -92,16 +88,6 @@ def export_clips(
     if progress_callback:
         progress_callback(100, "clip_export_completed", {})
     return exported
-
-
-def build_clip_export_task_result(files: list[MediaReference]) -> dict:
-    return TaskResult(
-        success=True,
-        artifacts=[
-            TaskArtifact(kind="video", role="output", ref=file)
-            for file in files
-        ],
-    ).model_dump(mode="json")
 
 
 def _render_clip(

@@ -1,7 +1,7 @@
 import {
   settingsService,
   type ResolvedUserSettings,
-} from "../domain";
+} from "../domain/settingsService";
 import {
   clearPersistenceFailure,
   reportPersistenceFailure,

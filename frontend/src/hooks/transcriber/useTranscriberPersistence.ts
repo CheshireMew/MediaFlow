@@ -12,7 +12,7 @@ import {
   mediaReferenceFromElectronFile,
   toElectronFile,
 } from "../../services/ui/mediaReference";
-import { normalizeTranscribeResult } from "../../services/ui/transcribeResult";
+import { normalizeTranscribeResult } from "../../services/tasks/resultMediaReferences";
 import { attachElectronFileSource } from "../../services/ui/electronFileSource";
 
 const TRANSCRIBER_SNAPSHOT_KEY = "transcriber_snapshot";

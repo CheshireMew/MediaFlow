@@ -28,6 +28,7 @@ class UserSettings(BaseModel):
     faster_whisper_cli_path: Optional[str] = None
     language: str = "zh"
     auto_execute_flow: bool = False
+    auto_trim_silence: bool = False
     smart_split_text_limit: int = Field(
         default=SMART_SPLIT_TEXT_LIMIT_DEFAULT,
         ge=1,
@@ -41,6 +42,7 @@ class UserPreferencesPatch(BaseModel):
     faster_whisper_cli_path: Optional[str] = None
     language: Optional[str] = None
     auto_execute_flow: Optional[bool] = None
+    auto_trim_silence: Optional[bool] = None
     smart_split_text_limit: Optional[int] = Field(default=None, ge=1)
 
 

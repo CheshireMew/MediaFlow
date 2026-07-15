@@ -16,13 +16,13 @@ import {
   Video,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { Task, TaskResult } from "../../types/task";
+import type { Task } from "../../types/task";
 import { fileService } from "../../services/fileService";
 import {
   createTaskDiagnostic,
   type RuntimeExecutionSummary,
 } from "../../services/debug/runtimeDiagnostics";
-import { canRetryTask } from "../../services/tasks/retry";
+import { canRetryTask } from "../../services/tasks/taskRuntimeState";
 import {
   hasTaskSubtitleMedia,
   hasTaskTranscribableMedia,
@@ -38,16 +38,14 @@ import { useConfirmation } from "../ui/confirmationContext";
 import { toast } from "../../utils/toast";
 import { translateTaskMessage } from "../../services/ui/taskMessage";
 
-type TaskWithDetails = Task & { result?: TaskResult };
-
 type TaskMonitorItemProps = {
-  task: TaskWithDetails;
+  task: Task;
   expanded: boolean;
   executionSummary: RuntimeExecutionSummary;
   onToggleExpand: (taskId: string) => void;
   onPause: (taskId: string) => void;
   onDelete: (taskId: string) => void;
-  onResume: (task: TaskWithDetails) => void;
+  onResume: (task: Task) => void;
 };
 
 function TaskStatusIcon({ status }: { status: string }) {
@@ -62,7 +60,7 @@ function TaskStatusIcon({ status }: { status: string }) {
   }
 }
 
-function useTaskTypeInfo(task: TaskWithDetails) {
+function useTaskTypeInfo(task: Task) {
   const { t } = useTranslation("taskmonitor");
   const { primary_operation } = task;
 
@@ -78,7 +76,7 @@ function useTaskTypeInfo(task: TaskWithDetails) {
   }
 }
 
-function QueueBadge({ task }: { task: TaskWithDetails }) {
+function QueueBadge({ task }: { task: Task }) {
   const { t } = useTranslation("taskmonitor");
   if (task.persistence_scope === "history") {
     return (
@@ -230,7 +228,7 @@ export function TaskMonitorItem({
                 </div>
               )}
 
-              {task.result?.meta?.execution_trace && (
+              {task.result?.execution_trace?.length ? (
                 <button
                   type="button"
                   aria-label={expanded ? t("actions.collapse.tooltip") : t("actions.expand.tooltip")}
@@ -241,12 +239,12 @@ export function TaskMonitorItem({
                 >
                   {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
 
           <div className="font-medium text-slate-200 text-sm leading-relaxed truncate pr-8" title={task.name || task.type}>
-            {task.name || (task.type === "download" ? t("messages.downloading") : t("taskTypes.generic"))}
+            {task.name || (task.primary_operation === "download" ? t("messages.downloading") : t("taskTypes.generic"))}
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-6">
@@ -296,13 +294,13 @@ export function TaskMonitorItem({
         </div>
       </div>
 
-      {expanded && task.result?.meta?.execution_trace && (
+      {expanded && task.result?.execution_trace?.length ? (
         <div id={traceId} className="mt-3 pl-[52px]">
           <div className="bg-black/30 rounded-lg overflow-hidden border border-white/5">
-            <TaskTraceView trace={task.result.meta.execution_trace} />
+            <TaskTraceView trace={task.result.execution_trace} />
           </div>
         </div>
-      )}
+      ) : null}
     </article>
   );
 }
@@ -313,7 +311,7 @@ function TaskNavigationButton({
   title,
   children,
 }: {
-  task: TaskWithDetails;
+  task: Task;
   destination: "transcriber" | "translator" | "editor";
   title: string;
   children: React.ReactNode;

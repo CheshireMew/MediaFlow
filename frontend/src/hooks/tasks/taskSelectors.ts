@@ -1,5 +1,6 @@
 import type { PipelineRequest } from "../../types/api";
-import type { SubtitleSegment, Task, TaskResult } from "../../types/task";
+import type { TranslationOutput } from "../../types/generatedApi";
+import type { SubtitleSegment, Task } from "../../types/task";
 import type { TranscribeResult } from "../../types/transcriber";
 import type { TranslatorMode } from "../../stores/translatorStore";
 import type { DownloadHistoryItem } from "../../stores/downloaderStore";
@@ -21,14 +22,18 @@ export const isTranslatorMode = (value: unknown): value is TranslatorMode =>
   value === "standard" || value === "intelligent" || value === "proofread";
 
 export const getTranslationTaskMode = (task: Task): TranslatorMode | null => {
-  const rawMode = (task.request_params as { mode?: unknown } | undefined)?.mode;
+  const steps = (task.request_params as PipelineRequest | undefined)?.steps;
+  const rawMode = steps?.find((step) => step.step_name === "translate")?.params
+    ? (steps.find((step) => step.step_name === "translate")?.params as { mode?: unknown }).mode
+    : undefined;
   return isTranslatorMode(rawMode) ? rawMode : null;
 };
 
-export const getTranslationTaskSegments = (task: Task): SubtitleSegment[] => {
-  const segments = task.result?.meta?.segments;
-  return Array.isArray(segments) ? (segments as SubtitleSegment[]) : [];
-};
+export const getTranslationTaskOutput = (task: Task): TranslationOutput | null =>
+  task.result?.outputs?.translation ?? null;
+
+export const getTranslationTaskSegments = (task: Task): SubtitleSegment[] =>
+  getTranslationTaskOutput(task)?.segments ?? [];
 
 export const getTranslationTaskMediaRefs = (task: Task) => {
   const { sourceSubtitleRef, targetSubtitleRef } = resolveTranslationTaskMedia(task);
@@ -51,11 +56,6 @@ export const isDownloadTask = (task: Task): boolean => {
 };
 
 export const getDownloadTaskUrl = (task: Task): string | null => {
-  if (task.type === "download") {
-    const params = task.request_params as Record<string, unknown> | undefined;
-    return typeof params?.url === "string" ? params.url : null;
-  }
-
   const steps = (task.request_params as PipelineRequest | undefined)?.steps;
   if (!Array.isArray(steps)) return null;
 
@@ -92,7 +92,7 @@ export const findActiveTranslationTask = (
   sourceFileRef: MediaReference | null,
 ): Task | undefined =>
   tasks.find((task) => {
-    if (task.type !== "translate") return false;
+    if (task.primary_operation !== "translate") return false;
     if (!isTaskActive(task)) {
       return false;
     }
@@ -112,7 +112,7 @@ export const findCompletedTranslationTask = (
   sourceFileRef: MediaReference | null,
 ): Task | undefined =>
   tasks.find((task) => {
-    if (task.type !== "translate") return false;
+    if (task.primary_operation !== "translate") return false;
     if (task.status !== "completed") return false;
 
     const sourceIdentity = resolveMediaReferencePath(sourceFileRef);
@@ -173,8 +173,8 @@ export const mapTaskToTranscribeResult = (
 ): TranscribeResult | null => {
   if (!task.result) return null;
 
-  const backendResult = task.result as TaskResult;
-  const meta = backendResult.meta || {};
+  const transcription = task.result.outputs?.transcription;
+  if (!transcription) return null;
   const transcribeMediaRefs = resolveTranscribeTaskMedia(task);
   const taskMediaRefs = getTaskMediaRefs(task);
   const subtitleRef =
@@ -186,14 +186,9 @@ export const mapTaskToTranscribeResult = (
     fileRef;
 
   return {
-    segments: Array.isArray(meta.segments) ? meta.segments : [],
-    text:
-      typeof meta.text === "string"
-        ? meta.text
-        : typeof meta.transcript === "string"
-          ? meta.transcript
-          : "",
-    language: typeof meta.language === "string" ? meta.language : "auto",
+    segments: transcription.segments,
+    text: transcription.text,
+    language: transcription.language,
     video_ref: videoRef,
     subtitle_ref: subtitleRef,
   };

@@ -12,7 +12,7 @@ from backend.core.task_control import (
     TaskCancelRequested,
     TaskPauseRequested,
 )
-from backend.models.schemas import TaskView
+from backend.models.task_contracts import TaskView
 from backend.models.task_message import TaskMessageParams
 from backend.models.task_model import Task
 from backend.services.task_control_service import TaskControlService

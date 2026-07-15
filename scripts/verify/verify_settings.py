@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from backend.application.settings_service import SettingsApplicationService
-from backend.core.app_runtime import ApplicationRuntime
+from backend.runtime.application_runtime import ApplicationRuntime
 from backend.core.container import ServiceContainer, Services
 
 

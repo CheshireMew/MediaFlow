@@ -4,7 +4,7 @@ import os
 import uuid
 from typing import List, Optional
 from loguru import logger
-from backend.models.schemas import GlossaryTerm
+from backend.models.glossary_contracts import GlossaryTerm
 
 DATA_DIR = os.path.join(os.getcwd(), "data")
 GLOSSARY_FILE = os.path.join(DATA_DIR, "glossary.json")

@@ -1,8 +1,4 @@
-import type {
-  Task,
-  TaskRequestParams,
-  TaskResult,
-} from "../../types/task";
+import type { Task } from "../../types/task";
 import {
   createNavigationMediaPayload,
   type NavigationPayload,
@@ -15,44 +11,39 @@ import {
 import type { MediaReference } from "./mediaReference";
 import { resolvePreferredMediaPaths } from "./mediaPathResolver";
 
-type TaskWithDetails = Task & {
-  request_params?: TaskRequestParams;
-  result?: TaskResult;
-};
-
-export function getTaskMediaRefs(task: TaskWithDetails) {
+export function getTaskMediaRefs(task: Task) {
   return getTaskStructuredMediaRefs(task);
 }
 
-export function getTaskMediaCandidates(task: TaskWithDetails) {
+export function getTaskMediaCandidates(task: Task) {
   return buildTaskMediaCandidates(task);
 }
 
-export function hasTaskVideoMedia(task: TaskWithDetails) {
+export function hasTaskVideoMedia(task: Task) {
   return (task.artifacts ?? []).some((artifact) => artifact.kind === "video" && artifact.ref.path);
 }
 
-export function hasTaskTranscribableMedia(task: TaskWithDetails) {
+export function hasTaskTranscribableMedia(task: Task) {
   return (task.artifacts ?? []).some(
     (artifact) => (artifact.kind === "video" || artifact.kind === "audio") && artifact.ref.path,
   );
 }
 
-export function hasTaskSubtitleMedia(task: TaskWithDetails) {
+export function hasTaskSubtitleMedia(task: Task) {
   const candidates = getTaskMediaCandidates(task);
   return candidates.subtitle.some((candidate) => typeof candidate === "string" && candidate.length > 0);
 }
 
-export async function resolveTaskMediaPaths(task: TaskWithDetails) {
+export async function resolveTaskMediaPaths(task: Task) {
   return await resolvePreferredMediaPaths(getTaskMediaCandidates(task));
 }
 
-export async function resolveTaskOutputPath(task: TaskWithDetails) {
+export async function resolveTaskOutputPath(task: Task) {
   const { outputPath } = await resolveTaskMediaPaths(task);
   return outputPath;
 }
 
-export async function resolveTaskMediaReferences(task: TaskWithDetails): Promise<{
+export async function resolveTaskMediaReferences(task: Task): Promise<{
   videoRef: MediaReference | null;
   subtitleRef: MediaReference | null;
   contextRef: MediaReference | null;
@@ -62,7 +53,7 @@ export async function resolveTaskMediaReferences(task: TaskWithDetails): Promise
 }
 
 export async function resolveTaskNavigationPayload(
-  task: TaskWithDetails,
+  task: Task,
 ): Promise<NavigationPayload> {
   const primaryMedia = await resolveTaskMediaReferences(task);
 

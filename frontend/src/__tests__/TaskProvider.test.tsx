@@ -216,7 +216,7 @@ describe("TaskProvider", () => {
       request_params: {
         steps: [{ step_name: "download", params: { url: "https://example.com" } }],
       },
-      result: { success: true, artifacts: [], meta: {} },
+      result: { success: true, artifacts: [], outputs: {} },
     };
     getTaskStatusMock.mockResolvedValue(completedTask);
     listTasksMock.mockResolvedValue([completedTask]);

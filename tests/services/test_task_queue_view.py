@@ -6,18 +6,25 @@ from backend.models.task_model import Task
 from backend.services.task_queue_view import TaskQueueView
 
 
+def pipeline_request(step_name: str, params: dict | None = None) -> dict:
+    return {
+        "pipeline_id": f"test_{step_name}",
+        "steps": [{"step_name": step_name, "params": params or {}}],
+    }
+
+
 def create_task(task_id: str, status: str) -> Task:
     terminal = status in {"completed", "failed", "cancelled"}
     return Task(
         id=task_id,
-        type="download",
+        type="pipeline",
         status=status,
         persistence_scope="history" if terminal else "runtime",
         lifecycle=TASK_LIFECYCLE["history_only"] if terminal else TASK_LIFECYCLE["resumable"],
         progress=0.0,
         message_code="queued",
         message_params={},
-        request_params={},
+        request_params=pipeline_request("download", {"url": "https://example.com/video"}),
     )
 
 
@@ -129,21 +136,24 @@ def test_serialize_video_output_ref_does_not_create_subtitle_artifact():
     view = TaskQueueView()
     task = Task(
         id="task-synthesis",
-        type="synthesis",
+        type="pipeline",
         status="completed",
         persistence_scope="history",
         lifecycle=TASK_LIFECYCLE["history_only"],
         progress=100.0,
         message_code="queued",
         message_params={},
-        request_params={
-            "video_ref": {
-                "path": "E:/video/input.mp4",
-                "name": "input.mp4",
-                "media_kind": "video",
-                "role": "input",
-            }
-        },
+        request_params=pipeline_request(
+            "synthesize",
+            {
+                "video_ref": {
+                    "path": "E:/video/input.mp4",
+                    "name": "input.mp4",
+                    "media_kind": "video",
+                    "role": "input",
+                }
+            },
+        ),
         result={
             "success": True,
             "artifacts": [
@@ -159,7 +169,7 @@ def test_serialize_video_output_ref_does_not_create_subtitle_artifact():
                     },
                 }
             ],
-            "meta": {},
+            "outputs": {"synthesis": {"completed": True}},
         },
     )
 
@@ -184,25 +194,28 @@ def test_serialize_synthesis_result_keeps_input_subtitle_out_of_output_artifacts
     view = TaskQueueView()
     task = Task(
         id="task-synthesis",
-        type="synthesis",
+        type="pipeline",
         status="completed",
         persistence_scope="history",
         lifecycle=TASK_LIFECYCLE["history_only"],
         progress=100.0,
         message_code="queued",
         message_params={},
-        request_params={
-            "video_ref": {
-                "path": "E:/source/source.mp4",
-                "name": "source.mp4",
-                "media_kind": "video",
+        request_params=pipeline_request(
+            "synthesize",
+            {
+                "video_ref": {
+                    "path": "E:/source/source.mp4",
+                    "name": "source.mp4",
+                    "media_kind": "video",
+                },
+                "srt_ref": {
+                    "path": "E:/source/source.srt",
+                    "name": "source.srt",
+                    "media_kind": "subtitle",
+                },
             },
-            "srt_ref": {
-                "path": "E:/source/source.srt",
-                "name": "source.srt",
-                "media_kind": "subtitle",
-            },
-        },
+        ),
         result={
             "success": True,
             "artifacts": [
@@ -218,7 +231,7 @@ def test_serialize_synthesis_result_keeps_input_subtitle_out_of_output_artifacts
                     },
                 }
             ],
-            "meta": {"options": {}},
+            "outputs": {"synthesis": {"completed": True}},
         },
     )
 
@@ -243,14 +256,14 @@ def test_serialize_task_rejects_legacy_result_files_at_wire_boundary():
     view = TaskQueueView()
     task = Task(
         id="task-ts-output",
-        type="download",
+        type="pipeline",
         status="completed",
         persistence_scope="history",
         lifecycle=TASK_LIFECYCLE["history_only"],
         progress=100.0,
         message_code="queued",
         message_params={},
-        request_params={},
+        request_params=pipeline_request("download", {"url": "https://example.com/video"}),
         result={
             "files": [{"path": "E:/video/capture.ts"}],
         },
@@ -269,18 +282,21 @@ def test_serialize_translate_task_does_not_add_empty_video_ref_slot():
     view = TaskQueueView()
     task = Task(
         id="task-translate-no-video",
-        type="translate",
+        type="pipeline",
         status="running",
         progress=10.0,
         message_code="queued",
         message_params={},
-        request_params={
-            "context_ref": {
-                "path": "E:/subs/demo.srt",
-                "name": "demo.srt",
-                "media_kind": "subtitle",
-            }
-        },
+        request_params=pipeline_request(
+            "translate",
+            {
+                "context_ref": {
+                    "path": "E:/subs/demo.srt",
+                    "name": "demo.srt",
+                    "media_kind": "subtitle",
+                }
+            },
+        ),
     )
 
     payload = view.serialize_task(
@@ -290,29 +306,32 @@ def test_serialize_translate_task_does_not_add_empty_video_ref_slot():
         queued_order=[],
     ).model_dump(mode="json")
 
-    assert "video_ref" not in payload["request_params"]
+    assert "video_ref" not in payload["request_params"]["steps"][0]["params"]
 
 
 def test_serialize_task_preserves_native_structured_refs_without_path_normalization():
     view = TaskQueueView()
     task = Task(
         id="task-native-refs",
-        type="translate",
+        type="pipeline",
         status="completed",
         persistence_scope="history",
         lifecycle=TASK_LIFECYCLE["history_only"],
         progress=100.0,
         message_code="queued",
         message_params={},
-        request_params={
-            "context_ref": {
-                "path": "E:/subs/demo.srt",
-                "name": "demo.srt",
-                "media_kind": "subtitle",
-                "role": "context",
-                "origin": "task",
-            }
-        },
+        request_params=pipeline_request(
+            "translate",
+            {
+                "context_ref": {
+                    "path": "E:/subs/demo.srt",
+                    "name": "demo.srt",
+                    "media_kind": "subtitle",
+                    "role": "context",
+                    "origin": "task",
+                }
+            },
+        ),
         result={
             "success": True,
             "artifacts": [
@@ -328,7 +347,13 @@ def test_serialize_task_preserves_native_structured_refs_without_path_normalizat
                     },
                 }
             ],
-            "meta": {"language": "SimplifiedChinese"},
+            "outputs": {
+                "translation": {
+                    "segments": [{"id": "1", "start": 0, "end": 1, "text": "你好"}],
+                    "language": "SimplifiedChinese",
+                    "mode": "standard",
+                }
+            },
         },
     )
 
@@ -339,31 +364,34 @@ def test_serialize_task_preserves_native_structured_refs_without_path_normalizat
         queued_order=[],
     ).model_dump(mode="json")
 
-    assert payload["request_params"]["context_ref"]["path"] == "E:/subs/demo.srt"
+    assert payload["request_params"]["steps"][0]["params"]["context_ref"]["path"] == "E:/subs/demo.srt"
     assert payload["result"]["artifacts"][0]["ref"]["path"] == "E:/subs/demo_zh.srt"
-    assert "subtitle_ref" not in payload["result"]["meta"]
+    assert "subtitle_ref" not in payload["result"]["outputs"]["translation"]
 
 
 def test_serialize_translate_task_uses_request_field_as_artifact_role_source():
     view = TaskQueueView()
     task = Task(
         id="task-translate-stale-context-role",
-        type="translate",
+        type="pipeline",
         status="completed",
         persistence_scope="history",
         lifecycle=TASK_LIFECYCLE["history_only"],
         progress=100.0,
         message_code="queued",
         message_params={},
-        request_params={
-            "context_ref": {
-                "path": "E:/subs/demo.srt",
-                "name": "demo.srt",
-                "media_kind": "subtitle",
-                "role": "output",
-                "origin": "task",
-            }
-        },
+        request_params=pipeline_request(
+            "translate",
+            {
+                "context_ref": {
+                    "path": "E:/subs/demo.srt",
+                    "name": "demo.srt",
+                    "media_kind": "subtitle",
+                    "role": "output",
+                    "origin": "task",
+                }
+            },
+        ),
         result={
             "success": True,
             "artifacts": [
@@ -379,7 +407,13 @@ def test_serialize_translate_task_uses_request_field_as_artifact_role_source():
                     },
                 }
             ],
-            "meta": {"language": "SimplifiedChinese"},
+            "outputs": {
+                "translation": {
+                    "segments": [{"id": "1", "start": 0, "end": 1, "text": "你好"}],
+                    "language": "SimplifiedChinese",
+                    "mode": "standard",
+                }
+            },
         },
     )
 

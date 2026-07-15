@@ -2,7 +2,6 @@ from backend.core.task_payload_migration import (
     migrate_task_payload_v1_to_v2,
     normalize_task_request_v2,
 )
-from backend.models.schemas import TaskResult
 
 
 def _ref(path: str, *, kind: str, role: str | None = None) -> dict:
@@ -57,12 +56,11 @@ def test_result_input_refs_move_to_request_and_outputs_are_deduplicated():
     assert request["srt_ref"]["path"] == subtitle_input["path"]
     assert request["watermark_ref"]["path"] == "D:/media/logo.png"
     assert "watermark_path" not in request
-    typed_result = TaskResult.model_validate(result)
-    assert [(artifact.kind, artifact.ref.path) for artifact in typed_result.artifacts] == [
+    assert [(artifact["kind"], artifact["ref"]["path"]) for artifact in result["artifacts"]] == [
         ("video", output["path"]),
         ("video", second_output["path"]),
     ]
-    assert typed_result.meta == {"preset": "fast"}
+    assert result["meta"] == {"preset": "fast"}
 
 
 def test_payload_normalization_is_content_idempotent():

@@ -4,7 +4,9 @@ from backend.services.downloader.service import DownloaderService
 from backend.services.cookie_manager import CookieManager
 from backend.services.platforms.base import BasePlatform
 from backend.services.platforms.factory import PlatformFactory
-from backend.models.schemas import AnalyzeResult, MediaReference, TaskArtifact, TaskResult
+from backend.models.download_contracts import AnalyzeResult
+from backend.models.media_contracts import MediaReference, TaskArtifact, TaskResult
+from backend.models.task_result_contracts import DownloadOutput, PipelineOutputs
 
 
 def video_artifact(path: str) -> TaskArtifact:
@@ -24,6 +26,22 @@ def make_downloader() -> DownloaderService:
     return DownloaderService(
         platform_factory=PlatformFactory(),
         cookie_manager=CookieManager(),
+    )
+
+
+def download_result(task_id: str, path: str, duration: float, title: str) -> TaskResult:
+    return TaskResult(
+        success=True,
+        artifacts=[video_artifact(path)],
+        outputs=PipelineOutputs(
+            download=DownloadOutput(
+                id=task_id,
+                filename=path.rsplit("/", 1)[-1],
+                duration=duration,
+                title=title,
+                source_url="http://example.com/video",
+            )
+        ),
     )
 
 
@@ -51,10 +69,8 @@ async def test_download_uses_strategy():
             mock_get_loop.return_value = mock_loop
             
             # Setup run_in_executor to return immediate result
-            expected_asset = TaskResult(
-                success=True,
-                artifacts=[video_artifact("/tmp/Mock Video.mp4")],
-                meta={"id": "task1", "filename": "Mock Video.mp4", "duration": 100, "title": "Mock Video"}
+            expected_asset = download_result(
+                "task1", "/tmp/Mock Video.mp4", 100, "Mock Video"
             )
             mock_loop.run_in_executor = AsyncMock(return_value=expected_asset)
 
@@ -81,11 +97,7 @@ async def test_download_fallback_when_no_handler():
             mock_loop = MagicMock()
             mock_get_loop.return_value = mock_loop
             
-            expected_asset = TaskResult(
-                success=True,
-                artifacts=[video_artifact("path")],
-                meta={"id": "task2", "filename": "file.mp4", "duration": 10, "title": "Title"}
-            )
+            expected_asset = download_result("task2", "file.mp4", 10, "Title")
             mock_loop.run_in_executor = AsyncMock(return_value=expected_asset)
 
             await downloader_service.download("http://generic.com/video", task_id="task2")
@@ -98,11 +110,7 @@ async def test_download_fallback_when_no_handler():
 @pytest.mark.asyncio
 async def test_download_normalizes_x_pro_url_before_sync_download():
     downloader_service = make_downloader()
-    expected_asset = TaskResult(
-        success=True,
-        artifacts=[video_artifact("path")],
-        meta={"id": "task3", "filename": "file.mp4", "duration": 10, "title": "Title"},
-    )
+    expected_asset = download_result("task3", "file.mp4", 10, "Title")
 
     with (
         patch(

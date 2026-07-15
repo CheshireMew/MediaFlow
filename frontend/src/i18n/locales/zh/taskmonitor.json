@@ -103,15 +103,10 @@
     "asr_model_initializing": "正在 {{device}} 上初始化模型 {{model}}…",
     "asr_model_loaded": "模型 {{model}} 已就绪",
     "asr_cuda_cpu_fallback": "GPU 运行环境不可用，正在改用 CPU 重试…",
-    "asr_finalizing": "正在整理转写片段…",
-    "translation_starting": "正在开始翻译…",
     "translation_batch_progress": "已翻译 {{completed}} / {{total}} 个批次",
     "translation_completed": "翻译已完成",
-    "synthesis_preparing": "正在准备导出视频…",
     "synthesis_starting": "正在启动视频合成…",
     "synthesis_encoding": "正在编码视频… {{percent}}% {{speed}}",
-    "synthesis_completed": "视频导出已完成",
-    "clip_export_preparing": "正在准备导出片段…",
     "clip_exporting": "正在导出第 {{current}} / {{total}} 个片段…",
     "clip_export_completed": "片段导出已完成"
   }

@@ -6,7 +6,6 @@ export type {
 } from "./settingsService";
 export { glossaryService } from "./glossaryService";
 export type { GlossaryTerm } from "../../types/api";
-export { translationService } from "./translationService";
 export {
   DEFAULT_TRANSLATION_TARGET_LANGUAGE,
   TRANSLATION_TARGET_LANGUAGES,

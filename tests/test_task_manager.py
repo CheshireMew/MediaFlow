@@ -65,12 +65,12 @@ async def task_manager(test_engine, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_create_task(task_manager):
-    task_id = await task_manager.create_task("transcribe", "starting")
+    task_id = await task_manager.create_task("pipeline", "starting")
     assert task_id is not None
     assert task_id in task_manager.tasks
     task = task_manager.tasks[task_id]
     assert task.status == "pending"
-    assert task.type == "transcribe"
+    assert task.type == "pipeline"
 
     async with db_module.get_session_context() as session:
         db_task = await session.get(Task, task_id)
@@ -80,7 +80,7 @@ async def test_create_task(task_manager):
 
 @pytest.mark.asyncio
 async def test_update_task(task_manager):
-    task_id = await task_manager.create_task("transcribe")
+    task_id = await task_manager.create_task("pipeline")
     await task_manager.update_task(task_id, status="running", progress=50.0)
     task = task_manager.tasks[task_id]
     assert task.status == "running"
@@ -94,7 +94,7 @@ async def test_update_task(task_manager):
 
 @pytest.mark.asyncio
 async def test_update_task_serializes_terminal_control_updates(task_manager, monkeypatch):
-    task_id = await task_manager.create_task("transcribe")
+    task_id = await task_manager.create_task("pipeline")
     first_update_started = asyncio.Event()
     release_first_update = asyncio.Event()
     active_updates = 0
@@ -150,7 +150,7 @@ async def test_update_task_serializes_terminal_control_updates(task_manager, mon
 
 @pytest.mark.asyncio
 async def test_threadsafe_progress_updates_are_coalesced(task_manager, monkeypatch):
-    task_id = await task_manager.create_task("transcribe")
+    task_id = await task_manager.create_task("pipeline")
     await task_manager.update_task(task_id, status="running")
     repository_update = task_manager._repository.update_task
     progress_update_count = 0
@@ -180,7 +180,7 @@ async def test_threadsafe_progress_updates_are_coalesced(task_manager, monkeypat
 
 @pytest.mark.asyncio
 async def test_cancel_task(task_manager):
-    task_id = await task_manager.create_task("transcribe")
+    task_id = await task_manager.create_task("pipeline")
     await task_manager.cancel_task(task_id)
     task = task_manager.tasks[task_id]
     assert task.cancelled is True
@@ -193,7 +193,7 @@ async def test_cancel_task(task_manager):
 
 @pytest.mark.asyncio
 async def test_delete_task(task_manager):
-    task_id = await task_manager.create_task("transcribe")
+    task_id = await task_manager.create_task("pipeline")
     deleted = await task_manager.delete_task(task_id)
     assert deleted is True
     assert task_id not in task_manager.tasks
@@ -205,7 +205,7 @@ async def test_delete_task(task_manager):
 
 @pytest.mark.asyncio
 async def test_delete_historical_task_uses_persisted_revision(task_manager, monkeypatch):
-    task_id = await task_manager.create_task("transcribe")
+    task_id = await task_manager.create_task("pipeline")
     await task_manager.update_task(task_id, status="running")
     await task_manager.update_task(
         task_id,
@@ -238,7 +238,7 @@ async def test_completed_task_history_is_trimmed_in_memory_and_database(task_man
 
     task_ids = []
     for _ in range(history_limit + 3):
-            task_id = await task_manager.create_task("transcribe")
+            task_id = await task_manager.create_task("pipeline")
             task_ids.append(task_id)
             await task_manager.update_task(task_id, status="running")
             await task_manager.update_task(task_id, status="completed", progress=100.0)
@@ -323,7 +323,7 @@ async def test_warm_start_blocks_task_creation_until_hydration_finishes(
     await tm.warm_start_async()
     await asyncio.wait_for(load_started.wait(), timeout=1.0)
 
-    create_task = asyncio.create_task(tm.create_task("download", "queued"))
+    create_task = asyncio.create_task(tm.create_task("pipeline", "queued"))
     await asyncio.sleep(0.05)
     assert not create_task.done()
 

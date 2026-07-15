@@ -3,7 +3,7 @@ from typing import Callable, List, Literal, Optional
 from loguru import logger
 
 from backend.config import settings
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.services.llm_io_logger import log_llm_messages, log_llm_response
 from backend.services.translator.text_normalizer import normalize_text_for_target_language
 from backend.services.translator.translation_cache import TranslationCache

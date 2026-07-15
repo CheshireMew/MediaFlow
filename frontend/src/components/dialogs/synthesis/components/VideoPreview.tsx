@@ -45,6 +45,7 @@ interface Props {
     onNext: () => void;
   } | null;
   allowTrim?: boolean;
+  isPreparing?: boolean;
   actionLabel?: string;
 }
 
@@ -66,6 +67,7 @@ export const VideoPreview: React.FC<Props> = ({
   previewRange = null,
   clipNavigator = null,
   allowTrim = true,
+  isPreparing = false,
   actionLabel,
 }) => {
   const frameRef = useRef<HTMLDivElement>(null);
@@ -177,6 +179,7 @@ export const VideoPreview: React.FC<Props> = ({
           output={output}
           currentTime={currentTime}
           duration={effectiveDuration}
+          automaticRange={previewRange}
         />
       )}
 
@@ -286,6 +289,7 @@ export const VideoPreview: React.FC<Props> = ({
         onTimeUpdate={onTimeUpdate}
         onExportClick={onExportClick}
         isSubmitting={isSubmitting}
+        isPreparing={isPreparing}
         playbackRange={previewRange}
         actionLabel={actionLabel}
       />

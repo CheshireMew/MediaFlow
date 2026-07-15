@@ -6,7 +6,7 @@ from backend.application.highlight_service import (
     LlmHighlightResponse,
     detect_highlights,
 )
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.services.video.media_prober import MediaProber
 
 

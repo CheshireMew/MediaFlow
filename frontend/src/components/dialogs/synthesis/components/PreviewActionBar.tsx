@@ -12,6 +12,7 @@ type PreviewActionBarProps = {
   onTimeUpdate: (time: number) => void;
   onExportClick: () => void;
   isSubmitting: boolean;
+  isPreparing?: boolean;
   playbackRange?: { start: number; end: number } | null;
   actionLabel?: string;
 };
@@ -23,10 +24,17 @@ export function PreviewActionBar({
   onTimeUpdate,
   onExportClick,
   isSubmitting,
+  isPreparing = false,
   playbackRange = null,
   actionLabel,
 }: PreviewActionBarProps) {
   const { t } = useTranslation("synthesis");
+  const displayedCurrentTime = playbackRange
+    ? Math.max(0, Math.min(currentTime, playbackRange.end) - playbackRange.start)
+    : currentTime;
+  const displayedDuration = playbackRange
+    ? Math.max(0, playbackRange.end - playbackRange.start)
+    : duration;
 
   return (
     <div className="h-16 bg-[#1a1a1a] border-t border-white/5 px-6 flex items-center gap-6 shrink-0 relative z-20">
@@ -68,10 +76,10 @@ export function PreviewActionBar({
         />
         <div className="flex justify-between px-0.5">
           <span className="text-xs text-slate-400 font-mono">
-            {formatMediaPlaybackTime(currentTime)}
+            {formatMediaPlaybackTime(displayedCurrentTime)}
           </span>
           <span className="text-xs text-slate-400 font-mono">
-            {formatOptionalMediaPlaybackTime(playbackRange?.end ?? duration)}
+            {formatOptionalMediaPlaybackTime(displayedDuration)}
           </span>
         </div>
       </div>
@@ -82,11 +90,15 @@ export function PreviewActionBar({
         <button
           type="button"
           onClick={onExportClick}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isPreparing}
           className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all active:scale-95"
         >
-          {isSubmitting ? <Settings2 className="animate-spin" size={18} /> : <Download size={18} />}
-          <span>{isSubmitting ? t("preview.submitting") : actionLabel ?? t("preview.startExport")}</span>
+          {isSubmitting || isPreparing ? <Settings2 className="animate-spin" size={18} /> : <Download size={18} />}
+          <span>{isSubmitting
+            ? t("preview.submitting")
+            : isPreparing
+              ? t("preview.detectingTrim")
+              : actionLabel ?? t("preview.startExport")}</span>
         </button>
       </div>
     </div>

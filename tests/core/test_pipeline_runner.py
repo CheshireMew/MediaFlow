@@ -3,7 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 from backend.core.pipeline import PipelineRunner
 from backend.core.context import PipelineContext
 from backend.core.task_control import TaskCancelRequested
-from backend.models.schemas import DownloadParams, PipelineStepRequest, TranslateParams
+from backend.models.media_contracts import MediaReference
+from backend.models.pipeline_contracts import DownloadParams, PipelineStepRequest, TranslateParams
+from backend.models.task_result_contracts import DownloadOutput
 
 
 def test_pipeline_step_request_resolves_params_from_the_step_catalog():
@@ -25,7 +27,23 @@ async def test_pipeline_runner_success():
     mock_tm = AsyncMock()
     mock_tm.raise_if_control_requested = MagicMock(return_value=None)
     mock_step = AsyncMock()
-    mock_step.execute = AsyncMock()
+    async def execute(ctx, _params, _task_id):
+        ctx.publish_download(
+            DownloadOutput(
+                id="download-1",
+                title="Video",
+                duration=1,
+                filename="video.mp4",
+                source_url="https://example.com/video",
+            )
+        )
+        ctx.set_media(
+            "video_ref",
+            MediaReference(path="/tmp/video.mp4", name="video.mp4"),
+            kind="video",
+        )
+
+    mock_step.execute = AsyncMock(side_effect=execute)
     mock_step.name = "download"
     registry = MagicMock()
     registry.get_step.return_value = mock_step

@@ -1,16 +1,17 @@
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from backend.models.schemas import PipelineRequest, TaskResponse
+from backend.models.pipeline_contracts import PipelineRequest
+from backend.models.task_contracts import TaskResponse
 
 
-def create_router(download_application) -> APIRouter:
+def create_router(task_orchestrator) -> APIRouter:
     router = APIRouter(prefix="/pipeline", tags=["Pipeline"])
 
     @router.post("/run", response_model=TaskResponse)
     async def run_pipeline(req: PipelineRequest):
         try:
-            return await download_application.submit_pipeline(req)
+            return await task_orchestrator.submit_pipeline(req)
         except Exception as e:
             logger.error(f"Pipeline submission failed: {e}")
             raise HTTPException(status_code=500, detail=str(e))

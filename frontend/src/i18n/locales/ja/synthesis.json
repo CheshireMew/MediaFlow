@@ -109,6 +109,7 @@
     "mediaLoadErrorHint": "書き出しパネルを開き直すか、動画コーデックを確認してください",
     "subtitlePosition": "（字幕位置）",
     "startExport": "動画を書き出す",
-    "submitting": "送信中..."
+    "submitting": "送信中...",
+    "detectingTrim": "音声の時間範囲を読み込み中..."
   }
 }

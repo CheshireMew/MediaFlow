@@ -4,73 +4,31 @@ from pathlib import Path
 repo_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(repo_root))
 
-from backend.application.task_definitions import build_task_runner_registry
-from backend.core.task_catalog import (
-    pipeline_step_names,
-    task_types,
-)
-from backend.core.tasks.registry import TaskRunnerRegistry
-from backend.models.schemas import PIPELINE_STEP_PARAM_MODELS, PipelineRequest
-from backend.models.task_model import Task
+from backend.application.pipeline_steps.clip_export import ClipExportStep
+from backend.application.pipeline_steps.download import DownloadStep
+from backend.application.pipeline_steps.registry import StepRegistry
+from backend.application.pipeline_steps.synthesize import SynthesizeStep
+from backend.application.pipeline_steps.transcribe import TranscribeStep
+from backend.application.pipeline_steps.translate import TranslateStep
+from backend.contracts import pipeline_step_names, task_types
+from backend.models.pipeline_contracts import PIPELINE_STEP_PARAM_MODELS, PipelineRequest
 
 
-class _PipelineRunner:
-    async def run(self, _steps, _task_id):
-        return None
-
-
-class _OperationExecutor:
-    @staticmethod
-    def build_runner(_task):
-        async def run():
-            return None
-
-        return run
-
-
-def create_registry() -> TaskRunnerRegistry:
-    return build_task_runner_registry(
-        pipeline_runner=_PipelineRunner(),
-        operation_executor=_OperationExecutor(),
+def create_registry() -> StepRegistry:
+    dependency = object()
+    return StepRegistry(
+        [
+            DownloadStep(downloader=dependency, task_manager=dependency),
+            TranscribeStep(asr_service=dependency, task_manager=dependency),
+            TranslateStep(translator=dependency, task_manager=dependency),
+            SynthesizeStep(synthesis=dependency, task_manager=dependency),
+            ClipExportStep(video_synthesis=dependency, task_manager=dependency),
+        ]
     )
 
 
-def verify_registry(registry: TaskRunnerRegistry):
-    print("Verifying task runner registry...")
-
-    registry.validate()
-    expected = task_types()
-    registered = registry.registered_task_types()
-    missing = expected - registered
-    if missing:
-        raise RuntimeError(f"Missing task runners: {sorted(missing)}")
-
-    print(f"Registered task runners: {sorted(registered)}")
-
-
-def verify_runner_build(registry: TaskRunnerRegistry):
-    print("\nVerifying task runner build...")
-
-    task = Task(
-        id="test-123",
-        type="transcribe",
-        status="failed",
-        request_params={
-            "audio_ref": {"path": "test.wav", "name": "test.wav"},
-            "model": "base",
-            "language": "en",
-        },
-    )
-
-    runner = registry.build(task)
-    if not callable(runner):
-        raise RuntimeError(f"TaskRunnerRegistry.build returned non-callable: {runner!r}")
-
-    print("TaskRunnerRegistry.build('transcribe') returned a callable runner.")
-
-
-def verify_catalog_boundaries(registry: TaskRunnerRegistry):
-    print("\nVerifying task catalog boundaries...")
+def verify_catalog_boundaries(registry: StepRegistry) -> None:
+    print("Verifying canonical task and pipeline boundaries...")
 
     PipelineRequest.model_json_schema()
     schema_step_names = set(PIPELINE_STEP_PARAM_MODELS)
@@ -81,15 +39,32 @@ def verify_catalog_boundaries(registry: TaskRunnerRegistry):
             f"schema={sorted(schema_step_names)}, catalog={sorted(catalog_step_names)}"
         )
 
-    unknown_registered = registry.registered_task_types() - task_types()
-    if unknown_registered:
-        raise RuntimeError(f"Registered task types outside catalog: {sorted(unknown_registered)}")
+    registered_steps = set(registry.list_steps())
+    if registered_steps != catalog_step_names:
+        raise RuntimeError(
+            "Pipeline registry/catalog mismatch: "
+            f"registered={sorted(registered_steps)}, catalog={sorted(catalog_step_names)}"
+        )
+
+    if task_types() != {"pipeline"}:
+        raise RuntimeError(f"Retired task types remain in the catalog: {sorted(task_types())}")
+
+    PipelineRequest.model_validate(
+        {
+            "pipeline_id": "verification",
+            "steps": [
+                {
+                    "step_name": "transcribe",
+                    "params": {
+                        "audio_ref": {"path": "test.wav", "name": "test.wav"},
+                    },
+                }
+            ],
+        }
+    )
 
     print("Task types and pipeline steps match the catalog.")
 
 
 if __name__ == "__main__":
-    task_runner_registry = create_registry()
-    verify_registry(task_runner_registry)
-    verify_runner_build(task_runner_registry)
-    verify_catalog_boundaries(task_runner_registry)
+    verify_catalog_boundaries(create_registry())

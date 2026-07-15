@@ -1,14 +1,5 @@
 import type { StateCreator } from "zustand";
-import type { EditorState } from "../editorStore";
-
-export interface UISlice {
-  activeSegmentId: string | null;
-  selectedIds: string[];
-
-  setActiveSegmentId: (id: string | null) => void;
-  setSelectedIds: (ids: string[]) => void;
-  selectSegment: (id: string, multi?: boolean, range?: boolean) => void;
-}
+import type { EditorState, UISlice } from "../editorStoreTypes";
 
 export const createUISlice: StateCreator<EditorState, [], [], UISlice> = (
   set,

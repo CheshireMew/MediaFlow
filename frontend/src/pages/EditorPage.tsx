@@ -4,13 +4,6 @@ import { SubtitleList } from "../components/editor/SubtitleList";
 import { ClipCandidateList } from "../components/editor/ClipCandidateList";
 import { FindReplaceDialog } from "../components/dialogs/FindReplaceDialog";
 import { ContextMenu } from "../components/ui/ContextMenu";
-import {
-  createTaskFromExecutionOutcome,
-  getExecutionSubmission,
-  type VideoExportScope,
-  type VideoExportSubmission,
-} from "../services/domain";
-import { executionService } from "../services/domain/executionService";
 import { useTaskContext } from "../context/taskContext";
 
 // Extracted Components
@@ -20,10 +13,7 @@ import { VideoPreview } from "../components/editor/VideoPreview";
 // Custom Hooks
 import { useEditorIO } from "../hooks/editor/useEditorIO";
 import { useEditorShortcuts } from "../hooks/editor/useEditorShortcuts";
-import {
-  resolveSubtitleReferenceForSavedPath,
-  useEditorActions,
-} from "../hooks/editor/useEditorActions";
+import { useEditorActions } from "../hooks/editor/useEditorActions";
 import { useContextMenuBuilder } from "../hooks/editor/useContextMenuBuilder";
 import { useEditorDragDrop } from "../hooks/editor/useEditorDragDrop";
 import { useEditorPlaybackPersistence } from "../hooks/editor/useEditorPlaybackPersistence";
@@ -31,16 +21,12 @@ import { useEditorFindReplace } from "../hooks/editor/useEditorFindReplace";
 import { useEditorRegionHandlers } from "../hooks/editor/useEditorRegionHandlers";
 import {
   useEditorClipWorkspace,
-  type EditorContextMenuState,
 } from "../hooks/editor/useEditorClipWorkspace";
+import { useEditorVideoExport } from "../hooks/editor/useEditorVideoExport";
+import type { EditorContextMenuState } from "../hooks/editor/editorClipTypes";
 import { useEditorStore } from "../stores/editorStore";
 import { isEditorDocumentDirty } from "../stores/editorDocument";
 import { PageShell } from "../components/ui/PageChrome";
-import { toast } from "../utils/toast";
-
-const FULL_VIDEO_EXPORT_SCOPE = {
-  kind: "full-video",
-} as const satisfies VideoExportScope;
 
 const VideoExportDialog = lazy(async () => {
   const mod = await import("../components/dialogs/SynthesisDialog");
@@ -59,7 +45,6 @@ export function EditorPage() {
 
   // ── UI State ────────────────────────────────────────────────
   const autoScroll = true;
-  const [fullVideoExportOpen, setFullVideoExportOpen] = useState(false);
   const [waveformReadySource, setWaveformReadySource] = useState<string | null>(null);
   const [contextMenu, setContextMenu] =
     useState<EditorContextMenuState | null>(null);
@@ -141,8 +126,16 @@ export function EditorPage() {
     saveSubtitleFile,
     setContextMenu,
   });
-  const exportScope = clipWorkspace.exportScope ??
-    (fullVideoExportOpen ? FULL_VIDEO_EXPORT_SCOPE : null);
+  const videoExport = useEditorVideoExport({
+    clipExportScope: clipWorkspace.exportScope,
+    video: currentFileRef,
+    subtitle: currentSubtitleRef,
+    regions,
+    saveSubtitleFile,
+    addTask,
+    submitClipExport: clipWorkspace.submitClipExport,
+    closeClipExport: clipWorkspace.closeClipExport,
+  });
 
   useEffect(() => {
       const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -175,77 +168,6 @@ export function EditorPage() {
     setWaveformReadySource(mediaUrl);
   };
 
-  const handleVideoExport = async (
-    submission: VideoExportSubmission,
-  ): Promise<boolean> => {
-    if (!exportScope) return false;
-    if (exportScope.kind === "clips") {
-      return await clipWorkspace.submitClipExport(exportScope.segments, submission);
-    }
-
-    const videoRefForSubmission = currentFileRef;
-    if (!videoRefForSubmission) {
-      toast.error(t("synthesis.missingFilesError"));
-      return false;
-    }
-
-    let subtitleRefForSubmission: ReturnType<typeof resolveSubtitleReferenceForSavedPath> | null = null;
-    if (submission.subtitleEnabled) {
-      let srtPath: string | false = false;
-      try {
-        srtPath = await saveSubtitleFile(regions);
-      } catch (error) {
-        console.error("[EditorPage] Failed to save subtitles before export", error);
-      }
-      if (!srtPath) {
-        toast.error(t("clips.exportSubtitleError"));
-        return false;
-      }
-      subtitleRefForSubmission = resolveSubtitleReferenceForSavedPath({
-        video: videoRefForSubmission,
-        subtitle: currentSubtitleRef,
-        savedPath: srtPath,
-      });
-    }
-
-    try {
-      const executionResult = await executionService.synthesize({
-        video_ref: videoRefForSubmission,
-        srt_ref: subtitleRefForSubmission,
-        watermark_ref: submission.watermarkRef,
-        output_ref: submission.outputRef,
-        options: submission.options,
-      });
-      getExecutionSubmission(executionResult);
-      addTask(
-        createTaskFromExecutionOutcome({
-          outcome: executionResult,
-          type: "synthesis",
-          name: videoRefForSubmission.name
-            ? `Export ${videoRefForSubmission.name}`
-            : "Export video",
-          request_params: {
-            video_ref: videoRefForSubmission,
-            srt_ref: subtitleRefForSubmission,
-            watermark_ref: submission.watermarkRef,
-            output_ref: submission.outputRef ?? undefined,
-            options: submission.options,
-          },
-        }),
-      );
-      return true;
-    } catch (error) {
-      console.error("[EditorPage] Failed to submit video export", error);
-      toast.error(t("synthesis.exportError"));
-      return false;
-    }
-  };
-
-  const handleCloseVideoExport = () => {
-    setFullVideoExportOpen(false);
-    clipWorkspace.closeClipExport();
-  };
-
   // ── Render ──────────────────────────────────────────────────
   return (
     <PageShell padded={false} className="flex flex-col">
@@ -256,7 +178,7 @@ export function EditorPage() {
             onOpenSubtitle={openSubtitle}
             onSave={handleSave}
             onSaveAs={() => saveSubtitleFile(regions, true)}
-            onExport={() => setFullVideoExportOpen(true)}
+            onExport={videoExport.openFullVideoExport}
             onTranslate={handleTranslate}
             onDetectHighlights={clipWorkspace.handleDetectHighlights}
             isDetectingHighlights={clipWorkspace.isDetectingHighlights}
@@ -421,16 +343,16 @@ export function EditorPage() {
             setMatchCase={setMatchCase}
         />
 
-        {exportScope && (
+        {videoExport.exportScope && (
             <Suspense fallback={null}>
                 <VideoExportDialog
-                    isOpen={Boolean(exportScope)}
-                    onClose={handleCloseVideoExport}
+                    isOpen={Boolean(videoExport.exportScope)}
+                    onClose={videoExport.closeVideoExport}
                     regions={regions}
                     video={currentFileRef}
                     mediaUrl={mediaUrl}
-                    exportScope={exportScope}
-                    onExport={handleVideoExport}
+                    exportScope={videoExport.exportScope}
+                    onExport={videoExport.submitVideoExport}
                 />
             </Suspense>
         )}

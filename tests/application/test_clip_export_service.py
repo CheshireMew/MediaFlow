@@ -7,7 +7,8 @@ from pydantic import ValidationError
 
 from backend.application import clip_export_service
 from backend.config import settings
-from backend.models.schemas import ClipExportSegment, MediaReference
+from backend.models.editor_contracts import ClipExportSegment
+from backend.models.media_contracts import MediaReference
 from backend.services.video.encoder_config import EncoderConfigResolver
 from backend.services.video.ffmpeg_runner import FfmpegRunner
 from backend.services.video.filter_graph_builder import FilterGraphBuilder
@@ -22,7 +23,11 @@ class _FakeSynthesis:
         self.calls.append(kwargs)
         Path(kwargs["output_path"]).write_bytes(b"rendered")
         if kwargs.get("progress_callback"):
-            kwargs["progress_callback"](100, "synthesis_completed", {})
+            kwargs["progress_callback"](
+                100,
+                "synthesis_encoding",
+                {"percent": 100, "speed": "1.0x"},
+            )
         return kwargs["output_path"]
 
 
@@ -72,7 +77,7 @@ def test_export_clips_burned_uses_synthesis_timeline(monkeypatch, tmp_path):
     assert call["options"]["font_size"] == 30
     assert progress_events == [
         (0.0, "clip_exporting", {"current": 1, "total": 1}),
-        (90.0, "synthesis_completed", {}),
+        (90.0, "synthesis_encoding", {"percent": 100, "speed": "1.0x"}),
         (100, "clip_export_completed", {}),
     ]
 

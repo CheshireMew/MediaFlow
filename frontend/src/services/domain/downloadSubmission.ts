@@ -154,12 +154,9 @@ export async function queueDownloadItems({
     addTask(
       createTaskFromExecutionOutcome({
         outcome: executionResult,
-        type: "download",
+        type: "pipeline",
         name: taskName,
-        request_params: {
-          steps: pipeline.steps,
-          ...(pipeline.steps[0]?.params ?? {}),
-        },
+        request_params: { ...pipeline },
       }),
     );
     addToHistory({

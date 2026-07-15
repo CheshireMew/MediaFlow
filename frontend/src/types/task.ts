@@ -1,10 +1,9 @@
-import type { TaskTraceItem } from "../contracts/taskContract";
-import type { PipelineRequest } from "./generatedApi";
 import type {
   ClipCandidate as GeneratedClipCandidate,
-  MediaReference,
+  PipelineRequest,
   SubtitleSegment as GeneratedSubtitleSegment,
   TaskResult as GeneratedTaskResult,
+  TaskExecutionTraceItem,
   TaskView,
 } from "./generatedApi";
 import type { TaskType } from "../contracts/generatedTaskCatalog";
@@ -22,33 +21,11 @@ export type { TaskStatus } from "../contracts/runtimeContracts";
 export type SubtitleSegment = GeneratedSubtitleSegment;
 export type ClipCandidate = GeneratedClipCandidate;
 
-export type { TaskTraceItem };
+export type TaskTraceItem = TaskExecutionTraceItem;
 export type { TaskArtifact } from "./generatedApi";
 
-export interface TaskMeta {
-  segments?: SubtitleSegment[];
-  text?: string;
-  transcript?: string;
-  language?: string;
-  execution_trace?: TaskTraceItem[];
-  [key: string]: unknown;
-}
-
-export interface TaskRequestParams {
-  steps?: PipelineRequest["steps"];
-  video_ref?: MediaReference | null;
-  srt_ref?: MediaReference | null;
-  subtitle_ref?: MediaReference | null;
-  context_ref?: MediaReference | null;
-  output_ref?: MediaReference | null;
-  mode?: string;
-  url?: string;
-  [key: string]: unknown;
-}
-
-export interface TaskResult extends Omit<GeneratedTaskResult, "meta"> {
-  meta?: TaskMeta;
-}
+export type TaskRequestParams = PipelineRequest;
+export type TaskResult = GeneratedTaskResult;
 
 export interface Task extends Omit<
   TaskView,
@@ -78,7 +55,7 @@ export interface Task extends Omit<
   message_params: Record<string, string | number | boolean | null>;
   error?: string | null;
   revision?: number;
-  result?: TaskResult;
-  request_params?: TaskRequestParams;
+  result?: TaskResult | null;
+  request_params?: TaskRequestParams | null;
   queue_state: TaskQueueState;
 }

@@ -3,10 +3,17 @@ import struct
 import subprocess
 import time
 import wave
+from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from backend.services.asr import ASRService
+from backend.core.adapters.faster_whisper import FasterWhisperAdapter
+from backend.services.asr.cli_prewarm import CliPrewarmManager
+from backend.services.asr.core_strategies import CoreStrategies
+from backend.services.asr.engine_executor import ASREngineExecutor
+from backend.services.asr.model_manager import ModelManager
 from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils.audio_processor import AudioProcessor
 from backend.utils.segment_refiner import SegmentRefiner
@@ -15,11 +22,11 @@ from backend.utils.subtitle_text_splitter import (
     count_text_units,
     find_text_split_index,
 )
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.core.task_control import TaskPauseRequested
 
 @pytest.fixture
-def asr_service(monkeypatch):
+def asr_dependencies(monkeypatch):
     def prepare_fake_audio(source_path, output_path):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(Path(source_path).read_bytes())
@@ -30,7 +37,35 @@ def asr_service(monkeypatch):
         "prepare_for_transcription",
         prepare_fake_audio,
     )
-    return ASRService()
+    model_manager = ModelManager()
+    adapter = FasterWhisperAdapter()
+    core_strategies = CoreStrategies(ThreadPoolExecutor(max_workers=1))
+    prewarm = CliPrewarmManager(model_manager=model_manager, adapter=adapter)
+    engines = ASREngineExecutor(
+        model_manager=model_manager,
+        adapter=adapter,
+        core_strategies=core_strategies,
+    )
+    service = ASRService(
+        model_manager=model_manager,
+        adapter=adapter,
+        core_strategies=core_strategies,
+        prewarm_manager=prewarm,
+        engine_executor=engines,
+    )
+    return SimpleNamespace(
+        service=service,
+        model_manager=model_manager,
+        adapter=adapter,
+        core_strategies=core_strategies,
+        prewarm=prewarm,
+        engines=engines,
+    )
+
+
+@pytest.fixture
+def asr_service(asr_dependencies):
+    return asr_dependencies.service
 
 def test_format_timestamp():
     assert SubtitleWriter.format_timestamp(0) == "00:00:00,000"
@@ -50,18 +85,19 @@ def test_calculate_split_points():
     # Based on silence intervals, first point should be around 600 (middle of 590-610 is 600)
     assert abs(points[0] - 600) < 1.0
 
-def test_asr_service_initializes_processing_dependencies(asr_service):
-    assert asr_service.executor is not None
-    assert asr_service.model_manager is not None
-    assert asr_service.adapter is not None
-    assert asr_service.core_strategies is not None
+def test_asr_service_uses_injected_prewarm_manager(asr_dependencies, monkeypatch):
+    start = MagicMock(return_value=True)
+    monkeypatch.setattr(asr_dependencies.prewarm, "start", start)
+
+    assert asr_dependencies.service.start_cli_prewarm("base", "cpu") is True
+    start.assert_called_once_with(model_name="base", device="cpu")
 
 
-def test_builtin_direct_strategy_forwards_vad_filter(asr_service):
+def test_builtin_direct_strategy_forwards_vad_filter(asr_dependencies):
     model = MagicMock()
     model.transcribe.return_value = (iter([]), None)
 
-    asr_service.core_strategies.transcribe_direct(
+    asr_dependencies.core_strategies.transcribe_direct(
         "sample.wav",
         30.0,
         model,
@@ -98,19 +134,19 @@ def test_cli_prewarm_runs_real_profile_once(asr_service, monkeypatch, tmp_path):
     monkeypatch.setattr("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path))
     monkeypatch.setattr("backend.services.asr.service.settings.TEMP_DIR", temp_dir)
     monkeypatch.setattr("backend.services.asr.service.settings.ASR_MODEL_DIR", model_dir)
-    monkeypatch.setattr("backend.services.asr.service.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("backend.services.asr.cli_prewarm.subprocess.Popen", fake_popen)
     cached_model_path = model_dir / "faster-whisper-base"
     cached_model_path.mkdir(parents=True)
     (cached_model_path / "model.bin").write_bytes(b"ok")
-    ASRService._cli_prewarmed_profiles.pop(resolved_key, None)
-    ASRService._cli_prewarm_threads.pop(resolved_key, None)
-    ASRService._cli_prewarm_processes.pop(resolved_key, None)
-    ASRService._cli_prewarm_cancelled_profiles.discard(resolved_key)
+    CliPrewarmManager._completed_profiles.pop(resolved_key, None)
+    CliPrewarmManager._threads.pop(resolved_key, None)
+    CliPrewarmManager._processes.pop(resolved_key, None)
+    CliPrewarmManager._cancelled_profiles.discard(resolved_key)
 
     assert asr_service.start_cli_prewarm(model_name="base", device="cuda") is True
     deadline = time.time() + 5
-    while resolved_key not in ASRService._cli_prewarmed_profiles and time.time() < deadline:
-        thread = ASRService._cli_prewarm_threads.get(resolved_key)
+    while resolved_key not in CliPrewarmManager._completed_profiles and time.time() < deadline:
+        thread = CliPrewarmManager._threads.get(resolved_key)
         if thread:
             thread.join(timeout=0.1)
         else:
@@ -130,7 +166,9 @@ def test_cli_prewarm_runs_real_profile_once(asr_service, monkeypatch, tmp_path):
     assert asr_service.start_cli_prewarm(model_name="base", device="cuda") is False
 
 
-def test_cli_prewarm_does_not_download_missing_model(asr_service, monkeypatch, tmp_path):
+def test_cli_prewarm_does_not_download_missing_model(
+    asr_service, asr_dependencies, monkeypatch, tmp_path
+):
     cli_path = tmp_path / "faster-whisper-xxl.exe"
     cli_path.write_bytes(b"fake")
     model_dir = tmp_path / "models"
@@ -140,23 +178,25 @@ def test_cli_prewarm_does_not_download_missing_model(asr_service, monkeypatch, t
 
     monkeypatch.setattr("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path))
     monkeypatch.setattr("backend.services.asr.service.settings.ASR_MODEL_DIR", model_dir)
-    monkeypatch.setattr("backend.services.asr.service.subprocess.Popen", run_mock)
-    monkeypatch.setattr(asr_service.model_manager, "ensure_model_downloaded", download_mock)
-    ASRService._cli_prewarmed_profiles.pop(resolved_key, None)
-    ASRService._cli_prewarm_threads.pop(resolved_key, None)
-    ASRService._cli_prewarm_processes.pop(resolved_key, None)
-    ASRService._cli_prewarm_cancelled_profiles.discard(resolved_key)
+    monkeypatch.setattr("backend.services.asr.cli_prewarm.subprocess.Popen", run_mock)
+    monkeypatch.setattr(asr_dependencies.model_manager, "ensure_model_downloaded", download_mock)
+    CliPrewarmManager._completed_profiles.pop(resolved_key, None)
+    CliPrewarmManager._threads.pop(resolved_key, None)
+    CliPrewarmManager._processes.pop(resolved_key, None)
+    CliPrewarmManager._cancelled_profiles.discard(resolved_key)
 
     assert asr_service.start_cli_prewarm(model_name="large-v3", device="cuda") is True
     deadline = time.time() + 5
-    while ASRService._cli_prewarm_threads.get(resolved_key) and time.time() < deadline:
-        ASRService._cli_prewarm_threads[resolved_key].join(timeout=0.1)
+    while CliPrewarmManager._threads.get(resolved_key) and time.time() < deadline:
+        CliPrewarmManager._threads[resolved_key].join(timeout=0.1)
 
     download_mock.assert_not_called()
     run_mock.assert_not_called()
 
 
-def test_cli_transcribe_waits_for_running_prewarm_for_same_profile(asr_service, monkeypatch, tmp_path):
+def test_cli_transcribe_waits_for_running_prewarm_for_same_profile(
+    asr_service, asr_dependencies, monkeypatch, tmp_path
+):
     audio_path = tmp_path / "sample.mp4"
     audio_path.write_bytes(b"fake-audio")
     cli_path = tmp_path / "faster-whisper-xxl.exe"
@@ -168,10 +208,10 @@ def test_cli_transcribe_waits_for_running_prewarm_for_same_profile(asr_service, 
     prewarm_process = MagicMock()
     prewarm_process.poll.return_value = None
 
-    ASRService._cli_prewarmed_profiles.pop(resolved_key, None)
-    ASRService._cli_prewarm_threads[resolved_key] = prewarm_thread
-    ASRService._cli_prewarm_processes[resolved_key] = prewarm_process
-    ASRService._cli_prewarm_cancelled_profiles.discard(resolved_key)
+    CliPrewarmManager._completed_profiles.pop(resolved_key, None)
+    CliPrewarmManager._threads[resolved_key] = prewarm_thread
+    CliPrewarmManager._processes[resolved_key] = prewarm_process
+    CliPrewarmManager._cancelled_profiles.discard(resolved_key)
 
     monkeypatch.setattr("backend.services.asr.service.os.path.exists", lambda path: True)
     monkeypatch.setattr("backend.services.asr.service.AudioProcessor.get_audio_duration", lambda path: 3.0)
@@ -180,8 +220,8 @@ def test_cli_transcribe_waits_for_running_prewarm_for_same_profile(asr_service, 
         "backend.services.asr.service.SubtitleWriter.save_srt",
         lambda segments, path: tmp_path / "sample.srt",
     )
-    monkeypatch.setattr(asr_service.model_manager, "ensure_model_downloaded", lambda *args, **kwargs: "base")
-    monkeypatch.setattr(asr_service.adapter, "execute", lambda *args, **kwargs: [])
+    monkeypatch.setattr(asr_dependencies.model_manager, "ensure_model_downloaded", lambda *args, **kwargs: "base")
+    monkeypatch.setattr(asr_dependencies.adapter, "execute", lambda *args, **kwargs: [])
 
     try:
         result = asr_service.transcribe(
@@ -193,14 +233,14 @@ def test_cli_transcribe_waits_for_running_prewarm_for_same_profile(asr_service, 
             vad_filter=False,
         )
     finally:
-        ASRService._cli_prewarm_threads.pop(resolved_key, None)
-        ASRService._cli_prewarm_processes.pop(resolved_key, None)
-        ASRService._cli_prewarm_cancelled_profiles.discard(resolved_key)
+        CliPrewarmManager._threads.pop(resolved_key, None)
+        CliPrewarmManager._processes.pop(resolved_key, None)
+        CliPrewarmManager._cancelled_profiles.discard(resolved_key)
 
     assert result.success is True
     prewarm_process.terminate.assert_not_called()
     prewarm_process.wait.assert_not_called()
-    prewarm_thread.join.assert_called_once_with(timeout=ASRService.CLI_PREWARM_JOIN_TIMEOUT_SECONDS)
+    prewarm_thread.join.assert_called_once_with(timeout=CliPrewarmManager.JOIN_TIMEOUT_SECONDS)
 
 
 def test_cli_prewarm_expires_completed_profile(asr_service, monkeypatch, tmp_path):
@@ -227,21 +267,21 @@ def test_cli_prewarm_expires_completed_profile(asr_service, monkeypatch, tmp_pat
     monkeypatch.setattr("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path))
     monkeypatch.setattr("backend.services.asr.service.settings.TEMP_DIR", temp_dir)
     monkeypatch.setattr("backend.services.asr.service.settings.ASR_MODEL_DIR", model_dir)
-    monkeypatch.setattr("backend.services.asr.service.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("backend.services.asr.cli_prewarm.subprocess.Popen", fake_popen)
     cached_model_path = model_dir / "faster-whisper-base"
     cached_model_path.mkdir(parents=True)
     (cached_model_path / "model.bin").write_bytes(b"ok")
-    ASRService._cli_prewarmed_profiles[resolved_key] = (
-        time.monotonic() - ASRService.CLI_PREWARM_FRESH_SECONDS - 1
+    CliPrewarmManager._completed_profiles[resolved_key] = (
+        time.monotonic() - CliPrewarmManager.FRESH_SECONDS - 1
     )
-    ASRService._cli_prewarm_threads.pop(resolved_key, None)
-    ASRService._cli_prewarm_processes.pop(resolved_key, None)
-    ASRService._cli_prewarm_cancelled_profiles.discard(resolved_key)
+    CliPrewarmManager._threads.pop(resolved_key, None)
+    CliPrewarmManager._processes.pop(resolved_key, None)
+    CliPrewarmManager._cancelled_profiles.discard(resolved_key)
 
     assert asr_service.start_cli_prewarm(model_name="base", device="cuda") is True
     deadline = time.time() + 5
     while len(calls) == 0 and time.time() < deadline:
-        thread = ASRService._cli_prewarm_threads.get(resolved_key)
+        thread = CliPrewarmManager._threads.get(resolved_key)
         if thread:
             thread.join(timeout=0.1)
         else:
@@ -250,7 +290,9 @@ def test_cli_prewarm_expires_completed_profile(asr_service, monkeypatch, tmp_pat
     assert len(calls) == 1
 
 
-def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypatch, tmp_path):
+def test_transcribe_does_not_inject_default_initial_prompt(
+    asr_service, asr_dependencies, monkeypatch, tmp_path
+):
     audio_path = tmp_path / "sample.mp3"
     audio_path.write_bytes(b"fake-audio")
     cli_path = tmp_path / "fw.exe"
@@ -264,9 +306,9 @@ def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypa
     )
 
     with patch("backend.services.asr.service.settings.FASTER_WHISPER_CLI_PATH", str(cli_path)), \
-         patch.object(asr_service.model_manager, "ensure_model_downloaded", return_value="base"), \
+         patch.object(asr_dependencies.model_manager, "ensure_model_downloaded", return_value="base"), \
          patch.object(
-             asr_service.adapter,
+             asr_dependencies.adapter,
              "execute",
              return_value=[],
          ) as mock_execute:
@@ -284,11 +326,13 @@ def test_transcribe_does_not_inject_default_initial_prompt(asr_service, monkeypa
     config = mock_execute.call_args.args[0]
     assert config.initial_prompt is None
     assert config.vad_filter is False
-    cmd = asr_service.adapter.build_command(config)
+    cmd = asr_dependencies.adapter.build_command(config)
     assert cmd[cmd.index("--initial_prompt") + 1] == "None"
 
 
-def test_cli_transcribe_stages_input_with_short_temp_filename(asr_service, monkeypatch, tmp_path):
+def test_cli_transcribe_stages_input_with_short_temp_filename(
+    asr_service, asr_dependencies, monkeypatch, tmp_path
+):
     long_name = (
         "X 上的 CopyRebeldia Hoy una industria entera dejo de tener sentido "
         "un tio publico en GitHub un repo que convierte cualquier foto en un mundo 3D"
@@ -306,7 +350,7 @@ def test_cli_transcribe_stages_input_with_short_temp_filename(asr_service, monke
         "backend.services.asr.service.SubtitleWriter.save_srt",
         lambda segments, path: tmp_path / "sample.srt",
     )
-    monkeypatch.setattr(asr_service.model_manager, "ensure_model_downloaded", lambda *args, **kwargs: "base")
+    monkeypatch.setattr(asr_dependencies.model_manager, "ensure_model_downloaded", lambda *args, **kwargs: "base")
 
     captured_configs = []
 
@@ -316,7 +360,7 @@ def test_cli_transcribe_stages_input_with_short_temp_filename(asr_service, monke
         assert config.audio_path.exists()
         return []
 
-    monkeypatch.setattr(asr_service.adapter, "execute", fake_execute)
+    monkeypatch.setattr(asr_dependencies.adapter, "execute", fake_execute)
 
     result = asr_service.transcribe(
         audio_path=str(audio_path),
@@ -341,7 +385,7 @@ def test_cli_transcribe_stages_input_with_short_temp_filename(asr_service, monke
 
 
 def test_cli_transcribe_preserves_empty_transcript_without_disabling_vad(
-    asr_service, monkeypatch, tmp_path
+    asr_service, asr_dependencies, monkeypatch, tmp_path
 ):
     audio_path = tmp_path / "silence.wav"
     audio_path.write_bytes(b"fake-audio")
@@ -361,12 +405,12 @@ def test_cli_transcribe_preserves_empty_transcript_without_disabling_vad(
         lambda segments, path: tmp_path / "silence.srt",
     )
     monkeypatch.setattr(
-        asr_service.model_manager,
+        asr_dependencies.model_manager,
         "ensure_model_downloaded",
         lambda *args, **kwargs: "base",
     )
     execute = MagicMock(return_value=[])
-    monkeypatch.setattr(asr_service.adapter, "execute", execute)
+    monkeypatch.setattr(asr_dependencies.adapter, "execute", execute)
 
     result = asr_service.transcribe(
         audio_path=str(audio_path),
@@ -377,7 +421,8 @@ def test_cli_transcribe_preserves_empty_transcript_without_disabling_vad(
     )
 
     assert result.success is True
-    assert result.meta["segments"] == []
+    assert result.outputs.transcription is not None
+    assert result.outputs.transcription.segments == []
     execute.assert_called_once()
 
 
@@ -490,7 +535,7 @@ def test_split_audio_physically_uses_precise_wav_chunks(monkeypatch, tmp_path):
     assert "atrim=start=25.500,asetpts=PTS-STARTPTS" in calls[2]
 
 
-def test_smart_split_uses_short_temp_chunk_paths(asr_service, monkeypatch, tmp_path):
+def test_smart_split_uses_short_temp_chunk_paths(asr_dependencies, monkeypatch, tmp_path):
     long_name = (
         "X 上的 CopyRebeldia Hoy una industria entera dejo de tener sentido "
         "un tio publico en GitHub un repo que convierte cualquier foto en un mundo 3D"
@@ -528,7 +573,7 @@ def test_smart_split_uses_short_temp_chunk_paths(asr_service, monkeypatch, tmp_p
         fake_split,
     )
 
-    segments = asr_service.core_strategies.transcribe_smart_split(
+    segments = asr_dependencies.core_strategies.transcribe_smart_split(
         str(audio_path),
         1200.0,
         FakeModel(),
@@ -703,7 +748,9 @@ def test_backend_text_splitter_prefers_safe_cjk_pause_before_amount():
     assert text[split_index:] == "等它涨回60美元以后才继续投资其他资产"
 
 
-def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, monkeypatch, tmp_path):
+def test_transcribe_does_not_fallback_to_internal_engine_on_pause(
+    asr_service, asr_dependencies, monkeypatch, tmp_path
+):
     audio_path = tmp_path / "sample.mp4"
     audio_path.write_bytes(b"fake-audio")
     cli_path = tmp_path / "fw.exe"
@@ -717,7 +764,7 @@ def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, m
     )
 
     pause_exc = TaskPauseRequested("Task paused by user")
-    monkeypatch.setattr(asr_service.adapter, "execute", lambda *args, **kwargs: (_ for _ in ()).throw(pause_exc))
+    monkeypatch.setattr(asr_dependencies.adapter, "execute", lambda *args, **kwargs: (_ for _ in ()).throw(pause_exc))
 
     load_calls = {"count": 0}
 
@@ -725,8 +772,8 @@ def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, m
         load_calls["count"] += 1
         return MagicMock()
 
-    monkeypatch.setattr(asr_service.model_manager, "load_model", fake_load_model)
-    monkeypatch.setattr(asr_service.model_manager, "ensure_model_downloaded", lambda *args, **kwargs: "base")
+    monkeypatch.setattr(asr_dependencies.model_manager, "load_model", fake_load_model)
+    monkeypatch.setattr(asr_dependencies.model_manager, "ensure_model_downloaded", lambda *args, **kwargs: "base")
 
     with pytest.raises(TaskPauseRequested, match="Task paused by user"):
         asr_service.transcribe(
@@ -740,7 +787,9 @@ def test_transcribe_does_not_fallback_to_internal_engine_on_pause(asr_service, m
     assert load_calls["count"] == 0
 
 
-def test_builtin_cuda_runtime_error_retries_on_cpu(asr_service, monkeypatch, tmp_path):
+def test_builtin_cuda_runtime_error_retries_on_cpu(
+    asr_service, asr_dependencies, monkeypatch, tmp_path
+):
     audio_path = tmp_path / "sample.mp4"
     audio_path.write_bytes(b"fake-audio")
 
@@ -767,9 +816,10 @@ def test_builtin_cuda_runtime_error_retries_on_cpu(asr_service, monkeypatch, tmp
             SubtitleSegment(id="1", start=0.0, end=1.0, text="hello"),
         ]
 
-    monkeypatch.setattr(asr_service.model_manager, "load_model", fake_load_model)
-    monkeypatch.setattr(asr_service.model_manager, "clear_loaded_model", MagicMock())
-    monkeypatch.setattr(asr_service.core_strategies, "transcribe_direct", fake_transcribe_direct)
+    monkeypatch.setattr(asr_dependencies.model_manager, "load_model", fake_load_model)
+    clear_loaded_model = MagicMock()
+    monkeypatch.setattr(asr_dependencies.model_manager, "clear_loaded_model", clear_loaded_model)
+    monkeypatch.setattr(asr_dependencies.core_strategies, "transcribe_direct", fake_transcribe_direct)
 
     emitted: list[tuple[float, str, dict]] = []
     result = asr_service.transcribe(
@@ -788,4 +838,4 @@ def test_builtin_cuda_runtime_error_retries_on_cpu(asr_service, monkeypatch, tmp
     assert loaded_devices == ["cuda", "cpu"]
     assert calls["count"] == 2
     assert any(code == "asr_cuda_cpu_fallback" for _progress, code, _params in emitted)
-    asr_service.model_manager.clear_loaded_model.assert_called_once()
+    clear_loaded_model.assert_called_once()

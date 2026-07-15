@@ -1,7 +1,7 @@
 from typing import Optional
 
 from backend.contracts import task_queue_state
-from backend.models.schemas import TaskView
+from backend.models.task_contracts import TaskView
 from backend.models.task_model import Task
 from backend.services.task_projection import primary_operation, task_artifacts
 

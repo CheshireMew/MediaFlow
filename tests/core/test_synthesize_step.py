@@ -4,8 +4,9 @@ import pytest
 from pydantic import ValidationError
 
 from backend.core.context import PipelineContext
-from backend.core.steps.synthesize import SynthesizeStep
-from backend.models.schemas import MediaReference, PipelineStepRequest, SynthesizeParams
+from backend.application.pipeline_steps.synthesize import SynthesizeStep
+from backend.models.media_contracts import MediaReference
+from backend.models.pipeline_contracts import PipelineStepRequest, SynthesizeParams
 
 
 @pytest.mark.asyncio

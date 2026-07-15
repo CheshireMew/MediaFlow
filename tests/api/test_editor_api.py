@@ -1,170 +1,125 @@
-from backend.contracts import TASK_CONTRACT_VERSION
+import subprocess
+
+import pytest
+from pydantic import ValidationError
+
+from backend.config import settings
+from backend.models.pipeline_contracts import PipelineRequest
 
 
-def test_editor_synthesize_requires_video_ref(client):
-    response = client.post(
-        "/api/v1/editor/synthesize",
-        json={
-            "srt_ref": {"path": "E:/subs/demo.srt", "name": "demo.srt"},
-            "options": {},
-        },
+@pytest.mark.parametrize(
+    "retired_path",
+    ["/api/v1/editor/synthesize", "/api/v1/editor/clips/export"],
+)
+def test_retired_editor_task_endpoints_do_not_exist(client, retired_path):
+    response = client.post(retired_path, json={})
+
+    assert response.status_code == 404
+
+
+def test_synthesis_pipeline_rejects_legacy_watermark_path():
+    with pytest.raises(ValidationError, match="watermark_path"):
+        PipelineRequest.model_validate(
+            {
+                "steps": [
+                    {
+                        "step_name": "synthesize",
+                        "params": {
+                            "video_ref": {"path": "E:/video.mp4", "name": "video.mp4"},
+                            "watermark_path": "E:/legacy.png",
+                            "options": {"skip_subtitles": True},
+                        },
+                    }
+                ]
+            }
+        )
+
+
+def test_clip_export_pipeline_rejects_invalid_segment_range():
+    with pytest.raises(ValidationError):
+        PipelineRequest.model_validate(
+            {
+                "steps": [
+                    {
+                        "step_name": "clip_export",
+                        "params": {
+                            "video_ref": {"path": "E:/video.mp4", "name": "video.mp4"},
+                            "render_mode": "source",
+                            "segments": [{"id": "clip-1", "start": -1, "end": 1}],
+                        },
+                    }
+                ]
+            }
+        )
+
+
+def test_media_export_timeline_uses_existing_whisper_segments(isolated_api_client, tmp_path):
+    video_path = tmp_path / "speech_timeline_preview.mp4"
+    subprocess.run(
+        [
+            settings.FFMPEG_PATH,
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=160x90:r=10:d=4",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(video_path),
+        ],
+        check=True,
+        capture_output=True,
     )
-
-    assert response.status_code == 422
-
-
-def test_editor_synthesize_requires_subtitle_ref_unless_disabled(client, tmp_path):
-    video_path = tmp_path / "demo.mp4"
-    video_path.write_bytes(b"video")
-    response = client.post(
-        "/api/v1/editor/synthesize",
-        json={
-            "video_ref": {"path": str(video_path), "name": "demo.mp4"},
-            "options": {},
-        },
+    settings_response = isolated_api_client.patch(
+        "/api/v1/settings/preferences",
+        json={"auto_trim_silence": True},
     )
+    assert settings_response.status_code == 200
 
-    assert response.status_code == 400
-
-
-def test_editor_synthesize_accepts_missing_subtitle_ref_when_disabled(
-    client, tmp_path, monkeypatch
-):
-    video_path = tmp_path / "demo.mp4"
-    output_path = tmp_path / "demo_exported.mp4"
-    video_path.write_bytes(b"video")
-    captured = {}
-
-    async def fake_submit_task_operation(_self, task_type, request):
-        captured["task_type"] = task_type
-        captured["request"] = request
-        return {
-            "task_id": "synthesis-without-subtitles",
-            "status": "pending",
-            "message_code": "queued",
-            "message_params": {},
-            "task_source": "backend",
-                "task_contract_version": TASK_CONTRACT_VERSION,
-                "revision": 0,
-            "persistence_scope": "runtime",
-            "lifecycle": "resumable",
-            "queue_state": "queued",
-            "queue_position": None,
-            "primary_operation": "synthesis",
-        }
-
-    monkeypatch.setattr(
-        "backend.application.task_operations.TaskOperationService.submit",
-        fake_submit_task_operation,
-    )
-
-    response = client.post(
-        "/api/v1/editor/synthesize",
+    response = isolated_api_client.post(
+        "/api/v1/editor/preview/media/export-timeline",
         json={
-            "video_ref": {"path": str(video_path), "name": video_path.name},
-            "output_ref": {"path": str(output_path), "name": output_path.name},
-            "options": {"skip_subtitles": True},
+            "video_ref": {
+                "path": str(video_path),
+                "name": video_path.name,
+            },
+            "speech_segments": [
+                {"id": "late", "start": 2.75, "end": 3.2, "text": "Later"},
+                {"id": "early", "start": 0.8, "end": 1.5, "text": "Earlier"},
+            ],
         },
     )
 
     assert response.status_code == 200
-    assert response.json()["task_id"] == "synthesis-without-subtitles"
-    assert captured["task_type"] == "synthesis"
-    assert captured["request"].srt_ref is None
-    assert captured["request"].options["skip_subtitles"] is True
+    payload = response.json()
+    assert payload["no_speech_trim_enabled"] is True
+    assert payload["has_speech_timeline"] is True
+    assert payload["has_leading_no_speech"] is True
+    assert payload["has_trailing_no_speech"] is True
+    assert payload["trim_start"] == 0.8
+    assert payload["trim_end"] == 3.2
 
-
-def test_editor_synthesize_validates_watermark_reference(client, tmp_path):
-    video_path = tmp_path / "demo.mp4"
-    video_path.write_bytes(b"video")
-    missing_watermark = tmp_path / "missing-watermark.png"
-
-    response = client.post(
-        "/api/v1/editor/synthesize",
+    no_speech_response = isolated_api_client.post(
+        "/api/v1/editor/preview/media/export-timeline",
         json={
             "video_ref": {"path": str(video_path), "name": video_path.name},
-            "watermark_ref": {
-                "path": str(missing_watermark),
-                "name": missing_watermark.name,
-            },
-            "options": {"skip_subtitles": True},
+            "speech_segments": [],
         },
     )
+    assert no_speech_response.status_code == 200
+    no_speech_payload = no_speech_response.json()
+    assert no_speech_payload["no_speech_trim_enabled"] is False
+    assert no_speech_payload["has_speech_timeline"] is False
+    assert no_speech_payload["trim_start"] == 0
+    assert no_speech_payload["trim_end"] == pytest.approx(4.0, abs=0.15)
 
-    assert response.status_code == 404
-    assert "watermark_ref.path" in response.json()["detail"]
-
-
-def test_editor_synthesize_rejects_legacy_watermark_path(client, tmp_path):
-    video_path = tmp_path / "demo.mp4"
-    video_path.write_bytes(b"video")
-
-    response = client.post(
-        "/api/v1/editor/synthesize",
+    retired_response = isolated_api_client.post(
+        "/api/v1/editor/preview/media/auto-trim",
         json={
             "video_ref": {"path": str(video_path), "name": video_path.name},
-            "watermark_path": str(tmp_path / "legacy.png"),
-            "options": {"skip_subtitles": True},
+            "speech_segments": [],
         },
     )
-
-    assert response.status_code == 422
-
-
-def test_clip_export_rejects_invalid_range_at_request_boundary(client, tmp_path):
-    video_path = tmp_path / "demo.mp4"
-    video_path.write_bytes(b"video")
-
-    response = client.post(
-        "/api/v1/editor/clips/export",
-        json={
-            "video_ref": {"path": str(video_path), "name": video_path.name},
-            "render_mode": "source",
-            "segments": [{"id": "clip-1", "start": -1, "end": 1}],
-        },
-    )
-
-    assert response.status_code == 422
-
-
-def test_clip_export_validates_watermark_reference(client, tmp_path):
-    video_path = tmp_path / "demo.mp4"
-    video_path.write_bytes(b"video")
-    missing_watermark = tmp_path / "missing-watermark.png"
-
-    response = client.post(
-        "/api/v1/editor/clips/export",
-        json={
-            "video_ref": {"path": str(video_path), "name": video_path.name},
-            "watermark_ref": {
-                "path": str(missing_watermark),
-                "name": missing_watermark.name,
-            },
-            "render_mode": "source",
-            "segments": [{"id": "clip-1", "start": 0, "end": 1}],
-        },
-    )
-
-    assert response.status_code == 404
-    assert "watermark_ref.path" in response.json()["detail"]
-
-
-def test_clip_export_rejects_out_of_bounds_range_before_queueing(client, tmp_path, monkeypatch):
-    video_path = tmp_path / "demo.mp4"
-    video_path.write_bytes(b"video")
-    monkeypatch.setattr(
-        "backend.application.clip_export_service.MediaProber.get_duration",
-        lambda _path: 2.0,
-    )
-
-    response = client.post(
-        "/api/v1/editor/clips/export",
-        json={
-            "video_ref": {"path": str(video_path), "name": video_path.name},
-            "render_mode": "source",
-            "segments": [{"id": "clip-1", "start": 1, "end": 3}],
-        },
-    )
-
-    assert response.status_code == 400
-    assert "exceeds video duration" in response.json()["detail"]
+    assert retired_response.status_code == 404

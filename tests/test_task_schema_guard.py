@@ -15,8 +15,9 @@ from backend.core.database import (
     TASK_SCHEMA_VERSION,
     init_db,
 )
-from backend.models.schemas import TaskResult
+from backend.models.media_contracts import TaskResult
 from backend.models.task_model import Task
+from backend.services.task_queue_view import TaskQueueView
 
 
 def legacy_v2_task_table() -> Table:
@@ -88,7 +89,10 @@ async def test_init_db_migrates_incompatible_task_table_without_losing_rows(
             migrated_task = tasks[0]
             assert migrated_task.id == "old-task"
             assert migrated_task.name == "Existing download"
-            assert migrated_task.type == "download"
+            assert migrated_task.type == "pipeline"
+            assert migrated_task.request_params["steps"] == [
+                {"step_name": "download", "params": {}}
+            ]
             assert migrated_task.status == "pending"
             assert migrated_task.progress == 42.5
             assert migrated_task.created_at == 1000
@@ -312,21 +316,23 @@ async def test_v1_payload_migration_canonicalizes_requests_results_and_is_idempo
             tasks = {task.id: task for task in query.scalars().all()}
 
         synthesis = tasks["legacy-synthesis"]
-        assert synthesis.request_params["video_ref"]["path"] == "D:/media/source.mp4"
-        assert synthesis.request_params["srt_ref"]["path"] == "D:/media/source.srt"
-        assert synthesis.request_params["output_ref"]["path"] == "D:/renders/final.mp4"
-        assert synthesis.request_params["watermark_ref"]["path"] == "D:/media/logo.png"
-        assert not {"video_path", "srt_path", "output_path"} & synthesis.request_params.keys()
+        assert synthesis.type == "pipeline"
+        synthesis_params = synthesis.request_params["steps"][0]["params"]
+        assert synthesis.request_params["steps"][0]["step_name"] == "synthesize"
+        assert synthesis_params["video_ref"]["path"] == "D:/media/source.mp4"
+        assert synthesis_params["srt_ref"]["path"] == "D:/media/source.srt"
+        assert synthesis_params["output_ref"]["path"] == "D:/renders/final.mp4"
+        assert synthesis_params["watermark_ref"]["path"] == "D:/media/logo.png"
+        assert not {"video_path", "srt_path", "output_path"} & synthesis_params.keys()
         synthesis_result = TaskResult.model_validate(synthesis.result)
         assert [(item.kind, item.ref.path) for item in synthesis_result.artifacts] == [
             ("video", "D:/renders/final.mp4")
         ]
-        assert synthesis_result.meta == {
-            "options": {"preset": "fast"},
-            "model_path": "D:/models/encoder.bin",
-        }
+        assert synthesis_result.outputs.synthesis is not None
+        assert synthesis_result.outputs.synthesis.completed is True
 
         pipeline = tasks["legacy-pipeline"]
+        assert pipeline.type == "pipeline"
         step_params = {
             step["step_name"]: step["params"]
             for step in pipeline.request_params["steps"]
@@ -346,20 +352,23 @@ async def test_v1_payload_migration_canonicalizes_requests_results_and_is_idempo
         assert [item.ref.path for item in pipeline_result.artifacts] == [
             "D:/renders/final.mp4"
         ]
-        assert pipeline_result.meta == {
-            "execution_trace": [{"step": "synthesize", "status": "success"}]
-        }
+        assert pipeline_result.outputs.transcription is not None
+        assert pipeline_result.outputs.translation is not None
+        assert pipeline_result.outputs.synthesis is not None
+        assert [item.step for item in pipeline_result.execution_trace] == ["synthesize"]
 
-        download_result = TaskResult.model_validate(tasks["legacy-download"].result)
+        download_task = tasks["legacy-download"]
+        assert download_task.type == "pipeline"
+        assert download_task.request_params["steps"][0]["step_name"] == "download"
+        download_result = TaskResult.model_validate(download_task.result)
         assert [(item.kind, item.ref.path) for item in download_result.artifacts] == [
             ("video", "D:/downloads/demo.mp4"),
             ("subtitle", "D:/downloads/demo.srt"),
         ]
-        assert download_result.meta == {
-            "title": "demo",
-            "warnings": ["subtitle converted"],
-            "recovery_strategies": ["media_id"],
-        }
+        assert download_result.outputs.download is not None
+        assert download_result.outputs.download.title == "demo"
+        assert download_result.outputs.download.warnings == ["subtitle converted"]
+        assert download_result.outputs.download.recovery_strategies == ["media_id"]
 
         for task in tasks.values():
             assert task.task_contract_version == TASK_CONTRACT_VERSION
@@ -682,6 +691,114 @@ async def test_v4_catalog_migration_removes_retired_tasks_and_upgrades_remaining
 
 
 @pytest.mark.asyncio
+async def test_v8_message_catalog_migration_replaces_every_retired_code(
+    tmp_path,
+    monkeypatch,
+):
+    db_path = tmp_path / "mediaflow-v7-message-catalog.db"
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{db_path}",
+        connect_args={"check_same_thread": False},
+    )
+    async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    monkeypatch.setattr(database_module, "engine", engine)
+    monkeypatch.setattr(database_module, "async_session_maker", async_session_maker)
+    retired_messages = {
+        "asr-finalizing": ("running", "asr_finalizing", "running"),
+        "translation-starting": ("pending", "translation_starting", "queued"),
+        "synthesis-preparing": ("paused", "synthesis_preparing", "paused"),
+        "synthesis-completed": ("completed", "synthesis_completed", "completed"),
+        "clip-export-preparing": ("failed", "clip_export_preparing", "failed"),
+    }
+
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Task.__table__.create)
+            await conn.execute(
+                text(
+                    f"CREATE TABLE {SCHEMA_VERSION_TABLE} ("
+                    "component VARCHAR PRIMARY KEY NOT NULL, version INTEGER NOT NULL)"
+                )
+            )
+            await conn.execute(
+                text(
+                    f"INSERT INTO {SCHEMA_VERSION_TABLE} (component, version) "
+                    "VALUES (:component, 7)"
+                ),
+                {"component": TASK_SCHEMA_COMPONENT},
+            )
+            await conn.execute(
+                Task.__table__.insert(),
+                [
+                    {
+                        "id": task_id,
+                        "name": task_id,
+                        "type": "pipeline",
+                        "status": status,
+                        "task_source": "backend",
+                        "task_contract_version": 7,
+                        "persistence_scope": (
+                            "history"
+                            if status in {"completed", "failed", "cancelled"}
+                            else "runtime"
+                        ),
+                        "lifecycle": (
+                            "history-only"
+                            if status in {"completed", "failed", "cancelled"}
+                            else "resumable"
+                        ),
+                        "progress": 100.0 if status == "completed" else 10.0,
+                        "revision": 3,
+                        "message_code": old_code,
+                        "message_params": {"legacy": True},
+                        "created_at": 1_700_000_000_000,
+                        "cancelled": status == "cancelled",
+                        "request_params": {
+                            "pipeline_id": task_id,
+                            "steps": [{"step_name": "synthesize", "params": {}}],
+                        },
+                    }
+                    for task_id, (status, old_code, _) in retired_messages.items()
+                ],
+            )
+
+        await init_db()
+
+        async with async_session_maker() as session:
+            result = await session.execute(select(Task).order_by(Task.id))
+            tasks = {task.id: task for task in result.scalars().all()}
+
+        queue_view = TaskQueueView()
+        for task_id, (_, _, expected_code) in retired_messages.items():
+            task = tasks[task_id]
+            assert task.task_contract_version == TASK_CONTRACT_VERSION
+            assert task.message_code == expected_code
+            assert task.message_params == {}
+            assert task.revision == 4
+            payload = queue_view.serialize_task(
+                task,
+                running_ids=set(),
+                queued_ids=set(),
+                queued_order=[],
+            )
+            assert payload.message_code == expected_code
+
+        async with engine.begin() as conn:
+            version = (
+                await conn.execute(
+                    text(
+                        f"SELECT version FROM {SCHEMA_VERSION_TABLE} "
+                        "WHERE component = :component"
+                    ),
+                    {"component": TASK_SCHEMA_COMPONENT},
+                )
+            ).scalar_one()
+        assert version == TASK_SCHEMA_VERSION
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_unstamped_current_columns_are_treated_as_v1_payloads(
     tmp_path,
     monkeypatch,
@@ -730,7 +847,9 @@ async def test_unstamped_current_columns_are_treated_as_v1_payloads(
         assert task.task_contract_version == TASK_CONTRACT_VERSION
         assert task.message_code == "completed"
         assert task.message_params == {}
-        assert task.request_params["video_ref"]["path"] == "D:/media/source.mp4"
+        assert task.type == "pipeline"
+        assert task.request_params["steps"][0]["step_name"] == "synthesize"
+        assert task.request_params["steps"][0]["params"]["video_ref"]["path"] == "D:/media/source.mp4"
         migrated_result = TaskResult.model_validate(task.result)
         assert [artifact.ref.path for artifact in migrated_result.artifacts] == [
             "D:/renders/result.mp4"

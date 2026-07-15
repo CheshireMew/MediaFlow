@@ -29,7 +29,7 @@ export function createTaskDiagnostic(
     type: task.type,
     status: task.status,
     params_keys: Object.keys(task.request_params || {}),
-    result_meta: task.result?.meta,
+    result_outputs: task.result?.outputs,
     artifacts: task.artifacts,
     runtime_execution_summary: executionSummary,
   };

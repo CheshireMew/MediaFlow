@@ -1,4 +1,4 @@
-from backend.models.schemas import DownloadParams
+from backend.models.pipeline_contracts import DownloadParams
 
 
 def test_download_params_accepts_codec_and_filename():

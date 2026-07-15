@@ -20,34 +20,43 @@ export interface TaskArtifact {
 export interface TaskResult {
   success: boolean;
   artifacts?: TaskArtifact[];
-  meta?: Record<string, unknown>;
+  outputs?: PipelineOutputs;
+  execution_trace?: TaskExecutionTraceItem[];
   error?: string | null;
-}
-export interface TranscribeRequest {
-  audio_ref: MediaReference;
-  engine?: "builtin" | "cli";
-  model?: string;
-  language?: string | null;
-  device?: string;
-  vad_filter?: boolean;
-  initial_prompt?: string | null;
-}
-export interface TranscribeSegmentRequest {
-  audio_ref: MediaReference;
-  engine?: "builtin" | "cli";
-  model?: string;
-  language?: string | null;
-  device?: string;
-  vad_filter?: boolean;
-  initial_prompt?: string | null;
-  start: number;
-  end: number;
 }
 export interface SubtitleSegment {
   id: string | number;
   start: number;
   end: number;
   text: string;
+}
+export interface TranscriptionOptions {
+  engine?: "builtin" | "cli";
+  model?: string;
+  language?: string | null;
+  device?: string;
+  vad_filter?: boolean;
+  initial_prompt?: string | null;
+}
+export interface TranscribeRequest {
+  engine?: "builtin" | "cli";
+  model?: string;
+  language?: string | null;
+  device?: string;
+  vad_filter?: boolean;
+  initial_prompt?: string | null;
+  audio_ref: MediaReference;
+}
+export interface TranscribeSegmentRequest {
+  engine?: "builtin" | "cli";
+  model?: string;
+  language?: string | null;
+  device?: string;
+  vad_filter?: boolean;
+  initial_prompt?: string | null;
+  audio_ref: MediaReference;
+  start: number;
+  end: number;
 }
 export interface TranscribeSegmentData {
   text: string;
@@ -56,6 +65,190 @@ export interface TranscribeSegmentData {
 export interface TranscribeSegmentResponse {
   status: "completed";
   data: TranscribeSegmentData;
+}
+export interface TranslationOptions {
+  target_language?: TranslationTargetLanguage;
+  mode?: "standard" | "intelligent" | "proofread";
+  context_ref?: MediaReference | null;
+  batch_size?: number;
+}
+export interface TranslationRequest {
+  target_language?: TranslationTargetLanguage;
+  mode?: "standard" | "intelligent" | "proofread";
+  context_ref?: MediaReference | null;
+  batch_size?: number;
+  segments: SubtitleSegment[];
+}
+export interface ImmediateTranslationResponse {
+  status: "completed";
+  segments: SubtitleSegment[];
+  language: string;
+  context_ref?: MediaReference | null;
+  subtitle_ref?: MediaReference | null;
+  mode: string;
+}
+export interface SynthesisOptions {
+  srt_ref?: MediaReference | null;
+  watermark_ref?: MediaReference | null;
+  output_ref?: MediaReference | null;
+  options?: Record<string, unknown> | null;
+}
+export interface SynthesisRequest {
+  srt_ref?: MediaReference | null;
+  watermark_ref?: MediaReference | null;
+  output_ref?: MediaReference | null;
+  options?: Record<string, unknown> | null;
+  video_ref: MediaReference;
+}
+export interface DownloadOutput {
+  id: string;
+  title: string;
+  duration: number;
+  filename: string;
+  source_url: string;
+  warnings?: string[];
+  recovery_strategies?: string[];
+}
+export interface TranscriptionOutput {
+  task_id: string;
+  language: string;
+  duration: number;
+  segments: SubtitleSegment[];
+  text: string;
+}
+export interface TranslationOutput {
+  segments: SubtitleSegment[];
+  language: TranslationTargetLanguage;
+  mode: "standard" | "intelligent" | "proofread";
+}
+export interface SynthesisOutput {
+  completed?: true;
+}
+export interface ClipExportOutput {
+  count: number;
+}
+export interface PipelineOutputs {
+  download?: DownloadOutput | null;
+  transcription?: TranscriptionOutput | null;
+  translation?: TranslationOutput | null;
+  synthesis?: SynthesisOutput | null;
+  clip_export?: ClipExportOutput | null;
+}
+export interface TaskExecutionTraceItem {
+  step: string;
+  duration: number;
+  status: "success" | "failed";
+  error?: string | null;
+  timestamp: number;
+}
+export interface PlaylistItem {
+  index: number;
+  title: string;
+  url: string;
+  duration?: number | null;
+  uploader?: string | null;
+}
+export interface AnalyzeResult {
+  type: string;
+  platform?: string | null;
+  id?: string | null;
+  title: string;
+  url: string;
+  direct_src?: string | null;
+  thumbnail?: string | null;
+  duration?: number | null;
+  count?: number | null;
+  items?: PlaylistItem[] | null;
+  uploader?: string | null;
+  webpage_url?: string | null;
+  extra_info?: Record<string, unknown> | null;
+}
+export interface GlossaryTerm {
+  id: string;
+  source: string;
+  target: string;
+  note?: string | null;
+  category?: string | null;
+}
+export interface CreateGlossaryTermRequest {
+  source: string;
+  target: string;
+  note?: string | null;
+  category?: string;
+}
+export interface UpdateGlossaryTermRequest {
+  source?: string | null;
+  target?: string | null;
+  note?: string | null;
+  category?: string | null;
+}
+export interface GlossaryDeleteResponse {
+  status: "ok";
+}
+export interface MediaExportTimelineRequest {
+  video_ref: MediaReference;
+  speech_segments?: SubtitleSegment[];
+}
+export interface MediaExportTimelineResponse {
+  duration: number;
+  trim_start: number;
+  trim_end: number;
+  no_speech_trim_enabled: boolean;
+  has_speech_timeline: boolean;
+  has_leading_black: boolean;
+  has_leading_no_speech: boolean;
+  has_trailing_no_speech: boolean;
+}
+export interface EditorPreviewMediaRequest {
+  video_ref: MediaReference;
+}
+export interface EditorPreviewMediaResponse {
+  source_ref: MediaReference;
+  media_ref: MediaReference;
+  remuxed: boolean;
+}
+export interface ImagePreviewResponse {
+  png_path: string;
+  data_url: string;
+  width: number;
+  height: number;
+}
+export interface ClipCandidate {
+  id: string;
+  start: number;
+  end: number;
+  title?: string | null;
+  reason?: string | null;
+  score: number;
+  transcript?: string | null;
+  selected: boolean;
+}
+export interface HighlightDetectionRequest {
+  video_ref: MediaReference;
+  subtitle_segments?: SubtitleSegment[];
+  max_candidates?: number;
+  min_duration?: number;
+  max_duration?: number;
+}
+export interface HighlightDetectionResponse {
+  candidates: ClipCandidate[];
+  source: "llm";
+  duration: number;
+}
+export interface ClipExportSegment {
+  id: string;
+  start: number;
+  end: number;
+  title?: string | null;
+}
+export interface ClipExportRequest {
+  video_ref: MediaReference;
+  segments: ClipExportSegment[];
+  render_mode?: "burned" | "source";
+  srt_ref?: MediaReference | null;
+  watermark_ref?: MediaReference | null;
+  options?: Record<string, unknown> | null;
+  output_dir?: string | null;
 }
 export interface TaskSubmissionMetadata {
   task_source: "backend";
@@ -125,20 +318,12 @@ export interface TaskView {
   message_params: Record<string, string | number | boolean | null>;
   error?: string | null;
   result?: TaskResult | null;
-  request_params?: Record<string, unknown> | null;
+  request_params?: PipelineRequest | null;
   primary_operation: string;
   artifacts?: TaskArtifact[];
   created_at: number;
   queue_state: string;
   queue_position?: number | null;
-}
-export interface ImmediateTranslationResponse {
-  status: "completed";
-  segments: SubtitleSegment[];
-  language: string;
-  context_ref?: MediaReference | null;
-  subtitle_ref?: MediaReference | null;
-  mode: string;
 }
 export interface DownloadParams {
   url: string;
@@ -155,151 +340,36 @@ export interface DownloadParams {
   codec?: string;
 }
 export interface TranscribeParams {
-  audio_ref?: MediaReference | null;
   engine?: "builtin" | "cli";
   model?: string;
   language?: string | null;
   device?: string;
   vad_filter?: boolean;
   initial_prompt?: string | null;
+  audio_ref?: MediaReference | null;
 }
 export interface TranslateParams {
-  context_ref?: MediaReference | null;
   target_language?: TranslationTargetLanguage;
-  mode?: string;
-  batch_size?: number;
-}
-export interface TranslationRequest {
-  segments: SubtitleSegment[];
-  target_language?: TranslationTargetLanguage;
-  mode?: string;
+  mode?: "standard" | "intelligent" | "proofread";
   context_ref?: MediaReference | null;
   batch_size?: number;
+  segments?: SubtitleSegment[] | null;
 }
 export interface SynthesizeParams {
+  srt_ref?: MediaReference | null;
+  watermark_ref?: MediaReference | null;
+  output_ref?: MediaReference | null;
+  options?: Record<string, unknown> | null;
   video_ref?: MediaReference | null;
-  srt_ref?: MediaReference | null;
-  output_ref?: MediaReference | null;
-  watermark_ref?: MediaReference | null;
-  options?: Record<string, unknown> | null;
-}
-export interface SynthesisRequest {
-  video_ref: MediaReference;
-  srt_ref?: MediaReference | null;
-  watermark_ref?: MediaReference | null;
-  output_ref?: MediaReference | null;
-  options?: Record<string, unknown> | null;
-}
-export interface MediaVisibleStartRequest {
-  video_ref: MediaReference;
-}
-export interface MediaVisibleStartResponse {
-  visible_start: number;
-  has_leading_black: boolean;
-}
-export interface EditorPreviewMediaRequest {
-  video_ref: MediaReference;
-}
-export interface EditorPreviewMediaResponse {
-  source_ref: MediaReference;
-  media_ref: MediaReference;
-  remuxed: boolean;
-}
-export interface ImagePreviewResponse {
-  png_path: string;
-  data_url: string;
-  width: number;
-  height: number;
-}
-export interface ClipCandidate {
-  id: string;
-  start: number;
-  end: number;
-  title?: string | null;
-  reason?: string | null;
-  score: number;
-  transcript?: string | null;
-  selected: boolean;
-}
-export interface HighlightDetectionRequest {
-  video_ref: MediaReference;
-  subtitle_segments?: SubtitleSegment[];
-  max_candidates?: number;
-  min_duration?: number;
-  max_duration?: number;
-}
-export interface HighlightDetectionResponse {
-  candidates: ClipCandidate[];
-  source: "llm";
-  duration: number;
-}
-export interface ClipExportSegment {
-  id: string;
-  start: number;
-  end: number;
-  title?: string | null;
-}
-export interface ClipExportRequest {
-  video_ref: MediaReference;
-  segments: ClipExportSegment[];
-  render_mode?: "burned" | "source";
-  srt_ref?: MediaReference | null;
-  watermark_ref?: MediaReference | null;
-  options?: Record<string, unknown> | null;
-  output_dir?: string | null;
 }
 export interface PipelineStepRequest {
   step_name: string;
-  params: DownloadParams | TranscribeParams | TranslateParams | SynthesizeParams;
+  params: DownloadParams | TranscribeParams | TranslateParams | SynthesizeParams | ClipExportRequest;
 }
 export interface PipelineRequest {
   pipeline_id?: string;
   task_name?: string | null;
   steps: PipelineStepRequest[];
-}
-export interface PlaylistItem {
-  index: number;
-  title: string;
-  url: string;
-  duration?: number | null;
-  uploader?: string | null;
-}
-export interface AnalyzeResult {
-  type: string;
-  platform?: string | null;
-  id?: string | null;
-  title: string;
-  url: string;
-  direct_src?: string | null;
-  thumbnail?: string | null;
-  duration?: number | null;
-  count?: number | null;
-  items?: PlaylistItem[] | null;
-  uploader?: string | null;
-  webpage_url?: string | null;
-  extra_info?: Record<string, unknown> | null;
-}
-export interface GlossaryTerm {
-  id: string;
-  source: string;
-  target: string;
-  note?: string | null;
-  category?: string | null;
-}
-export interface CreateGlossaryTermRequest {
-  source: string;
-  target: string;
-  note?: string | null;
-  category?: string;
-}
-export interface UpdateGlossaryTermRequest {
-  source?: string | null;
-  target?: string | null;
-  note?: string | null;
-  category?: string | null;
-}
-export interface GlossaryDeleteResponse {
-  status: "ok";
 }
 export interface AnalyzeRequest {
   url: string;
@@ -393,6 +463,7 @@ export interface UserSettings {
   faster_whisper_cli_path?: string | null;
   language?: string;
   auto_execute_flow?: boolean;
+  auto_trim_silence?: boolean;
   smart_split_text_limit?: number;
   ui_state?: Record<string, unknown>;
 }
@@ -402,6 +473,7 @@ export interface UserPreferencesPatch {
   faster_whisper_cli_path?: string | null;
   language?: string | null;
   auto_execute_flow?: boolean | null;
+  auto_trim_silence?: boolean | null;
   smart_split_text_limit?: number | null;
 }
 export interface UiStatePatch {

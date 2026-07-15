@@ -1,7 +1,7 @@
 import json
 from typing import Dict, List, Optional
 
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.models.translation_target_language import get_language_prompt_name
 
 

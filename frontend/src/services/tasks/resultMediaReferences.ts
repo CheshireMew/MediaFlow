@@ -46,7 +46,7 @@ function normalizeVideoMediaReference(
     : null;
 }
 
-export function normalizeTranscribeResultMediaReferences(
+export function normalizeTranscribeResult(
   result: TranscribeResult | null,
   sourceFile?: MediaSeed | ElectronFile | null,
 ): TranscribeResult | null {

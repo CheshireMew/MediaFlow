@@ -5,7 +5,8 @@ from pathlib import Path
 from backend.config import settings
 from backend.core.container import Services, container
 from backend.models.task_model import Task
-from backend.models.schemas import MediaReference, TaskArtifact, TaskResult
+from backend.models.media_contracts import MediaReference, TaskArtifact, TaskResult
+from backend.models.task_result_contracts import PipelineOutputs, TranscriptionOutput
 from backend.services.task_control_service import TaskControlService
 from backend.services.task_event_publisher import TaskEventPublisher
 from backend.services.task_manager import TaskManager
@@ -58,7 +59,15 @@ class SlowMockASR:
                     ),
                 )
             ],
-            meta={"segments": [], "text": "ok", "language": language or "en"},
+            outputs=PipelineOutputs(
+                transcription=TranscriptionOutput(
+                    task_id=task_id or "test-task",
+                    language=language or "en",
+                    duration=1,
+                    segments=[],
+                    text="ok",
+                )
+            ),
         )
 
 
@@ -82,6 +91,22 @@ def _create_audio_file(name: str) -> Path:
 
 def _media_ref(path: Path) -> dict:
     return {"path": str(path), "name": path.name, "type": "audio/mpeg", "media_kind": "audio"}
+
+
+def _transcribe_pipeline_request(path: Path, pipeline_id: str) -> dict:
+    return {
+        "pipeline_id": pipeline_id,
+        "steps": [
+            {
+                "step_name": "transcribe",
+                "params": {
+                    "audio_ref": _media_ref(path),
+                    "model": "base",
+                    "device": "cpu",
+                },
+            }
+        ],
+    }
 
 
 def _wait_for_task_status(
@@ -126,14 +151,14 @@ def test_queue_summary_limits_concurrency_to_two(isolated_api_client, monkeypatc
 
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
-    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
-    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=4, delay_s=0.25))
+    slow_asr = SlowMockASR(steps=4, delay_s=0.25)
+    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
 
     task_ids: list[str] = []
-    for _ in range(3):
+    for index in range(3):
         response = client.post(
-            "/api/v1/transcribe/",
-            json={"audio_ref": _media_ref(audio_path), "model": "base", "device": "cpu"},
+            "/api/v1/pipeline/run",
+            json=_transcribe_pipeline_request(audio_path, f"queue_{index}"),
         )
         assert response.status_code == 200
         task_ids.append(response.json()["task_id"])
@@ -158,7 +183,8 @@ def test_queue_summary_limits_concurrency_to_two(isolated_api_client, monkeypatc
     running_states = [tasks_by_id[task_id]["queue_state"] for task_id in task_ids[:2]]
     assert running_states == ["running", "running"]
 
-    time.sleep(1.4)
+    for task_id in task_ids[:2]:
+        _wait_for_task_status(client, task_id, "completed", timeout_s=5.0)
 
     queue_summary_later = client.get("/api/v1/tasks/queue/summary")
     assert queue_summary_later.status_code == 200
@@ -188,12 +214,12 @@ def test_pause_and_resume_transition_task_state(isolated_api_client, monkeypatch
 
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
-    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
-    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=10, delay_s=0.15))
+    slow_asr = SlowMockASR(steps=10, delay_s=0.15)
+    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
 
     create_response = client.post(
-        "/api/v1/transcribe/",
-        json={"audio_ref": _media_ref(audio_path), "model": "base", "device": "cpu"},
+        "/api/v1/pipeline/run",
+        json=_transcribe_pipeline_request(audio_path, "pause_resume"),
     )
     assert create_response.status_code == 200
     task_id = create_response.json()["task_id"]
@@ -249,32 +275,32 @@ def test_load_runtime_tasks_marks_interrupted_work_as_paused_and_snapshot_reflec
     running_task = Task(
         id=str(uuid.uuid4())[:8],
         name="running-task",
-        type="transcribe",
+        type="pipeline",
         status="running",
         progress=32.0,
         message_code="transcription_progress",
         message_params={"percent": 32},
-        request_params={"audio_ref": {"path": "x.mp3", "name": "x.mp3"}, "model": "base", "device": "cpu"},
+        request_params=_transcribe_pipeline_request(Path("x.mp3"), "running-task"),
     )
     pending_task = Task(
         id=str(uuid.uuid4())[:8],
         name="pending-task",
-        type="transcribe",
+        type="pipeline",
         status="pending",
         progress=0.0,
         message_code="queued",
         message_params={},
-        request_params={"audio_ref": {"path": "y.mp3", "name": "y.mp3"}, "model": "base", "device": "cpu"},
+        request_params=_transcribe_pipeline_request(Path("y.mp3"), "pending-task"),
     )
     paused_task = Task(
         id=str(uuid.uuid4())[:8],
         name="paused-task",
-        type="transcribe",
+        type="pipeline",
         status="paused",
         progress=12.0,
         message_code="paused",
         message_params={},
-        request_params={"audio_ref": {"path": "z.mp3", "name": "z.mp3"}, "model": "base", "device": "cpu"},
+        request_params=_transcribe_pipeline_request(Path("z.mp3"), "paused-task"),
     )
     fake_tasks = [running_task, pending_task, paused_task]
 

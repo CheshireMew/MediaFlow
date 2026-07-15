@@ -6,7 +6,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from backend.config import settings
 from backend.core.container import container, Services
-from backend.models.schemas import MediaReference, TaskArtifact, TaskResult
+from backend.models.media_contracts import MediaReference, TaskArtifact, TaskResult
+from backend.models.task_result_contracts import PipelineOutputs, TranscriptionOutput
 
 
 class SlowMockASR:
@@ -53,7 +54,15 @@ class SlowMockASR:
                     ),
                 )
             ],
-            meta={"segments": [], "text": "ok", "language": language or "en"},
+            outputs=PipelineOutputs(
+                transcription=TranscriptionOutput(
+                    task_id=task_id or "test-task",
+                    language=language or "en",
+                    duration=1,
+                    segments=[],
+                    text="ok",
+                )
+            ),
         )
 
 
@@ -67,6 +76,22 @@ def _create_audio_file(name: str) -> Path:
 
 def _media_ref(path: Path) -> dict:
     return {"path": str(path), "name": path.name, "type": "audio/mpeg", "media_kind": "audio"}
+
+
+def _transcribe_pipeline_request(path: Path, pipeline_id: str) -> dict:
+    return {
+        "pipeline_id": pipeline_id,
+        "steps": [
+            {
+                "step_name": "transcribe",
+                "params": {
+                    "audio_ref": _media_ref(path),
+                    "model": "base",
+                    "device": "cpu",
+                },
+            }
+        ],
+    }
 
 
 def _receive_until(websocket, predicate, limit: int = 30):
@@ -210,18 +235,18 @@ def test_websocket_pushes_queue_position_and_pause_resume_updates(
 
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
-    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
-    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=10, delay_s=0.15))
+    slow_asr = SlowMockASR(steps=10, delay_s=0.15)
+    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
             snapshot = websocket.receive_json()
             assert snapshot["type"] == "snapshot"
 
-            for _ in range(3):
+            for index in range(3):
                 response = client.post(
-                    "/api/v1/transcribe/",
-                    json={"audio_ref": _media_ref(audio_path), "model": "base", "device": "cpu"},
+                    "/api/v1/pipeline/run",
+                    json=_transcribe_pipeline_request(audio_path, f"ws_pause_{index}"),
                 )
                 assert response.status_code == 200
                 created_task_ids.append(response.json()["task_id"])
@@ -295,18 +320,18 @@ def test_websocket_pushes_cancel_updates_for_running_and_queued_tasks(
 
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
-    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
-    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=10, delay_s=0.15))
+    slow_asr = SlowMockASR(steps=10, delay_s=0.15)
+    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
             snapshot = websocket.receive_json()
             assert snapshot["type"] == "snapshot"
 
-            for _ in range(3):
+            for index in range(3):
                 response = client.post(
-                    "/api/v1/transcribe/",
-                    json={"audio_ref": _media_ref(audio_path), "model": "base", "device": "cpu"},
+                    "/api/v1/pipeline/run",
+                    json=_transcribe_pipeline_request(audio_path, f"ws_cancel_{index}"),
                 )
                 assert response.status_code == 200
                 created_task_ids.append(response.json()["task_id"])
@@ -374,18 +399,18 @@ def test_websocket_pushes_pause_all_updates_for_running_and_queued_tasks(
 
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
-    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
-    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=10, delay_s=0.15))
+    slow_asr = SlowMockASR(steps=10, delay_s=0.15)
+    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
             snapshot = websocket.receive_json()
             assert snapshot["type"] == "snapshot"
 
-            for _ in range(3):
+            for index in range(3):
                 response = client.post(
-                    "/api/v1/transcribe/",
-                    json={"audio_ref": _media_ref(audio_path), "model": "base", "device": "cpu"},
+                    "/api/v1/pipeline/run",
+                    json=_transcribe_pipeline_request(audio_path, f"ws_pause_all_{index}"),
                 )
                 assert response.status_code == 200
                 created_task_ids.append(response.json()["task_id"])
@@ -461,18 +486,18 @@ def test_websocket_delete_sequence_for_running_and_queued_tasks(
 
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
-    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
-    monkeypatch.setattr(executor, "_asr_service", SlowMockASR(steps=10, delay_s=0.15))
+    slow_asr = SlowMockASR(steps=10, delay_s=0.15)
+    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
             snapshot = websocket.receive_json()
             assert snapshot["type"] == "snapshot"
 
-            for _ in range(3):
+            for index in range(3):
                 response = client.post(
-                    "/api/v1/transcribe/",
-                    json={"audio_ref": _media_ref(audio_path), "model": "base", "device": "cpu"},
+                    "/api/v1/pipeline/run",
+                    json=_transcribe_pipeline_request(audio_path, f"ws_delete_{index}"),
                 )
                 assert response.status_code == 200
                 created_task_ids.append(response.json()["task_id"])

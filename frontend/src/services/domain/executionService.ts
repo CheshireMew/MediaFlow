@@ -1,4 +1,4 @@
-import type { DownloadParams, PipelineRequest } from "../../types/api";
+import type { ClipExportRequest, DownloadParams, PipelineRequest } from "../../types/api";
 import type { SubtitleSegment } from "../../types/task";
 import type { MediaReference } from "../ui/mediaReference";
 import type { ExecutionOutcome } from "./taskSubmission";
@@ -24,7 +24,6 @@ import {
   resolveSynthesisWatermarkReference,
 } from "./synthesisExecution";
 import { apiClient } from "../../api/client";
-import { translationService } from "./translationService";
 
 export { isDesktopRuntime } from "../desktop";
 
@@ -166,7 +165,16 @@ export const executionService = {
         context_ref: nextPayload.context_ref ?? null,
       }),
       backendSubmit: async (normalizedPayload) => {
-        return await translationService.startTranslation(normalizedPayload);
+        return await apiClient.runPipeline({
+          pipeline_id: "translator_tool",
+          task_name: normalizedPayload.context_ref?.name || "Translation",
+          steps: [
+            {
+              step_name: "translate",
+              params: normalizedPayload,
+            },
+          ],
+        });
       },
     });
   },
@@ -194,14 +202,50 @@ export const executionService = {
           ? requireExecutionMediaReference(nextPayload.output_ref, "Synthesis output")
           : null,
       }),
-      backendSubmit: (normalizedPayload) =>
-        apiClient.synthesizeVideo(omitUndefinedFields({
-            video_ref: normalizedPayload.video_ref,
-            srt_ref: normalizedPayload.srt_ref,
-            watermark_ref: normalizedPayload.watermark_ref,
-            output_ref: normalizedPayload.output_ref,
-            options: normalizedPayload.options,
-          })),
+      backendSubmit: (normalizedPayload) => apiClient.runPipeline({
+        pipeline_id: "synthesis_tool",
+        task_name: normalizedPayload.video_ref.name || "Synthesis",
+        steps: [
+          {
+            step_name: "synthesize",
+            params: omitUndefinedFields({
+              video_ref: normalizedPayload.video_ref,
+              srt_ref: normalizedPayload.srt_ref,
+              watermark_ref: normalizedPayload.watermark_ref,
+              output_ref: normalizedPayload.output_ref,
+              options: normalizedPayload.options,
+            }),
+          },
+        ],
+      }),
+    });
+  },
+
+  async exportClips(payload: ClipExportRequest): Promise<ExecutionOutcome> {
+    return await executeTaskSubmission({
+      payload,
+      normalizePayload: (nextPayload) => ({
+        ...nextPayload,
+        video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
+        srt_ref: nextPayload.srt_ref
+          ? requireExecutionMediaReference(nextPayload.srt_ref, "Subtitle")
+          : null,
+        watermark_ref: nextPayload.watermark_ref
+          ? requireExecutionMediaReference(nextPayload.watermark_ref, "Watermark")
+          : null,
+      }),
+      backendSubmit: (normalizedPayload) => apiClient.runPipeline({
+        pipeline_id: "clip_export_tool",
+        task_name: normalizedPayload.video_ref.name
+          ? `Export clips ${normalizedPayload.video_ref.name}`
+          : "Export clips",
+        steps: [
+          {
+            step_name: "clip_export",
+            params: normalizedPayload,
+          },
+        ],
+      }),
     });
   },
 

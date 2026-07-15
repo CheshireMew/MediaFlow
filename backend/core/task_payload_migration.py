@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from backend.models.schemas import MediaReference, TaskArtifact, TaskResult
+from backend.models.media_contracts import MediaReference, TaskArtifact
 from backend.services.media_extensions import media_kind_from_extension
 
 
@@ -660,13 +660,14 @@ def normalize_task_result_v2(
     success = success_value if isinstance(success_value, bool) else status == "completed"
     error_value = raw.get("error")
     error = error_value if isinstance(error_value, str) else task_error
-    task_result = TaskResult(
-        success=success,
-        artifacts=[artifact for _, artifact in artifacts_by_path.values()],
-        meta=meta,
-        error=error,
-    )
-    return task_result.model_dump(mode="json")
+    return {
+        "success": success,
+        "artifacts": [
+            artifact for _, artifact in artifacts_by_path.values()
+        ],
+        "meta": meta,
+        "error": error,
+    }
 
 
 def migrate_task_payload_v1_to_v2(

@@ -3,7 +3,8 @@ from typing import Any, Dict, List, TYPE_CHECKING
 from loguru import logger
 
 from backend.core.task_control import TaskCancelRequested, TaskPauseRequested
-from backend.models.schemas import MediaReference, PipelineStepRequest, TaskResult
+from backend.models.media_contracts import TaskResult
+from backend.models.pipeline_contracts import PipelineStepRequest
 from backend.core.context import PipelineContext
 from backend.core.task_runtime import TaskRuntimeContext
 
@@ -75,19 +76,30 @@ class PipelineRunner:
 
             if task_id:
                 runtime.checkpoint()
-                meta = {
-                    key: value
-                    for key, value in ctx.data.items()
-                    if not isinstance(value, MediaReference)
-                }
-                meta["execution_trace"] = ctx.trace
 
+            try:
+                ctx.require_step_outputs([step.step_name for step in steps])
                 task_result = TaskResult(
                     success=True,
-                    artifacts=ctx.artifacts,
-                    meta=meta,
+                    artifacts=[
+                        artifact
+                        for artifact in ctx.artifacts
+                        if artifact.role == "output"
+                    ],
+                    outputs=ctx.outputs,
+                    execution_trace=ctx.trace,
                 )
+            except Exception as result_error:
+                if task_id:
+                    await runtime.update(
+                        status="failed",
+                        error=str(result_error),
+                        message_code="pipeline_step_failed",
+                        message_params={"step": "result_contract"},
+                    )
+                raise
 
+            if task_id:
                 await runtime.update(
                     status="completed",
                     cancelled=False,
@@ -100,15 +112,15 @@ class PipelineRunner:
             return {
                 "status": "completed",
                 "history": ctx.history,
-                "final_data": ctx.data,
+                "result": task_result.model_dump(mode="json"),
             }
         except TaskPauseRequested:
             if task_id:
                 await runtime.mark_controlled_stop("pause", "paused", {})
-            return {"status": "paused", "history": ctx.history, "final_data": ctx.data}
+            return {"status": "paused", "history": ctx.history}
         except TaskCancelRequested:
             if task_id:
                 await runtime.mark_controlled_stop("cancel", "cancelled", {})
-            return {"status": "cancelled", "history": ctx.history, "final_data": ctx.data}
+            return {"status": "cancelled", "history": ctx.history}
 
 # Note: PipelineRunner is registered via container in main.py.

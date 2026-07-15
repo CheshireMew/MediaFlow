@@ -1,6 +1,6 @@
 import re
 
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 
 MAX_WORD_COUNT_CJK = 25
 MAX_WORD_COUNT_ENGLISH = 18

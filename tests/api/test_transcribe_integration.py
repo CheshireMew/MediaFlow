@@ -2,7 +2,8 @@ import time
 from pathlib import Path
 
 from backend.core.container import Services, container
-from backend.models.schemas import MediaReference, TaskArtifact, TaskResult
+from backend.models.media_contracts import MediaReference, TaskArtifact, TaskResult
+from backend.models.task_result_contracts import PipelineOutputs, TranscriptionOutput
 
 
 class MockASRService:
@@ -54,15 +55,18 @@ class MockASRService:
                     ),
                 )
             ],
-            meta={
-                "task_id": task_id or "test_task_id",
-                "language": language or "en",
-                "segments": [
-                    {"id": "1", "start": 0.0, "end": 1.0, "text": "Hello"},
-                    {"id": "2", "start": 1.0, "end": 2.0, "text": "World"},
-                ],
-                "text": "Hello\nWorld",
-            },
+            outputs=PipelineOutputs(
+                transcription=TranscriptionOutput(
+                    task_id=task_id or "test_task_id",
+                    language=language or "en",
+                    duration=2,
+                    segments=[
+                        {"id": "1", "start": 0.0, "end": 1.0, "text": "Hello"},
+                        {"id": "2", "start": 1.0, "end": 2.0, "text": "World"},
+                    ],
+                    text="Hello\nWorld",
+                )
+            ),
         )
 
     def transcribe_segment(
@@ -97,13 +101,17 @@ class MockASRService:
         )
         return TaskResult(
             success=True,
-            meta={
-                "segments": [
-                    {"id": "segment", "start": start, "end": end, "text": "Hello"}
-                ],
-                "text": "Hello",
-                "language": language or "en",
-            },
+            outputs=PipelineOutputs(
+                transcription=TranscriptionOutput(
+                    task_id=task_id or "segment-test",
+                    language=language or "en",
+                    duration=end - start,
+                    segments=[
+                        {"id": "segment", "start": start, "end": end, "text": "Hello"}
+                    ],
+                    text="Hello",
+                )
+            ),
         )
 
 
@@ -131,23 +139,34 @@ def _wait_for_task_status(
 def test_transcribe_flow_integration(isolated_api_client, tmp_path, monkeypatch):
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
-    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
     asr_service = MockASRService()
-    monkeypatch.setattr(executor, "_asr_service", asr_service)
+    monkeypatch.setattr(
+        container.get(Services.ASR),
+        "transcribe",
+        asr_service.transcribe,
+    )
 
     audio_file = tmp_path / "api_runtime" / "workspace" / "test_audio.mp3"
     audio_file.write_text("dummy content", encoding="utf-8")
 
     response = client.post(
-        "/api/v1/transcribe/",
+        "/api/v1/pipeline/run",
         json={
-            "audio_ref": {"path": str(audio_file), "name": audio_file.name, "type": "audio/mpeg", "media_kind": "audio"},
-            "model": "base",
-            "language": "en",
-            "device": "cpu",
-            "engine": "cli",
-            "vad_filter": False,
-            "initial_prompt": "MediaFlow names",
+            "pipeline_id": "transcribe_integration",
+            "steps": [
+                {
+                    "step_name": "transcribe",
+                    "params": {
+                        "audio_ref": {"path": str(audio_file), "name": audio_file.name, "type": "audio/mpeg", "media_kind": "audio"},
+                        "model": "base",
+                        "language": "en",
+                        "device": "cpu",
+                        "engine": "cli",
+                        "vad_filter": False,
+                        "initial_prompt": "MediaFlow names",
+                    },
+                }
+            ],
         },
     )
 
@@ -164,9 +183,10 @@ def test_transcribe_flow_integration(isolated_api_client, tmp_path, monkeypatch)
 
     assert task_payload["progress"] == 100.0
     assert task_payload["result"] is not None
-    assert len(task_payload["result"]["meta"]["segments"]) == 2
-    assert task_payload["result"]["meta"]["segments"][0]["text"] == "Hello"
-    assert task_payload["result"]["meta"]["language"] == "en"
+    transcription = task_payload["result"]["outputs"]["transcription"]
+    assert len(transcription["segments"]) == 2
+    assert transcription["segments"][0]["text"] == "Hello"
+    assert transcription["language"] == "en"
     assert asr_service.transcribe_calls == [
         {
             "audio_path": str(audio_file),
@@ -184,7 +204,7 @@ def test_transcribe_flow_integration(isolated_api_client, tmp_path, monkeypatch)
     assert delete_response.status_code == 200
 
 
-def test_transcribe_rejects_missing_audio_ref_with_422(isolated_api_client):
+def test_retired_background_transcribe_endpoint_does_not_exist(isolated_api_client):
     response = isolated_api_client.post(
         "/api/v1/transcribe/",
         json={
@@ -193,7 +213,7 @@ def test_transcribe_rejects_missing_audio_ref_with_422(isolated_api_client):
         },
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 404
 
 
 def test_transcribe_segment_forwards_the_canonical_asr_contract(
@@ -201,9 +221,12 @@ def test_transcribe_segment_forwards_the_canonical_asr_contract(
     tmp_path,
     monkeypatch,
 ):
-    executor = container.get(Services.TASK_OPERATION_EXECUTOR)
     asr_service = MockASRService()
-    monkeypatch.setattr(executor, "_asr_service", asr_service)
+    monkeypatch.setattr(
+        container.get(Services.ASR),
+        "transcribe_segment",
+        asr_service.transcribe_segment,
+    )
 
     audio_file = tmp_path / "api_runtime" / "workspace" / "segment.mp3"
     audio_file.parent.mkdir(parents=True, exist_ok=True)

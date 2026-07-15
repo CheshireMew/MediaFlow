@@ -1,18 +1,16 @@
 import { requireExecutionMediaReference } from "./executionPayload";
 import type { MediaReference } from "../ui/mediaReference";
 import type {
-  ClipExportRequest,
   EditorPreviewMediaResponse,
   HighlightDetectionRequest,
   HighlightDetectionResponse,
   ImagePreviewResponse,
-  MediaVisibleStartResponse,
+  MediaExportTimelineResponse,
   TranscribeSegmentResponse,
   TranslationRequest,
   ImmediateTranslationResponse,
 } from "../../types/api";
-import { executeBackendDirectCall, executeTaskSubmission } from "./executionExecutor";
-import type { ExecutionOutcome } from "./taskSubmission";
+import { executeBackendDirectCall } from "./executionExecutor";
 import {
   ensureAiTranslationConfigured,
   ensureCliTranscriptionConfigured,
@@ -62,16 +60,17 @@ export const editorService = {
     });
   },
 
-  async getMediaVisibleStart(payload: {
+  async getMediaExportTimeline(payload: {
     video_ref: MediaReference;
-  }): Promise<MediaVisibleStartResponse> {
+    speech_segments: import("../../types/task").SubtitleSegment[];
+  }): Promise<MediaExportTimelineResponse> {
     return await executeBackendDirectCall({
       payload,
       normalizePayload: (nextPayload) => ({
         ...nextPayload,
         video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
       }),
-      backendCall: (normalizedPayload) => apiClient.getMediaVisibleStart(normalizedPayload),
+      backendCall: (normalizedPayload) => apiClient.getMediaExportTimeline(normalizedPayload),
     });
   },
 
@@ -102,25 +101,6 @@ export const editorService = {
       }),
       backendCall: (normalizedPayload) =>
         apiClient.detectHighlightCandidates(normalizedPayload),
-    });
-  },
-
-  async exportClipSegments(
-    payload: ClipExportRequest,
-  ): Promise<ExecutionOutcome> {
-    return await executeTaskSubmission({
-      payload,
-      normalizePayload: (nextPayload) => ({
-        ...nextPayload,
-        video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
-        srt_ref: nextPayload.srt_ref
-          ? requireExecutionMediaReference(nextPayload.srt_ref, "Subtitle")
-          : null,
-        watermark_ref: nextPayload.watermark_ref
-          ? requireExecutionMediaReference(nextPayload.watermark_ref, "Watermark")
-          : null,
-      }),
-      backendSubmit: (normalizedPayload) => apiClient.exportClipSegments(normalizedPayload),
     });
   },
 };

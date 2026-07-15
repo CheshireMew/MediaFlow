@@ -7,7 +7,7 @@ from pathlib import Path
 from loguru import logger
 
 from backend.config import settings
-from backend.models.schemas import MediaReference
+from backend.models.media_contracts import MediaReference
 from backend.services.media_extensions import VIDEO_EXTENSIONS
 
 

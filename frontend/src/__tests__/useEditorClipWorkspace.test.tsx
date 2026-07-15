@@ -13,7 +13,10 @@ vi.mock("react-i18next", () => ({
 
 const editorServiceMock = vi.hoisted(() => ({
   detectHighlightCandidates: vi.fn(),
-  exportClipSegments: vi.fn(),
+}));
+
+const executionServiceMock = vi.hoisted(() => ({
+  exportClips: vi.fn(),
 }));
 
 const taskContextMock = vi.hoisted(() => ({
@@ -27,13 +30,13 @@ const toastMock = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
-vi.mock("../services/domain", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../services/domain")>();
-  return {
-    ...actual,
-    editorService: editorServiceMock,
-  };
-});
+vi.mock("../services/domain/editorService", () => ({
+  editorService: editorServiceMock,
+}));
+
+vi.mock("../services/domain/executionService", () => ({
+  executionService: executionServiceMock,
+}));
 
 vi.mock("../context/taskContext", () => ({
   useTaskContext: () => taskContextMock,
@@ -87,7 +90,7 @@ function createOutcome(taskId: string) {
 describe("useEditorClipWorkspace", () => {
   beforeEach(() => {
     editorServiceMock.detectHighlightCandidates.mockReset();
-    editorServiceMock.exportClipSegments.mockReset();
+    executionServiceMock.exportClips.mockReset();
     taskContextMock.addTask.mockReset();
     taskContextMock.tasks = [];
     toastMock.success.mockReset();
@@ -141,7 +144,7 @@ describe("useEditorClipWorkspace", () => {
     const firstDocument = createDocument("D:/media/first.mp4");
     const secondDocument = createDocument("D:/media/second.mp4");
     let resolveExport: ((value: ReturnType<typeof createOutcome>) => void) | null = null;
-    editorServiceMock.exportClipSegments.mockReturnValue(
+    executionServiceMock.exportClips.mockReturnValue(
       new Promise((resolve) => {
         resolveExport = resolve;
       }),
@@ -184,11 +187,11 @@ describe("useEditorClipWorkspace", () => {
       await submission!;
     });
 
-    expect(editorServiceMock.exportClipSegments).toHaveBeenCalledWith(
+    expect(executionServiceMock.exportClips).toHaveBeenCalledWith(
       expect.objectContaining({ video_ref: firstDocument.video }),
     );
     expect(taskContextMock.addTask).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "clip-export-1", type: "clip_export" }),
+      expect.objectContaining({ id: "clip-export-1", type: "pipeline" }),
     );
     expect(toastMock.success).not.toHaveBeenCalledWith("clips.exportQueued");
     expect(result.current.exportTask).toBeNull();
@@ -196,7 +199,7 @@ describe("useEditorClipWorkspace", () => {
 
   it("tracks the submitted task and projects completed output artifacts", async () => {
     const document = createDocument();
-    editorServiceMock.exportClipSegments.mockResolvedValue(
+    executionServiceMock.exportClips.mockResolvedValue(
       createOutcome("clip-export-2"),
     );
     const videoElementRef = createVideoElementRef();

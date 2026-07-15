@@ -1,5 +1,6 @@
 import type React from "react";
 import { useTranslation } from "react-i18next";
+import { clampPoint, getArrowDelta } from "../../../../utils/spatialInteraction";
 
 import type { PreviewDragTarget } from "../hooks/usePreviewDrag";
 
@@ -24,22 +25,15 @@ export function WatermarkPreviewLayer({
 }: WatermarkPreviewLayerProps) {
   const { t } = useTranslation("synthesis");
   const handlePositionKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    const directions: Record<string, { x: number; y: number }> = {
-      ArrowLeft: { x: -1, y: 0 },
-      ArrowRight: { x: 1, y: 0 },
-      ArrowUp: { x: 0, y: -1 },
-      ArrowDown: { x: 0, y: 1 },
-    };
-    const direction = directions[event.key];
-    if (!direction) return;
+    const delta = getArrowDelta(event.key, event.shiftKey, 0.01, 0.05);
+    if (!delta) return;
 
     event.preventDefault();
     event.stopPropagation();
-    const step = event.shiftKey ? 0.05 : 0.01;
-    onPositionChange({
-      x: Math.max(0, Math.min(1, wmPos.x + direction.x * step)),
-      y: Math.max(0, Math.min(1, wmPos.y + direction.y * step)),
-    });
+    onPositionChange(clampPoint(
+      { x: wmPos.x + delta.x, y: wmPos.y + delta.y },
+      { minX: 0, maxX: 1, minY: 0, maxY: 1 },
+    ));
   };
 
   return (

@@ -1,11 +1,7 @@
 from typing import Protocol
 
-from backend.models.schemas import (
-    TaskResult,
-    TranscribeRequest,
-    TranscribeSegmentRequest,
-    TranscriptionEngine,
-)
+from backend.models.media_contracts import TaskResult
+from backend.models.transcription_contracts import TranscribeRequest, TranscribeSegmentRequest, TranscriptionEngine
 from backend.models.task_message import TaskProgressCallback
 
 
@@ -59,22 +55,6 @@ def build_transcription_worker_kwargs(
         "progress_callback": progress_callback,
     }
 
-async def _transcription_background(
-    task_id: str,
-    req: TranscribeRequest,
-    *,
-    asr_service: ASRServiceProtocol,
-    background_runner,
-):
-    await background_runner.run(
-        task_id=task_id,
-        worker_fn=asr_service.transcribe,
-        worker_kwargs=build_transcription_worker_kwargs(req, task_id=task_id),
-        start_message_code="transcription_starting",
-        success_message_code="transcription_completed",
-    )
-
-
 async def _transcription_segment_immediate(
     req: TranscribeSegmentRequest,
     *,
@@ -99,7 +79,32 @@ async def _transcription_segment_immediate(
     result = await loop.run_in_executor(None, func)
     if not result.success:
         raise RuntimeError(result.error or "Segment transcription failed")
+    transcription_output = result.outputs.transcription
+    if transcription_output is None:
+        raise RuntimeError("Transcription result did not publish transcription output")
     return {
         "status": "completed",
-        "data": result.meta,
+        "data": {
+            "text": transcription_output.text,
+            "segments": transcription_output.segments,
+        },
     }
+
+
+class TranscriptionApplicationService:
+    def __init__(self, asr_service: ASRServiceProtocol):
+        self._asr_service = asr_service
+
+    async def transcribe_segment(
+        self,
+        request: TranscribeSegmentRequest,
+        *,
+        task_id: str | None = None,
+        progress_callback: TaskProgressCallback | None = None,
+    ) -> dict:
+        return await _transcription_segment_immediate(
+            request,
+            asr_service=self._asr_service,
+            task_id=task_id,
+            progress_callback=progress_callback,
+        )

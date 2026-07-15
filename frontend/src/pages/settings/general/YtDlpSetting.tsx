@@ -1,6 +1,7 @@
 import { Wrench } from "lucide-react";
 import type { SettingsController, SettingsT } from "../settingsTypes";
 import { SettingCard } from "./SettingCard";
+import { SettingsActionButton } from "./SettingsActionButton";
 
 type YtDlpSettingProps = {
   controller: SettingsController;
@@ -16,13 +17,13 @@ export function YtDlpSetting({ controller, t }: YtDlpSettingProps) {
       title={t("general.ytDlpTitle")}
       description={t("general.ytDlpDesc")}
       actions={
-        <button
+        <SettingsActionButton
           onClick={handleUpdateYtDlp}
           disabled={isUpdatingYtDlp}
-          className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          className="shrink-0"
         >
           {isUpdatingYtDlp ? t("general.ytDlpUpdating") : t("general.ytDlpUpdate")}
-        </button>
+        </SettingsActionButton>
       }
     >
       {ytDlpUpdateInfo && (

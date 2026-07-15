@@ -1,5 +1,6 @@
 import type { SettingsController, SettingsT } from "./settingsTypes";
 import { AutoExecuteSetting } from "./general/AutoExecuteSetting";
+import { AutoTrimSilenceSetting } from "./general/AutoTrimSilenceSetting";
 import { DefaultDownloadPathSetting } from "./general/DefaultDownloadPathSetting";
 import { FasterWhisperCliSetting } from "./general/FasterWhisperCliSetting";
 import { LanguageSetting } from "./general/LanguageSetting";
@@ -17,6 +18,7 @@ export function GeneralSettingsPanel({ controller, t }: GeneralSettingsPanelProp
       <div className="space-y-5">
         <LanguageSetting controller={controller} t={t} />
         <AutoExecuteSetting controller={controller} t={t} />
+        <AutoTrimSilenceSetting controller={controller} t={t} />
         <SmartSplitLimitSetting controller={controller} t={t} />
         <DefaultDownloadPathSetting controller={controller} t={t} />
         <FasterWhisperCliSetting controller={controller} t={t} />

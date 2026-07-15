@@ -5,7 +5,7 @@ import asyncio
 import yt_dlp
 from loguru import logger
 from backend.services.platforms.factory import PlatformFactory
-from backend.models.schemas import AnalyzeResult, PlaylistItem
+from backend.models.download_contracts import AnalyzeResult, PlaylistItem
 from backend.services.cookie_manager import CookieManager
 from backend.services.download_errors import (
     DownloadExtractionError,

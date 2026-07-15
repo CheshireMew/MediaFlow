@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from backend.models.schemas import MediaReference
+from backend.models.media_contracts import MediaReference
 
 
 def create_media_ref(

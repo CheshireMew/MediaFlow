@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.core.task_catalog import pipeline_step_to_type
-from backend.models.schemas import MediaReference, TaskArtifact
+from backend.contracts import pipeline_step_operation
+from backend.models.media_contracts import MediaReference, TaskArtifact
 from backend.services.media_extensions import media_kind_from_extension
 
 
@@ -33,7 +33,7 @@ def primary_operation(task_type: str, request_params: dict[str, Any] | None) -> 
         return task_type
 
     try:
-        return pipeline_step_to_type(step_name)
+        return pipeline_step_operation(step_name)
     except Exception:
         return task_type
 

@@ -23,6 +23,7 @@ export interface ResolvedUserSettings {
   faster_whisper_cli_path: string | null;
   language: string;
   auto_execute_flow: boolean;
+  auto_trim_silence: boolean;
   smart_split_text_limit: number;
   ui_state: Record<string, unknown>;
 }
@@ -41,6 +42,7 @@ export function resolveUserSettings(settings: WireUserSettings): ResolvedUserSet
     faster_whisper_cli_path: settings.faster_whisper_cli_path ?? null,
     language: settings.language ?? "zh",
     auto_execute_flow: settings.auto_execute_flow ?? false,
+    auto_trim_silence: settings.auto_trim_silence ?? false,
     smart_split_text_limit: resolveSmartSplitTextLimit(settings),
     ui_state: isRecord(settings.ui_state) ? settings.ui_state : {},
   };

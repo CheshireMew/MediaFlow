@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
-const previewUrl = "http://127.0.0.1:4173";
+const previewPort = Number(process.env.MEDIAFLOW_E2E_PORT ?? 14173);
+const previewUrl = `http://127.0.0.1:${previewPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -42,9 +43,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run preview -- --host 127.0.0.1 --port 4173",
+    command: `npm run preview -- --host 127.0.0.1 --port ${previewPort}`,
     url: previewUrl,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

@@ -84,12 +84,19 @@ export function useTranslationCommands({
         addTask,
         outcome: executionResult,
         descriptor: {
-          type: "translate",
+          type: "pipeline",
           name: t("task.translateName", { name: contextRef?.name ?? t("task.subtitleFallback") }),
           request_params: {
-            context_ref: contextRef,
-            target_language: targetLang,
-            mode: effectiveMode,
+            pipeline_id: "translator_tool",
+            steps: [{
+              step_name: "translate",
+              params: {
+                segments: sourceSegments,
+                context_ref: contextRef,
+                target_language: targetLang,
+                mode: effectiveMode,
+              },
+            }],
           },
         },
       });
@@ -150,12 +157,19 @@ export function useTranslationCommands({
         addTask,
         outcome: executionResult,
         descriptor: {
-          type: "translate",
+          type: "pipeline",
           name: t("task.proofreadName", { name: contextRef?.name ?? t("task.subtitleFallback") }),
           request_params: {
-            context_ref: contextRef,
-            target_language: targetLang,
-            mode: "proofread",
+            pipeline_id: "translator_tool",
+            steps: [{
+              step_name: "translate",
+              params: {
+                segments: sourceSegments,
+                context_ref: contextRef,
+                target_language: targetLang,
+                mode: "proofread",
+              },
+            }],
           },
         },
       });

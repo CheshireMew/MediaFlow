@@ -46,13 +46,6 @@ vi.mock("../hooks/useTranslator", () => ({
   }),
 }));
 
-vi.mock("../services/domain/translationService", () => ({
-  translationService: {
-    addTerm: vi.fn(),
-    deleteTerm: vi.fn(),
-  },
-}));
-
 vi.mock("../components/translator/SegmentsTable", () => ({
   SegmentsTable: () => <div data-testid="segments-table" />,
 }));

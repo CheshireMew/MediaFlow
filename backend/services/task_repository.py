@@ -10,9 +10,9 @@ from sqlmodel import delete, select
 from backend.config import settings
 from backend.contracts import TASK_CONTRACT_VERSION, TASK_STATUSES, task_lifecycle, task_persistence_scope
 from backend.core.database import get_session_context
-from backend.core.task_catalog import require_task_type
+from backend.contracts import require_task_type
 from backend.models.task_model import Task, task_timestamp_ms
-from backend.models.schemas import TaskResult
+from backend.models.media_contracts import TaskResult
 from backend.models.task_message import TaskMessageParams, validate_task_message
 
 TASK_HISTORY_STATUSES = tuple(

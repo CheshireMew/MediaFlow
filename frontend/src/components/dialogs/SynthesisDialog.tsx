@@ -30,6 +30,7 @@ import {
     updateStoredSynthesisExecutionPreferences,
 } from '../../services/persistence/synthesisExecutionPreferences';
 import { Dialog } from '../ui/Dialog';
+import type { MediaExportTimelineResponse } from '../../types/api';
 
 const PREVIEW_VISIBLE_FRAME_OFFSET_SECONDS = 1 / 30;
 const PROBE_FAILURE_FALLBACK_VISIBLE_START_SECONDS = 2 / 30;
@@ -62,7 +63,9 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
     const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
     const [currentTime, setCurrentTime] = useState(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [mediaVisibleStart, setMediaVisibleStart] = useState(0);
+    const [mediaExportTimeline, setMediaExportTimeline] = useState<MediaExportTimelineResponse | null>(null);
+    const [isMediaExportTimelineResolving, setIsMediaExportTimelineResolving] = useState(false);
+    const [mediaExportTimelineFailed, setMediaExportTimelineFailed] = useState(false);
     const [activeClipIndex, setActiveClipIndex] = useState(0);
     const isClipExport = exportScope.kind === "clips";
     const clipSegments = exportScope.kind === "clips" ? exportScope.segments : [];
@@ -80,47 +83,19 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
     }, [isOpen]);
 
     useEffect(() => {
-        if (!isOpen || isClipExport || mediaVisibleStart <= 0 || !videoRef.current) {
-            return;
-        }
-
-        const target = videoRef.current;
-        const nextPreviewStart = resolvePreviewVisibleStart(mediaVisibleStart);
-        let cancelled = false;
-
-        const seekToVisibleFrame = () => {
-            if (cancelled) {
-                return;
-            }
-            target.currentTime = nextPreviewStart;
-            setCurrentTime(nextPreviewStart);
-        };
-
-        if (target.readyState >= HTMLMediaElement.HAVE_METADATA) {
-            seekToVisibleFrame();
-        } else {
-            target.addEventListener("loadedmetadata", seekToVisibleFrame, { once: true });
-            target.addEventListener("canplay", seekToVisibleFrame, { once: true });
-        }
-
-        return () => {
-            cancelled = true;
-            target.removeEventListener("loadedmetadata", seekToVisibleFrame);
-            target.removeEventListener("canplay", seekToVisibleFrame);
-        };
-    }, [isClipExport, isOpen, mediaUrl, mediaVisibleStart]);
-
-    useEffect(() => {
         if (!isOpen) {
             setVideoSize({ w: 0, h: 0 });
             setCurrentTime(0);
-            setMediaVisibleStart(0);
+            setMediaExportTimeline(null);
+            setIsMediaExportTimelineResolving(false);
+            setMediaExportTimelineFailed(false);
             return;
         }
 
         setVideoSize({ w: 0, h: 0 });
         setCurrentTime(isClipExport ? firstClipStart : 0);
-        setMediaVisibleStart(0);
+        setMediaExportTimeline(null);
+        setMediaExportTimelineFailed(false);
         setActiveClipIndex(0);
     }, [firstClipStart, isClipExport, isOpen, videoPath, mediaUrl]);
 
@@ -130,18 +105,20 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
         }
 
         let cancelled = false;
+        setIsMediaExportTimelineResolving(true);
+        setMediaExportTimelineFailed(false);
         void editorService
-            .getMediaVisibleStart({ video_ref: video })
+            .getMediaExportTimeline({
+                video_ref: video,
+                speech_segments: regions,
+            })
             .then((result) => {
                 if (cancelled) {
                     return;
                 }
-                const nextVisibleStart = result.has_leading_black
-                    ? Math.max(0, result.visible_start)
-                    : 0;
-                setMediaVisibleStart(nextVisibleStart);
-                if (nextVisibleStart > 0) {
-                    const nextPreviewStart = resolvePreviewVisibleStart(nextVisibleStart);
+                setMediaExportTimeline(result);
+                if (result.trim_start > 0) {
+                    const nextPreviewStart = resolvePreviewVisibleStart(result.trim_start);
                     setCurrentTime(nextPreviewStart);
                     if (videoRef.current) {
                         videoRef.current.currentTime = nextPreviewStart;
@@ -150,14 +127,19 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
             })
             .catch(() => {
                 if (!cancelled) {
-                    setMediaVisibleStart(PROBE_FAILURE_FALLBACK_VISIBLE_START_SECONDS);
+                    setMediaExportTimelineFailed(true);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setIsMediaExportTimelineResolving(false);
                 }
             });
 
         return () => {
             cancelled = true;
         };
-    }, [isClipExport, isOpen, video, mediaUrl]);
+    }, [isClipExport, isOpen, mediaUrl, regions, video]);
 
     useEffect(() => {
         if (!isOpen || !activeClip || !videoRef.current) return;
@@ -245,6 +227,17 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
         persistedPreferences,
         exportScope.kind,
     );
+    const automaticTrimStart = mediaExportTimeline?.trim_start
+        ?? (mediaExportTimelineFailed ? PROBE_FAILURE_FALLBACK_VISIBLE_START_SECONDS : 0);
+    const fullVideoPreviewRange = !isClipExport && mediaExportTimeline
+        ? {
+            start: output.trimStart > 0 ? output.trimStart : automaticTrimStart,
+            end: output.trimEnd > 0 ? output.trimEnd : mediaExportTimeline.trim_end,
+        }
+        : null;
+    const previewRange = activeClip
+        ? { start: activeClip.start, end: activeClip.end }
+        : fullVideoPreviewRange;
 
     // --- Export action (cross-cutting: reads from all settings hooks) ---
     const handleExport = async () => {
@@ -293,8 +286,14 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                 effectivePreferences,
                 {
                     targetResolution: output.targetResolution,
-                    trimStart: isClipExport ? undefined : Math.max(output.trimStart, mediaVisibleStart),
-                    trimEnd: isClipExport ? undefined : output.trimEnd,
+                    trimStart: isClipExport
+                        ? undefined
+                        : fullVideoPreviewRange?.start ?? Math.max(output.trimStart, automaticTrimStart),
+                    trimEnd: isClipExport
+                        ? undefined
+                        : output.trimEnd > 0 || mediaExportTimeline?.has_trailing_no_speech
+                            ? fullVideoPreviewRange?.end
+                            : undefined,
                     crop: crop.isEnabled ? crop.crop : null,
                     videoSize,
                 },
@@ -397,7 +396,7 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                     setVideoSize={setVideoSize}
                     currentTime={currentTime}
                     onTimeUpdate={setCurrentTime}
-                    previewRange={activeClip ? { start: activeClip.start, end: activeClip.end } : null}
+                    previewRange={previewRange}
                     clipNavigator={activeClip ? {
                         index: activeClipIndex,
                         count: clipSegments.length,
@@ -406,6 +405,7 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                         onNext: () => setActiveClipIndex((current) => Math.min(clipSegments.length - 1, current + 1)),
                     } : null}
                     allowTrim={!isClipExport}
+                    isPreparing={isMediaExportTimelineResolving}
                     actionLabel={isClipExport
                         ? t('clipExport.startExport', { count: clipSegments.length })
                         : t('preview.startExport')}

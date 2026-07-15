@@ -1,14 +1,10 @@
-from backend.models.schemas import AnalyzeResult, PipelineRequest
+from backend.models.download_contracts import AnalyzeResult
 
 
 class DownloadApplicationService:
-    def __init__(self, *, task_orchestrator, analyzer, cookie_manager):
-        self._task_orchestrator = task_orchestrator
+    def __init__(self, *, analyzer, cookie_manager):
         self._analyzer = analyzer
         self._cookie_manager = cookie_manager
-
-    async def submit_pipeline(self, req: PipelineRequest) -> dict:
-        return await self._task_orchestrator.submit_pipeline(req)
 
     async def analyze_url(self, url: str) -> AnalyzeResult:
         return await self._analyzer.analyze(url)

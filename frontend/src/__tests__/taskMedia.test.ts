@@ -39,7 +39,7 @@ describe("taskMedia", () => {
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       artifacts: [
         artifact("video", "output", "E:/sample.mp4", "sample.mp4"),
         artifact("subtitle", "output", "E:/sample.srt", "sample.srt"),
@@ -68,11 +68,11 @@ describe("taskMedia", () => {
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/canonical.srt", "canonical.srt")],
-        meta: {},
+        outputs: {},
       },
       artifacts: [
         artifact("video", "input", "E:/canonical.mp4", "canonical.mp4", {
@@ -150,11 +150,11 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-3",
-      type: "translate",
+      type: "pipeline",
       status: "running",
       progress: 10,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       artifacts: [artifact("subtitle", "input", "E:/canonical/demo.srt", "demo.srt")],
     };
 
@@ -170,15 +170,15 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-5",
-      type: "translate",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
-        meta: {},
+        outputs: {},
       },
       artifacts: [
         artifact("subtitle", "context", "E:/canonical/source.srt", "source.srt", {
@@ -222,12 +222,12 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-synthesis-output",
-      type: "synthesis",
+      type: "pipeline",
       primary_operation: "synthesis",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       artifacts: [
         artifact("video", "input", "E:/source/source.mp4", "source.mp4"),
         artifact("subtitle", "input", "E:/source/source.srt", "source.srt"),
@@ -246,12 +246,12 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-synthesis-subtitle-output",
-      type: "synthesis",
+      type: "pipeline",
       primary_operation: "synthesis",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       artifacts: [
         artifact("video", "input", "E:/source/source.mp4", "source.mp4"),
         artifact("subtitle", "output", "E:/source/source.srt", "source.srt"),
@@ -275,15 +275,15 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-6",
-      type: "translate",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
-        meta: {},
+        outputs: {},
       },
       artifacts: [
         artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
@@ -306,15 +306,15 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-4",
-      type: "translate",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/canonical/demo_ZH-CN.srt", "demo_ZH-CN.srt")],
-        meta: {},
+        outputs: {},
       },
       artifacts: [artifact("subtitle", "output", "E:/canonical/demo_ZH-CN.srt", "demo_ZH-CN.srt")],
     };
@@ -326,15 +326,15 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-7",
-      type: "download",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [artifact("video", "output", "E:/canonical/video.mp4", "video.mp4")],
-        meta: {},
+        outputs: {},
       },
       artifacts: [artifact("video", "output", "E:/canonical/video.mp4", "video.mp4")],
     };
@@ -351,15 +351,15 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-8",
-      type: "synthesis",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [],
-        meta: {},
+        outputs: {},
       },
     };
 
@@ -375,17 +375,17 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-9",
-      type: "translate",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
       request_params: {
-        mode: "standard",
+        steps: [{ step_name: "translate", params: { mode: "standard" } }],
       },
       result: {
         success: true,
         artifacts: [],
-        meta: {},
+        outputs: {},
       },
     };
 
@@ -401,15 +401,15 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-12",
-      type: "translate",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [],
-        meta: {},
+        outputs: {},
       },
     };
 
@@ -425,15 +425,15 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-10",
-      type: "translate",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt")],
-        meta: {},
+        outputs: {},
       },
       artifacts: [
         artifact("subtitle", "output", "E:/canonical/output.srt", "output.srt"),
@@ -452,17 +452,23 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-13",
-      type: "translate",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
       task_contract_version: 2,
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [],
-        meta: {
-          language: "en",
+        outputs: {
+          transcription: {
+            task_id: "task-13",
+            language: "en",
+            duration: 1,
+            segments: [],
+            text: "",
+          },
         },
       },
     };
@@ -479,15 +485,15 @@ describe("taskMedia", () => {
     const task: Task = {
       ...BACKEND_TASK_CONTRACT_FIELDS,
       id: "task-11",
-      type: "synthesis",
+      type: "pipeline",
       status: "completed",
       progress: 100,
       created_at: Date.now(),
-      request_params: {},
+      request_params: { steps: [] },
       result: {
         success: true,
         artifacts: [artifact("video", "output", "E:/canonical/final-output.mp4", "final-output.mp4")],
-        meta: {},
+        outputs: {},
       },
       artifacts: [
         artifact("video", "output", "E:/canonical/final-output.mp4", "final-output.mp4"),

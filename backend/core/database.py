@@ -11,11 +11,13 @@ from backend.config import settings
 from backend.contracts import (
     TASK_CONTRACT_VERSION,
     TASK_LIFECYCLE,
+    TASK_MESSAGE_CODES,
     task_lifecycle,
     task_persistence_scope,
 )
 from backend.models.task_model import Task
 from backend.models.task_model import task_timestamp_ms
+from backend.models.media_contracts import TaskResult
 from backend.core.task_payload_migration import migrate_task_payload_v1_to_v2
 
 # Database URL (SQLite + aiosqlite)
@@ -39,7 +41,7 @@ async_session_maker = sessionmaker(
 
 
 TASK_SCHEMA_COMPONENT = "task"
-TASK_SCHEMA_VERSION = 6
+TASK_SCHEMA_VERSION = 9
 SCHEMA_VERSION_TABLE = "mediaflow_schema_version"
 _TASK_MIGRATION_TABLE = "task__migration_v1"
 _TASK_MESSAGE_MIGRATION_TABLE = "task__migration_v3"
@@ -459,6 +461,260 @@ def _migrate_task_status_v5_to_v6(sync_connection) -> None:
     )
 
 
+def _pipeline_request_for_retired_task(
+    task_type: str,
+    task_name: str | None,
+    request_params: dict | None,
+) -> dict:
+    params = dict(request_params or {})
+    if isinstance(params.get("steps"), list):
+        return {
+            "pipeline_id": params.get("pipeline_id") or f"migrated_{task_type}_task",
+            "task_name": params.get("task_name") or task_name,
+            "steps": params["steps"],
+        }
+
+    step_names = {
+        "download": "download",
+        "transcribe": "transcribe",
+        "translate": "translate",
+        "synthesis": "synthesize",
+        "clip_export": "clip_export",
+    }
+    step_name = step_names.get(task_type)
+    if step_name is None:
+        raise ValueError(f"Cannot migrate unsupported task type to pipeline: {task_type}")
+    return {
+        "pipeline_id": f"migrated_{task_type}_task",
+        "task_name": task_name,
+        "steps": [{"step_name": step_name, "params": params}],
+    }
+
+
+def _migrate_task_execution_boundary_v6_to_v7(sync_connection) -> None:
+    task_table = Table(
+        Task.__tablename__,
+        MetaData(),
+        autoload_with=sync_connection,
+    )
+    retired_types = ("download", "transcribe", "translate", "synthesis", "clip_export")
+    rows = sync_connection.execute(
+        select(
+            task_table.c.id,
+            task_table.c.type,
+            task_table.c.name,
+            task_table.c.request_params,
+        ).where(task_table.c.type.in_(retired_types))
+    ).mappings().all()
+    for row in rows:
+        sync_connection.execute(
+            task_table.update()
+            .where(task_table.c.id == row["id"])
+            .values(
+                type="pipeline",
+                request_params=_pipeline_request_for_retired_task(
+                    str(row["type"]),
+                    row["name"],
+                    row["request_params"],
+                ),
+                task_contract_version=TASK_CONTRACT_VERSION,
+            )
+        )
+    sync_connection.execute(
+        task_table.update().values(task_contract_version=TASK_CONTRACT_VERSION)
+    )
+
+
+def _migrate_task_message_catalog_v7_to_v8(sync_connection) -> None:
+    task_table = Table(
+        Task.__tablename__,
+        MetaData(),
+        autoload_with=sync_connection,
+    )
+    retired_message_codes = (
+        "asr_finalizing",
+        "translation_starting",
+        "synthesis_preparing",
+        "synthesis_completed",
+        "clip_export_preparing",
+    )
+    sync_connection.execute(
+        task_table.update()
+        .where(task_table.c.message_code.in_(retired_message_codes))
+        .values(
+            message_code=_message_code_for_status(task_table.c.status),
+            message_params={},
+            revision=task_table.c.revision + 1,
+        )
+    )
+
+    unknown_codes = sync_connection.execute(
+        select(task_table.c.message_code)
+        .where(~task_table.c.message_code.in_(tuple(TASK_MESSAGE_CODES)))
+        .distinct()
+        .order_by(task_table.c.message_code)
+    ).scalars().all()
+    if unknown_codes:
+        raise RuntimeError(
+            "Cannot migrate task message catalog because persisted tasks contain "
+            f"unknown message codes: {unknown_codes}. Existing data was left untouched."
+        )
+
+    sync_connection.execute(
+        task_table.update().values(task_contract_version=TASK_CONTRACT_VERSION)
+    )
+
+
+def _step_params(request_params: object, step_name: str) -> dict:
+    if not isinstance(request_params, dict):
+        return {}
+    steps = request_params.get("steps")
+    if not isinstance(steps, list):
+        return {}
+    for step in steps:
+        if not isinstance(step, dict) or step.get("step_name") != step_name:
+            continue
+        params = step.get("params")
+        return params if isinstance(params, dict) else {}
+    return {}
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value]
+
+
+def _float_value(value: object, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _execution_trace(value: object) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+    trace: list[dict] = []
+    for item in value:
+        if not isinstance(item, dict) or not isinstance(item.get("step"), str):
+            continue
+        status = item.get("status")
+        if status not in {"success", "failed"}:
+            continue
+        trace.append(
+            {
+                "step": item["step"],
+                "duration": _float_value(item.get("duration")),
+                "status": status,
+                "error": item.get("error") if isinstance(item.get("error"), str) else None,
+                "timestamp": _float_value(item.get("timestamp")),
+            }
+        )
+    return trace
+
+
+def _migrate_task_result_v8_to_v9(row: dict) -> dict | None:
+    raw_result = row.get("result")
+    if raw_result is None:
+        return None
+    if not isinstance(raw_result, dict):
+        raise RuntimeError(
+            f"Cannot migrate malformed task result for task {row.get('id')}."
+        )
+
+    raw_meta = raw_result.get("meta")
+    meta = raw_meta if isinstance(raw_meta, dict) else {}
+    request_params = row.get("request_params")
+    outputs: dict[str, object] = {}
+
+    download_params = _step_params(request_params, "download")
+    if download_params:
+        filename = str(meta.get("filename") or meta.get("media_filename") or "unknown")
+        outputs["download"] = {
+            "id": str(meta.get("id") or row.get("id") or "migrated-task"),
+            "title": str(meta.get("title") or filename),
+            "duration": _float_value(meta.get("duration")),
+            "filename": filename,
+            "source_url": str(meta.get("source_url") or download_params.get("url") or ""),
+            "warnings": _string_list(meta.get("warnings")),
+            "recovery_strategies": _string_list(meta.get("recovery_strategies")),
+        }
+
+    transcribe_params = _step_params(request_params, "transcribe")
+    if transcribe_params:
+        segments = meta.get("segments")
+        outputs["transcription"] = {
+            "task_id": str(meta.get("task_id") or row.get("id") or "migrated-task"),
+            "language": str(meta.get("language") or transcribe_params.get("language") or "auto"),
+            "duration": _float_value(meta.get("duration")),
+            "segments": segments if isinstance(segments, list) else [],
+            "text": str(meta.get("text") or meta.get("transcript") or ""),
+        }
+
+    translate_params = _step_params(request_params, "translate")
+    if translate_params:
+        translated_segments = meta.get("translated_segments")
+        if not isinstance(translated_segments, list):
+            translated_segments = meta.get("segments")
+        outputs["translation"] = {
+            "segments": translated_segments if isinstance(translated_segments, list) else [],
+            "language": str(
+                meta.get("language")
+                or translate_params.get("target_language")
+                or "SimplifiedChinese"
+            ),
+            "mode": str(translate_params.get("mode") or "standard"),
+        }
+
+    if _step_params(request_params, "synthesize"):
+        outputs["synthesis"] = {"completed": True}
+
+    if _step_params(request_params, "clip_export"):
+        outputs["clip_export"] = {
+            "count": int(_float_value(meta.get("clip_output_count")))
+        }
+
+    execution_trace = _execution_trace(meta.get("execution_trace"))
+    return TaskResult.model_validate(
+        {
+            "success": bool(raw_result.get("success", row.get("status") == "completed")),
+            "artifacts": raw_result.get("artifacts") or [],
+            "outputs": outputs,
+            "execution_trace": execution_trace,
+            "error": raw_result.get("error") or row.get("error"),
+        }
+    ).model_dump(mode="json")
+
+
+def _migrate_task_result_contract_v8_to_v9(sync_connection) -> None:
+    task_table = Table(
+        Task.__tablename__,
+        MetaData(),
+        autoload_with=sync_connection,
+    )
+    rows = sync_connection.execute(
+        select(
+            task_table.c.id,
+            task_table.c.status,
+            task_table.c.error,
+            task_table.c.request_params,
+            task_table.c.result,
+        )
+    ).mappings().all()
+
+    for row in rows:
+        migrated_result = _migrate_task_result_v8_to_v9(dict(row))
+        sync_connection.execute(
+            task_table.update()
+            .where(task_table.c.id == row["id"])
+            .values(
+                result=migrated_result,
+                task_contract_version=TASK_CONTRACT_VERSION,
+            )
+        )
+
+
 _TASK_MIGRATIONS = {
     0: _migrate_task_schema_v0_to_v1,
     1: _migrate_task_payloads_v1_to_v2,
@@ -466,6 +722,9 @@ _TASK_MIGRATIONS = {
     3: _migrate_task_catalog_v3_to_v4,
     4: _migrate_task_revision_v4_to_v5,
     5: _migrate_task_status_v5_to_v6,
+    6: _migrate_task_execution_boundary_v6_to_v7,
+    7: _migrate_task_message_catalog_v7_to_v8,
+    8: _migrate_task_result_contract_v8_to_v9,
 }
 
 

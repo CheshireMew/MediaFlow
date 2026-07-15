@@ -1,7 +1,8 @@
 from pathlib import Path
 
 from backend.application.translation_service import build_translation_task_result
-from backend.models.schemas import MediaReference, SubtitleSegment
+from backend.models.media_contracts import MediaReference
+from backend.models.subtitle_contracts import SubtitleSegment
 
 
 def test_build_translation_task_result_emits_output_artifact(monkeypatch):
@@ -27,8 +28,9 @@ def test_build_translation_task_result_emits_output_artifact(monkeypatch):
         ),
     )
 
-    assert result.meta["language"] == "SimplifiedChinese"
-    assert not any(key.endswith("_ref") for key in result.meta)
+    assert result.outputs.translation is not None
+    assert result.outputs.translation.language.value == "SimplifiedChinese"
+    assert result.outputs.translation.segments[0].text == "你好"
     assert result.artifacts[0].kind == "subtitle"
     assert result.artifacts[0].ref.path == str(saved_path)
     assert result.artifacts[0].ref.role == "output"

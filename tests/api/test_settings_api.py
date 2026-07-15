@@ -90,10 +90,15 @@ def test_cuda_readiness_endpoint(client, monkeypatch):
 def test_settings_writes_use_explicit_patch_endpoints(isolated_api_client):
     preference_response = isolated_api_client.patch(
         "/api/v1/settings/preferences",
-        json={"language": "ja", "auto_execute_flow": True},
+        json={
+            "language": "ja",
+            "auto_execute_flow": True,
+            "auto_trim_silence": True,
+        },
     )
     assert preference_response.status_code == 200
     assert preference_response.json()["language"] == "ja"
+    assert preference_response.json()["auto_trim_silence"] is True
 
     ui_state_response = isolated_api_client.patch(
         "/api/v1/settings/ui-state",

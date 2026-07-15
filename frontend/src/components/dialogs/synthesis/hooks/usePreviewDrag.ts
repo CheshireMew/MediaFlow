@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import type React from "react";
+import { usePointerDragSession } from "../../../../hooks/ui/usePointerDragSession";
+import { clampPoint, pointFromClient } from "../../../../utils/spatialInteraction";
 
 export type PreviewDragTarget = "wm" | "sub";
 
@@ -12,64 +14,37 @@ export function usePreviewDrag({
   setWmPos: (value: { x: number; y: number }) => void;
   setSubPos: (value: { x: number; y: number }) => void;
 }) {
-  const [dragging, setDragging] = useState<PreviewDragTarget | null>(null);
-  const activePointerId = useRef<number | null>(null);
+  const handleMove = useCallback((event: PointerEvent, session: { target: PreviewDragTarget }) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const point = pointFromClient(
+      viewport.getBoundingClientRect(),
+      event.clientX,
+      event.clientY,
+    );
+    if (!point) return;
+    const normalized = clampPoint(point, { minX: 0, maxX: 1, minY: 0, maxY: 1 });
+    if (session.target === "wm") {
+      setWmPos(normalized);
+    } else {
+      setSubPos({ x: 0.5, y: normalized.y });
+    }
+  }, [setSubPos, setWmPos, viewportRef]);
+
+  const pointerDrag = usePointerDragSession<{ target: PreviewDragTarget }>({
+    onMove: handleMove,
+  });
 
   const startDrag = (event: React.PointerEvent, target: PreviewDragTarget) => {
-    event.preventDefault();
-    event.stopPropagation();
-    activePointerId.current = event.pointerId;
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    setDragging(target);
+    pointerDrag.start(event, { target });
   };
 
   const startSubtitleDrag = (event: React.PointerEvent) => {
     startDrag(event, "sub");
   };
 
-  useEffect(() => {
-    if (!dragging) return;
-
-    const handlePointerMove = (event: PointerEvent) => {
-      if (activePointerId.current !== null && event.pointerId !== activePointerId.current) {
-        return;
-      }
-      if (!viewportRef.current) return;
-
-      const rect = viewportRef.current.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
-      const x = (event.clientX - rect.left) / rect.width;
-      const y = (event.clientY - rect.top) / rect.height;
-      const cx = Math.max(0, Math.min(1, x));
-      const cy = Math.max(0, Math.min(1, y));
-
-      if (dragging === "wm") {
-        setWmPos({ x: cx, y: cy });
-      } else {
-        setSubPos({ x: 0.5, y: cy });
-      }
-    };
-
-    const handlePointerEnd = (event: PointerEvent) => {
-      if (activePointerId.current !== null && event.pointerId !== activePointerId.current) {
-        return;
-      }
-      activePointerId.current = null;
-      setDragging(null);
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerEnd);
-    window.addEventListener("pointercancel", handlePointerEnd);
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerEnd);
-      window.removeEventListener("pointercancel", handlePointerEnd);
-    };
-  }, [dragging, viewportRef, setSubPos, setWmPos]);
-
   return {
-    dragging,
+    dragging: pointerDrag.session?.target ?? null,
     startDrag,
     startSubtitleDrag,
   };

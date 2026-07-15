@@ -6,10 +6,8 @@ from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from backend.models.schemas import (
-    ClipCandidate,
-    SubtitleSegment,
-)
+from backend.models.editor_contracts import ClipCandidate
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.services.llm_io_logger import log_llm_messages, log_llm_response
 from backend.services.translator.translation_client import TranslationClientFactory
 from backend.services.video.media_prober import MediaProber

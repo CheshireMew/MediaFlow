@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
-from backend.core.backend_bootstrap import _create_fastapi_app
+from backend.runtime.backend_bootstrap import _create_fastapi_app
 
 
 class FakeDownloadApplication:
@@ -28,7 +28,8 @@ def test_bootstrapped_api_registers_cookie_save_and_status_routes():
     download = FakeDownloadApplication()
     dependencies = SimpleNamespace(
         download=download,
-        task_operations=MagicMock(),
+        transcription=MagicMock(),
+        translation=MagicMock(),
         websocket_notifier=MagicMock(),
         task_manager=MagicMock(),
         task_orchestrator=MagicMock(),

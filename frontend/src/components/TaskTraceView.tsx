@@ -1,17 +1,10 @@
 import React from 'react';
 import { Clock, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-
-interface TraceItem {
-  step: string;
-  duration: number;
-  status: string;
-  error?: string;
-  timestamp: number;
-}
+import type { TaskTraceItem } from '../types/task';
 
 interface TaskTraceViewProps {
-  trace: TraceItem[];
+  trace: TaskTraceItem[];
 }
 
 export const TaskTraceView: React.FC<TaskTraceViewProps> = ({ trace }) => {

@@ -231,12 +231,6 @@ describe("useTranscriber", () => {
               }),
             }),
           ],
-          video_ref: {
-            path: "E:/sample.mp4",
-            name: "sample.mp4",
-            size: 1024,
-            type: "video/mp4",
-          },
         }),
       }),
     );
@@ -412,13 +406,17 @@ describe("useTranscriber", () => {
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/sample.srt", "sample.srt")],
-        meta: {
-          text: "hello\nworld",
-          language: "en",
-          segments: [
-            { id: "1", start: 0, end: 1, text: "hello" },
-            { id: "2", start: 1, end: 2, text: "world" },
-          ],
+        outputs: {
+          transcription: {
+            task_id: "task-completed",
+            text: "hello\nworld",
+            language: "en",
+            duration: 2,
+            segments: [
+              { id: "1", start: 0, end: 1, text: "hello" },
+              { id: "2", start: 1, end: 2, text: "world" },
+            ],
+          },
         },
       },
       artifacts: [
@@ -504,9 +502,14 @@ describe("useTranscriber", () => {
       result: {
         success: true,
         artifacts: [artifact("subtitle", "output", "E:/sample.srt", "sample.srt")],
-        meta: {
-          transcript: "stored transcript",
-          segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
+        outputs: {
+          transcription: {
+            task_id: "task-restored",
+            text: "stored transcript",
+            language: "auto",
+            duration: 1,
+            segments: [{ id: "1", start: 0, end: 1, text: "hello" }],
+          },
         },
       },
       artifacts: [

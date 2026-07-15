@@ -12,7 +12,7 @@ from backend.contracts import (
     TASK_STATUSES,
     require_task_message_code,
 )
-from backend.core.task_catalog import require_task_type
+from backend.contracts import require_task_type
 
 
 def task_timestamp_ms() -> int:

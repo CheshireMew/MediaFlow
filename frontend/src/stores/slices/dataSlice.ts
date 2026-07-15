@@ -1,40 +1,12 @@
 import type { StateCreator } from "zustand";
 import type { SubtitleSegment } from "../../types/task";
-import type { MediaReference } from "../../services/ui/mediaReference";
 import { splitSubtitleSegment } from "../../utils/subtitleSplit";
-import type { EditorState } from "../editorStore";
+import type { DataSlice, EditorState } from "../editorStoreTypes";
 import {
   createEditorDocument,
   createEditorDocumentId,
   createEmptyEditorDocument,
-  type EditorDocument,
-  type EditorDocumentSource,
 } from "../editorDocument";
-
-export interface DataSlice {
-  document: EditorDocument;
-  revisionClock: number;
-
-  replaceRegionsWithUndo: (regions: SubtitleSegment[]) => void;
-  replaceEditorDocument: (
-    source: EditorDocumentSource,
-    options?: { preserveSelection?: boolean },
-  ) => void;
-  setDocumentPreviewUrl: (url: string | null) => void;
-  markDocumentSaved: (subtitle: MediaReference) => void;
-
-  // Complex Data Actions
-  deleteSegments: (ids: string[]) => void;
-  mergeSegments: (ids: string[]) => void;
-  splitSegment: (currentTime: number, targetId?: string) => void;
-  addSegment: (segment: SubtitleSegment) => void;
-  addSegments: (segments: SubtitleSegment[]) => void;
-  updateSegments: (
-    segments: Array<Pick<SubtitleSegment, "id"> & Partial<SubtitleSegment>>,
-  ) => void;
-  updateRegion: (id: string, updates: Partial<SubtitleSegment>) => void;
-  updateRegionText: (id: string, text: string) => void;
-}
 
 const TEXT_EDIT_COALESCE_MS = 750;
 let lastTextEdit: { segmentId: string; timestamp: number } | null = null;

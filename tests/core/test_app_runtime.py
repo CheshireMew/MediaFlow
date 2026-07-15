@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from backend.core.app_runtime import ApplicationRuntime
+from backend.runtime.application_runtime import ApplicationRuntime
 from backend.core.container import Services
 
 

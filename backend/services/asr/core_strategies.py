@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from loguru import logger
 from backend.config import settings
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.utils.audio_processor import AudioProcessor
 from backend.utils.segment_refiner import SegmentRefiner
 from concurrent.futures import ThreadPoolExecutor, as_completed

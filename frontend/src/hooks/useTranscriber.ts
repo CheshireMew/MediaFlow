@@ -23,7 +23,7 @@ import { useTranscriberFileActions } from "./transcriber/useTranscriberFileActio
 import {
   normalizeMediaReference,
 } from "../services/ui/mediaReference";
-import { normalizeTranscribeResult } from "../services/ui/transcribeResult";
+import { normalizeTranscribeResult } from "../services/tasks/resultMediaReferences";
 import { useExecutionModeState } from "./execution/useExecutionModeState";
 import { prewarmFasterWhisperCliFromStoredPreferences } from "../services/asrCliPrewarm";
 

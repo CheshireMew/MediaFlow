@@ -16,3 +16,10 @@ export function isTaskQueued(task: Task) {
 export function isTaskRunning(task: Task) {
   return task.queue_state === "running" || isRuntimeTaskRunning(task.status);
 }
+
+export function canRetryTask(task: Task) {
+  return task.status === "failed"
+    && task.type === "pipeline"
+    && Array.isArray(task.request_params?.steps)
+    && task.request_params.steps.length > 0;
+}

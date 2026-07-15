@@ -1,10 +1,9 @@
 import asyncio
 from typing import TYPE_CHECKING
 
-from backend.models.schemas import PipelineRequest
+from backend.models.pipeline_contracts import PipelineRequest
 from backend.models.task_message import TaskMessageParams
-from backend.application.pipeline_submission_service import task_submission_response
-from backend.services.settings_manager import UserSettings
+from backend.application.task_submission_response import task_submission_response
 
 if TYPE_CHECKING:
     from backend.services.task_manager import TaskManager
@@ -16,40 +15,24 @@ class TaskOrchestrator:
         task_manager: "TaskManager",
         settings_manager,
         *,
-        download_workflow_service,
-        transcriber_workflow_service,
+        pipeline_request_preparer,
+        pipeline_runner,
         task_request_deduplicator,
         task_resume_service,
-        pipeline_submission_service,
-        task_runner_registry,
     ):
         self._task_manager = task_manager
         self._settings_manager = settings_manager
-        self._download_workflow_service = download_workflow_service
-        self._transcriber_workflow_service = transcriber_workflow_service
+        self._pipeline_request_preparer = pipeline_request_preparer
+        self._pipeline_runner = pipeline_runner
         self._task_request_deduplicator = task_request_deduplicator
         self._task_resume_service = task_resume_service
-        self._pipeline_submission_service = pipeline_submission_service
-        self._task_runner_registry = task_runner_registry
         self._submission_lock = asyncio.Lock()
 
     def prepare_pipeline_request(self, req: PipelineRequest) -> PipelineRequest:
-        if req.pipeline_id not in {"downloader_tool", "transcriber_tool"} or not req.steps:
-            return req
-
-        settings: UserSettings = self._settings_manager.get_settings()
-        if (
-            req.pipeline_id == "downloader_tool"
-            and self._download_workflow_service is not None
-        ):
-            return self._download_workflow_service.prepare_request(req, settings)
-        if (
-            req.pipeline_id == "transcriber_tool"
-            and self._transcriber_workflow_service is not None
-        ):
-            return self._transcriber_workflow_service.prepare_request(req, settings)
-
-        return req
+        return self._pipeline_request_preparer.prepare(
+            req,
+            self._settings_manager.get_settings(),
+        )
 
     def find_existing_task(self, task_type: str, request_params: dict) -> str | None:
         return self._task_request_deduplicator.find_existing_task(
@@ -106,54 +89,44 @@ class TaskOrchestrator:
     def build_resume_runner(self, task) -> callable:
         if not task.request_params:
             raise ValueError("Cannot resume task: Missing parameters")
-        return self._task_runner_registry.build(task)
+        request = PipelineRequest.model_validate(task.request_params)
+        return lambda: self._pipeline_runner.run(request.steps, task.id)
 
     async def submit_pipeline(self, req: PipelineRequest) -> dict:
         await self.wait_until_task_state_ready()
         req = self.prepare_pipeline_request(req)
-        task_type = "pipeline"
-        if self._download_workflow_service is not None:
-            task_type = self._download_workflow_service.infer_task_type(req)
         async with self._submission_lock:
-            return await self._pipeline_submission_service.submit_pipeline(
-                orchestrator=self,
-                req=req,
-                task_type=task_type,
+            request_params = req.model_dump(mode="json")
+            existing_task_id = self.find_existing_task("pipeline", request_params)
+            if existing_task_id:
+                existing_task = self.get_task(existing_task_id)
+                if existing_task:
+                    return task_submission_response(
+                        self.serialize_task(existing_task),
+                        "already_active",
+                        {},
+                    )
+            task_id = await self._task_manager.create_task(
+                task_type="pipeline",
+                initial_message_code="queued",
+                initial_message_params={},
+                task_name=req.task_name,
+                request_params=request_params,
             )
-
-    async def submit_task(
-        self,
-        *,
-        task_type: str,
-        task_name: str,
-        request_params: dict,
-        initial_message_code: str = "queued",
-        initial_message_params: TaskMessageParams | None = None,
-        queued_message_code: str = "queued",
-        queued_message_params: TaskMessageParams | None = None,
-    ) -> dict:
-        await self.wait_until_task_state_ready()
-        task_id = await self._task_manager.create_task(
-            task_type=task_type,
-            initial_message_code=initial_message_code,
-            initial_message_params=initial_message_params,
-            task_name=task_name,
-            request_params=request_params,
-        )
-        task = self.get_task(task_id)
-        if not task:
-            raise ValueError(f"Task not found after creation: {task_id}")
-        await self._task_manager.enqueue_task(
-            task_id,
-            self._task_runner_registry.build(task),
-            queued_message_code=queued_message_code,
-            queued_message_params=queued_message_params,
-        )
-        return task_submission_response(
-            self.serialize_task(self.get_task(task_id)),
-            queued_message_code,
-            queued_message_params,
-        )
+            task = self.get_task(task_id)
+            if not task:
+                raise ValueError(f"Task not found after creation: {task_id}")
+            await self._task_manager.enqueue_task(
+                task_id,
+                self.build_resume_runner(task),
+                queued_message_code="queued",
+                queued_message_params={},
+            )
+            return task_submission_response(
+                self.serialize_task(self.get_task(task_id)),
+                "queued",
+                {},
+            )
 
     async def resume_task(self, task_id: str) -> dict:
         await self.wait_until_task_state_ready()
@@ -177,29 +150,13 @@ class TaskOrchestrator:
 
     async def retry_task(self, task_id: str) -> dict:
         await self.wait_until_task_state_ready()
-        async with self._submission_lock:
-            task = await self.get_task_record(task_id)
-            if not task:
-                raise ValueError("Task not found")
-            if task.status != "failed":
-                raise ValueError("Only failed tasks can be retried")
-            if not task.request_params:
-                raise ValueError("Cannot retry task: Missing parameters")
-
-            existing_task_id = self.find_existing_task(task.type, task.request_params)
-            if existing_task_id:
-                existing_task = self.get_task(existing_task_id)
-                if existing_task:
-                    return task_submission_response(
-                        self.serialize_task(existing_task),
-                        "already_active",
-                        {},
-                    )
-
-            return await self.submit_task(
-                task_type=task.type,
-                task_name=task.name or task.type,
-                request_params=task.request_params,
-                initial_message_code="queued",
-                queued_message_code="queued",
-            )
+        task = await self.get_task_record(task_id)
+        if not task:
+            raise ValueError("Task not found")
+        if task.status != "failed":
+            raise ValueError("Only failed tasks can be retried")
+        if not task.request_params:
+            raise ValueError("Cannot retry task: Missing parameters")
+        return await self.submit_pipeline(
+            PipelineRequest.model_validate(task.request_params)
+        )

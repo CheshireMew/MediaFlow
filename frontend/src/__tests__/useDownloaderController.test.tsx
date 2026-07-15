@@ -141,13 +141,17 @@ describe("useDownloaderController", () => {
     expect(addTaskMock).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "task-123",
-        type: "download",
+        type: "pipeline",
         task_source: "backend",
         task_contract_version: TASK_CONTRACT_VERSION,
         revision: 0,
         queue_state: "queued",
         request_params: expect.objectContaining({
-          url: "https://example.com/video",
+          pipeline_id: "downloader_tool",
+          steps: [expect.objectContaining({
+            step_name: "download",
+            params: expect.objectContaining({ url: "https://example.com/video" }),
+          })],
         }),
       }),
     );
@@ -172,7 +176,7 @@ describe("useDownloaderController", () => {
       tasks: [
         {
           id: "task-200",
-          type: "download",
+          type: "pipeline",
           primary_operation: "download",
           status: "pending",
           progress: 0,

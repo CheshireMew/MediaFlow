@@ -1,51 +1,46 @@
 import {
   useTranslatorStore,
   type TranslatorMode,
-  type TranslatorExecutionMode,
-  type TranslatorResultMode,
+  type TranslatorState,
 } from "../stores/translatorStore";
 import { useTranslationTask } from "./useTranslationTask";
 import { useGlossary } from "./useGlossary";
 import { useFileIO } from "./useFileIO";
-import type { SubtitleSegment } from "../types/task";
-import type { GlossaryTerm, TranslationTargetLanguage } from "../services/domain";
+import type { GlossaryTerm } from "../services/domain";
 import type { MediaReference } from "../services/ui/mediaReference";
 
 // --- Types ---
 export type { TranslatorMode };
 
-interface UseTranslatorReturn {
-  // Data
-  sourceSegments: SubtitleSegment[];
-  targetSegments: SubtitleSegment[];
+type UseTranslatorReturn = Pick<
+  TranslatorState,
+  | "sourceSegments"
+  | "targetSegments"
+  | "sourceFileRef"
+  | "targetSubtitleRef"
+  | "targetLang"
+  | "mode"
+  | "activeMode"
+  | "resultMode"
+  | "taskId"
+  | "taskStatus"
+  | "progress"
+  | "taskError"
+  | "executionMode"
+  | "setSourceSegments"
+  | "updateTargetSegment"
+  | "setTargetLang"
+  | "setMode"
+> & {
   glossary: GlossaryTerm[];
-  sourceFileRef: MediaReference | null;
-  targetSubtitleRef: MediaReference | null;
-
-  // UI State
-  targetLang: TranslationTargetLanguage;
-  mode: TranslatorMode;
-  activeMode: TranslatorMode | null;
-  resultMode: TranslatorResultMode;
-  taskId: string | null;
-  taskStatus: string;
-  progress: number;
-  taskError: string | null;
-  executionMode: TranslatorExecutionMode;
   isTranslating: boolean;
-
-  // Actions
-  setSourceSegments: (s: SubtitleSegment[]) => void;
-  updateTargetSegment: (index: number, text: string) => void;
-  setTargetLang: (lang: TranslationTargetLanguage) => void;
-  setMode: (m: TranslatorMode) => void;
   handleFileUpload: (input: MediaReference) => Promise<void>;
   refreshGlossary: () => Promise<void>;
   startTranslation: () => Promise<void>;
   proofreadSubtitle: () => Promise<void>;
   exportSRT: () => Promise<void>;
   handleOpenInEditor: () => Promise<void>;
-}
+};
 
 export const useTranslator = (): UseTranslatorReturn => {
   // 1. Core State (Direct Store Access for simple updates)

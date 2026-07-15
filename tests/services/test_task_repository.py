@@ -8,7 +8,7 @@ from backend.config import settings
 from backend.core.database import init_db
 from backend.contracts import task_lifecycle, task_persistence_scope
 from backend.models.task_model import Task
-from backend.models.schemas import MediaReference, TaskArtifact, TaskResult
+from backend.models.media_contracts import MediaReference, TaskArtifact, TaskResult
 from backend.services.task_repository import TaskRepository
 
 
@@ -39,9 +39,20 @@ async def test_task_repository_serializes_pydantic_objects_in_result(tmp_path, m
     try:
         await init_db()
         task = await repository.create_task(
-            task_type="synthesis",
+            task_type="pipeline",
             request_params={
-                "video_ref": MediaReference(path="E:/media/input.mp4", name="input.mp4")
+                "pipeline_id": "repository_serialization",
+                "steps": [
+                    {
+                        "step_name": "synthesize",
+                        "params": {
+                            "video_ref": MediaReference(
+                                path="E:/media/input.mp4",
+                                name="input.mp4",
+                            )
+                        },
+                    }
+                ],
             },
         )
 
@@ -65,7 +76,7 @@ async def test_task_repository_serializes_pydantic_objects_in_result(tmp_path, m
         assert updated is not None
         assert updated.result["artifacts"][0]["ref"]["path"] == "E:/media/output.mp4"
         assert updated.result["artifacts"][0]["ref"]["name"] == "output.mp4"
-        assert updated.request_params["video_ref"]["path"] == "E:/media/input.mp4"
+        assert updated.request_params["steps"][0]["params"]["video_ref"]["path"] == "E:/media/input.mp4"
         assert len(task.id) == 36
     finally:
         await engine.dispose()
@@ -96,7 +107,7 @@ async def test_task_repository_returns_recent_history_without_mutating_older_rec
                     Task(
                         id=f"history-{index:02d}",
                         name=f"History {index}",
-                        type="transcribe",
+                        type="pipeline",
                         status="completed",
                         persistence_scope=task_persistence_scope("completed"),
                         lifecycle=task_lifecycle("completed"),

@@ -3,9 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executionService } from "../services/domain/executionService";
 import { createMockUserSettings } from "./testUtils/mockUserSettings";
 import {
-  normalizeTranscribeResultMediaReferences,
+  normalizeTranscribeResult,
 } from "../services/tasks/resultMediaReferences";
-import { normalizeTranscribeResult } from "../services/ui/transcribeResult";
 import { apiClient } from "../api/client";
 import type { TaskResponse } from "../types/api";
 import { TASK_CONTRACT_VERSION } from "../contracts/runtimeContracts";
@@ -13,8 +12,6 @@ import { TASK_CONTRACT_VERSION } from "../contracts/runtimeContracts";
 const apiClientMock = {
   getSettings: vi.spyOn(apiClient, "getSettings"),
   runPipeline: vi.spyOn(apiClient, "runPipeline"),
-  startTranslation: vi.spyOn(apiClient, "startTranslation"),
-  synthesizeVideo: vi.spyOn(apiClient, "synthesizeVideo"),
 };
 
 vi.mock("../services/desktop", () => ({
@@ -41,9 +38,7 @@ describe("service media contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiClientMock.getSettings.mockResolvedValue(createMockUserSettings());
-    apiClientMock.synthesizeVideo.mockResolvedValue(backendReceipt("task-synthesize"));
-    apiClientMock.runPipeline.mockResolvedValue(backendReceipt("task-transcribe"));
-    apiClientMock.startTranslation.mockResolvedValue(backendReceipt("task-translate"));
+    apiClientMock.runPipeline.mockResolvedValue(backendReceipt("task-pipeline"));
   });
 
   it("keeps video and subtitle refs in backend synthesis submissions", async () => {
@@ -76,8 +71,11 @@ describe("service media contract", () => {
       options: {},
     });
 
-    expect(apiClientMock.synthesizeVideo).toHaveBeenCalledWith(expect.objectContaining({
-      video_ref: expect.objectContaining({
+    const synthesisRequest = apiClientMock.runPipeline.mock.calls[0]?.[0];
+    expect(synthesisRequest).toEqual(expect.objectContaining({
+      pipeline_id: "synthesis_tool",
+      steps: [{ step_name: "synthesize", params: expect.objectContaining({
+        video_ref: expect.objectContaining({
         path: "E:/canonical/source.mp4",
         name: "source.mp4",
         media_kind: "video",
@@ -102,10 +100,11 @@ describe("service media contract", () => {
         name: "burned.mp4",
         role: "output",
       }),
-      options: {},
+        options: {},
+      }) }],
     }));
-    expect(apiClientMock.synthesizeVideo.mock.calls[0]?.[0]).not.toHaveProperty("video_path");
-    expect(apiClientMock.synthesizeVideo.mock.calls[0]?.[0]).not.toHaveProperty("srt_path");
+    expect(synthesisRequest?.steps[0].params).not.toHaveProperty("video_path");
+    expect(synthesisRequest?.steps[0].params).not.toHaveProperty("srt_path");
   });
 
   it("submits a subtitle-free video export through the same synthesis boundary", async () => {
@@ -126,9 +125,14 @@ describe("service media contract", () => {
       options: { skip_subtitles: true },
     });
 
-    expect(apiClientMock.synthesizeVideo).toHaveBeenCalledWith(expect.objectContaining({
-      srt_ref: null,
-      options: { skip_subtitles: true },
+    expect(apiClientMock.runPipeline).toHaveBeenCalledWith(expect.objectContaining({
+      steps: [{
+        step_name: "synthesize",
+        params: expect.objectContaining({
+          srt_ref: null,
+          options: { skip_subtitles: true },
+        }),
+      }],
     }));
   });
 
@@ -181,19 +185,25 @@ describe("service media contract", () => {
         origin: "task",
       },
     });
-    expect(apiClientMock.startTranslation.mock.calls[0]?.[0]).not.toHaveProperty("context_path");
-
-    expect(apiClientMock.startTranslation).toHaveBeenCalledWith(expect.objectContaining({
-      segments: [],
-      target_language: "SimplifiedChinese",
-      mode: "standard",
-      context_ref: expect.objectContaining({
-        path: "E:/canonical/source.srt",
-        name: "source.srt",
-        media_kind: "subtitle",
-        role: "context",
-        origin: "task",
-      }),
+    const translationRequest = apiClientMock.runPipeline.mock.calls[1]?.[0];
+    expect(translationRequest?.steps[0].params).not.toHaveProperty("context_path");
+    expect(translationRequest).toEqual(expect.objectContaining({
+      pipeline_id: "translator_tool",
+      steps: [{
+        step_name: "translate",
+        params: expect.objectContaining({
+          segments: [],
+          target_language: "SimplifiedChinese",
+          mode: "standard",
+          context_ref: expect.objectContaining({
+            path: "E:/canonical/source.srt",
+            name: "source.srt",
+            media_kind: "subtitle",
+            role: "context",
+            origin: "task",
+          }),
+        }),
+      }],
     }));
   });
 
@@ -270,7 +280,7 @@ describe("service media contract", () => {
 
   it("uses shared result media reference normalization as the single source", () => {
     expect(
-      normalizeTranscribeResultMediaReferences(
+      normalizeTranscribeResult(
         {
           segments: [],
           text: "",
@@ -306,7 +316,7 @@ describe("service media contract", () => {
 
   it("does not synthesize subtitle refs without structured refs", () => {
     expect(
-      normalizeTranscribeResultMediaReferences(
+      normalizeTranscribeResult(
         {
           segments: [],
           text: "",
@@ -329,7 +339,7 @@ describe("service media contract", () => {
 
   it("does not expose audio-only transcribe sources as video refs", () => {
     expect(
-      normalizeTranscribeResultMediaReferences(
+      normalizeTranscribeResult(
         {
           segments: [],
           text: "",
@@ -357,7 +367,7 @@ describe("service media contract", () => {
 
   it("treats transport stream transcribe sources as video refs", () => {
     expect(
-      normalizeTranscribeResultMediaReferences(
+      normalizeTranscribeResult(
         {
           segments: [],
           text: "",

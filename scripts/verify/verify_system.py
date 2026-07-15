@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from backend.config import settings
-from backend.core.app_runtime import ApplicationRuntime
+from backend.runtime.application_runtime import ApplicationRuntime
 from backend.core.container import ServiceContainer, Services
 
 
@@ -43,9 +43,12 @@ async def verify_system(url: str, model_name: str, device: str) -> None:
         )
         if not result.success:
             raise RuntimeError(result.error or "Transcription failed")
-        segments = result.meta.get("segments", [])
+        transcription_output = result.outputs.transcription
+        if transcription_output is None:
+            raise RuntimeError("Transcription produced no typed output")
+        segments = transcription_output.segments
         print(f"✅ Transcription successful. Generated {len(segments)} segments.")
-        sample = segments[0].get("text", "") if segments else "No speech detected"
+        sample = segments[0].text if segments else "No speech detected"
         print(f"Sample: {sample}")
 
     except Exception:

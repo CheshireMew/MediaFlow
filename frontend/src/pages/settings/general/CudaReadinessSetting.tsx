@@ -4,6 +4,7 @@ import { settingsService } from "../../../services/domain";
 import type { CudaReadinessResponse, RuntimeDependencyCheck } from "../../../types/api";
 import type { SettingsController, SettingsT } from "../settingsTypes";
 import { SettingCard } from "./SettingCard";
+import { SettingsActionButton } from "./SettingsActionButton";
 
 type CudaReadinessSettingProps = {
   controller: SettingsController;
@@ -56,14 +57,14 @@ export function CudaReadinessSetting({ controller, t }: CudaReadinessSettingProp
       description={t("general.cudaDesc")}
       contentClassName="flex-1"
       actions={
-        <button
+        <SettingsActionButton
           onClick={loadReadiness}
           disabled={isLoading}
-          className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+          className="inline-flex items-center gap-2"
         >
           <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
           {t("general.cudaRefresh")}
-        </button>
+        </SettingsActionButton>
       }
     >
       <div className="mt-4 space-y-4">

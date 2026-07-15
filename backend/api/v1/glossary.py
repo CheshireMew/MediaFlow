@@ -1,12 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 
-from backend.models.schemas import (
-    CreateGlossaryTermRequest,
-    GlossaryTerm,
-    GlossaryDeleteResponse,
-    UpdateGlossaryTermRequest,
-)
+from backend.models.glossary_contracts import CreateGlossaryTermRequest, GlossaryTerm, GlossaryDeleteResponse, UpdateGlossaryTermRequest
 
 
 def create_router(glossary_application) -> APIRouter:

@@ -11,7 +11,7 @@ from backend.services.translator.translation_models import (
     TranslatorSegment,
 )
 from backend.services.translator.translation_validator import TranslationResponseValidator
-from backend.models.schemas import SubtitleSegment
+from backend.models.subtitle_contracts import SubtitleSegment
 
 
 class FakeSettingsManager:

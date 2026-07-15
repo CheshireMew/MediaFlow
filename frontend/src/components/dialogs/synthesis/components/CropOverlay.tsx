@@ -1,14 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { usePointerDragSession } from "../../../../hooks/ui/usePointerDragSession";
+import { clamp, getArrowDelta } from "../../../../utils/spatialInteraction";
 
 type CropRect = { x: number; y: number; w: number; h: number };
 type CropDragMode = "move" | "nw" | "ne" | "sw" | "se";
 
 const MIN_CROP_SIZE = 0.05;
-
-function clamp(value: number, min: number, max: number) {
-    return Math.max(min, Math.min(max, value));
-}
 
 function applyCropDelta(
     crop: CropRect,
@@ -60,50 +58,27 @@ interface Props {
 
 export const CropOverlay: React.FC<Props> = ({ crop, setCrop, containerRef }) => {
     const { t } = useTranslation("synthesis");
-    const [dragState, setDragState] = useState<{
+    type CropDragSession = {
         mode: CropDragMode;
-        pointerId: number;
         startX: number;
         startY: number;
         width: number;
         height: number;
         crop: CropRect;
-    } | null>(null);
-
-    useEffect(() => {
-        if (!dragState) return;
-
-        const handlePointerMove = (event: PointerEvent) => {
-            if (event.pointerId !== dragState.pointerId) return;
-            const dx = (event.clientX - dragState.startX) / dragState.width;
-            const dy = (event.clientY - dragState.startY) / dragState.height;
-            setCrop(applyCropDelta(dragState.crop, dragState.mode, dx, dy));
-        };
-
-        const handlePointerEnd = (event: PointerEvent) => {
-            if (event.pointerId === dragState.pointerId) setDragState(null);
-        };
-
-        window.addEventListener("pointermove", handlePointerMove);
-        window.addEventListener("pointerup", handlePointerEnd);
-        window.addEventListener("pointercancel", handlePointerEnd);
-        return () => {
-            window.removeEventListener("pointermove", handlePointerMove);
-            window.removeEventListener("pointerup", handlePointerEnd);
-            window.removeEventListener("pointercancel", handlePointerEnd);
-        };
-    }, [dragState, setCrop]);
+    };
+    const handlePointerMove = useCallback((event: PointerEvent, session: CropDragSession) => {
+        const dx = (event.clientX - session.startX) / session.width;
+        const dy = (event.clientY - session.startY) / session.height;
+        setCrop(applyCropDelta(session.crop, session.mode, dx, dy));
+    }, [setCrop]);
+    const pointerDrag = usePointerDragSession<CropDragSession>({ onMove: handlePointerMove });
 
     const startPointerDrag = (event: React.PointerEvent, mode: CropDragMode) => {
         const container = containerRef.current;
         if (!container) return;
-        event.preventDefault();
-        event.stopPropagation();
-        event.currentTarget.setPointerCapture?.(event.pointerId);
         const rect = container.getBoundingClientRect();
-        setDragState({
+        pointerDrag.start(event, {
             mode,
-            pointerId: event.pointerId,
             startX: event.clientX,
             startY: event.clientY,
             width: Math.max(1, rect.width),
@@ -116,18 +91,11 @@ export const CropOverlay: React.FC<Props> = ({ crop, setCrop, containerRef }) =>
         event: React.KeyboardEvent,
         mode: CropDragMode,
     ) => {
-        const directions: Record<string, { x: number; y: number }> = {
-            ArrowLeft: { x: -1, y: 0 },
-            ArrowRight: { x: 1, y: 0 },
-            ArrowUp: { x: 0, y: -1 },
-            ArrowDown: { x: 0, y: 1 },
-        };
-        const direction = directions[event.key];
-        if (!direction) return;
+        const delta = getArrowDelta(event.key, event.shiftKey, 0.01, 0.05);
+        if (!delta) return;
         event.preventDefault();
         event.stopPropagation();
-        const step = event.shiftKey ? 0.05 : 0.01;
-        setCrop(applyCropDelta(crop, mode, direction.x * step, direction.y * step));
+        setCrop(applyCropDelta(crop, mode, delta.x, delta.y));
     };
 
     const handles: Array<{

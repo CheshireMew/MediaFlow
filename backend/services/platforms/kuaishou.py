@@ -1,7 +1,7 @@
 from typing import Optional
 from loguru import logger
 from backend.services.platforms.base import BasePlatform
-from backend.models.schemas import AnalyzeResult
+from backend.models.download_contracts import AnalyzeResult
 import re
 
 class KuaishouPlatform(BasePlatform):

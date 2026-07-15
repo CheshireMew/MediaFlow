@@ -1,24 +1,27 @@
 {
   "task_types": [
-    "download",
-    "transcribe",
-    "translate",
-    "pipeline",
-    "synthesis",
-    "clip_export"
+    "pipeline"
   ],
   "pipeline_steps": {
     "download": {
-      "task_type": "download"
+      "operation": "download",
+      "params_model": "DownloadParams"
     },
     "transcribe": {
-      "task_type": "transcribe"
+      "operation": "transcribe",
+      "params_model": "TranscribeParams"
     },
     "translate": {
-      "task_type": "translate"
+      "operation": "translate",
+      "params_model": "TranslateParams"
     },
     "synthesize": {
-      "task_type": "synthesis"
+      "operation": "synthesis",
+      "params_model": "SynthesizeParams"
+    },
+    "clip_export": {
+      "operation": "clip_export",
+      "params_model": "ClipExportRequest"
     }
   }
 }

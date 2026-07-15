@@ -3,7 +3,7 @@ URL Analysis API endpoints.
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, HttpUrl
-from backend.models.schemas import AnalyzeResult
+from backend.models.download_contracts import AnalyzeResult
 from loguru import logger
 
 

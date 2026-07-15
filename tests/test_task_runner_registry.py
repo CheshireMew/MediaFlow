@@ -1,27 +1,26 @@
-from backend.application.task_definitions import build_task_runner_registry
-from backend.core.task_catalog import task_types
+from backend.application.pipeline_steps.base import PipelineStep
+from backend.application.pipeline_steps.registry import StepRegistry
+from backend.contracts import pipeline_step_names, task_types
+from backend.models.pipeline_contracts import PIPELINE_STEP_PARAM_MODELS
 
 
-def test_composed_task_runner_registry_covers_catalog_task_types():
-    class FakePipelineRunner:
-        async def run(self, _steps, _task_id):
-            return None
+class CatalogStep(PipelineStep):
+    def __init__(self, name: str):
+        self._name = name
 
-    class FakeOperationExecutor:
-        @staticmethod
-        def task_operation(_task_type):
-            class Operation:
-                background = staticmethod(lambda _task_id, _request: None)
+    @property
+    def name(self) -> str:
+        return self._name
 
-            return Operation()
+    async def execute(self, ctx, params, task_id=None):
+        return None
 
-        @staticmethod
-        def build_runner(_task):
-            return lambda: None
 
-    registry = build_task_runner_registry(
-        pipeline_runner=FakePipelineRunner(),
-        operation_executor=FakeOperationExecutor(),
-    )
+def test_pipeline_is_the_only_background_task_type():
+    assert task_types() == {"pipeline"}
 
-    assert task_types().issubset(registry.registered_task_types())
+
+def test_step_registry_and_parameter_models_cover_the_step_catalog():
+    registry = StepRegistry(CatalogStep(name) for name in pipeline_step_names())
+    assert set(registry.list_steps()) == pipeline_step_names()
+    assert set(PIPELINE_STEP_PARAM_MODELS) == pipeline_step_names()

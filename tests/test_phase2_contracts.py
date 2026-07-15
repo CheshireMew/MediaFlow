@@ -1,9 +1,11 @@
-﻿import pytest
+import pytest
 from unittest.mock import MagicMock, AsyncMock
 
-from backend.models.schemas import MediaReference, PipelineStepRequest
+from backend.models.media_contracts import MediaReference
+from backend.models.task_result_contracts import DownloadOutput
+from backend.models.pipeline_contracts import PipelineStepRequest
 from backend.core.pipeline import PipelineRunner
-from backend.core.steps.registry import StepRegistry
+from backend.application.pipeline_steps.registry import StepRegistry
 
 @pytest.mark.asyncio
 async def test_pipeline_runner_result_structure():
@@ -26,7 +28,15 @@ async def test_pipeline_runner_result_structure():
                 ),
                 kind="video",
             )
-            ctx.set("some_meta", "value")
+            ctx.publish_download(
+                DownloadOutput(
+                    id="download-1",
+                    title="Video",
+                    duration=1,
+                    filename="video.mp4",
+                    source_url="https://example.com/video",
+                )
+            )
 
     runner = PipelineRunner(
         task_manager=mock_tm,
@@ -48,15 +58,13 @@ async def test_pipeline_runner_result_structure():
     assert result["success"] is True
     assert "artifacts" in result
     assert "files" not in result
-    assert "meta" in result
+    assert "outputs" in result
 
     artifacts = result["artifacts"]
     assert len(artifacts) == 1
     assert artifacts[0]["ref"]["path"] == "/tmp/video.mp4"
     assert artifacts[0]["kind"] == "video"
 
-    meta = result["meta"]
-    assert "video_ref" not in meta
-    assert "video_path" not in meta
-    assert meta["some_meta"] == "value"
-    assert "execution_trace" in meta
+    outputs = result["outputs"]
+    assert outputs["download"]["filename"] == "video.mp4"
+    assert "execution_trace" in result

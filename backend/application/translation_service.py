@@ -2,14 +2,10 @@ from typing import List, Optional
 
 from loguru import logger
 
-from backend.core.task_runtime import TaskRuntimeContext
-from backend.models.schemas import (
-    MediaReference,
-    SubtitleSegment,
-    TaskArtifact,
-    TaskResult,
-    TranslationRequest,
-)
+from backend.models.media_contracts import MediaReference, TaskArtifact, TaskResult
+from backend.models.subtitle_contracts import SubtitleSegment
+from backend.models.task_result_contracts import PipelineOutputs, TranslationOutput
+from backend.models.translation_contracts import TranslationRequest
 from backend.models.translation_target_language import (
     TranslationTargetLanguage,
     get_language_suffix,
@@ -38,10 +34,6 @@ def build_translation_task_result(
 ) -> TaskResult:
     artifacts: list[TaskArtifact] = []
     target_language_value = _target_language_value(target_language)
-    meta = {
-        "segments": [seg.model_dump(mode="json") for seg in segments],
-        "language": target_language_value,
-    }
     resolved_context_ref = context_ref
 
     if resolved_context_ref and segments:
@@ -73,7 +65,17 @@ def build_translation_task_result(
         except Exception as exc:
             logger.error(f"Failed to save translated SRT: {exc}")
 
-    return TaskResult(success=True, artifacts=artifacts, meta=meta)
+    return TaskResult(
+        success=True,
+        artifacts=artifacts,
+        outputs=PipelineOutputs(
+            translation=TranslationOutput(
+                segments=segments,
+                language=target_language_value,
+                mode=mode,
+            )
+        ),
+    )
 
 
 def build_translation_worker_kwargs(
@@ -93,34 +95,6 @@ def build_translation_worker_kwargs(
     if cancel_check is not None:
         kwargs["cancel_check"] = cancel_check
     return kwargs
-
-
-async def _translation_background(
-    task_id: str,
-    req: TranslationRequest,
-    *,
-    llm_translator,
-    task_manager,
-    background_runner,
-) -> None:
-    runtime = TaskRuntimeContext(task_id, task_manager=task_manager)
-
-    await background_runner.run(
-        task_id=task_id,
-        worker_fn=llm_translator.translate_segments,
-        worker_kwargs=build_translation_worker_kwargs(
-            req,
-            cancel_check=runtime.checkpoint,
-        ),
-        start_message_code="translation_starting",
-        success_message_code="translation_completed",
-        result_transformer=lambda segments: build_translation_task_result(
-            segments,
-            target_language=req.target_language.value,
-            mode=req.mode,
-            context_ref=req.context_ref,
-        ).model_dump(mode="json"),
-    )
 
 
 def _translation_immediate(
@@ -150,13 +124,36 @@ def _translation_immediate(
         if output_artifact is not None
         else None
     )
+    translation_output = result.outputs.translation
+    if translation_output is None:
+        raise RuntimeError("Translation result did not publish translation output")
     return {
         "status": "completed",
-        "segments": result.meta.get("segments", []),
-        "language": req.target_language.value,
+        "segments": translation_output.segments,
+        "language": translation_output.language.value,
         "context_ref": (
             req.context_ref.model_dump(mode="json") if req.context_ref else None
         ),
         "subtitle_ref": output_ref,
-        "mode": req.mode,
+        "mode": translation_output.mode,
     }
+
+
+class TranslationApplicationService:
+    def __init__(self, llm_translator):
+        self._llm_translator = llm_translator
+
+    async def translate_immediate(
+        self,
+        request: TranslationRequest,
+        *,
+        progress_callback=None,
+    ) -> dict:
+        import asyncio
+
+        return await asyncio.to_thread(
+            _translation_immediate,
+            request,
+            llm_translator=self._llm_translator,
+            progress_callback=progress_callback,
+        )

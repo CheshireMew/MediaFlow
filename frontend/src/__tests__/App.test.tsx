@@ -60,8 +60,11 @@ vi.mock('lucide-react', () => {
 })
 
 // Mock TaskContext to avoid WebSocket side effects
-vi.mock('../context/taskContext', () => ({
+vi.mock('../context/TaskProvider', () => ({
   TaskProvider: ({ children }: { children: ReactNode }) => <div data-testid="task-provider">{children}</div>,
+}))
+
+vi.mock('../context/taskContext', () => ({
   useTaskContext: () => ({
     tasks: [],
     connected: false,

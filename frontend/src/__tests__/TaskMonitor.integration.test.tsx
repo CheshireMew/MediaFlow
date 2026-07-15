@@ -30,7 +30,8 @@ vi.mock("../components/ui/confirmationContext", () => ({
   useConfirmation: () => confirmActionMock,
 }));
 
-vi.mock("../services/tasks/retry", () => ({
+vi.mock("../services/tasks/taskRuntimeState", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../services/tasks/taskRuntimeState")>(),
   canRetryTask: (...args: unknown[]) => canRetryTaskMock(...args),
 }));
 
@@ -55,7 +56,7 @@ describe("TaskMonitor integration", () => {
       tasks: [
         {
           id: "queued-task",
-          type: "transcribe",
+          type: "pipeline",
           status: "pending",
           progress: 0,
           name: "Queued task",
@@ -67,7 +68,7 @@ describe("TaskMonitor integration", () => {
         },
         {
           id: "running-task",
-          type: "transcribe",
+          type: "pipeline",
           status: "running",
           progress: 40,
           name: "Running task",
@@ -79,7 +80,7 @@ describe("TaskMonitor integration", () => {
         },
         {
           id: "paused-task",
-          type: "translate",
+          type: "pipeline",
           status: "paused",
           progress: 25,
           name: "Paused task",
@@ -134,7 +135,7 @@ describe("TaskMonitor integration", () => {
       tasks: [
         {
           id: "queued-task",
-          type: "transcribe",
+          type: "pipeline",
           status: "pending",
           progress: 0,
           name: "Queued task",
@@ -146,7 +147,7 @@ describe("TaskMonitor integration", () => {
         },
         {
           id: "running-task",
-          type: "transcribe",
+          type: "pipeline",
           status: "running",
           progress: 40,
           name: "Running task",
@@ -236,7 +237,7 @@ describe("TaskMonitor integration", () => {
       tasks: [
         {
           id: "backend-task",
-          type: "transcribe",
+          type: "pipeline",
           status: "running",
           progress: 40,
           name: "Backend task",
@@ -276,7 +277,7 @@ describe("TaskMonitor integration", () => {
       tasks: [
         {
           id: "paused-backend-task",
-          type: "transcribe",
+          type: "pipeline",
           status: "paused",
           progress: 40,
           name: "Paused backend task",
@@ -317,7 +318,7 @@ describe("TaskMonitor integration", () => {
       tasks: [
         {
           id: "failed-download-task",
-          type: "download",
+          type: "pipeline",
           status: "failed",
           progress: 0,
           name: "Failed download task",
@@ -365,7 +366,7 @@ describe("TaskMonitor integration", () => {
       tasks: [
         {
           id: "failed-translate-task",
-          type: "translate",
+          type: "pipeline",
           status: "failed",
           progress: 0,
           name: "Failed translate task",

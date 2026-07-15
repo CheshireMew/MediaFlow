@@ -12,7 +12,7 @@ describe("taskSubmission", () => {
       receipt: createTaskExecutionSubmissionReceipt({
         task_id: "backend-task-1",
         status: "running",
-        message_code: "translation_starting",
+        message_code: "queued",
         message_params: {},
         task_source: "backend",
         task_contract_version: TASK_CONTRACT_VERSION,
@@ -23,28 +23,40 @@ describe("taskSubmission", () => {
         queue_position: null,
         primary_operation: "translate",
       }),
-      type: "translate",
+      type: "pipeline",
       request_params: {
-        context_ref: {
-          path: "E:/video.srt",
-          name: "video.srt",
-        },
+        pipeline_id: "translator_tool",
+        steps: [{
+          step_name: "translate",
+          params: {
+            context_ref: {
+              path: "E:/video.srt",
+              name: "video.srt",
+            },
+          },
+        }],
       },
     });
 
     expect(task).toMatchObject({
       id: "backend-task-1",
-      type: "translate",
+      type: "pipeline",
       status: "running",
       task_source: "backend",
       lifecycle: "resumable",
       queue_state: "running",
       primary_operation: "translate",
       request_params: {
-        context_ref: {
-          path: "E:/video.srt",
-          name: "video.srt",
-        },
+        pipeline_id: "translator_tool",
+        steps: [{
+          step_name: "translate",
+          params: {
+            context_ref: {
+              path: "E:/video.srt",
+              name: "video.srt",
+            },
+          },
+        }],
       },
     });
   });

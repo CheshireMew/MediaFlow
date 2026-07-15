@@ -103,15 +103,10 @@
     "asr_model_initializing": "Initializing model {{model}} on {{device}}…",
     "asr_model_loaded": "Model {{model}} is ready",
     "asr_cuda_cpu_fallback": "GPU runtime unavailable; retrying on CPU…",
-    "asr_finalizing": "Finalizing transcript segments…",
-    "translation_starting": "Starting translation…",
     "translation_batch_progress": "Translated {{completed}} of {{total}} batches",
     "translation_completed": "Translation completed",
-    "synthesis_preparing": "Preparing video export…",
     "synthesis_starting": "Starting video synthesis…",
     "synthesis_encoding": "Encoding video… {{percent}}% {{speed}}",
-    "synthesis_completed": "Video export completed",
-    "clip_export_preparing": "Preparing clip export…",
     "clip_exporting": "Exporting clip {{current}} of {{total}}…",
     "clip_export_completed": "Clip export completed"
   }

@@ -103,15 +103,10 @@
     "asr_model_initializing": "{{device}} でモデル {{model}} を初期化中…",
     "asr_model_loaded": "モデル {{model}} の準備ができました",
     "asr_cuda_cpu_fallback": "GPU ランタイムを利用できないため CPU で再試行します…",
-    "asr_finalizing": "文字起こしセグメントを整理中…",
-    "translation_starting": "翻訳を開始しています…",
     "translation_batch_progress": "{{completed}} / {{total}} バッチを翻訳しました",
     "translation_completed": "翻訳が完了しました",
-    "synthesis_preparing": "動画の書き出しを準備中…",
     "synthesis_starting": "動画合成を開始しています…",
     "synthesis_encoding": "動画をエンコード中… {{percent}}% {{speed}}",
-    "synthesis_completed": "動画の書き出しが完了しました",
-    "clip_export_preparing": "クリップの書き出しを準備中…",
     "clip_exporting": "クリップ {{current}} / {{total}} を書き出し中…",
     "clip_export_completed": "クリップの書き出しが完了しました"
   }

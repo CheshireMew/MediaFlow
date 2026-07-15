@@ -2,14 +2,12 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderOpen } from "lucide-react";
 import { useTaskContext } from "../context/taskContext";
-import type { Task, TaskResult } from "../types/task";
+import type { Task } from "../types/task";
 import { useTaskMonitorOverview } from "./task-monitor/useTaskMonitorOverview";
-import { canRetryTask } from "../services/tasks/retry";
+import { canRetryTask } from "../services/tasks/taskRuntimeState";
 import { TaskMonitorHeader } from "./task-monitor/TaskMonitorHeader";
 import { TaskMonitorItem } from "./task-monitor/TaskMonitorItem";
 import { toast } from "../utils/toast";
-
-type TaskWithDetails = Task & { result?: TaskResult };
 
 export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?: boolean }> = ({
   filterTypes,
@@ -37,7 +35,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
     });
   };
 
-  const handleResumeAction = React.useCallback(async (task: TaskWithDetails) => {
+  const handleResumeAction = React.useCallback(async (task: Task) => {
     if (task.status === "paused") {
       await resumeTask(task.id);
       return;

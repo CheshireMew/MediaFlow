@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { isDesktopRuntime } from "../../services/domain";
 import { fileService } from "../../services/fileService";
 import { createNavigationMediaPayload } from "../../services/ui/navigation";
-import { normalizeTranscribeResult } from "../../services/ui/transcribeResult";
+import { normalizeTranscribeResult } from "../../services/tasks/resultMediaReferences";
 import type { TranscribeResult } from "../../types/transcriber";
 import { SubtitleFileContextMenu } from "../ui/SubtitleFileContextMenu";
 import { toast } from "../../utils/toast";

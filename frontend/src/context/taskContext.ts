@@ -1,6 +1,5 @@
 import { createContext, useContext } from "react";
 import type { Task } from "../types/task";
-export { TaskProvider } from "./TaskProvider";
 
 export interface TaskContextType {
   tasks: Task[];

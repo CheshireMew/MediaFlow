@@ -1,20 +1,5 @@
 import type { StateCreator } from "zustand";
-import type { SubtitleSegment } from "../../types/task";
-import type { EditorState } from "../editorStore";
-
-export interface EditorHistoryEntry {
-  regions: SubtitleSegment[];
-  revision: number;
-}
-
-export interface HistorySlice {
-  past: EditorHistoryEntry[];
-  future: EditorHistoryEntry[];
-
-  undo: () => void;
-  redo: () => void;
-  snapshot: () => void;
-}
+import type { EditorState, HistorySlice } from "../editorStoreTypes";
 
 const MAX_HISTORY_SIZE = 50;
 

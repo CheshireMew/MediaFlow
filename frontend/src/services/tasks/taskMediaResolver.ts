@@ -1,32 +1,27 @@
-import type { Task, TaskArtifact, TaskRequestParams, TaskResult } from "../../types/task";
+import type { Task, TaskArtifact } from "../../types/task";
 import type { MediaReference } from "../ui/mediaReference";
 
-type TaskWithDetails = Task & {
-  request_params?: TaskRequestParams;
-  result?: TaskResult;
-};
-
-const artifactsOf = (task: TaskWithDetails): TaskArtifact[] => task.artifacts ?? [];
+const artifactsOf = (task: Task): TaskArtifact[] => task.artifacts ?? [];
 
 const firstArtifactRef = (
-  task: TaskWithDetails,
+  task: Task,
   predicate: (artifact: TaskArtifact) => boolean,
 ): MediaReference | null => artifactsOf(task).find(predicate)?.ref ?? null;
 
 const firstSortedArtifactRef = (
-  task: TaskWithDetails,
+  task: Task,
   predicate: (artifact: TaskArtifact) => boolean,
 ): MediaReference | null => sortedArtifacts(task, predicate)[0]?.ref ?? null;
 
 const artifactPaths = (
-  task: TaskWithDetails,
+  task: Task,
   predicate: (artifact: TaskArtifact) => boolean,
 ) =>
   sortedArtifacts(task, predicate)
     .map((artifact) => artifact.ref.path);
 
 const sortedArtifacts = (
-  task: TaskWithDetails,
+  task: Task,
   predicate: (artifact: TaskArtifact) => boolean,
 ) =>
   artifactsOf(task)
@@ -50,7 +45,7 @@ const rolePriority = (role: TaskArtifact["role"]) => {
   }
 };
 
-const outputKindPriority = (task: TaskWithDetails, artifact: TaskArtifact) => {
+const outputKindPriority = (task: Task, artifact: TaskArtifact) => {
   if (artifact.role !== "output") {
     return fallbackKindPriority(artifact.kind);
   }
@@ -87,7 +82,7 @@ const fallbackKindPriority = (kind: TaskArtifact["kind"]) => {
   }
 };
 
-export function getTaskStructuredMediaRefs(task: TaskWithDetails) {
+export function getTaskStructuredMediaRefs(task: Task) {
   return {
     videoRef:
       firstArtifactRef(task, (artifact) => artifact.kind === "video" && artifact.role === "output") ??
@@ -102,7 +97,7 @@ export function getTaskStructuredMediaRefs(task: TaskWithDetails) {
   };
 }
 
-export function getTaskMediaCandidates(task: TaskWithDetails) {
+export function getTaskMediaCandidates(task: Task) {
   return {
     video: artifactPaths(task, (artifact) => artifact.kind === "video" || artifact.kind === "audio"),
     subtitle: artifactPaths(task, (artifact) => artifact.kind === "subtitle"),
@@ -111,7 +106,7 @@ export function getTaskMediaCandidates(task: TaskWithDetails) {
   };
 }
 
-export function resolvePrimaryTaskMedia(task: TaskWithDetails) {
+export function resolvePrimaryTaskMedia(task: Task) {
   const structuredRefs = getTaskStructuredMediaRefs(task);
 
   return {

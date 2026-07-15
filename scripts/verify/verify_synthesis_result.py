@@ -4,24 +4,26 @@ from pathlib import Path
 repo_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(repo_root))
 
-from backend.application.synthesis_service import build_synthesis_task_result
-from backend.models.schemas import TaskResult
+from backend.application.synthesis_service import build_synthesis_worker_kwargs
+from backend.models.media_contracts import MediaReference
+from backend.models.synthesis_contracts import SynthesisRequest
 
 def test_transformer():
     options = {"crf": 23}
     output_path = "E:\\test\\output.mp4"
-    result = TaskResult.model_validate(
-        build_synthesis_task_result(output_path, options)
+    request = SynthesisRequest(
+        video_ref=MediaReference(path="E:\\test\\input.mp4", name="input.mp4"),
+        output_ref=MediaReference(path=output_path, name="output.mp4"),
+        options=options,
     )
+    worker_kwargs = build_synthesis_worker_kwargs(request)
 
-    print(f"Result: {result}")
+    print(f"Worker kwargs: {worker_kwargs}")
 
-    assert result.success is True
-    assert len(result.artifacts) == 1
-    assert result.artifacts[0].kind == "video"
-    assert result.artifacts[0].role == "output"
-    assert result.artifacts[0].ref.path == output_path
-    assert result.meta == {"options": options}
+    assert worker_kwargs["video_path"] == "E:\\test\\input.mp4"
+    assert worker_kwargs["output_path"] == output_path
+    assert worker_kwargs["srt_path"] is None
+    assert worker_kwargs["options"] == options
 
     print("Verification PASSED!")
 
