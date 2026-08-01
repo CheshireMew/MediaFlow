@@ -1,31 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="520" viewBox="0 0 880 520" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="650" viewBox="0 0 1000 650" role="img" aria-labelledby="title description">
   <title id="title">Star history for CheshireMew/MediaFlow</title>
   <desc id="description">Cumulative GitHub stars through 2026-07-06. Total: 140.</desc>
   <rect width="100%" height="100%" rx="12" fill="#ffffff"/>
-  <rect x="78" y="82" width="770" height="376" rx="8" fill="#f6f8fa"/>
-  <g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
-    <text x="78" y="36" fill="#1f2328" font-size="20" font-weight="600">GitHub Star History</text>
-    <text x="78" y="60" fill="#59636e" font-size="13">CheshireMew/MediaFlow</text>
-    <text x="848" y="39" text-anchor="end" fill="#1f2328" font-size="26" font-weight="700">140</text>
-    <text x="848" y="60" text-anchor="end" fill="#59636e" font-size="12">stars</text>
-    <line x1="78" y1="458.00" x2="848" y2="458.00" stroke="#d8dee4" stroke-width="1"/>
-    <text x="68" y="458.00" text-anchor="end" dominant-baseline="middle" fill="#59636e" font-size="11">0</text>
-    <line x1="78" y1="364.00" x2="848" y2="364.00" stroke="#d8dee4" stroke-width="1"/>
-    <text x="68" y="364.00" text-anchor="end" dominant-baseline="middle" fill="#59636e" font-size="11">50</text>
-    <line x1="78" y1="270.00" x2="848" y2="270.00" stroke="#d8dee4" stroke-width="1"/>
-    <text x="68" y="270.00" text-anchor="end" dominant-baseline="middle" fill="#59636e" font-size="11">100</text>
-    <line x1="78" y1="176.00" x2="848" y2="176.00" stroke="#d8dee4" stroke-width="1"/>
-    <text x="68" y="176.00" text-anchor="end" dominant-baseline="middle" fill="#59636e" font-size="11">150</text>
-    <line x1="78" y1="82.00" x2="848" y2="82.00" stroke="#d8dee4" stroke-width="1"/>
-    <text x="68" y="82.00" text-anchor="end" dominant-baseline="middle" fill="#59636e" font-size="11">200</text>
-    <text x="78.00" y="486" text-anchor="start" fill="#59636e" font-size="11">2026-01</text>
-    <text x="232.97" y="486" text-anchor="middle" fill="#59636e" font-size="11">2026-03</text>
-    <text x="387.94" y="486" text-anchor="middle" fill="#59636e" font-size="11">2026-04</text>
-    <text x="538.06" y="486" text-anchor="middle" fill="#59636e" font-size="11">2026-05</text>
-    <text x="693.03" y="486" text-anchor="middle" fill="#59636e" font-size="11">2026-06</text>
-    <text x="848.00" y="486" text-anchor="end" fill="#59636e" font-size="11">2026-07</text>
-    <path d="M 78.00 458.00 H 184.54 V 386.56 H 189.38 V 330.16 H 194.23 V 320.76 H 199.07 V 315.12 H 203.91 V 311.36 H 208.75 V 307.60 H 213.60 V 305.72 H 291.08 V 303.84 H 305.61 V 301.96 H 324.98 V 300.08 H 392.78 V 298.20 H 407.31 V 296.32 H 426.68 V 245.56 H 431.52 V 226.76 H 436.36 V 224.88 H 446.05 V 223.00 H 465.42 V 221.12 H 470.26 V 219.24 H 475.11 V 217.36 H 479.95 V 215.48 H 528.38 V 213.60 H 567.12 V 211.72 H 765.67 V 207.96 H 770.52 V 200.44 H 775.36 V 198.56 H 828.63 V 196.68 H 848.00 V 194.80 H 848.00 V 458.00 H 78.00 Z" fill="#2da44e" opacity="0.14"/>
-    <path d="M 78.00 458.00 H 184.54 V 386.56 H 189.38 V 330.16 H 194.23 V 320.76 H 199.07 V 315.12 H 203.91 V 311.36 H 208.75 V 307.60 H 213.60 V 305.72 H 291.08 V 303.84 H 305.61 V 301.96 H 324.98 V 300.08 H 392.78 V 298.20 H 407.31 V 296.32 H 426.68 V 245.56 H 431.52 V 226.76 H 436.36 V 224.88 H 446.05 V 223.00 H 465.42 V 221.12 H 470.26 V 219.24 H 475.11 V 217.36 H 479.95 V 215.48 H 528.38 V 213.60 H 567.12 V 211.72 H 765.67 V 207.96 H 770.52 V 200.44 H 775.36 V 198.56 H 828.63 V 196.68 H 848.00 V 194.80 H 848.00" fill="none" stroke="#1f883d" stroke-width="3" stroke-linejoin="round"/>
-    <circle cx="848.00" cy="194.80" r="4.5" fill="#1f883d" stroke="#ffffff" stroke-width="2"/>
+  <g data-style="hand-drawn" font-family="Comic Sans MS,Segoe Print,Bradley Hand,cursive" fill="#111111">
+    <text x="500.0" y="58" text-anchor="middle" font-size="34" font-weight="700">Star History</text>
+    <path data-role="y-axis" d="M 105.00 560.00 C 102.00 446.25, 107.00 368.90, 104.00 296.10 C 101.00 218.75, 108.00 186.90, 105.00 105.00" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round"/>
+    <path data-role="x-axis" d="M 105.00 560.00 C 250.35 557.00, 370.05 563.00, 515.40 560.00 C 660.75 558.00, 806.10 562.00, 960.00 560.00" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round"/>
+    <text x="42" y="332.5" text-anchor="middle" font-size="22" font-weight="600" transform="rotate(-90 42 332.5)">GitHub Stars</text>
+    <text x="532.5" y="625" text-anchor="middle" font-size="22" font-weight="600">Date</text>
+    <path data-role="legend-box" d="M 128 119 Q 119 119, 119 128 L 119 158 Q 119 167, 128 167 L 399 167 Q 408 167, 408 158 L 408 128 Q 408 119, 399 119 Z" fill="#ffffff" stroke="#111111" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="136" y="135" width="17" height="17" rx="4" fill="#f2380f"/>
+    <text x="163" y="144.0" dominant-baseline="middle" font-size="19" font-weight="600">CheshireMew/MediaFlow</text>
+    <path d="M 98 447.25 L 109 446.25" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="91" y="446.25" text-anchor="end" dominant-baseline="middle" font-size="17">50</text>
+    <path d="M 98 333.50 L 109 332.50" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="91" y="332.50" text-anchor="end" dominant-baseline="middle" font-size="17">100</text>
+    <path d="M 98 219.75 L 109 218.75" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="91" y="218.75" text-anchor="end" dominant-baseline="middle" font-size="17">150</text>
+    <path d="M 98 106.00 L 109 105.00" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="91" y="105.00" text-anchor="end" dominant-baseline="middle" font-size="17">200</text>
+    <path d="M 105.00 557 L 106.00 567" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="105.00" y="594" text-anchor="start" font-size="17">2026-01</text>
+    <path d="M 277.08 557 L 278.08 567" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="277.08" y="594" text-anchor="middle" font-size="17">2026-03</text>
+    <path d="M 449.15 557 L 450.15 567" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="449.15" y="594" text-anchor="middle" font-size="17">2026-04</text>
+    <path d="M 615.85 557 L 616.85 567" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="615.85" y="594" text-anchor="middle" font-size="17">2026-05</text>
+    <path d="M 787.92 557 L 788.92 567" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="787.92" y="594" text-anchor="middle" font-size="17">2026-06</text>
+    <path d="M 960.00 557 L 961.00 567" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="960.00" y="594" text-anchor="end" font-size="17">2026-07</text>
+    <path data-role="star-line" d="M 105.00 560.00 L 223.30 473.55 L 228.68 405.30 L 234.06 393.93 L 239.43 387.10 L 244.81 382.55 L 250.19 378.00 L 255.57 375.73 L 341.60 373.45 L 357.74 371.18 L 379.25 368.90 L 454.53 366.62 L 470.66 364.35 L 492.17 302.93 L 497.55 280.18 L 502.92 277.90 L 513.68 275.62 L 535.19 273.35 L 540.57 271.07 L 545.94 268.80 L 551.32 266.52 L 605.09 264.25 L 648.11 261.97 L 868.58 257.43 L 873.96 248.32 L 879.34 246.05 L 938.49 243.78 L 960.00 241.50" fill="none" stroke="#f2380f" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+    <g data-role="signature" transform="translate(786 608)">
+      <path d="M 12 0 L 15 9 L 25 6 L 18 14 L 26 21 L 16 18 L 12 28 L 9 18 L 0 22 L 7 14 L 0 7 L 9 10 Z" fill="none" stroke="#00a83f" stroke-width="2.5" stroke-linejoin="round"/>
+      <text x="34" y="18" fill="#59636e" font-size="15">project-steward</text>
+    </g>
   </g>
 </svg>
