@@ -233,14 +233,14 @@ where cudnn64_9.dll
 <picture>
   <source
     media="(prefers-color-scheme: dark)"
-    srcset="https://api.star-history.com/svg?repos=CheshireMew/MediaFlow&type=Date&theme=dark"
+    srcset="https://raw.githubusercontent.com/CheshireMew/MediaFlow/star-history/star-history-dark.svg"
   />
   <source
     media="(prefers-color-scheme: light)"
-    srcset="https://api.star-history.com/svg?repos=CheshireMew/MediaFlow&type=Date"
+    srcset="https://raw.githubusercontent.com/CheshireMew/MediaFlow/star-history/star-history.svg"
   />
   <img
-    alt="Star History Chart"
-    src="https://api.star-history.com/svg?repos=CheshireMew/MediaFlow&type=Date"
+    alt="GitHub Star History"
+    src="https://raw.githubusercontent.com/CheshireMew/MediaFlow/star-history/star-history.svg"
   />
 </picture>
