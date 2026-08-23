@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Dispatch, RefObject } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useTaskContext } from "../../context/taskContext";
+import { useTaskActions } from "../../context/taskContext";
+import { useTaskById } from "../../context/taskStoreContext";
 import {
   buildSynthesisOptionsFromPreferences,
   createTaskFromExecutionOutcome,
@@ -47,14 +48,11 @@ export function useClipExport({
   dispatch: Dispatch<EditorClipWorkspaceAction>;
 }) {
   const { t } = useTranslation("editor");
-  const { addTask, tasks } = useTaskContext();
+  const { addTask } = useTaskActions();
   const notifiedTaskId = useRef<string | null>(null);
   const currentVideoRef = useRef<MediaReference | null>(document.video);
   currentVideoRef.current = document.video;
-  const lastExportTask = useMemo(
-    () => tasks.find((task) => task.id === lastExportTaskId) ?? null,
-    [lastExportTaskId, tasks],
-  );
+  const lastExportTask = useTaskById(lastExportTaskId);
   const outputCount = lastExportTask ? countClipExportOutputs(lastExportTask) : 0;
 
   useEffect(() => {

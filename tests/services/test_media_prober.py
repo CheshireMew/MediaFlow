@@ -12,6 +12,34 @@ def test_parse_leading_black_end_accepts_short_black_run_at_origin():
     assert MediaProber.parse_leading_black_end(output) == 0.0349609
 
 
+def test_probe_media_resolves_all_synthesis_metadata_with_one_probe(monkeypatch):
+    probe_calls: list[tuple[str, str]] = []
+
+    def fake_probe(path: str, *, cmd: str):
+        probe_calls.append((path, cmd))
+        return {
+            "format": {"duration": "12.5"},
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "width": 1080,
+                    "height": 1920,
+                    "tags": {"rotate": "90"},
+                },
+                {"codec_type": "audio"},
+            ],
+        }
+
+    monkeypatch.setattr("backend.services.video.media_prober.ffmpeg.probe", fake_probe)
+
+    info = MediaProber.probe_media("source.mp4")
+
+    assert len(probe_calls) == 1
+    assert info.duration == 12.5
+    assert (info.width, info.height) == (1920, 1080)
+    assert info.has_audio is True
+
+
 def test_parse_leading_black_end_ignores_intentional_long_black_run():
     output = "[Parsed_blackdetect_0] black_start:0 black_end:1.2 black_duration:1.2"
 

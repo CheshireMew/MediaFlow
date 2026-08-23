@@ -1,6 +1,6 @@
 {
-  "title": "Video Downloader",
-  "subtitle": "Download high-quality video & audio from supported platforms",
+  "title": "Media Downloader",
+  "subtitle": "Download video, audio, and Xiaoyuzhou podcasts from supported platforms",
   "taskPanel": { "title": "New Task" },
   "recentDownloads": {
     "title": "Recent Submissions",
@@ -24,18 +24,21 @@
     "cookiesMissing": "No cookies were received for {{domain}}. Sign in in the browser and try again.",
     "cookiesFailed": "Could not retrieve cookies: {{detail}}",
     "queueFailed": "Could not queue {{url}}: {{detail}}",
-    "analysisFailed": "Video analysis failed",
-    "analysisFailedDetail": "Video analysis failed: {{detail}}",
+    "analysisFailed": "Media analysis failed",
+    "analysisFailedDetail": "Media analysis failed: {{detail}}",
     "currentItemUnknown": "Select one playlist item before downloading only the current video",
     "backendNotReady": "The download backend is not ready yet"
   },
   "input": {
-    "placeholder": "Paste video URL here (e.g. YouTube, Bilibili...)",
+    "placeholder": "Paste a video or podcast URL (e.g. YouTube, Bilibili, Xiaoyuzhou...)",
     "pasteTooltip": "Paste from clipboard"
   },
   "options": {
     "quality": "Quality",
+    "format": "Audio Format",
     "mp4": "MP4",
+    "audioFile": "M4A / MP3",
+    "originalAudio": "Original Audio (Recommended)",
     "bestQuality": "Best Quality (Default)",
     "4k": "4K Ultra HD",
     "2k": "2K QHD",
@@ -49,7 +52,9 @@
     "codecEfficient": "Efficient (Best/AV1)",
     "analyzingStream": "Analyzing Stream...",
     "downloadingMedia": "Downloading Media...",
-    "downloadMedia": "Download Media"
+    "downloadMedia": "Download Media",
+    "downloadingAudio": "Downloading Podcast Audio...",
+    "downloadAudio": "Download Podcast Audio"
   },
   "playlist": {
     "detected": "Playlist Detected",

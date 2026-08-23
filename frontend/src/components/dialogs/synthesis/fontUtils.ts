@@ -2,22 +2,21 @@ import { getFontCatalogEntry } from "../../../services/domain";
 
 const FALLBACK_STACK = "monospace";
 const SAMPLE_TEXT = "MediaFlow \u5b57\u5e55\u9884\u89c8 0123456789 ABCDEFG abcdefg";
-const bundledFontLoaders = import.meta.glob<string>(
-  "../../../assets/fonts/*",
-  { query: "?url", import: "default" },
-);
 const bundledFontPromises = new Map<string, Promise<void>>();
 
 function assetBasename(assetFile: string): string {
   return assetFile.split(/[\\/]/).pop() ?? assetFile;
 }
 
-function resolveBundledFontAssetLoader(assetFile: string) {
-  const basename = assetBasename(assetFile);
-  const loaderEntry = Object.entries(bundledFontLoaders).find(([path]) =>
-    path.endsWith(`/${basename}`),
-  );
-  return loaderEntry?.[1] ?? null;
+function resolveBundledFontAssetUrl(assetFile: string) {
+  const basename = encodeURIComponent(assetBasename(assetFile));
+  if (import.meta.env.DEV) {
+    return new URL(`/src/assets/fonts/${basename}`, window.location.origin).href;
+  }
+  if (window.location.protocol === "file:") {
+    return new URL(`../../fonts/${basename}`, window.location.href).href;
+  }
+  return null;
 }
 
 function getCanvasContext(): CanvasRenderingContext2D | null {
@@ -41,12 +40,11 @@ async function loadBundledFont(fontFamily: string): Promise<void> {
 
   await Promise.all(
     entry.assetFiles.map(async (assetFile) => {
-      const loader = resolveBundledFontAssetLoader(assetFile);
-      if (!loader) {
+      const url = resolveBundledFontAssetUrl(assetFile);
+      if (!url) {
         return;
       }
 
-      const url = await loader();
       const fontFace = new FontFace(fontFamily, `url(${url})`);
       await fontFace.load();
       document.fonts.add(fontFace);

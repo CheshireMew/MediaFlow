@@ -1,13 +1,11 @@
 import os
-import shutil
 import uuid
-from pathlib import Path
 
 import ffmpeg
 from loguru import logger
 
 from backend.services.video.media_prober import MediaProber
-from backend.utils.font_assets import stage_font_files
+from backend.utils.font_assets import get_bundled_font_directory
 from backend.utils.subtitle_writer import SubtitleWriter
 
 
@@ -57,23 +55,22 @@ class FilterGraphBuilder:
                 logger.debug(f"Deleted temp subtitle: {temp_ass}")
             except Exception as exc:
                 logger.warning(f"Failed to delete temp subtitle: {exc}")
-        if temp_fonts_dir and os.path.exists(temp_fonts_dir):
-            try:
-                shutil.rmtree(temp_fonts_dir)
-                logger.debug(f"Deleted temp fonts dir: {temp_fonts_dir}")
-            except Exception as exc:
-                logger.warning(f"Failed to delete temp fonts dir: {exc}")
 
     @staticmethod
     def _resolve_render_dimensions(video_path: str, options: dict):
-        try:
-            probed_w, probed_h = MediaProber.probe_resolution(video_path)
-        except Exception as exc:
-            logger.warning(f"Failed to probe video resolution: {exc}")
-            probed_w, probed_h = (
-                int(options.get("video_width", 1920)),
-                int(options.get("video_height", 1080)),
-            )
+        source_width = options.get("_source_width")
+        source_height = options.get("_source_height")
+        if source_width is not None and source_height is not None:
+            probed_w, probed_h = int(source_width), int(source_height)
+        else:
+            try:
+                probed_w, probed_h = MediaProber.probe_resolution(video_path)
+            except Exception as exc:
+                logger.warning(f"Failed to probe video resolution: {exc}")
+                probed_w, probed_h = (
+                    int(options.get("video_width", 1920)),
+                    int(options.get("video_height", 1080)),
+                )
 
         crop_w = options.get("crop_w")
         crop_h = options.get("crop_h")
@@ -155,13 +152,11 @@ class FilterGraphBuilder:
         sub_offset = -trim_start if trim_start > 0 else 0.0
         SubtitleWriter.convert_srt_to_ass(srt_path, temp_ass, options, time_offset=sub_offset)
 
-        temp_fonts_dir_path = stage_font_files(
+        bundled_font_dir = get_bundled_font_directory(
             str(options.get("font_name", "")).strip(),
-            Path(os.path.abspath(f"temp_fonts_{uuid.uuid4().hex[:8]}")),
         )
-        temp_fonts_dir = str(temp_fonts_dir_path) if temp_fonts_dir_path else None
         subtitle_filter_kwargs = {}
-        if temp_fonts_dir:
-            subtitle_filter_kwargs["fontsdir"] = os.path.basename(temp_fonts_dir)
+        if bundled_font_dir:
+            subtitle_filter_kwargs["fontsdir"] = str(bundled_font_dir)
         video_stream = video_stream.filter("subtitles", os.path.basename(temp_ass), **subtitle_filter_kwargs)
-        return video_stream, temp_ass, temp_fonts_dir
+        return video_stream, temp_ass, None

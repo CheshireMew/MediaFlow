@@ -123,6 +123,7 @@ describe("useDownloaderController", () => {
             download_subs: true,
             resolution: "1080p",
             codec: "best",
+            media_kind: "video",
             title: "Sample Video",
             filename: "Sample Video",
           },
@@ -155,6 +156,61 @@ describe("useDownloaderController", () => {
         }),
       }),
     );
+  });
+
+  it("queues Xiaoyuzhou episodes as audio while preserving the episode page URL", async () => {
+    const episodeUrl = "https://www.xiaoyuzhoufm.com/episode/6966f416109824f9e15f3cb5";
+    vi.mocked(downloaderService.analyzeUrl).mockResolvedValue({
+      type: "single",
+      platform: "xiaoyuzhou",
+      id: "6966f416109824f9e15f3cb5",
+      title: "嘿，你好，生活 - 开场白",
+      url: episodeUrl,
+      direct_src: "https://media.xyzcdn.net/example.m4a",
+      media_kind: "audio",
+      suggested_filename: "嘿，你好，生活 - 开场白 [6966f416109824f9e15f3cb5]",
+      extra_info: { episode_id: "6966f416109824f9e15f3cb5" },
+    });
+    vi.mocked(executionService.download).mockResolvedValue({
+      execution_mode: "task_submission",
+      result: null,
+      submission: {
+        execution_mode: "task_submission",
+        task_id: "task-audio",
+        status: "pending",
+        message_code: "queued",
+        message_params: {},
+        task_source: "backend",
+        task_contract_version: TASK_CONTRACT_VERSION,
+        revision: 0,
+        persistence_scope: "runtime",
+        lifecycle: "resumable",
+        queue_state: "queued",
+        queue_position: null,
+        primary_operation: "download",
+      },
+    });
+    useDownloaderStore.setState({ resolution: "1080p", downloadSubs: true });
+
+    const { result } = renderHook(() => useDownloaderController());
+    act(() => result.current.setUrl(episodeUrl));
+    expect(result.current.mediaKind).toBe("audio");
+
+    await act(async () => {
+      await result.current.analyzeAndDownload();
+    });
+
+    await waitFor(() => expect(executionService.download).toHaveBeenCalledTimes(1));
+    const request = vi.mocked(executionService.download).mock.calls[0][0];
+    expect(request.task_name).toBe("嘿，你好，生活 - 开场白 [6966f416109824f9e15f3cb5]");
+    expect(request.steps[0].params).toMatchObject({
+      url: episodeUrl,
+      direct_src: "https://media.xyzcdn.net/example.m4a",
+      media_kind: "audio",
+      resolution: "audio",
+      download_subs: false,
+      filename: "嘿，你好，生活 - 开场白 [6966f416109824f9e15f3cb5]",
+    });
   });
 
   it("derives recent downloader entries from task context selectors", () => {

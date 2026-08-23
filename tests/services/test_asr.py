@@ -378,7 +378,7 @@ def test_cli_transcribe_stages_input_with_short_temp_filename(
     output_dir = config.output_dir
     assert output_dir.parent == temp_dir / "asr-work"
     assert config.audio_path.parent == output_dir
-    assert config.audio_path.name == "input.wav"
+    assert config.audio_path.name == "input.flac"
     assert long_name not in output_dir.name
     assert long_name not in config.audio_path.name
     assert "task_with-invalid-chars" in output_dir.name
@@ -535,15 +535,36 @@ def test_split_audio_physically_uses_precise_wav_chunks(monkeypatch, tmp_path):
     assert "atrim=start=25.500,asetpts=PTS-STARTPTS" in calls[2]
 
 
-def test_smart_split_uses_short_temp_chunk_paths(asr_dependencies, monkeypatch, tmp_path):
+def test_decode_audio_range_streams_only_requested_interval(monkeypatch, tmp_path):
+    source = tmp_path / "source.wav"
+    source.write_bytes(b"fake")
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return MagicMock(stdout=struct.pack("<ff", -0.5, 0.25), stderr=b"")
+
+    monkeypatch.setattr("backend.utils.audio_processor.subprocess.run", fake_run)
+
+    audio = AudioProcessor.decode_audio_range(str(source), 600.0, 1200.0)
+
+    assert audio.tolist() == [-0.5, 0.25]
+    cmd, kwargs = calls[0]
+    assert cmd[cmd.index("-ss") + 1] == "600.000000"
+    assert cmd[cmd.index("-t") + 1] == "600.000000"
+    assert cmd.index("-ss") < cmd.index("-i")
+    assert cmd[-2:] == ["f32le", "pipe:1"]
+    assert kwargs["stdout"] == subprocess.PIPE
+    assert kwargs["check"] is True
+
+
+def test_smart_split_streams_ranges_without_chunk_files(asr_dependencies, monkeypatch, tmp_path):
     long_name = (
         "X 上的 CopyRebeldia Hoy una industria entera dejo de tener sentido "
         "un tio publico en GitHub un repo que convierte cualquier foto en un mundo 3D"
     )
     audio_path = tmp_path / f"{long_name}.mp4"
     audio_path.write_bytes(b"fake")
-    temp_dir = tmp_path / "runtime-temp"
-    monkeypatch.setattr("backend.services.asr.core_strategies.settings.TEMP_DIR", temp_dir)
     monkeypatch.setattr(
         "backend.services.asr.core_strategies.AudioProcessor.detect_silence",
         lambda path: [],
@@ -553,13 +574,11 @@ def test_smart_split_uses_short_temp_chunk_paths(asr_dependencies, monkeypatch, 
         lambda duration, intervals: [600.0],
     )
 
-    captured_chunk_dir: list[Path] = []
+    decoded_ranges: list[tuple[str, float, float]] = []
 
-    def fake_split(path, split_points, output_dir):
-        captured_chunk_dir.append(output_dir)
-        chunk_path = output_dir / "chunk_000.wav"
-        chunk_path.write_bytes(b"chunk")
-        return [(str(chunk_path), 0.0)]
+    def fake_decode(path, start, end):
+        decoded_ranges.append((path, start, end))
+        return [0.0]
 
     transcribe_kwargs = []
 
@@ -569,8 +588,8 @@ def test_smart_split_uses_short_temp_chunk_paths(asr_dependencies, monkeypatch, 
             return iter([]), None
 
     monkeypatch.setattr(
-        "backend.services.asr.core_strategies.AudioProcessor.split_audio_physically",
-        fake_split,
+        "backend.services.asr.core_strategies.AudioProcessor.decode_audio_range",
+        fake_decode,
     )
 
     segments = asr_dependencies.core_strategies.transcribe_smart_split(
@@ -591,13 +610,20 @@ def test_smart_split_uses_short_temp_chunk_paths(asr_dependencies, monkeypatch, 
             "vad_filter": False,
             "initial_prompt": None,
             "word_timestamps": True,
-        }
+        },
+        {
+            "beam_size": 5,
+            "language": "en",
+            "vad_filter": False,
+            "initial_prompt": None,
+            "word_timestamps": True,
+        },
     ]
-    assert len(captured_chunk_dir) == 1
-    chunk_dir = captured_chunk_dir[0]
-    assert chunk_dir.parent == temp_dir / "asr-chunks"
-    assert long_name not in chunk_dir.name
-    assert not chunk_dir.exists()
+    assert decoded_ranges == [
+        (str(audio_path), 0.0, 600.0),
+        (str(audio_path), 600.0, 1200.0),
+    ]
+    assert list(tmp_path.glob("**/chunk_*.wav")) == []
 
 
 def test_extract_segment_uses_precise_wav_trim(monkeypatch, tmp_path):

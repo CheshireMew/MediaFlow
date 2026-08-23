@@ -89,7 +89,9 @@ class SynthesisOrchestrator:
     def _calculate_duration(video_path: str, options: dict) -> float:
         trim_start = float(options.get("trim_start", 0))
         trim_end = float(options.get("trim_end", 0))
-        duration = MediaProber.get_duration(video_path)
+        duration = float(options.get("_source_duration") or 0)
+        if duration <= 0:
+            duration = MediaProber.get_duration(video_path)
         if trim_end > 0 and trim_start >= 0:
             return trim_end - trim_start
         if trim_start > 0 and duration > 0:
@@ -106,5 +108,8 @@ class SynthesisOrchestrator:
         if trim_end > 0:
             input_kwargs["to"] = trim_end
         input_video = ffmpeg.input(video_path, **input_kwargs)
-        audio_stream = input_video.audio if MediaProber.has_audio(video_path) else None
+        has_audio = options.get("_source_has_audio")
+        if not isinstance(has_audio, bool):
+            has_audio = MediaProber.has_audio(video_path)
+        audio_stream = input_video.audio if has_audio else None
         return input_video.video, audio_stream

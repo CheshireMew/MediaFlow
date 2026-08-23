@@ -26,6 +26,7 @@ export type {
   DownloadParams,
   EditorPreviewMediaRequest,
   EditorPreviewMediaResponse,
+  EditorWaveformPeaksResponse,
   GlossaryTerm,
   GlossaryDeleteResponse,
   HighlightDetectionRequest,

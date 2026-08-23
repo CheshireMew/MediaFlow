@@ -4,8 +4,7 @@ from sqlmodel import SQLModel
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
-from sqlalchemy import Column, Integer, JSON, MetaData, String, Table, case, func, inspect, literal, select, text
+from sqlalchemy import Column, Integer, JSON, MetaData, String, Table, case, event, func, inspect, literal, select, text
 
 from backend.config import settings
 from backend.contracts import (
@@ -25,12 +24,26 @@ DATABASE_URL = f"sqlite+aiosqlite:///{settings.USER_DATA_DIR}/mediaflow.db"
 
 # Engine
 engine = create_async_engine(
-    DATABASE_URL, 
-    echo=False, 
+    DATABASE_URL,
+    echo=False,
     future=True,
-    connect_args={"check_same_thread": False}, # Required for SQLite + async
-    poolclass=NullPool,
+    connect_args={"check_same_thread": False},
+    pool_size=5,
+    max_overflow=5,
+    pool_timeout=30,
 )
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.execute("PRAGMA foreign_keys=ON")
+    finally:
+        cursor.close()
 
 # Session Factory
 async_session_maker = sessionmaker(

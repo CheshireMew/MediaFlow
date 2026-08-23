@@ -1,6 +1,6 @@
 import asyncio
 from fastapi import APIRouter, HTTPException, UploadFile
-from backend.models.editor_contracts import EditorPreviewMediaRequest, EditorPreviewMediaResponse, HighlightDetectionRequest, HighlightDetectionResponse, ImagePreviewResponse, MediaExportTimelineRequest, MediaExportTimelineResponse
+from backend.models.editor_contracts import EditorPreviewMediaRequest, EditorPreviewMediaResponse, EditorWaveformPeaksResponse, HighlightDetectionRequest, HighlightDetectionResponse, ImagePreviewResponse, MediaExportTimelineRequest, MediaExportTimelineResponse
 from backend.services.video.timeline import resolve_media_export_timeline
 from backend.utils.path_validator import validate_input_file
 
@@ -68,6 +68,24 @@ async def resolve_preview_media_source(req: EditorPreviewMediaRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def resolve_waveform_peaks(req: EditorPreviewMediaRequest):
+    try:
+        source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        from backend.application.waveform_service import resolve_waveform_peaks as resolve
+
+        return EditorWaveformPeaksResponse.model_validate(
+            await asyncio.to_thread(resolve, str(source_path))
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 async def detect_highlight_candidates(req: HighlightDetectionRequest, *, highlight_application):
     try:
         source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
@@ -127,6 +145,12 @@ def create_router(*, highlight_application, settings_application) -> APIRouter:
         resolve_preview_media_source,
         methods=["POST"],
         response_model=EditorPreviewMediaResponse,
+    )
+    router.add_api_route(
+        "/preview/media/waveform",
+        resolve_waveform_peaks,
+        methods=["POST"],
+        response_model=EditorWaveformPeaksResponse,
     )
 
     async def detect(req: HighlightDetectionRequest):

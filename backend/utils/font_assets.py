@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-import shutil
 import sys
 from functools import lru_cache
 from pathlib import Path
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEV_FONT_CATALOG_PATH = REPO_ROOT / "frontend" / "src" / "shared" / "fontCatalog.json"
@@ -69,12 +67,14 @@ def get_bundled_font_files(font_name: str) -> list[Path]:
     return [path for path in matches if path.is_file()]
 
 
-def stage_font_files(font_name: str, staging_dir: Path) -> Path | None:
+def get_bundled_font_directory(font_name: str) -> Path | None:
     bundled_files = get_bundled_font_files(font_name)
     if not bundled_files:
         return None
+    parents = {path.parent.resolve() for path in bundled_files}
+    return next(iter(parents)) if len(parents) == 1 else None
 
-    staging_dir.mkdir(parents=True, exist_ok=True)
-    for source in bundled_files:
-        shutil.copy2(source, staging_dir / source.name)
-    return staging_dir
+
+def stage_font_files(font_name: str, _staging_dir: Path) -> Path | None:
+    """Compatibility wrapper; bundled fonts are read in place instead of copied."""
+    return get_bundled_font_directory(font_name)

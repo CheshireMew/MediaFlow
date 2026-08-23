@@ -64,6 +64,7 @@ describe("real form consumers expose accessible names and states", () => {
   it("names downloader controls and exposes toggle state", () => {
     render(
       <VideoDownloadOptions
+        mediaKind="video"
         resolution="best"
         setResolution={vi.fn()}
         codec="avc"
@@ -81,6 +82,29 @@ describe("real form consumers expose accessible names and states", () => {
     expect(screen.getByRole("checkbox", { name: /options\.subtitles/ })).toBeChecked();
     expect(screen.getByRole("button", { name: "options.codecCompatible" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "options.codecEfficient" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("shows audio-only controls for podcast episodes", () => {
+    render(
+      <VideoDownloadOptions
+        mediaKind="audio"
+        resolution="1080p"
+        setResolution={vi.fn()}
+        codec="avc"
+        setCodec={vi.fn()}
+        downloadSubs
+        setDownloadSubs={vi.fn()}
+        loading={false}
+        analyzing={false}
+        url="https://www.xiaoyuzhoufm.com/episode/6966f416109824f9e15f3cb5"
+        onAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: /options\.format/ })).toHaveValue("audio");
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "options.codecCompatible" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "options.downloadAudio" })).toBeInTheDocument();
   });
 
   it("names synthesis settings and preview icon controls", () => {

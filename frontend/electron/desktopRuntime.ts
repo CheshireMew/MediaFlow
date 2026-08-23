@@ -8,6 +8,7 @@ const DESKTOP_RUNTIME_DIRNAME = "runtime";
 const MEDIAFLOW_RUNTIME_DIR_ENV = "MEDIAFLOW_RUNTIME_DIR";
 const MEDIAFLOW_BACKEND_PORT_ENV = "PORT";
 const WINDOWS_SHARED_RUNTIME_ROOT = "D:\\Tools\\MediaFlow\\runtime";
+const DESKTOP_RUNTIME_MIGRATION_MARKER = ".runtime-migration-v1-complete";
 
 export function isDesktopDevMode() {
   return process.env.IS_DEV === "true";
@@ -133,6 +134,15 @@ async function copyLegacyPathIfMissing(source: string, target: string) {
 
 export async function migrateDesktopRuntimeData() {
   const runtimeRoot = resolveDesktopRuntimeDataRoot();
+  const migrationMarker = path.join(
+    runtimeRoot,
+    "user_data",
+    DESKTOP_RUNTIME_MIGRATION_MARKER,
+  );
+  if (existsSync(migrationMarker)) {
+    return;
+  }
+
   const legacyUserDataRoot = app.getPath("userData");
   const legacyRuntimeRoot = path.join(legacyUserDataRoot, DESKTOP_RUNTIME_DIRNAME);
 
@@ -153,6 +163,15 @@ export async function migrateDesktopRuntimeData() {
   await copyLegacyPathIfMissing(
     path.join(legacyUserDataRoot, "user-preferences.json"),
     path.join(runtimeRoot, "user_data", "user-preferences.json"),
+  );
+
+  await fs.mkdir(path.dirname(migrationMarker), { recursive: true });
+  await fs.writeFile(migrationMarker, "completed\n", { encoding: "utf-8", flag: "wx" }).catch(
+    async (error: NodeJS.ErrnoException) => {
+      if (error.code !== "EEXIST") {
+        throw error;
+      }
+    },
   );
 }
 

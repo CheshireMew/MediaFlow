@@ -1,8 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 
 import { createWaveformRuntime, type WaveformRuntime } from "../../components/editor/waveform/waveSurferRuntime";
-import { syncWaveformRegions } from "../../components/editor/waveform/regionSync";
+import {
+  applyPlaybackRegionHighlight,
+  buildRegionTimelineIndex,
+  findPlaybackRegionId,
+  selectVisibleRegions,
+  syncWaveformRegions,
+} from "../../components/editor/waveform/regionSync";
+import { editorService } from "../../services/domain";
+import type { MediaReference } from "../../services/ui/mediaReference";
 import type { SubtitleSegment } from "../../types/task";
 
 function useLatestRef<T>(value: T) {
@@ -15,6 +23,7 @@ function useLatestRef<T>(value: T) {
 
 export function useWaveformController({
   mediaUrl,
+  video,
   videoRef,
   regions,
   selectedIds,
@@ -26,6 +35,7 @@ export function useWaveformController({
   onInteractStart,
 }: {
   mediaUrl: string;
+  video: MediaReference;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   regions: SubtitleSegment[];
   selectedIds: string[];
@@ -40,11 +50,19 @@ export function useWaveformController({
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<WaveformRuntime | null>(null);
+  const baseRegionColorsRef = useRef(new Map<string, string>());
+  const highlightedRegionIdRef = useRef<string | null>(null);
   const currentTempRegionId = useRef<string | null>(null);
   const scrollOwner = useRef<"top" | "wave" | null>(null);
   const [zoom, setZoom] = useState(80);
   const zoomRef = useLatestRef(zoom);
-  const regionsRef = useLatestRef(regions);
+  const timelineIndex = useMemo(() => buildRegionTimelineIndex(regions), [regions]);
+  const timelineIndexRef = useLatestRef(timelineIndex);
+  const persistedRegionIds = useMemo(
+    () => new Set(regions.map((region) => String(region.id))),
+    [regions],
+  );
+  const persistedRegionIdsRef = useLatestRef(persistedRegionIds);
   const onRegionUpdateRef = useLatestRef(onRegionUpdate);
   const onRegionClickRef = useLatestRef(onRegionClick);
   const onContextMenuRef = useLatestRef(onContextMenu);
@@ -58,71 +76,114 @@ export function useWaveformController({
   const [duration, setDuration] = useState(0);
   const [scrollWidth, setScrollWidth] = useState(0);
   const [currentPlaybackRegionId, setCurrentPlaybackRegionId] = useState<string | null>(null);
+  const currentPlaybackRegionIdRef = useLatestRef(currentPlaybackRegionId);
+  const [visibleRange, setVisibleRange] = useState<{
+    mediaUrl: string;
+    start: number;
+    end: number;
+  } | null>(null);
+  const visibleRegions = useMemo(() => {
+    if (!visibleRange || visibleRange.mediaUrl !== mediaUrl) return [];
+    const viewportDuration = Math.max(visibleRange.end - visibleRange.start, 1);
+    const overscan = Math.max(30, viewportDuration * 2);
+    return selectVisibleRegions(
+      timelineIndex,
+      Math.max(0, visibleRange.start - overscan),
+      visibleRange.end + overscan,
+    );
+  }, [mediaUrl, timelineIndex, visibleRange]);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
     const syncCurrentRegion = () => {
-      const current = regionsRef.current.find(
-        (region) => video.currentTime >= region.start && video.currentTime < region.end,
+      setCurrentPlaybackRegionId(
+        findPlaybackRegionId(timelineIndexRef.current, videoElement.currentTime),
       );
-      setCurrentPlaybackRegionId(current ? String(current.id) : null);
     };
     syncCurrentRegion();
-    video.addEventListener("timeupdate", syncCurrentRegion);
-    video.addEventListener("seeked", syncCurrentRegion);
+    videoElement.addEventListener("timeupdate", syncCurrentRegion);
+    videoElement.addEventListener("seeked", syncCurrentRegion);
     return () => {
-      video.removeEventListener("timeupdate", syncCurrentRegion);
-      video.removeEventListener("seeked", syncCurrentRegion);
+      videoElement.removeEventListener("timeupdate", syncCurrentRegion);
+      videoElement.removeEventListener("seeked", syncCurrentRegion);
     };
-  }, [mediaUrl, regionsRef, videoRef]);
+  }, [mediaUrl, timelineIndexRef, videoRef]);
 
   useEffect(() => {
     const container = containerRef.current;
     const timeline = timelineContainerRef.current;
-    const video = videoRef.current;
-    if (!container || !timeline || !video) return;
+    const videoElement = videoRef.current;
+    if (!container || !timeline || !videoElement) return;
 
+    let cancelled = false;
+    let runtime: WaveformRuntime | null = null;
+    let lastVisibleStart = Number.NEGATIVE_INFINITY;
     const updateDimensions = (nextDuration: number) => {
       setReadyMediaUrl(mediaUrl);
       setDuration(nextDuration);
       setScrollWidth(container.scrollWidth);
+      setVisibleRange({
+        mediaUrl,
+        start: 0,
+        end: Math.min(nextDuration, Math.max(container.clientWidth / zoomRef.current, 1)),
+      });
     };
-    const runtime = createWaveformRuntime({
-      container,
-      timelineContainer: timeline,
-      video,
-      zoom: zoomRef.current,
-      getRegions: () => regionsRef.current,
-      getTempRegionId: () => currentTempRegionId.current,
-      setTempRegionId: (id) => { currentTempRegionId.current = id; },
-      onRegionUpdate: (...args) => onRegionUpdateRef.current(...args),
-      onRegionClick: (...args) => onRegionClickRef.current(...args),
-      onContextMenu: (...args) => onContextMenuRef.current(...args),
-      onInteractStart: () => onInteractStartRef.current?.(),
-      onReady: updateDimensions,
-      onScroll: (scroll) => {
-        if (scrollOwner.current === "top") return;
-        const scrollContainer = scrollContainerRef.current;
-        if (!scrollContainer) return;
-        scrollOwner.current = "wave";
-        scrollContainer.scrollLeft = scroll;
-        setTimeout(() => {
-          if (scrollOwner.current === "wave") scrollOwner.current = null;
-        }, 100);
-      },
-      onError: (error) => {
-        console.error("Waveform error", error);
-        setFailedMediaUrl(mediaUrl);
-      },
-      onLoading: (progress) => setLoadingState({ mediaUrl, progress }),
+    void editorService.getWaveformPeaks({ video_ref: video }).then((waveform) => {
+      if (cancelled) return;
+      setLoadingState({ mediaUrl, progress: 90 });
+      runtime = createWaveformRuntime({
+        container,
+        timelineContainer: timeline,
+        video: videoElement,
+        peaks: waveform.peaks,
+        duration: waveform.duration,
+        zoom: zoomRef.current,
+        isPersistedRegion: (id) => persistedRegionIdsRef.current.has(id),
+        getTempRegionId: () => currentTempRegionId.current,
+        setTempRegionId: (id) => { currentTempRegionId.current = id; },
+        onRegionUpdate: (...args) => onRegionUpdateRef.current(...args),
+        onRegionClick: (...args) => onRegionClickRef.current(...args),
+        onContextMenu: (...args) => onContextMenuRef.current(...args),
+        onInteractStart: () => onInteractStartRef.current?.(),
+        onReady: updateDimensions,
+        onScroll: (scroll) => {
+          if (scrollOwner.current === "top") return;
+          const scrollContainer = scrollContainerRef.current;
+          if (!scrollContainer) return;
+          scrollOwner.current = "wave";
+          scrollContainer.scrollLeft = scroll;
+          setTimeout(() => {
+            if (scrollOwner.current === "wave") scrollOwner.current = null;
+          }, 100);
+        },
+        onVisibleRange: (start, end) => {
+          const updateThreshold = Math.max((end - start) / 4, 1);
+          if (Math.abs(start - lastVisibleStart) < updateThreshold) return;
+          lastVisibleStart = start;
+          setVisibleRange({ mediaUrl, start, end });
+        },
+        onError: (error) => {
+          console.error("Waveform error", error);
+          setFailedMediaUrl(mediaUrl);
+        },
+        onLoading: (progress) => setLoadingState({ mediaUrl, progress }),
+      });
+      runtimeRef.current = runtime;
+      setLoadingState({ mediaUrl, progress: 100 });
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      console.error("Waveform peak generation failed", error);
+      setFailedMediaUrl(mediaUrl);
     });
-    runtimeRef.current = runtime;
     return () => {
-      runtime.destroy();
+      cancelled = true;
+      runtime?.destroy();
       if (runtimeRef.current === runtime) runtimeRef.current = null;
+      baseRegionColorsRef.current = new Map();
+      highlightedRegionIdRef.current = null;
     };
-  }, [mediaUrl, onContextMenuRef, onInteractStartRef, onRegionClickRef, onRegionUpdateRef, regionsRef, videoRef, zoomRef]);
+  }, [mediaUrl, onContextMenuRef, onInteractStartRef, onRegionClickRef, onRegionUpdateRef, persistedRegionIdsRef, video, videoRef, zoomRef]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -140,15 +201,33 @@ export function useWaveformController({
   useEffect(() => {
     const plugin = runtimeRef.current?.regionsPlugin;
     if (!plugin || readyMediaUrl !== mediaUrl) return;
-    syncWaveformRegions({
+    baseRegionColorsRef.current = syncWaveformRegions({
       plugin,
-      regions,
+      regions: visibleRegions,
       selectedIds,
       activeSegmentId,
-      currentPlaybackRegionId,
       currentTempRegionId: currentTempRegionId.current,
     });
-  }, [activeSegmentId, currentPlaybackRegionId, mediaUrl, readyMediaUrl, regions, selectedIds]);
+    applyPlaybackRegionHighlight({
+      plugin,
+      baseColors: baseRegionColorsRef.current,
+      previousId: null,
+      currentId: currentPlaybackRegionIdRef.current,
+    });
+    highlightedRegionIdRef.current = currentPlaybackRegionIdRef.current;
+  }, [activeSegmentId, currentPlaybackRegionIdRef, mediaUrl, readyMediaUrl, selectedIds, visibleRegions]);
+
+  useEffect(() => {
+    const plugin = runtimeRef.current?.regionsPlugin;
+    if (!plugin || readyMediaUrl !== mediaUrl) return;
+    applyPlaybackRegionHighlight({
+      plugin,
+      baseColors: baseRegionColorsRef.current,
+      previousId: highlightedRegionIdRef.current,
+      currentId: currentPlaybackRegionId,
+    });
+    highlightedRegionIdRef.current = currentPlaybackRegionId;
+  }, [currentPlaybackRegionId, mediaUrl, readyMediaUrl]);
 
   useEffect(() => {
     const wavesurfer = runtimeRef.current?.wavesurfer;

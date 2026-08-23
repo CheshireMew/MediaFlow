@@ -53,6 +53,40 @@ describe("workspaceState", () => {
     );
   });
 
+  it("writes only the changed subtitle field after the initial snapshot", async () => {
+    const electronApi = installElectronMock();
+    await initializeWorkspaceState();
+    const regions = Array.from({ length: 1_000 }, (_, index) => ({
+      id: String(index),
+      start: index,
+      end: index + 0.5,
+      text: `subtitle-${index}`,
+    }));
+    const initial = { document: { regions }, selectedIds: [] };
+    writeWorkspaceStateValue("editor-storage", initial);
+    await flushWorkspaceState();
+    const writeWorkspaceStateMock = vi.mocked(electronApi.writeWorkspaceState);
+    writeWorkspaceStateMock.mockClear();
+
+    const updatedRegions = [...regions];
+    updatedRegions[500] = { ...updatedRegions[500], text: "changed" };
+    const updated = { document: { regions: updatedRegions }, selectedIds: [] };
+    writeWorkspaceStateValue("editor-storage", updated);
+    await flushWorkspaceState();
+
+    const serializedPatch = writeWorkspaceStateMock.mock.calls[0][0];
+    const patch = JSON.parse(serializedPatch);
+    expect(patch).toEqual({
+      format: "mediaflow-workspace-patch-v1",
+      operations: [{
+        op: "set",
+        path: ["editor-storage", "document", "regions", 500, "text"],
+        value: "changed",
+      }],
+    });
+    expect(serializedPatch.length).toBeLessThan(JSON.stringify(updated).length / 10);
+  });
+
   it("persists workspace state outside user settings", async () => {
     writeWorkspaceStateValue("editor-storage", { documentId: "one" });
     expect(readWorkspaceStateValue("editor-storage")).toEqual({

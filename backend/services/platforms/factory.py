@@ -3,6 +3,7 @@ from backend.services.platforms.base import BasePlatform
 from backend.services.platforms.bilibili import BilibiliPlatform
 from backend.services.platforms.douyin import DouyinPlatform
 from backend.services.platforms.kuaishou import KuaishouPlatform
+from backend.services.platforms.xiaoyuzhou import XiaoyuzhouPlatform
 
 class PlatformFactory:
     def __init__(self, handlers: Optional[List[BasePlatform]] = None):
@@ -20,6 +21,7 @@ class PlatformFactory:
 def create_default_platform_factory(browser_service, sniffer) -> PlatformFactory:
     return PlatformFactory(
         handlers=[
+            XiaoyuzhouPlatform(),
             BilibiliPlatform(),
             DouyinPlatform(browser_service, sniffer),
             KuaishouPlatform(browser_service, sniffer),

@@ -20,6 +20,7 @@ const taskContextMock = vi.hoisted(() => ({
 
 vi.mock("../context/taskContext", () => ({
   useTaskContext: () => taskContextMock,
+  useTaskActions: () => taskContextMock,
 }));
 
 vi.mock("../components/translator/SegmentsTable", () => ({

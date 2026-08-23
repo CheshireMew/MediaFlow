@@ -40,6 +40,12 @@ vi.mock("../services/domain/executionService", () => ({
 
 vi.mock("../context/taskContext", () => ({
   useTaskContext: () => taskContextMock,
+  useTaskActions: () => taskContextMock,
+}));
+
+vi.mock("../context/taskStoreContext", () => ({
+  useTaskById: (taskId: string | null) =>
+    taskContextMock.tasks.find((task) => task.id === taskId) ?? null,
 }));
 
 vi.mock("../utils/toast", () => ({ toast: toastMock }));

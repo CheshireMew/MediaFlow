@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -24,4 +24,6 @@ class AnalyzeResult(BaseModel):
     items: list[PlaylistItem] | None = None
     uploader: str | None = None
     webpage_url: str | None = None
+    media_kind: Literal["video", "audio"] = "video"
+    suggested_filename: str | None = None
     extra_info: dict[str, Any] | None = None

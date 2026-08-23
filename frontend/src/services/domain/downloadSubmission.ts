@@ -19,6 +19,8 @@ export type DownloadQueueItem = {
 export type DownloadExtraInfo = Record<string, unknown> & {
   title?: string;
   direct_src?: string;
+  media_kind?: "video" | "audio";
+  suggested_filename?: string;
 };
 
 type QueueDownloadItemsOptions = {
@@ -41,6 +43,15 @@ function resolveDownloadFilename(
   extraInfo: DownloadExtraInfo,
   lastAnalysis: AnalyzeResult | null,
 ) {
+  if (itemCount === 1) {
+    if (extraInfo.suggested_filename) {
+      return extraInfo.suggested_filename;
+    }
+    if (lastAnalysis?.suggested_filename) {
+      return lastAnalysis.suggested_filename;
+    }
+  }
+
   if (item.title) {
     return item.title;
   }
@@ -90,6 +101,7 @@ function buildDownloadPipeline({
     typeof extraInfo.direct_src === "string" && extraInfo.direct_src
       ? extraInfo.direct_src
       : null;
+  const isAudio = extraInfo.media_kind === "audio";
 
   return {
     pipeline_id: "downloader_tool",
@@ -98,13 +110,16 @@ function buildDownloadPipeline({
       {
         step_name: "download",
         params: {
-          url: directUrl || item.url,
+          ...extraInfo,
+          // Audio pages need to be resolved again by the backend so the original
+          // episode URL remains available as the media request Referer.
+          url: isAudio ? item.url : directUrl || item.url,
           playlist_title: playlistTitle,
           playlist_items: item.index ? item.index.toString() : undefined,
-          download_subs: downloadSubs,
-          resolution,
+          download_subs: isAudio ? false : downloadSubs,
+          resolution: isAudio ? "audio" : resolution,
           codec,
-          ...extraInfo,
+          media_kind: isAudio ? "audio" : "video",
           filename: customFilename,
         },
       },
@@ -162,7 +177,7 @@ export async function queueDownloadItems({
     addToHistory({
       id: submission.task_id,
       url: item.url,
-      title: taskName || "Unknown Video",
+      title: taskName || "Unknown Media",
       timestamp: Date.now(),
     });
   }

@@ -4,8 +4,11 @@ import statistics
 import subprocess
 from pathlib import Path
 from typing import List, Tuple
+
 from loguru import logger
+
 from backend.config import settings
+
 
 class AudioProcessor:
     STRONG_ANTIPHASE_MEDIAN_THRESHOLD = -0.75
@@ -169,7 +172,7 @@ class AudioProcessor:
 
     @staticmethod
     def prepare_for_transcription(audio_path: str, output_path: Path) -> Path:
-        """Create the canonical 16 kHz mono PCM input consumed by every ASR engine."""
+        """Create the canonical 16 kHz mono lossless input consumed by every ASR engine."""
         source_path = Path(audio_path)
         if not source_path.exists():
             raise FileNotFoundError(f"Audio file not found: {source_path}")
@@ -201,15 +204,12 @@ class AudioProcessor:
             cmd.extend(["-af", audio_filter])
         else:
             cmd.extend(["-ac", "1"])
-        cmd.extend(
-            [
-                "-ar",
-                "16000",
-                "-c:a",
-                "pcm_s16le",
-                str(output_path),
-            ]
-        )
+        cmd.extend(["-ar", "16000", "-c:a"])
+        if output_path.suffix.lower() == ".flac":
+            cmd.extend(["flac", "-compression_level", "5"])
+        else:
+            cmd.append("pcm_s16le")
+        cmd.append(str(output_path))
 
         subprocess.run(
             cmd,
@@ -367,6 +367,68 @@ class AudioProcessor:
                 logger.error(f"Failed to create chunk {idx}: {e}")
                 
         return chunks
+
+    @staticmethod
+    def build_audio_chunk_ranges(
+        duration: float,
+        split_points: List[float],
+    ) -> List[Tuple[float, float]]:
+        """Build non-overlapping time ranges without creating derivative files."""
+        valid_points = sorted({
+            float(point)
+            for point in split_points
+            if 0 < float(point) < duration
+        })
+        boundaries = [0.0, *valid_points, max(0.0, duration)]
+        return [
+            (start, end)
+            for start, end in zip(boundaries, boundaries[1:])
+            if end > start
+        ]
+
+    @staticmethod
+    def decode_audio_range(audio_path: str, start: float, end: float):
+        """Decode one ASR range directly to an in-memory float32 waveform."""
+        if not Path(audio_path).is_file():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+        if end <= start:
+            raise ValueError("Audio range end must be greater than start")
+
+        cmd = [
+            settings.FFMPEG_PATH,
+            "-hide_banner",
+            "-v",
+            "error",
+            "-ss",
+            f"{start:.6f}",
+            "-i",
+            audio_path,
+            "-t",
+            f"{end - start:.6f}",
+            "-map",
+            "0:a:0",
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-f",
+            "f32le",
+            "pipe:1",
+        ]
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            shell=False,
+        )
+        import numpy as np
+
+        audio = np.frombuffer(result.stdout, dtype="<f4")
+        if audio.size == 0:
+            raise RuntimeError(f"Decoded audio range is empty: {start:.3f}-{end:.3f}")
+        return audio
 
     @staticmethod
     def extract_segment(audio_path: str, start: float, end: float, output_path: str) -> str:

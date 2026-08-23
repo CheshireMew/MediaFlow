@@ -11,6 +11,7 @@ import { ToastContainer } from "../components/ui/ToastContainer";
 import { useConfirmation } from "../components/ui/confirmationContext";
 import { toast } from "../utils/toast";
 import {
+  PERSISTENCE_FAILURE_ALERT_DELAY_MS,
   reportPersistenceFailure,
   resetPersistenceHealthForTests,
 } from "../services/persistence/persistenceHealth";
@@ -22,6 +23,7 @@ vi.mock("react-i18next", () => ({
 afterEach(() => {
   cleanup();
   resetPersistenceHealthForTests();
+  vi.useRealTimers();
 });
 
 function DialogHarness() {
@@ -181,12 +183,15 @@ describe("ToastContainer", () => {
   });
 
   it("surfaces persistence failures instead of leaving them in console output", () => {
+    vi.useFakeTimers();
     render(<ToastContainer />);
 
     act(() => reportPersistenceFailure("workspace-write", new Error("disk full")));
+    act(() => vi.advanceTimersByTime(PERSISTENCE_FAILURE_ALERT_DELAY_MS));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "persistence.workspaceWriteFailed",
     );
+    vi.useRealTimers();
   });
 });

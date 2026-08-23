@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import mimetypes
 from pathlib import Path
 from typing import Any, Optional
 import re
@@ -29,6 +30,9 @@ def infer_media_file_type(path: str) -> str:
 
 
 def infer_media_mime_type(path: str) -> str:
+    guessed_type, _ = mimetypes.guess_type(path)
+    if guessed_type:
+        return guessed_type
     media_type = infer_media_file_type(path)
     if media_type == "audio":
         return "audio/mpeg"

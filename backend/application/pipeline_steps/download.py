@@ -39,11 +39,19 @@ class DownloadStep(PipelineStep):
             playlist_items=params.get("playlist_items"),
             progress_callback=progress_cb,
             check_cancel_callback=check_cancel_cb,
-            download_subs=params.get("download_subs", False),
-            resolution=params.get("resolution", "best"),
+            download_subs=(
+                False
+                if params.get("media_kind") == "audio"
+                else params.get("download_subs", False)
+            ),
+            resolution=(
+                "audio"
+                if params.get("media_kind") == "audio"
+                else params.get("resolution", "best")
+            ),
             task_id=task_id,
             cookie_file=params.get("cookie_file"),
-            filename=params.get("filename"),
+            filename=params.get("filename") or params.get("suggested_filename"),
             codec=params.get("codec", "best")
         )
         

@@ -2,7 +2,8 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useTaskContext } from "../context/taskContext";
+import { useTaskActions, useTaskContext } from "../context/taskContext";
+import { useTaskById } from "../context/taskStoreContext";
 import { SUPPORTED_TASK_CONTRACT_VERSION } from "../context/taskSources/shared";
 import type { TaskSocketMessage } from "../hooks/tasks/useTaskStore";
 
@@ -53,6 +54,21 @@ function Probe() {
   );
 }
 
+const trackedTaskRenderSpy = vi.fn();
+const taskActionsRenderSpy = vi.fn();
+
+function TrackedTaskProbe() {
+  const task = useTaskById("tracked-task");
+  trackedTaskRenderSpy();
+  return <div data-testid="tracked-progress">{task?.progress ?? "missing"}</div>;
+}
+
+function TaskActionsProbe() {
+  useTaskActions();
+  taskActionsRenderSpy();
+  return null;
+}
+
 function backendContractFields() {
   return {
     task_source: "backend",
@@ -70,6 +86,8 @@ describe("TaskProvider", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    trackedTaskRenderSpy.mockClear();
+    taskActionsRenderSpy.mockClear();
     ({ TaskProvider } = await import("../context/TaskProvider"));
     useTaskSocketMock.mockReturnValue({
       connected: true,
@@ -272,5 +290,66 @@ describe("TaskProvider", () => {
       expect(screen.getByTestId("remote-tasks-ready").textContent).toBe("true");
       expect(screen.getByTestId("task-ids").textContent).toBe("remote-task");
     });
+  });
+
+  it("does not rerender task-specific or action-only consumers for unrelated progress", async () => {
+    render(
+      <TaskProvider enabled>
+        <TrackedTaskProbe />
+        <TaskActionsProbe />
+      </TaskProvider>,
+    );
+
+    sendSocketMessage({
+      type: "snapshot",
+      stream_id: "selector-stream",
+      sequence: 1,
+      tasks: [
+        {
+          id: "tracked-task",
+          type: "pipeline",
+          primary_operation: "transcribe",
+          status: "running",
+          ...backendContractFields(),
+          queue_state: "running",
+          progress: 10,
+          created_at: 2,
+        },
+        {
+          id: "other-task",
+          type: "pipeline",
+          primary_operation: "download",
+          status: "running",
+          ...backendContractFields(),
+          queue_state: "running",
+          progress: 10,
+          created_at: 1,
+        },
+      ],
+    });
+    await waitFor(() => expect(screen.getByTestId("tracked-progress")).toHaveTextContent("10"));
+    const trackedBefore = trackedTaskRenderSpy.mock.calls.length;
+    const actionsBefore = taskActionsRenderSpy.mock.calls.length;
+
+    sendSocketMessage({
+      type: "update",
+      stream_id: "selector-stream",
+      sequence: 2,
+      task: {
+        id: "other-task",
+        type: "pipeline",
+        primary_operation: "download",
+        status: "running",
+        ...backendContractFields(),
+        queue_state: "running",
+        progress: 25,
+        revision: 1,
+        created_at: 1,
+      },
+    });
+
+    await act(async () => Promise.resolve());
+    expect(trackedTaskRenderSpy).toHaveBeenCalledTimes(trackedBefore);
+    expect(taskActionsRenderSpy).toHaveBeenCalledTimes(actionsBefore);
   });
 });

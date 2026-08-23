@@ -1,6 +1,6 @@
 {
-  "title": "動画ダウンローダー",
-  "subtitle": "対応プラットフォームから高品質な動画・音声をダウンロード",
+  "title": "メディアダウンローダー",
+  "subtitle": "対応プラットフォームから動画・音声・小宇宙ポッドキャストをダウンロード",
   "taskPanel": { "title": "新しいタスク" },
   "recentDownloads": {
     "title": "最近の送信",
@@ -24,18 +24,21 @@
     "cookiesMissing": "{{domain}} の Cookie を取得できませんでした。ブラウザーでログインして再試行してください。",
     "cookiesFailed": "Cookie を取得できませんでした：{{detail}}",
     "queueFailed": "{{url}} をキューに追加できませんでした：{{detail}}",
-    "analysisFailed": "動画を解析できませんでした",
-    "analysisFailedDetail": "動画を解析できませんでした：{{detail}}",
+    "analysisFailed": "メディアを解析できませんでした",
+    "analysisFailedDetail": "メディアを解析できませんでした：{{detail}}",
     "currentItemUnknown": "現在の動画だけをダウンロードする前に、プレイリスト項目を1つ選択してください",
     "backendNotReady": "ダウンロードバックエンドの準備ができていません"
   },
   "input": {
-    "placeholder": "動画のURLを貼り付け（例：YouTube、Bilibili...）",
+    "placeholder": "動画またはポッドキャストのURLを貼り付け（例：YouTube、Bilibili、小宇宙...）",
     "pasteTooltip": "クリップボードから貼り付け"
   },
   "options": {
     "quality": "画質",
+    "format": "音声形式",
     "mp4": "MP4",
+    "audioFile": "M4A / MP3",
+    "originalAudio": "オリジナル音声（推奨）",
     "bestQuality": "最高画質（デフォルト）",
     "4k": "4K ウルトラHD",
     "2k": "2K QHD",
@@ -49,7 +52,9 @@
     "codecEfficient": "効率的 (Best/AV1)",
     "analyzingStream": "分析中...",
     "downloadingMedia": "ダウンロード中...",
-    "downloadMedia": "メディアをダウンロード"
+    "downloadMedia": "メディアをダウンロード",
+    "downloadingAudio": "ポッドキャスト音声をダウンロード中...",
+    "downloadAudio": "ポッドキャスト音声をダウンロード"
   },
   "playlist": {
     "detected": "プレイリストを検出",

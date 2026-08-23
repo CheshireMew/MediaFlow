@@ -1,6 +1,6 @@
 {
-  "title": "视频下载",
-  "subtitle": "从支持的平台下载高质量视频和音频",
+  "title": "媒体下载",
+  "subtitle": "从支持的平台下载视频、音频和小宇宙播客",
   "taskPanel": { "title": "新任务" },
   "recentDownloads": {
     "title": "最近提交",
@@ -24,18 +24,21 @@
     "cookiesMissing": "未获取到 {{domain}} 的 Cookie，请在浏览器中登录后重试。",
     "cookiesFailed": "Cookie 获取失败：{{detail}}",
     "queueFailed": "无法将 {{url}} 加入队列：{{detail}}",
-    "analysisFailed": "视频分析失败",
-    "analysisFailedDetail": "视频分析失败：{{detail}}",
+    "analysisFailed": "媒体分析失败",
+    "analysisFailedDetail": "媒体分析失败：{{detail}}",
     "currentItemUnknown": "请先选择一个播放列表项目，再仅下载当前视频",
     "backendNotReady": "下载后端尚未就绪"
   },
   "input": {
-    "placeholder": "在此粘贴视频链接（如 YouTube、Bilibili...）",
+    "placeholder": "粘贴视频或播客链接（如 YouTube、Bilibili、小宇宙...）",
     "pasteTooltip": "从剪贴板粘贴"
   },
   "options": {
     "quality": "画质",
+    "format": "音频格式",
     "mp4": "MP4",
+    "audioFile": "M4A / MP3",
+    "originalAudio": "原始音频（推荐）",
     "bestQuality": "最佳画质（默认）",
     "4k": "4K 超高清",
     "2k": "2K QHD",
@@ -49,7 +52,9 @@
     "codecEfficient": "高效 (Best/AV1)",
     "analyzingStream": "正在分析...",
     "downloadingMedia": "下载中...",
-    "downloadMedia": "下载媒体"
+    "downloadMedia": "下载媒体",
+    "downloadingAudio": "正在下载播客音频...",
+    "downloadAudio": "下载播客音频"
   },
   "playlist": {
     "detected": "检测到播放列表",

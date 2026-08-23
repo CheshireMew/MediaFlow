@@ -5,9 +5,10 @@ Implements a simplified Unicode Line Breaking Algorithm for CJK text.
 Since libass cannot auto-wrap CJK text (requires libunibreak), we pre-calculate
 line breaks and insert ASS \\N markers before rendering.
 """
+import os
 from functools import lru_cache
 from pathlib import Path
-import os
+
 from backend.utils.font_assets import get_bundled_font_files
 
 # Characters that MUST NOT appear at the START of a line (避头标点)
@@ -124,17 +125,20 @@ def _measure_text_width(text: str, font_name: str, font_size: int) -> float | No
         return None
 
     try:
-        from PIL import Image, ImageDraw, ImageFont
-
-        font = ImageFont.truetype(font_path, font_size)
-        image = Image.new("L", (1, 1), 0)
-        draw = ImageDraw.Draw(image)
-        if hasattr(draw, "textlength"):
-            return float(draw.textlength(text, font=font))
-        bbox = draw.textbbox((0, 0), text, font=font)
+        font = _load_measurement_font(font_path, font_size)
+        if hasattr(font, "getlength"):
+            return float(font.getlength(text))
+        bbox = font.getbbox(text)
         return float(bbox[2] - bbox[0])
     except Exception:
         return None
+
+
+@lru_cache(maxsize=64)
+def _load_measurement_font(font_path: str, font_size: int):
+    from PIL import ImageFont
+
+    return ImageFont.truetype(font_path, font_size)
 
 
 def measure_char_width(ch: str, font_name: str | None, font_size: int) -> float:

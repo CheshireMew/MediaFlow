@@ -12,6 +12,7 @@ from backend.models.media_contracts import MediaReference
 from backend.services.video.encoder_config import EncoderConfigResolver
 from backend.services.video.ffmpeg_runner import FfmpegRunner
 from backend.services.video.filter_graph_builder import FilterGraphBuilder
+from backend.services.video.media_prober import MediaInfo
 from backend.services.video.synthesis import SynthesisOrchestrator
 
 
@@ -35,6 +36,19 @@ def _media_ref(path: Path, media_type: str = "video/mp4") -> MediaReference:
     return MediaReference(path=str(path), name=path.name, type=media_type)
 
 
+def _mock_source_probe(monkeypatch, duration: float) -> None:
+    monkeypatch.setattr(
+        clip_export_service.MediaProber,
+        "probe_media",
+        lambda _path: MediaInfo(
+            duration=duration,
+            width=1920,
+            height=1080,
+            has_audio=True,
+        ),
+    )
+
+
 def test_export_clips_burned_uses_synthesis_timeline(monkeypatch, tmp_path):
     video_path = tmp_path / "demo.mp4"
     srt_path = tmp_path / "demo.srt"
@@ -45,6 +59,7 @@ def test_export_clips_burned_uses_synthesis_timeline(monkeypatch, tmp_path):
     watermark_path.write_bytes(b"png")
     fake_synthesis = _FakeSynthesis()
     progress_events = []
+    _mock_source_probe(monkeypatch, 60.0)
     monkeypatch.setattr(
         clip_export_service.MediaProber,
         "get_duration",
@@ -87,6 +102,7 @@ def test_export_clips_source_uses_exact_render_without_subtitles_or_watermark(mo
     output_dir = tmp_path / "clips"
     video_path.write_bytes(b"video")
     fake_synthesis = _FakeSynthesis()
+    _mock_source_probe(monkeypatch, 10.0)
     monkeypatch.setattr(
         clip_export_service.MediaProber,
         "get_duration",
@@ -130,6 +146,7 @@ def test_export_clips_rejects_range_beyond_media_before_creating_output(monkeypa
     video_path = tmp_path / "demo.mp4"
     output_dir = tmp_path / "clips"
     video_path.write_bytes(b"video")
+    _mock_source_probe(monkeypatch, 2.0)
     monkeypatch.setattr(clip_export_service.MediaProber, "get_duration", lambda _path: 2.0)
 
     with pytest.raises(ValueError, match="exceeds video duration"):
@@ -163,6 +180,7 @@ def test_export_clips_publishes_batch_only_after_every_clip_succeeds(monkeypatch
             Path(kwargs["output_path"]).write_bytes(b"rendered")
 
     synthesis = _FailsSecondSynthesis()
+    _mock_source_probe(monkeypatch, 10.0)
     monkeypatch.setattr(
         clip_export_service.MediaProber,
         "get_duration",
@@ -188,11 +206,43 @@ def test_export_clips_publishes_batch_only_after_every_clip_succeeds(monkeypatch
     assert list(output_dir.iterdir()) == []
 
 
+def test_export_clips_probes_source_once_for_entire_batch(monkeypatch, tmp_path):
+    video_path = tmp_path / "demo.mp4"
+    video_path.write_bytes(b"video")
+    probe_calls: list[str] = []
+
+    def probe(path: str) -> MediaInfo:
+        probe_calls.append(path)
+        return MediaInfo(duration=10.0, width=1280, height=720, has_audio=True)
+
+    monkeypatch.setattr(clip_export_service.MediaProber, "probe_media", probe)
+    monkeypatch.setattr(clip_export_service.MediaProber, "get_duration", lambda _path: 1.0)
+    synthesis = _FakeSynthesis()
+
+    clip_export_service.export_clips(
+        video_synthesis=synthesis,
+        video_ref=_media_ref(video_path),
+        segments=[
+            ClipExportSegment(id="clip-1", start=1.0, end=2.0),
+            ClipExportSegment(id="clip-2", start=3.0, end=4.0),
+        ],
+        render_mode="source",
+        srt_ref=None,
+        watermark_ref=None,
+        options=None,
+        output_dir=str(tmp_path / "clips"),
+    )
+
+    assert probe_calls == [str(video_path.resolve())]
+    assert all(call["options"]["_source_width"] == 1280 for call in synthesis.calls)
+
+
 def test_repeated_exports_publish_to_distinct_batch_directories(monkeypatch, tmp_path):
     video_path = tmp_path / "demo.mp4"
     output_dir = tmp_path / "clips"
     video_path.write_bytes(b"video")
     fake_synthesis = _FakeSynthesis()
+    _mock_source_probe(monkeypatch, 10.0)
     monkeypatch.setattr(
         clip_export_service.MediaProber,
         "get_duration",

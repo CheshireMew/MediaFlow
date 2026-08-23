@@ -17,6 +17,42 @@ if (typeof window !== "undefined" && window.location.origin === "null") {
   });
 }
 
+if (typeof ResizeObserver === "undefined") {
+  class TestResizeObserver implements ResizeObserver {
+    private readonly observed = new Set<Element>();
+    private readonly callback: ResizeObserverCallback;
+    private readonly onResize = () => {
+      const entries = [...this.observed].map((target) => ({
+        target,
+        contentRect: target.getBoundingClientRect(),
+      })) as ResizeObserverEntry[];
+      if (entries.length > 0) this.callback(entries, this);
+    };
+
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback;
+      window.addEventListener("resize", this.onResize);
+    }
+
+    disconnect() {
+      this.observed.clear();
+      window.removeEventListener("resize", this.onResize);
+    }
+
+    observe(target: Element) {
+      this.observed.add(target);
+    }
+
+    unobserve(target: Element) {
+      this.observed.delete(target);
+    }
+  }
+  Object.defineProperty(globalThis, "ResizeObserver", {
+    configurable: true,
+    value: TestResizeObserver,
+  });
+}
+
 beforeEach(() => {
   resetUiStateSettingsForTests();
 });

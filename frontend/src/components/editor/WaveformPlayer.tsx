@@ -3,10 +3,12 @@ import { AudioLines, Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useWaveformController } from "../../hooks/editor/useWaveformController";
+import type { MediaReference } from "../../services/ui/mediaReference";
 import type { SubtitleSegment } from "../../types/task";
 
 interface WaveformPlayerProps {
   mediaUrl: string;
+  video: MediaReference;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   regions: SubtitleSegment[];
   onRegionUpdate: (id: string, start: number, end: number) => void;
@@ -20,6 +22,7 @@ interface WaveformPlayerProps {
 
 function WaveformPlayerComponent({
   mediaUrl,
+  video,
   videoRef,
   regions,
   onRegionUpdate,
@@ -47,6 +50,7 @@ function WaveformPlayerComponent({
     onTopScroll,
   } = useWaveformController({
     mediaUrl,
+    video,
     videoRef,
     regions,
     selectedIds,

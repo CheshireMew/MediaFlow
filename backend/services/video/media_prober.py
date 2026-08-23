@@ -1,8 +1,20 @@
 import re
 import subprocess
+from dataclasses import dataclass
+
 import ffmpeg
 from loguru import logger
+
 from backend.config import settings
+
+
+@dataclass(frozen=True)
+class MediaInfo:
+    duration: float
+    width: int
+    height: int
+    has_audio: bool
+
 
 class MediaProber:
     _nvenc_available: bool | None = None  # Cached detection result
@@ -22,8 +34,64 @@ class MediaProber:
             encoding="utf-8",
             errors="replace",
             timeout=10,
+            check=False,
         )
         return "\n".join(part for part in (result.stdout, result.stderr) if part)
+
+    @staticmethod
+    def probe_media(video_path: str) -> MediaInfo:
+        """Resolve the source metadata used by synthesis with one ffprobe process."""
+        try:
+            probe = ffmpeg.probe(video_path, cmd=settings.FFPROBE_PATH)
+            streams = probe.get("streams", [])
+            video_info = next(
+                (stream for stream in streams if stream.get("codec_type") == "video"),
+                None,
+            )
+            width = int((video_info or {}).get("width") or 1920)
+            height = int((video_info or {}).get("height") or 1080)
+            rotate = int((video_info or {}).get("tags", {}).get("rotate") or 0)
+            if rotate == 0:
+                for side_data in (video_info or {}).get("side_data_list", []):
+                    if side_data.get("side_data_type") == "Display Matrix":
+                        rotate = int(side_data.get("rotation") or 0)
+                        break
+            if abs(rotate) in {90, 270}:
+                width, height = height, width
+            return MediaInfo(
+                duration=float(probe.get("format", {}).get("duration") or 0.0),
+                width=width,
+                height=height,
+                has_audio=any(
+                    stream.get("codec_type") == "audio" for stream in streams
+                ),
+            )
+        except Exception as exc:
+            logger.debug(f"Combined media probe failed, using ffmpeg fallback: {exc}")
+            output = MediaProber._ffmpeg_probe_output(video_path)
+            duration_match = re.search(
+                r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)",
+                output,
+            )
+            resolution_match = re.search(
+                r"Stream #\S+:\s*Video:.*?(\d{2,5})x(\d{2,5})",
+                output,
+            )
+            duration = 0.0
+            if duration_match:
+                hours, minutes, seconds = duration_match.groups()
+                duration = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+            width, height = (
+                (int(resolution_match.group(1)), int(resolution_match.group(2)))
+                if resolution_match
+                else (1920, 1080)
+            )
+            return MediaInfo(
+                duration=duration,
+                width=width,
+                height=height,
+                has_audio=bool(re.search(r"Stream #\S+:\s*Audio:", output)),
+            )
 
     @staticmethod
     def detect_nvenc() -> bool:

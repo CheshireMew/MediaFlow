@@ -614,15 +614,15 @@ describe("editor subtitle behaviors", () => {
   });
 
   test("default subtitle font size adapts to the constrained output edge", () => {
-    expect(computeDefaultSubtitleFontSize({ width: 0, height: 0 })).toBe(24);
-    expect(computeDefaultSubtitleFontSize({ width: 426, height: 240 })).toBe(14);
-    expect(computeDefaultSubtitleFontSize({ width: 568, height: 320 })).toBe(20);
-    expect(computeDefaultSubtitleFontSize({ width: 1280, height: 720 })).toBe(48);
-    expect(computeDefaultSubtitleFontSize({ width: 1920, height: 1080 })).toBe(72);
-    expect(computeDefaultSubtitleFontSize({ width: 3840, height: 2160 })).toBe(132);
-    expect(computeDefaultSubtitleFontSize({ width: 1080, height: 1920 })).toBe(72);
-    expect(computeDefaultSubtitleFontSize({ width: 1440, height: 1080 })).toBe(66);
-    expect(computeDefaultSubtitleFontSize({ width: 628, height: 480 })).toBe(28);
+    expect(computeDefaultSubtitleFontSize({ width: 0, height: 0 })).toBe(28);
+    expect(computeDefaultSubtitleFontSize({ width: 426, height: 240 })).toBe(16);
+    expect(computeDefaultSubtitleFontSize({ width: 568, height: 320 })).toBe(22);
+    expect(computeDefaultSubtitleFontSize({ width: 1280, height: 720 })).toBe(54);
+    expect(computeDefaultSubtitleFontSize({ width: 1920, height: 1080 })).toBe(80);
+    expect(computeDefaultSubtitleFontSize({ width: 3840, height: 2160 })).toBe(148);
+    expect(computeDefaultSubtitleFontSize({ width: 1080, height: 1920 })).toBe(80);
+    expect(computeDefaultSubtitleFontSize({ width: 1440, height: 1080 })).toBe(74);
+    expect(computeDefaultSubtitleFontSize({ width: 628, height: 480 })).toBe(32);
   });
 
   test("portrait watermark defaults use portrait scale and edge-safe top-right position", () => {
@@ -682,13 +682,13 @@ describe("editor subtitle behaviors", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(result.current.fontSize).toBe(72);
+      expect(result.current.fontSize).toBe(80);
 
       rerender({ outputSize: { w: 1280, h: 720 }, videoPath: "E:/video-b.mp4" });
       await act(async () => {
         await Promise.resolve();
       });
-      expect(result.current.fontSize).toBe(48);
+      expect(result.current.fontSize).toBe(54);
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext;
     }
@@ -732,7 +732,7 @@ describe("editor subtitle behaviors", () => {
         await Promise.resolve();
       });
 
-      expect(result.current.fontSize).toBe(48);
+      expect(result.current.fontSize).toBe(54);
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext;
     }
@@ -776,7 +776,7 @@ describe("editor subtitle behaviors", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(result.current.fontSize).toBe(48);
+      expect(result.current.fontSize).toBe(54);
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext;
     }

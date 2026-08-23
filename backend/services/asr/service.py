@@ -84,7 +84,7 @@ class ASRService:
         try:
             prepared_audio_path = AudioProcessor.prepare_for_transcription(
                 audio_path,
-                work_dir / "input.wav",
+                work_dir / "input.flac",
             )
         except Exception as error:
             shutil.rmtree(work_dir, ignore_errors=True)

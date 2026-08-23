@@ -144,6 +144,62 @@ async def test_download_normalizes_x_pro_url_before_sync_download():
     assert mock_sync_download.call_args.kwargs["start_url"] == normalized_url
 
 
+@pytest.mark.asyncio
+async def test_download_forces_audio_settings_and_uses_suggested_episode_filename():
+    downloader_service = make_downloader()
+    episode_url = "https://www.xiaoyuzhoufm.com/episode/6966f416109824f9e15f3cb5"
+    expected_asset = download_result("task-audio", "episode.m4a", 89, "开场白")
+    mock_handler = AsyncMock(spec=BasePlatform)
+    mock_handler.analyze.return_value = AnalyzeResult(
+        type="single",
+        platform="xiaoyuzhou",
+        id="6966f416109824f9e15f3cb5",
+        title="嘿，你好，生活 - 开场白",
+        url=episode_url,
+        direct_src="https://media.xyzcdn.net/episode.m4a",
+        duration=89,
+        media_kind="audio",
+        suggested_filename="嘿，你好，生活 - 开场白 [6966f416109824f9e15f3cb5]",
+    )
+
+    with (
+        patch.object(
+            downloader_service._platform_factory,
+            "get_handler",
+            new=AsyncMock(return_value=mock_handler),
+        ),
+        patch.object(
+            downloader_service,
+            "_perform_download_sync",
+            return_value=expected_asset,
+        ) as mock_sync_download,
+        patch("asyncio.get_running_loop") as mock_get_loop,
+    ):
+        mock_loop = MagicMock()
+        mock_get_loop.return_value = mock_loop
+        mock_loop.run_in_executor = AsyncMock(
+            side_effect=lambda _executor, callback: callback()
+        )
+
+        result = await downloader_service.download(
+            episode_url,
+            resolution="1080p",
+            download_subs=True,
+            task_id="task-audio",
+        )
+
+    assert result == expected_asset
+    mock_sync_download.assert_called_once()
+    kwargs = mock_sync_download.call_args.kwargs
+    assert kwargs["url"] == "https://media.xyzcdn.net/episode.m4a"
+    assert kwargs["start_url"] == episode_url
+    assert kwargs["resolution"] == "audio"
+    assert kwargs["download_subs"] is False
+    assert kwargs["filename"] == "嘿，你好，生活 - 开场白 [6966f416109824f9e15f3cb5]"
+    assert kwargs["resolved_title"] == "嘿，你好，生活 - 开场白"
+    assert kwargs["resolved_duration"] == 89
+
+
 def test_download_retries_retryable_ytdlp_network_failure():
     downloader_service = make_downloader()
 

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTaskSocket } from "../hooks/tasks/useTaskSocket";
 import { useTaskStore } from "../hooks/tasks/useTaskStore";
-import { TaskContext } from "./taskContext";
+import { TaskActionsContext, TaskContext, TaskStatusContext } from "./taskContext";
 import { isTaskActive } from "../services/tasks/taskRuntimeState";
 import { resetTaskSourceDiagnostics } from "./taskSources/diagnostics";
 import type { TaskSocketMessage } from "../hooks/tasks/useTaskStore";
 import { apiClient } from "../api/client";
+import { TaskStoreContext } from "./taskStoreContext";
 
 const ACTIVE_TASK_RECONCILE_INTERVAL_MS = 5000;
 
@@ -18,6 +19,7 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
   const [remoteSnapshotReady, setRemoteSnapshotReady] = useState(false);
   const {
     tasks,
+    store,
     applyMessage,
     addTask,
     deleteTask: removeLocalTask,
@@ -53,37 +55,37 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
     [tasks],
   );
 
-  const pauseTask = async (taskId: string) => {
+  const pauseTask = useCallback(async (taskId: string) => {
     if (!sendPause(taskId)) {
       await apiClient.pauseTask(taskId);
     }
-  };
+  }, [sendPause]);
 
-  const pauseAllTasks = async () => {
-    if (tasks.some((task) => isTaskActive(task))) {
+  const pauseAllTasks = useCallback(async () => {
+    if (store.getSnapshot().some((task) => isTaskActive(task))) {
       await apiClient.pauseAllTasks();
     }
-  };
+  }, [store]);
 
-  const resumeTask = async (taskId: string) => {
+  const resumeTask = useCallback(async (taskId: string) => {
     await apiClient.resumeTask(taskId);
-  };
+  }, []);
 
-  const retryTask = async (taskId: string) => {
+  const retryTask = useCallback(async (taskId: string) => {
     const receipt = await apiClient.retryTask(taskId);
     const task = await apiClient.getTaskStatus(receipt.task_id);
     applyMessage({ type: "merge_one", task });
-  };
+  }, [applyMessage]);
 
-  const deleteTask = async (taskId: string) => {
+  const deleteTask = useCallback(async (taskId: string) => {
     await apiClient.deleteTask(taskId);
     removeLocalTask(taskId);
-  };
+  }, [removeLocalTask]);
 
-  const clearTasks = async () => {
+  const clearTasks = useCallback(async () => {
     await apiClient.deleteAllTasks();
     clearLocalTasks();
-  };
+  }, [clearLocalTasks]);
 
   useEffect(() => {
     resetTaskSourceDiagnostics();
@@ -158,24 +160,38 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
     };
   }, [activeTaskKey, applyMessage, enabled, remoteSnapshotReady]);
 
+  const actions = useMemo(() => ({
+    pauseAllTasks,
+    pauseTask,
+    resumeTask,
+    retryTask,
+    addTask,
+    deleteTask,
+    clearTasks,
+  }), [addTask, clearTasks, deleteTask, pauseAllTasks, pauseTask, resumeTask, retryTask]);
+  const status = useMemo(() => ({
+    connected,
+    remoteTasksReady,
+    tasksSettled,
+  }), [connected, remoteTasksReady, tasksSettled]);
+  const legacyValue = useMemo(() => ({
+    tasks,
+    ...status,
+    ...actions,
+  }), [actions, status, tasks]);
+
   return React.createElement(
-    TaskContext.Provider,
-    {
-      value: {
-        tasks,
-        connected,
-        remoteTasksReady,
-        tasksSettled,
-        pauseAllTasks,
-        pauseTask,
-        resumeTask,
-        retryTask,
-        addTask,
-        deleteTask,
-        clearTasks,
-      },
-    },
-    children,
+    TaskStatusContext.Provider,
+    { value: status },
+    React.createElement(
+      TaskActionsContext.Provider,
+      { value: actions },
+      React.createElement(
+        TaskStoreContext.Provider,
+        { value: store },
+        React.createElement(TaskContext.Provider, { value: legacyValue }, children),
+      ),
+    ),
   );
 };
 

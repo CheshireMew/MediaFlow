@@ -31,6 +31,7 @@ export type {
   CudaReadinessResponse,
   EditorPreviewMediaRequest,
   EditorPreviewMediaResponse,
+  EditorWaveformPeaksResponse,
   HighlightDetectionRequest,
   HighlightDetectionResponse,
   ClipExportRequest,
@@ -70,6 +71,7 @@ import type {
   CudaReadinessResponse,
   EditorPreviewMediaRequest,
   EditorPreviewMediaResponse,
+  EditorWaveformPeaksResponse,
   HighlightDetectionRequest,
   HighlightDetectionResponse,
   ImagePreviewResponse,
@@ -365,6 +367,13 @@ export const apiClient = {
 
   resolveEditorPreviewMediaSource: (payload: EditorPreviewMediaRequest) => {
     return request<EditorPreviewMediaResponse>("/editor/preview/media/source", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }, 300_000);
+  },
+
+  getEditorWaveformPeaks: (payload: EditorPreviewMediaRequest) => {
+    return request<EditorWaveformPeaksResponse>("/editor/preview/media/waveform", {
       method: "POST",
       body: JSON.stringify(payload),
     }, 300_000);

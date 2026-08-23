@@ -2,6 +2,7 @@ import { requireExecutionMediaReference } from "./executionPayload";
 import type { MediaReference } from "../ui/mediaReference";
 import type {
   EditorPreviewMediaResponse,
+  EditorWaveformPeaksResponse,
   HighlightDetectionRequest,
   HighlightDetectionResponse,
   ImagePreviewResponse,
@@ -85,6 +86,20 @@ export const editorService = {
       }),
       backendCall: (normalizedPayload) =>
         apiClient.resolveEditorPreviewMediaSource(normalizedPayload),
+    });
+  },
+
+  async getWaveformPeaks(payload: {
+    video_ref: MediaReference;
+  }): Promise<EditorWaveformPeaksResponse> {
+    return await executeBackendDirectCall({
+      payload,
+      normalizePayload: (nextPayload) => ({
+        ...nextPayload,
+        video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
+      }),
+      backendCall: (normalizedPayload) =>
+        apiClient.getEditorWaveformPeaks(normalizedPayload),
     });
   },
 

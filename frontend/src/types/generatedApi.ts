@@ -161,6 +161,8 @@ export interface AnalyzeResult {
   items?: PlaylistItem[] | null;
   uploader?: string | null;
   webpage_url?: string | null;
+  media_kind?: "video" | "audio";
+  suggested_filename?: string | null;
   extra_info?: Record<string, unknown> | null;
 }
 export interface GlossaryTerm {
@@ -206,6 +208,11 @@ export interface EditorPreviewMediaResponse {
   source_ref: MediaReference;
   media_ref: MediaReference;
   remuxed: boolean;
+}
+export interface EditorWaveformPeaksResponse {
+  duration: number;
+  points_per_second: number;
+  peaks: number[][];
 }
 export interface ImagePreviewResponse {
   png_path: string;
@@ -338,6 +345,8 @@ export interface DownloadParams {
   output_filename?: string | null;
   filename?: string | null;
   codec?: string;
+  media_kind?: "video" | "audio";
+  suggested_filename?: string | null;
 }
 export interface TranscribeParams {
   engine?: "builtin" | "cli";

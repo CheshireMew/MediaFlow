@@ -1,9 +1,5 @@
 from typing import List, Any
-import shutil
-import tempfile
-from pathlib import Path
 from loguru import logger
-from backend.config import settings
 from backend.models.subtitle_contracts import SubtitleSegment
 from backend.utils.audio_processor import AudioProcessor
 from backend.utils.segment_refiner import SegmentRefiner
@@ -12,12 +8,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 class CoreStrategies:
     def __init__(self, executor: ThreadPoolExecutor):
         self.executor = executor
-
-    @staticmethod
-    def _create_chunk_dir() -> Path:
-        base_dir = settings.TEMP_DIR / "asr-chunks"
-        base_dir.mkdir(parents=True, exist_ok=True)
-        return Path(tempfile.mkdtemp(prefix="chunks-", dir=base_dir))
 
     def transcribe_direct(
         self,
@@ -66,11 +56,8 @@ class CoreStrategies:
         split_points = AudioProcessor.calculate_split_points(duration, silence_intervals)
         logger.info(f"Calculated {len(split_points)} split points: {[f'{p:.1f}s' for p in split_points]}")
         
-        chunk_dir = self._create_chunk_dir()
-        chunk_dir.mkdir(parents=True, exist_ok=True)
-        
-        chunks = AudioProcessor.split_audio_physically(audio_path, split_points, chunk_dir)
-        logger.info(f"Split into {len(chunks)} physical chunks.")
+        chunks = AudioProcessor.build_audio_chunk_ranges(duration, split_points)
+        logger.info(f"Prepared {len(chunks)} streaming chunk ranges.")
         
         if progress_callback:
             progress_callback(
@@ -87,8 +74,8 @@ class CoreStrategies:
             futures = {}
             for chunk in chunks:
                 future = self.executor.submit(
-                    self._process_chunk, 
-                    chunk, model, language, initial_prompt, vad_filter
+                    self._process_chunk,
+                    audio_path, chunk, model, language, initial_prompt, vad_filter
                 )
                 futures[future] = chunk
             
@@ -108,25 +95,23 @@ class CoreStrategies:
         except Exception as e:
             logger.error(f"Chunk transcription failed: {e}")
             raise e
-        finally:
-            if chunk_dir.exists():
-                shutil.rmtree(chunk_dir, ignore_errors=True)
-        
         return all_segments
 
     def _process_chunk(
         self,
-        chunk_info,
+        audio_path: str,
+        chunk_range,
         model: Any,
         language: str | None,
         initial_prompt: str | None,
         vad_filter: bool,
     ) -> List[SubtitleSegment]:
         """Process a single audio chunk."""
-        c_path, c_offset = chunk_info
+        c_offset, c_end = chunk_range
         logger.info(f"Transcribing chunk starting at {c_offset:.1f}s...")
+        audio = AudioProcessor.decode_audio_range(audio_path, c_offset, c_end)
         segs, _ = model.transcribe(
-            c_path, 
+            audio,
             beam_size=5, 
             language=language, 
             vad_filter=vad_filter,

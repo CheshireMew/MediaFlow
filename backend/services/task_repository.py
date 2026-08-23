@@ -66,6 +66,19 @@ def _json_payload(value: Any) -> Dict | None:
 
 
 class TaskRepository:
+    async def persist_task_snapshot(self, task: Task) -> None:
+        """Checkpoint an already validated in-memory task without another revision bump."""
+        async with get_session_context() as session:
+            db_task = await session.get(Task, task.id)
+            if db_task is None or int(db_task.revision or 0) > int(task.revision or 0):
+                return
+            for field_name in Task.model_fields:
+                if field_name == "id":
+                    continue
+                setattr(db_task, field_name, getattr(task, field_name))
+            session.add(db_task)
+            await session.commit()
+
     async def trim_history(self) -> dict[str, int]:
         async with get_session_context() as session:
             pruned_revisions = await self._trim_history(session)
@@ -218,12 +231,16 @@ class TaskRepository:
                 incoming_status = kwargs.get("status")
                 if db_task.status in {"completed", "failed", "cancelled", "paused"} and incoming_status is None:
                     return None
+                cached_revision = int(cached_task.revision or 0) if cached_task else -1
+                if cached_task is not None and cached_revision > int(db_task.revision or 0):
+                    for field_name in _MUTABLE_TASK_FIELDS:
+                        setattr(db_task, field_name, getattr(cached_task, field_name))
                 if incoming_status is not None:
                     kwargs["persistence_scope"] = task_persistence_scope(str(incoming_status))
                     kwargs["lifecycle"] = task_lifecycle(str(incoming_status))
                 for key, value in kwargs.items():
                     setattr(db_task, key, value)
-                db_task.revision = int(db_task.revision or 0) + 1
+                db_task.revision = max(int(db_task.revision or 0), cached_revision) + 1
 
                 session.add(db_task)
                 await session.commit()

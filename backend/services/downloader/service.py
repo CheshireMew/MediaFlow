@@ -59,17 +59,24 @@ class DownloaderService:
         handler = await self._platform_factory.get_handler(url)
         final_url = url
         final_title = filename
+        resolved_title: Optional[str] = None
+        resolved_duration: Optional[float] = None
 
         if handler:
             logger.info(f"Using platform handler: {handler.__class__.__name__}")
             try:
                 result = await handler.analyze(url)
                 if result and result.type == "single":
+                    resolved_title = result.title
+                    resolved_duration = result.duration
                     if result.direct_src:
                         logger.info(f"Resolved direct URL: {result.direct_src[:50]}...")
                         final_url = result.direct_src
-                    if result.title and not final_title:
-                        final_title = result.title
+                    if not final_title:
+                        final_title = result.suggested_filename or result.title
+                    if result.media_kind == "audio":
+                        resolution = "audio"
+                        download_subs = False
             except Exception as e:
                 logger.error(f"Platform analysis failed, falling back to default: {e}")
 
@@ -90,6 +97,8 @@ class DownloaderService:
                 task_id=task_id,
                 cookie_file=cookie_file,
                 filename=final_title,
+                resolved_title=resolved_title,
+                resolved_duration=resolved_duration,
                 local_source=local_source,
                 codec=codec,
             ),
@@ -111,6 +120,8 @@ class DownloaderService:
         task_id: Optional[str] = None,
         cookie_file: Optional[str] = None,
         filename: Optional[str] = None,
+        resolved_title: Optional[str] = None,
+        resolved_duration: Optional[float] = None,
         local_source: Optional[str] = None,
         codec: str = "best",
     ) -> TaskResult:
@@ -208,8 +219,8 @@ class DownloaderService:
                 if progress_callback:
                     progress_callback(99.0, "download_subtitle_failed", {})
 
-        duration = media_info.get("duration", 0)
-        title = media_info.get("title") or "Unknown Title"
+        duration = media_info.get("duration") or resolved_duration or 0
+        title = resolved_title or media_info.get("title") or "Unknown Title"
 
         try:
             artifacts = self._artifact_resolver.finalize_download(
@@ -236,7 +247,7 @@ class DownloaderService:
                     title=title,
                     duration=duration,
                     filename=artifacts.media_path.name,
-                    source_url=url,
+                    source_url=start_url or url,
                     warnings=list(artifacts.warnings),
                     recovery_strategies=[
                         item["strategy"]

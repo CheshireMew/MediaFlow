@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, HttpUrl, model_validator
 
 from backend.contracts import pipeline_step_names, pipeline_step_param_model_names
@@ -24,6 +26,8 @@ class DownloadParams(BaseModel):
     output_filename: str | None = None
     filename: str | None = None
     codec: str = "best"
+    media_kind: Literal["video", "audio"] = "video"
+    suggested_filename: str | None = None
 
 
 class TranscribeParams(TranscriptionOptions):

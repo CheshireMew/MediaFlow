@@ -5,6 +5,14 @@ import {
 } from "./persistenceHealth";
 
 type WorkspaceState = Record<string, unknown>;
+type WorkspacePatchOperation =
+  | { op: "set"; path: Array<string | number>; value: unknown }
+  | { op: "delete"; path: Array<string | number> };
+
+type WorkspacePatchEnvelope = {
+  format: "mediaflow-workspace-patch-v1";
+  operations: WorkspacePatchOperation[];
+};
 
 const WORKSPACE_STORAGE_KEY = "mediaflow:workspace-state:v1";
 const WRITE_DEBOUNCE_MS = 250;
@@ -19,12 +27,14 @@ function createPersistenceSessionId() {
 const persistenceSessionId = createPersistenceSessionId();
 
 let cachedWorkspaceState: WorkspaceState = readStorage();
+let lastPersistedWorkspaceState: WorkspaceState = {};
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
 let initialized = false;
 let dirty = false;
 let desktopPersistenceAvailable = false;
 let pendingWrite: Promise<void> | null = null;
 let writeRevision = 0;
+const dirtyKeys = new Set<string>();
 const initializedListeners = new Set<() => void>();
 
 function isRecord(value: unknown): value is WorkspaceState {
@@ -49,6 +59,62 @@ function readStorage(): WorkspaceState {
   }
 }
 
+function appendWorkspaceDiff(
+  previous: unknown,
+  next: unknown,
+  path: Array<string | number>,
+  operations: WorkspacePatchOperation[],
+) {
+  if (Object.is(previous, next)) return;
+  if (Array.isArray(previous) && Array.isArray(next)) {
+    if (previous.length !== next.length) {
+      operations.push({ op: "set", path, value: next });
+      return;
+    }
+    for (let index = 0; index < next.length; index += 1) {
+      appendWorkspaceDiff(previous[index], next[index], [...path, index], operations);
+    }
+    return;
+  }
+  if (isRecord(previous) && isRecord(next)) {
+    const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
+    for (const key of keys) {
+      if (!(key in next)) {
+        operations.push({ op: "delete", path: [...path, key] });
+      } else {
+        appendWorkspaceDiff(previous[key], next[key], [...path, key], operations);
+      }
+    }
+    return;
+  }
+  operations.push({ op: "set", path, value: next });
+}
+
+function buildPatchEnvelope(
+  target: WorkspaceState,
+  keys: ReadonlySet<string>,
+): WorkspacePatchEnvelope {
+  const operations: WorkspacePatchOperation[] = [];
+  for (const key of keys) {
+    const operationStart = operations.length;
+    if (!(key in target)) {
+      operations.push({ op: "delete", path: [key] });
+      continue;
+    }
+    appendWorkspaceDiff(
+      lastPersistedWorkspaceState[key],
+      target[key],
+      [key],
+      operations,
+    );
+    if (operations.length - operationStart > 512) {
+      operations.splice(operationStart);
+      operations.push({ op: "set", path: [key], value: target[key] });
+    }
+  }
+  return { format: "mediaflow-workspace-patch-v1", operations };
+}
+
 function scheduleWrite() {
   if (writeTimer !== null) {
     clearTimeout(writeTimer);
@@ -68,8 +134,16 @@ export async function initializeWorkspaceState() {
       if (raw) {
         const parsed: unknown = JSON.parse(raw);
         if (isRecord(parsed)) {
-          cachedWorkspaceState = parsed;
+          const pendingState = cachedWorkspaceState;
+          cachedWorkspaceState = { ...parsed };
+          for (const key of dirtyKeys) {
+            if (key in pendingState) cachedWorkspaceState[key] = pendingState[key];
+            else delete cachedWorkspaceState[key];
+          }
+          lastPersistedWorkspaceState = parsed;
         }
+      } else {
+        lastPersistedWorkspaceState = {};
       }
       clearPersistenceFailure("workspace-read");
     } catch (error) {
@@ -82,8 +156,7 @@ export async function initializeWorkspaceState() {
   for (const listener of initializedListeners) {
     listener();
   }
-  if (dirty || (desktopPersistenceAvailable && Object.keys(cachedWorkspaceState).length > 0)) {
-    dirty = true;
+  if (dirty) {
     await flushWorkspaceState();
   }
 }
@@ -109,6 +182,7 @@ export function writeWorkspaceStateValue<T>(key: string, value: T | null) {
   } else {
     cachedWorkspaceState = { ...cachedWorkspaceState, [key]: value };
   }
+  dirtyKeys.add(key);
   dirty = true;
   scheduleWrite();
 }
@@ -124,8 +198,19 @@ export async function flushWorkspaceState(): Promise<void> {
   if (!dirty) {
     return;
   }
-  const serialized = JSON.stringify(cachedWorkspaceState);
+  const targetSnapshot = cachedWorkspaceState;
+  const keysToWrite = new Set(dirtyKeys);
+  const patch = buildPatchEnvelope(targetSnapshot, keysToWrite);
+  if (patch.operations.length === 0) {
+    keysToWrite.forEach((key) => dirtyKeys.delete(key));
+    dirty = dirtyKeys.size > 0;
+    return;
+  }
+  const serialized = desktopPersistenceAvailable
+    ? JSON.stringify(patch)
+    : JSON.stringify(targetSnapshot);
   const revision = ++writeRevision;
+  keysToWrite.forEach((key) => dirtyKeys.delete(key));
   dirty = false;
   pendingWrite = (async () => {
     try {
@@ -139,12 +224,15 @@ export async function flushWorkspaceState(): Promise<void> {
         if (!written) {
           throw new Error("Desktop workspace state rejected a stale persistence session.");
         }
+        lastPersistedWorkspaceState = targetSnapshot;
         localStorage.removeItem(WORKSPACE_STORAGE_KEY);
       } else if (typeof localStorage !== "undefined") {
         localStorage.setItem(WORKSPACE_STORAGE_KEY, serialized);
       }
+      lastPersistedWorkspaceState = targetSnapshot;
       clearPersistenceFailure("workspace-write");
     } catch (error) {
+      keysToWrite.forEach((key) => dirtyKeys.add(key));
       dirty = true;
       console.warn("[WorkspaceState] Failed to persist workspace state.", error);
       reportPersistenceFailure("workspace-write", error);
@@ -166,7 +254,17 @@ export function flushWorkspaceStateSynchronously() {
     return true;
   }
 
-  const serialized = JSON.stringify(cachedWorkspaceState);
+  const targetSnapshot = cachedWorkspaceState;
+  const keysToWrite = new Set(dirtyKeys);
+  const patch = buildPatchEnvelope(targetSnapshot, keysToWrite);
+  if (patch.operations.length === 0) {
+    keysToWrite.forEach((key) => dirtyKeys.delete(key));
+    dirty = dirtyKeys.size > 0;
+    return true;
+  }
+  const serialized = desktopPersistenceAvailable
+    ? JSON.stringify(patch)
+    : JSON.stringify(targetSnapshot);
   const revision = ++writeRevision;
   try {
     const desktopWriter = getDesktopApi()?.writeWorkspaceStateSync;
@@ -175,14 +273,18 @@ export function flushWorkspaceStateSynchronously() {
       if (!written) {
         throw new Error("Desktop workspace state rejected the latest revision.");
       }
+      lastPersistedWorkspaceState = targetSnapshot;
       localStorage.removeItem(WORKSPACE_STORAGE_KEY);
     } else if (typeof localStorage !== "undefined") {
       localStorage.setItem(WORKSPACE_STORAGE_KEY, serialized);
     }
+    lastPersistedWorkspaceState = targetSnapshot;
+    keysToWrite.forEach((key) => dirtyKeys.delete(key));
     dirty = false;
     clearPersistenceFailure("workspace-write");
     return true;
   } catch (error) {
+    keysToWrite.forEach((key) => dirtyKeys.add(key));
     dirty = true;
     console.warn("[WorkspaceState] Failed to synchronously persist workspace state.", error);
     reportPersistenceFailure("workspace-write", error);
@@ -196,11 +298,13 @@ export function resetWorkspaceStateForTests() {
     writeTimer = null;
   }
   cachedWorkspaceState = {};
+  lastPersistedWorkspaceState = {};
   initialized = false;
   dirty = false;
   desktopPersistenceAvailable = false;
   pendingWrite = null;
   writeRevision = 0;
+  dirtyKeys.clear();
   if (typeof localStorage !== "undefined") {
     localStorage.removeItem(WORKSPACE_STORAGE_KEY);
   }

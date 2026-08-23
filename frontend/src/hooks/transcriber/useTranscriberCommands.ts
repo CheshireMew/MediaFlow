@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useTaskContext } from "../../context/taskContext";
+import { useTaskActions } from "../../context/taskContext";
 import {
   createNavigationMediaPayload,
   NavigationService,
@@ -75,7 +75,7 @@ export function useTranscriberCommands({
   setIsSmartSplitting,
 }: UseTranscriberCommandsArgs) {
   const { t } = useTranslation("transcriber");
-  const { addTask } = useTaskContext();
+  const { addTask } = useTaskActions();
 
   const startTranscription = useCallback(async () => {
     if (!file) return;

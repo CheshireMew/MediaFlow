@@ -14,6 +14,29 @@ import { useDownloaderStore } from "../stores/downloaderStore";
 import { useDownloaderTasks } from "./downloader/useDownloaderTasks";
 import { prewarmFasterWhisperCliFromStoredPreferences } from "../services/asrCliPrewarm";
 
+function downloadExtraInfoFromAnalysis(analysis: AnalyzeResult): DownloadExtraInfo {
+  const extraInfo: DownloadExtraInfo = { ...(analysis.extra_info ?? {}) };
+  if (analysis.direct_src) {
+    extraInfo.direct_src = analysis.direct_src;
+  }
+  if (analysis.title) {
+    extraInfo.title = analysis.title;
+  }
+  if (analysis.media_kind) {
+    extraInfo.media_kind = analysis.media_kind;
+  }
+  if (analysis.suggested_filename) {
+    extraInfo.suggested_filename = analysis.suggested_filename;
+  }
+  return extraInfo;
+}
+
+function looksLikeXiaoyuzhouEpisode(url: string): boolean {
+  return /^https?:\/\/(?:www\.)?xiaoyuzhoufm\.com\/episode\/[0-9a-f]{24}\/?(?:[?#].*)?$/i.test(
+    url.trim(),
+  );
+}
+
 export function useDownloaderController() {
   const { t } = useTranslation("downloader");
   const { addTask, remoteTasksReady } = useTaskContext();
@@ -43,6 +66,18 @@ export function useDownloaderController() {
 
   // Last successful analysis result (optional, for custom filename logic)
   const [lastAnalysis, setLastAnalysis] = useState<AnalyzeResult | null>(null);
+  const mediaKind: "video" | "audio" =
+    lastAnalysis?.media_kind === "audio" || looksLikeXiaoyuzhouEpisode(url)
+      ? "audio"
+      : "video";
+
+  const setDownloadUrl = useCallback(
+    (nextUrl: string) => {
+      setUrl(nextUrl);
+      setLastAnalysis(null);
+    },
+    [setUrl],
+  );
 
   // ── Cookie Retry Helper ──────────────────────────────────────
   const handleCookieRetry = async (domain: string): Promise<boolean> => {
@@ -137,13 +172,7 @@ export function useDownloaderController() {
         setAnalyzing(false);
       } else {
         setAnalyzing(false);
-        const extraWithDirect: DownloadExtraInfo = { ...(analysis.extra_info ?? {}) };
-        if (analysis.direct_src) {
-          extraWithDirect.direct_src = analysis.direct_src;
-        }
-        if (analysis.title) {
-          extraWithDirect.title = analysis.title;
-        }
+        const extraWithDirect = downloadExtraInfoFromAnalysis(analysis);
         await downloadVideos(
           [{ url: analysis.url || url, title: analysis.title }],
           undefined,
@@ -174,15 +203,7 @@ export function useDownloaderController() {
                 setSelectedItems([]);
                 setShowPlaylistDialog(true);
               } else {
-                const extraWithDirect: DownloadExtraInfo = {
-                  ...(analysis.extra_info ?? {}),
-                };
-                if (analysis.direct_src) {
-                  extraWithDirect.direct_src = analysis.direct_src;
-                }
-                if (analysis.title) {
-                  extraWithDirect.title = analysis.title;
-                }
+                const extraWithDirect = downloadExtraInfoFromAnalysis(analysis);
                 await downloadVideos(
                   [{ url: analysis.url || url, title: analysis.title }],
                   undefined,
@@ -295,9 +316,10 @@ export function useDownloaderController() {
     codec,
     downloadEntries,
     activeDownloadCount,
+    mediaKind,
 
     // Actions
-    setUrl,
+    setUrl: setDownloadUrl,
     setDownloadSubs,
     setResolution,
     setCodec,

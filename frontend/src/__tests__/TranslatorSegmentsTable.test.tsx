@@ -26,6 +26,49 @@ vi.mock("../components/translator/FileUploader", () => ({
 }));
 
 describe("Translator SegmentsTable", () => {
+  test("virtualizes large subtitle documents", () => {
+    const sourceSegments = Array.from({ length: 5_000 }, (_, index) => ({
+      id: String(index),
+      start: index,
+      end: index + 0.5,
+      text: `source-${index}`,
+    }));
+    const targetSegments = sourceSegments.map((segment) => ({
+      ...segment,
+      text: `target-${segment.id}`,
+    }));
+
+    render(
+      <SegmentsTable
+        sourceSegments={sourceSegments}
+        targetSegments={targetSegments}
+        onUpdateTarget={() => {}}
+        onFileSelect={() => {}}
+      />,
+    );
+
+    expect(screen.getAllByRole("textbox").length).toBeLessThan(100);
+    expect(screen.queryByDisplayValue("target-4999")).not.toBeInTheDocument();
+  });
+
+  test("keeps typing local until the edit is committed", () => {
+    const onUpdateTarget = vi.fn();
+    render(
+      <SegmentsTable
+        sourceSegments={[{ id: "1", start: 0, end: 1, text: "A" }]}
+        targetSegments={[{ id: "1", start: 0, end: 1, text: "甲" }]}
+        onUpdateTarget={onUpdateTarget}
+        onFileSelect={() => {}}
+      />,
+    );
+
+    const textarea = screen.getByDisplayValue("甲");
+    fireEvent.change(textarea, { target: { value: "甲乙" } });
+    expect(onUpdateTarget).not.toHaveBeenCalled();
+    fireEvent.blur(textarea);
+    expect(onUpdateTarget).toHaveBeenCalledWith(0, "甲乙");
+  });
+
   test("renders intelligent-mode extra target segments even when source has fewer rows", () => {
     render(
       <SegmentsTable

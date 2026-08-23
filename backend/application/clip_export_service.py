@@ -12,7 +12,6 @@ from backend.models.media_contracts import MediaReference
 from backend.services.media_refs import create_media_ref
 from backend.services.video.media_prober import MediaProber
 
-
 CLIP_DURATION_TOLERANCE_SECONDS = 0.15
 
 
@@ -34,7 +33,15 @@ def export_clips(
     if render_mode == "burned" and not _subtitles_disabled(options) and not srt_ref:
         raise ValueError("Burned clip export requires subtitles.")
 
-    planned_segments = plan_clip_segments(source, segments)
+    source_info = MediaProber.probe_media(str(source))
+    planned_segments = plan_clip_segments(source, segments, duration=source_info.duration)
+    synthesis_options = {
+        **(options or {}),
+        "_source_duration": source_info.duration,
+        "_source_has_audio": source_info.has_audio,
+        "_source_width": source_info.width,
+        "_source_height": source_info.height,
+    }
 
     target_root = Path(output_dir) if output_dir else source.with_name(f"{source.stem}_clips")
     target_root.mkdir(parents=True, exist_ok=True)
@@ -65,7 +72,7 @@ def export_clips(
                 srt_path=srt_ref.path if srt_ref else None,
                 output_path=str(staged_path),
                 watermark_ref=watermark_ref,
-                options=options or {},
+                options=synthesis_options,
                 segment=segment,
                 render_mode=render_mode,
                 progress_callback=_clip_progress_callback(progress_callback, index, total),
@@ -128,11 +135,16 @@ def _render_clip(
     )
 
 
-def plan_clip_segments(source: Path, segments: list[ClipExportSegment]) -> list[ClipExportSegment]:
+def plan_clip_segments(
+    source: Path,
+    segments: list[ClipExportSegment],
+    *,
+    duration: float | None = None,
+) -> list[ClipExportSegment]:
     if not segments:
         raise ValueError("No clip segments selected")
 
-    duration = MediaProber.get_duration(str(source))
+    duration = MediaProber.get_duration(str(source)) if duration is None else duration
     if not math.isfinite(duration) or duration <= 0:
         raise ValueError(f"Unable to determine video duration: {source}")
 

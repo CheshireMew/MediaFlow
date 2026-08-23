@@ -1,19 +1,20 @@
 import asyncio
 import concurrent.futures
 import threading
+import time
 from collections.abc import Awaitable, Callable
 from typing import Dict, Optional
 
 from loguru import logger
 
-from backend.core.database import init_db
 from backend.contracts import require_task_status_transition
+from backend.core.database import init_db
 from backend.core.task_control import (
     TaskCancelRequested,
     TaskPauseRequested,
 )
 from backend.models.task_contracts import TaskView
-from backend.models.task_message import TaskMessageParams
+from backend.models.task_message import TaskMessageParams, validate_task_message
 from backend.models.task_model import Task
 from backend.services.task_control_service import TaskControlService
 from backend.services.task_event_publisher import TaskEventPublisher
@@ -21,6 +22,7 @@ from backend.services.task_queue_runner import TaskQueueRunner
 from backend.services.task_queue_view import TaskQueueView
 from backend.services.task_repository import TaskRepository
 from backend.services.task_runtime_state import TaskRuntimeState
+
 
 class TaskDeletionBlockedError(RuntimeError):
     def __init__(self, task_ids: set[str]):
@@ -54,6 +56,8 @@ class TaskManager:
         self._progress_update_lock = threading.Lock()
         self._pending_progress_updates: dict[str, dict] = {}
         self._progress_flush_futures: dict[str, concurrent.futures.Future] = {}
+        self._last_progress_persisted_at: dict[str, float] = {}
+        self._dirty_progress_task_ids: set[str] = set()
         self._accept_threadsafe_updates = True
         self._startup_load_task: asyncio.Task | None = None
         self._tasks_loaded = asyncio.Event()
@@ -106,19 +110,28 @@ class TaskManager:
 
     async def shutdown_async(self):
         """Stop queue workers cleanly."""
-        self._accept_threadsafe_updates = False
         if self._startup_load_task:
             self._startup_load_task.cancel()
             await asyncio.gather(self._startup_load_task, return_exceptions=True)
             self._startup_load_task = None
+
+        with self._progress_update_lock:
+            self._accept_threadsafe_updates = False
+            pending_updates = list(self._pending_progress_updates.items())
+            self._pending_progress_updates.clear()
+        for task_id, payload in pending_updates:
+            await self._update_progress_projection(task_id, **payload)
         await self.drain_threadsafe_updates()
         await self._queue_runner.shutdown()
+        await self._checkpoint_dirty_progress()
         self._queue_runner.clear()
         with self._progress_update_lock:
             self._threadsafe_update_futures.clear()
             self._threadsafe_update_task_ids.clear()
             self._pending_progress_updates.clear()
             self._progress_flush_futures.clear()
+            self._last_progress_persisted_at.clear()
+            self._dirty_progress_task_ids.clear()
         self._accept_threadsafe_updates = True
         self._tasks_loaded.clear()
         self._hydration_started = False
@@ -127,6 +140,8 @@ class TaskManager:
         if not self._accept_threadsafe_updates or loop.is_closed():
             return None
         with self._progress_update_lock:
+            if not self._accept_threadsafe_updates or loop.is_closed():
+                return None
             self._pending_progress_updates[task_id] = dict(kwargs)
             existing = self._progress_flush_futures.get(task_id)
             if existing is not None and not existing.done():
@@ -158,12 +173,61 @@ class TaskManager:
                 if payload is None:
                     self._progress_flush_futures.pop(task_id, None)
                     return
-            await self.update_task(task_id, **payload)
+            await self._update_progress_projection(task_id, **payload)
             await asyncio.sleep(0.1)
 
         with self._progress_update_lock:
             self._pending_progress_updates.pop(task_id, None)
             self._progress_flush_futures.pop(task_id, None)
+
+    async def _update_progress_projection(self, task_id: str, **kwargs) -> None:
+        """Publish frequent progress in memory and checkpoint it to SQLite at most once a second."""
+        expected_fields = {"progress", "message_code", "message_params"}
+        if set(kwargs) != expected_fields:
+            await self.update_task(task_id, **kwargs)
+            return
+
+        async with self._task_update_lock:
+            task = self.tasks.get(task_id)
+            if task is None or task.status in {"completed", "failed", "cancelled", "paused"}:
+                return
+            message_code, message_params = validate_task_message(
+                kwargs["message_code"],
+                kwargs["message_params"],
+            )
+            task.progress = max(0.0, min(100.0, float(kwargs["progress"])))
+            task.message_code = message_code
+            task.message_params = message_params
+            task.revision = int(task.revision or 0) + 1
+            self.tasks[task_id] = task
+            self._dirty_progress_task_ids.add(task_id)
+            await self._event_publisher.publish_update(self.serialize_task(task))
+
+            now = time.monotonic()
+            last_persisted = self._last_progress_persisted_at.get(task_id, 0.0)
+            if now - last_persisted < 1.0:
+                return
+            try:
+                await self._repository.persist_task_snapshot(task)
+            except Exception as exc:
+                logger.warning("Failed to checkpoint task {} progress: {}", task_id, exc)
+                return
+            self._last_progress_persisted_at[task_id] = now
+            self._dirty_progress_task_ids.discard(task_id)
+
+    async def _checkpoint_dirty_progress(self) -> None:
+        async with self._task_update_lock:
+            for task_id in list(self._dirty_progress_task_ids):
+                task = self.tasks.get(task_id)
+                if task is None:
+                    self._dirty_progress_task_ids.discard(task_id)
+                    continue
+                try:
+                    await self._repository.persist_task_snapshot(task)
+                except Exception as exc:
+                    logger.warning("Failed to checkpoint task {} during shutdown: {}", task_id, exc)
+                    continue
+                self._dirty_progress_task_ids.discard(task_id)
 
     async def drain_threadsafe_updates(self, task_id: str | None = None):
         with self._progress_update_lock:
@@ -357,6 +421,8 @@ class TaskManager:
             )
             if updated_task:
                 self.tasks[task_id] = updated_task
+                self._dirty_progress_task_ids.discard(task_id)
+                self._last_progress_persisted_at[task_id] = time.monotonic()
                 pruned_task_ids: list[str] = []
                 pruned_revisions: dict[str, int] = {}
                 if updated_task.persistence_scope == "history":
@@ -364,6 +430,8 @@ class TaskManager:
                     pruned_task_ids = list(pruned_revisions)
                     for pruned_task_id in pruned_task_ids:
                         self.tasks.pop(pruned_task_id, None)
+                        self._dirty_progress_task_ids.discard(pruned_task_id)
+                        self._last_progress_persisted_at.pop(pruned_task_id, None)
 
                 if task_id not in pruned_task_ids:
                     await self._event_publisher.publish_update(self.serialize_task(updated_task))
@@ -409,6 +477,8 @@ class TaskManager:
             self._queue_runner.discard_task(task_id)
             self.clear_stop_request(task_id)
             self.tasks.pop(task_id, None)
+            self._dirty_progress_task_ids.discard(task_id)
+            self._last_progress_persisted_at.pop(task_id, None)
 
             await self._event_publisher.publish_delete(task_id, delete_revision)
             logger.info(f"Task {task_id} deleted")
@@ -430,6 +500,8 @@ class TaskManager:
         delete_revisions = await self._repository.delete_all_tasks()
         count = len(delete_revisions)
         self.tasks.clear()
+        self._dirty_progress_task_ids.clear()
+        self._last_progress_persisted_at.clear()
         self._queue_runner.clear()
 
         for task_id, revision in delete_revisions.items():

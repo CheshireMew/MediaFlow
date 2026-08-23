@@ -3,8 +3,6 @@ import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 import TimelinePlugin from "wavesurfer.js/dist/plugins/timeline.esm.js";
 import HoverPlugin from "wavesurfer.js/dist/plugins/hover.esm.js";
 
-import type { SubtitleSegment } from "../../../types/task";
-
 export type WaveformRuntime = {
   wavesurfer: WaveSurfer;
   regionsPlugin: RegionsPlugin;
@@ -15,8 +13,10 @@ export function createWaveformRuntime({
   container,
   timelineContainer,
   video,
+  peaks,
+  duration,
   zoom,
-  getRegions,
+  isPersistedRegion,
   getTempRegionId,
   setTempRegionId,
   onRegionUpdate,
@@ -25,14 +25,17 @@ export function createWaveformRuntime({
   onInteractStart,
   onReady,
   onScroll,
+  onVisibleRange,
   onError,
   onLoading,
 }: {
   container: HTMLDivElement;
   timelineContainer: HTMLDivElement;
   video: HTMLVideoElement;
+  peaks: number[][];
+  duration: number;
   zoom: number;
-  getRegions: () => SubtitleSegment[];
+  isPersistedRegion: (id: string) => boolean;
   getTempRegionId: () => string | null;
   setTempRegionId: (id: string | null) => void;
   onRegionUpdate: (id: string, start: number, end: number) => void;
@@ -41,6 +44,7 @@ export function createWaveformRuntime({
   onInteractStart: () => void;
   onReady: (duration: number) => void;
   onScroll: (scroll: number) => void;
+  onVisibleRange: (start: number, end: number) => void;
   onError: (error: Error) => void;
   onLoading: (progress: number) => void;
 }): WaveformRuntime {
@@ -53,6 +57,8 @@ export function createWaveformRuntime({
     height: container.clientHeight,
     minPxPerSec: zoom,
     media: video,
+    peaks,
+    duration,
     hideScrollbar: true,
     dragToSeek: false,
     plugins: [
@@ -71,7 +77,7 @@ export function createWaveformRuntime({
 
   let isDragging = false;
   regionsPlugin.on("region-created", (region) => {
-    const isPersisted = getRegions().some((item) => String(item.id) === region.id);
+    const isPersisted = isPersistedRegion(region.id);
     region.element?.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       onContextMenu(event, region.id, { start: region.start, end: region.end });
@@ -92,7 +98,7 @@ export function createWaveformRuntime({
   });
   regionsPlugin.on("region-updated", (region) => {
     isDragging = false;
-    if (getRegions().some((item) => String(item.id) === region.id)) {
+    if (isPersistedRegion(region.id)) {
       onRegionUpdate(region.id, region.start, region.end);
     }
   });
@@ -105,7 +111,10 @@ export function createWaveformRuntime({
   });
   wavesurfer.on("ready", () => onReady(wavesurfer.getDuration()));
   wavesurfer.on("decode", () => onReady(wavesurfer.getDuration()));
-  wavesurfer.on("scroll", () => onScroll(wavesurfer.getScroll()));
+  wavesurfer.on("scroll", (start, end) => {
+    onScroll(wavesurfer.getScroll());
+    onVisibleRange(start, end);
+  });
   wavesurfer.on("error", onError);
   wavesurfer.on("loading", onLoading);
 

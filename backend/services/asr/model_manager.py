@@ -197,6 +197,7 @@ class ModelManager:
         self._model_instance = None
         self._current_model_name = None
         self._current_device = None
+        self._model_lock = threading.RLock()
 
     @property
     def model_map(self):
@@ -364,40 +365,41 @@ class ModelManager:
         Ensure the model is downloaded to local storage, supporting ModelScope.
         Returns the local path to the model.
         """
-        settings.ASR_MODEL_DIR.mkdir(parents=True, exist_ok=True)
-        target_dir = self.get_cached_model_path(model_name)
+        with self._model_lock:
+            settings.ASR_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+            target_dir = self.get_cached_model_path(model_name)
 
-        if target_dir.exists() and any(target_dir.iterdir()):
-            return str(target_dir)
+            if target_dir.exists() and any(target_dir.iterdir()):
+                return str(target_dir)
 
-        try:
-            return self._download_from_modelscope(
-                model_name,
-                target_dir,
-                progress_callback=progress_callback,
-            )
-        except ImportError:
-            logger.warning("ModelScope not installed, falling back to Hugging Face...")
-            if progress_callback:
-                progress_callback(2, "asr_model_source_fallback", {})
-            return self._download_from_huggingface(
-                model_name,
-                target_dir,
-                progress_callback=progress_callback,
-            )
-        except Exception as e:
-            logger.error(f"ModelScope download failed: {e}. Falling back to Hugging Face...")
-            if progress_callback:
-                progress_callback(
-                    2,
-                    "asr_model_source_fallback",
-                    {},
+            try:
+                return self._download_from_modelscope(
+                    model_name,
+                    target_dir,
+                    progress_callback=progress_callback,
                 )
-            return self._download_from_huggingface(
-                model_name,
-                target_dir,
-                progress_callback=progress_callback,
-            )
+            except ImportError:
+                logger.warning("ModelScope not installed, falling back to Hugging Face...")
+                if progress_callback:
+                    progress_callback(2, "asr_model_source_fallback", {})
+                return self._download_from_huggingface(
+                    model_name,
+                    target_dir,
+                    progress_callback=progress_callback,
+                )
+            except Exception as e:
+                logger.error(f"ModelScope download failed: {e}. Falling back to Hugging Face...")
+                if progress_callback:
+                    progress_callback(
+                        2,
+                        "asr_model_source_fallback",
+                        {},
+                    )
+                return self._download_from_huggingface(
+                    model_name,
+                    target_dir,
+                    progress_callback=progress_callback,
+                )
 
     def get_cached_model_path(self, model_name: str) -> Path:
         return settings.ASR_MODEL_DIR / f"faster-whisper-{model_name}"
@@ -406,46 +408,49 @@ class ModelManager:
         """
         Load or reload the Whisper model securely from the local models directory.
         """
-        if (
-            self._model_instance
-            and self._current_model_name == model_name
-            and self._current_device == device
-        ):
-            return self._model_instance
+        with self._model_lock:
+            if (
+                self._model_instance is not None
+                and self._current_model_name == model_name
+                and self._current_device == device
+            ):
+                return self._model_instance
 
-        logger.info(f"Loading Whisper Model: {model_name} on {device}...")
+            logger.info(f"Loading Whisper Model: {model_name} on {device}...")
 
-        from faster_whisper import WhisperModel
+            from faster_whisper import WhisperModel
 
-        try:
-            compute_type = "float16" if device == "cuda" else "int8"
-            local_model_path = self.ensure_model_downloaded(model_name, progress_callback)
+            try:
+                compute_type = "float16" if device == "cuda" else "int8"
+                local_model_path = self.ensure_model_downloaded(model_name, progress_callback)
 
-            if progress_callback:
-                progress_callback(
-                    8,
-                    "asr_model_initializing",
-                    {"model": model_name, "device": device},
+                if progress_callback:
+                    progress_callback(
+                        8,
+                        "asr_model_initializing",
+                        {"model": model_name, "device": device},
+                    )
+                model_instance = WhisperModel(
+                    local_model_path,
+                    device=device,
+                    compute_type=compute_type,
+                    download_root=None,
                 )
-            self._model_instance = WhisperModel(
-                local_model_path,
-                device=device,
-                compute_type=compute_type,
-                download_root=None,
-            )
-            self._current_model_name = model_name
-            self._current_device = device
-            logger.success(f"Model {model_name} loaded successfully.")
-            if progress_callback:
-                progress_callback(10, "asr_model_loaded", {"model": model_name})
-            return self._model_instance
-        except TaskControlRequested:
-            raise
-        except Exception as e:
-            logger.error(f"Failed to load model {model_name}: {e}")
-            raise RuntimeError(f"Model loading failed: {e}")
+                self._model_instance = model_instance
+                self._current_model_name = model_name
+                self._current_device = device
+                logger.success(f"Model {model_name} loaded successfully.")
+                if progress_callback:
+                    progress_callback(10, "asr_model_loaded", {"model": model_name})
+                return model_instance
+            except TaskControlRequested:
+                raise
+            except Exception as e:
+                logger.error(f"Failed to load model {model_name}: {e}")
+                raise RuntimeError(f"Model loading failed: {e}")
 
     def clear_loaded_model(self) -> None:
-        self._model_instance = None
-        self._current_model_name = None
-        self._current_device = None
+        with self._model_lock:
+            self._model_instance = None
+            self._current_model_name = None
+            self._current_device = None

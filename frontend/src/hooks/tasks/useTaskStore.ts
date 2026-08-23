@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 
 import type { Task } from "../../types/task";
 import { normalizeTaskForRenderer } from "../../context/taskSources/shared";
@@ -47,8 +47,44 @@ function sortTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => b.created_at - a.created_at);
 }
 
+export type TaskStoreApi = {
+  getSnapshot: () => Task[];
+  getTask: (taskId: string | null | undefined) => Task | null;
+  subscribe: (listener: () => void) => () => void;
+};
+
+type MutableTaskStore = TaskStoreApi & {
+  setTasks: (updater: (previous: Task[]) => Task[]) => void;
+};
+
+function createTaskStore(): MutableTaskStore {
+  let tasks: Task[] = [];
+  let tasksById = new Map<string, Task>();
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => tasks,
+    getTask: (taskId) => taskId ? tasksById.get(taskId) ?? null : null,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    setTasks: (updater) => {
+      const next = updater(tasks);
+      if (Object.is(next, tasks)) return;
+      tasks = next;
+      tasksById = new Map(next.map((task) => [task.id, task]));
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
 export function useTaskStore() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [store] = useState(createTaskStore);
+  const tasks = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const setTasks = useCallback(
+    (updater: (previous: Task[]) => Task[]) => store.setTasks(updater),
+    [store],
+  );
   const streamIdRef = useRef<string | null>(null);
   const sequenceRef = useRef(0);
   const tombstoneRevisionsRef = useRef(new Map<string, number>());
@@ -77,18 +113,32 @@ export function useTaskStore() {
       .map((task) => normalizeTaskForRenderer(task, source))
       .filter((task): task is Task => task !== null);
     setTasks((previous) => {
-      const byId = new Map(previous.map((task) => [task.id, task]));
+      const next = [...previous];
+      const indexById = new Map(previous.map((task, index) => [task.id, index]));
+      let changed = false;
+      let added = false;
       normalized.forEach((task) => {
         const revision = task.revision ?? 0;
         const tombstoneRevision = tombstoneRevisionsRef.current.get(task.id) ?? -1;
-        const existingRevision = byId.get(task.id)?.revision ?? -1;
+        const existingIndex = indexById.get(task.id);
+        const existing = existingIndex === undefined ? undefined : next[existingIndex];
+        const existingRevision = existing?.revision ?? -1;
         if (revision > tombstoneRevision && revision >= existingRevision) {
-          byId.set(task.id, task);
+          if (existingIndex === undefined) {
+            indexById.set(task.id, next.length);
+            next.push(task);
+            added = true;
+            changed = true;
+          } else if (!Object.is(existing, task)) {
+            next[existingIndex] = task;
+            changed = true;
+          }
         }
       });
-      return sortTasks([...byId.values()]);
+      if (!changed) return previous;
+      return added ? sortTasks(next) : next;
     });
-  }, []);
+  }, [setTasks]);
 
   const applyMessage = useCallback((message: TaskSocketMessage) => {
     if ("sequence" in message && !acceptSocketMessage(message)) {
@@ -100,7 +150,7 @@ export function useTaskStore() {
         .map((task) => normalizeTaskForRenderer(task, "event:snapshot"))
         .filter((task): task is Task => task !== null)
         .filter((task) => (task.revision ?? 0) > (tombstoneRevisionsRef.current.get(task.id) ?? -1));
-      setTasks(sortTasks(normalized));
+      setTasks(() => sortTasks(normalized));
       return;
     }
 
@@ -120,7 +170,7 @@ export function useTaskStore() {
     }
     tombstoneRevisionsRef.current.set(message.task_id, message.revision);
     setTasks((prev) => prev.filter((task) => task.id !== message.task_id));
-  }, [acceptSocketMessage, mergeTasks]);
+  }, [acceptSocketMessage, mergeTasks, setTasks]);
 
   const addTask = useCallback((task: Task) => {
     const normalizedTask = normalizeTaskForRenderer(task, "local:add");
@@ -136,7 +186,7 @@ export function useTaskStore() {
       recordTombstone(taskId, (task?.revision ?? 0) + 1);
       return prev.filter((item) => item.id !== taskId);
     });
-  }, [recordTombstone]);
+  }, [recordTombstone, setTasks]);
 
   const clearTasks = useCallback((predicate?: (task: Task) => boolean) => {
     setTasks((prev) => {
@@ -154,10 +204,11 @@ export function useTaskStore() {
         return false;
       });
     });
-  }, [recordTombstone]);
+  }, [recordTombstone, setTasks]);
 
   return {
     tasks,
+    store,
     applyMessage,
     addTask,
     deleteTask,

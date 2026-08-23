@@ -4,7 +4,7 @@ import { SubtitleList } from "../components/editor/SubtitleList";
 import { ClipCandidateList } from "../components/editor/ClipCandidateList";
 import { FindReplaceDialog } from "../components/dialogs/FindReplaceDialog";
 import { ContextMenu } from "../components/ui/ContextMenu";
-import { useTaskContext } from "../context/taskContext";
+import { useTaskActions } from "../context/taskContext";
 
 // Extracted Components
 import { EditorHeader } from "../components/editor/EditorHeader";
@@ -41,7 +41,7 @@ const WaveformPlayer = lazy(async () => {
 export function EditorPage() {
   const { t } = useTranslation('editor');
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { addTask } = useTaskContext();
+  const { addTask } = useTaskActions();
 
   // ── UI State ────────────────────────────────────────────────
   const autoScroll = true;
@@ -305,10 +305,11 @@ export function EditorPage() {
 
         {/* Bottom: Waveform Timeline */}
         <div className="h-44 bg-[#101010] border-t border-white/5 relative z-30 shrink-0">
-             {mediaUrl && waveformReadySource === mediaUrl && (
+             {mediaUrl && currentFileRef && waveformReadySource === mediaUrl && (
                <Suspense fallback={null}>
                  <WaveformPlayer
                     mediaUrl={mediaUrl}
+                    video={currentFileRef}
                     videoRef={videoRef}
                     regions={clipWorkspace.workspaceMode === "clips" ? clipWorkspace.timelineRegions : regions}
                     onRegionUpdate={clipWorkspace.workspaceMode === "clips" ? clipWorkspace.handleClipRegionUpdate : handleRegionUpdateCallback}

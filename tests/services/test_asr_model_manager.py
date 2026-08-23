@@ -1,6 +1,9 @@
 import sys
+import threading
+import time
 import types
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import shutil
 from unittest.mock import MagicMock
@@ -222,3 +225,28 @@ def test_model_cache_is_scoped_by_device(monkeypatch):
 
     assert cpu_model is not cuda_model
     assert created == [("cuda", "float16"), ("cpu", "int8")]
+
+
+def test_concurrent_model_loads_construct_one_shared_instance(monkeypatch):
+    created = 0
+    created_lock = threading.Lock()
+
+    class FakeWhisperModel:
+        def __init__(self, model_path, *, device, compute_type, download_root):
+            nonlocal created
+            time.sleep(0.02)
+            with created_lock:
+                created += 1
+
+    faster_whisper_module = types.ModuleType("faster_whisper")
+    faster_whisper_module.WhisperModel = FakeWhisperModel
+    monkeypatch.setitem(sys.modules, "faster_whisper", faster_whisper_module)
+
+    manager = ModelManager()
+    monkeypatch.setattr(manager, "ensure_model_downloaded", MagicMock(return_value="local-model"))
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        models = list(executor.map(lambda _: manager.load_model("base", "cpu"), range(8)))
+
+    assert created == 1
+    assert all(model is models[0] for model in models)

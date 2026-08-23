@@ -152,16 +152,20 @@ async def test_update_task_serializes_terminal_control_updates(task_manager, mon
 async def test_threadsafe_progress_updates_are_coalesced(task_manager, monkeypatch):
     task_id = await task_manager.create_task("pipeline")
     await task_manager.update_task(task_id, status="running")
-    repository_update = task_manager._repository.update_task
-    progress_update_count = 0
+    persist_snapshot = task_manager._repository.persist_task_snapshot
+    progress_checkpoint_count = 0
 
-    async def count_progress_updates(*args, **kwargs):
-        nonlocal progress_update_count
-        if "progress" in kwargs:
-            progress_update_count += 1
-        return await repository_update(*args, **kwargs)
+    async def count_progress_checkpoints(*args, **kwargs):
+        nonlocal progress_checkpoint_count
+        progress_checkpoint_count += 1
+        return await persist_snapshot(*args, **kwargs)
 
-    monkeypatch.setattr(task_manager._repository, "update_task", count_progress_updates)
+    monkeypatch.setattr(
+        task_manager._repository,
+        "persist_task_snapshot",
+        count_progress_checkpoints,
+    )
+    task_manager._last_progress_persisted_at.pop(task_id, None)
     loop = asyncio.get_running_loop()
     for progress in range(25):
         task_manager.submit_threadsafe_update(
@@ -174,8 +178,35 @@ async def test_threadsafe_progress_updates_are_coalesced(task_manager, monkeypat
 
     await task_manager.drain_threadsafe_updates(task_id)
 
-    assert progress_update_count == 1
+    assert progress_checkpoint_count == 1
     assert task_manager.tasks[task_id].progress == 24.0
+
+
+@pytest.mark.asyncio
+async def test_progress_projection_updates_ui_without_committing_every_event(task_manager, monkeypatch):
+    task_id = await task_manager.create_task("pipeline")
+    await task_manager.update_task(task_id, status="running")
+    persist_snapshot = task_manager._repository.persist_task_snapshot
+    checkpoint_count = 0
+
+    async def count_checkpoints(*args, **kwargs):
+        nonlocal checkpoint_count
+        checkpoint_count += 1
+        return await persist_snapshot(*args, **kwargs)
+
+    monkeypatch.setattr(task_manager._repository, "persist_task_snapshot", count_checkpoints)
+    task_manager._last_progress_persisted_at.pop(task_id, None)
+
+    for progress in range(20):
+        await task_manager._update_progress_projection(
+            task_id,
+            progress=float(progress),
+            message_code="transcription_progress",
+            message_params={"percent": progress},
+        )
+
+    assert checkpoint_count == 1
+    assert task_manager.tasks[task_id].progress == 19.0
 
 
 @pytest.mark.asyncio

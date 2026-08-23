@@ -43,6 +43,7 @@ function translationRequestParams(path: string, mode: "standard" | "intelligent"
 
 vi.mock("../context/taskContext", () => ({
   useTaskContext: () => taskContextMock,
+  useTaskActions: () => taskContextMock,
 }));
 
 describe("useTranslationTask", () => {

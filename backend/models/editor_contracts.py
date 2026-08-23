@@ -32,6 +32,12 @@ class EditorPreviewMediaResponse(BaseModel):
     remuxed: bool
 
 
+class EditorWaveformPeaksResponse(BaseModel):
+    duration: float = Field(ge=0, allow_inf_nan=False)
+    points_per_second: float = Field(ge=0, allow_inf_nan=False)
+    peaks: list[list[float]]
+
+
 class ImagePreviewResponse(BaseModel):
     png_path: str
     data_url: str

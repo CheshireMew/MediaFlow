@@ -140,7 +140,7 @@ describe("VideoExportDialog clip scope", () => {
     fireEvent.canPlay(videoElement);
 
     await waitFor(() =>
-      expect(screen.getByLabelText("style.sizePx")).toHaveValue(48),
+      expect(screen.getByLabelText("style.sizePx")).toHaveValue(54),
     );
 
     expect(screen.queryByText("output.batchFiles")).toBeNull();
@@ -152,7 +152,7 @@ describe("VideoExportDialog clip scope", () => {
     expect(onExport.mock.calls[0][0].outputRef?.path).toBe(
       "D:/media/demo_synthesized.mp4",
     );
-    expect(onExport.mock.calls[0][0].options.font_size).toBe(48);
+    expect(onExport.mock.calls[0][0].options.font_size).toBe(54);
   });
 
   it("uses the existing Whisper segment timeline for preview and export", async () => {

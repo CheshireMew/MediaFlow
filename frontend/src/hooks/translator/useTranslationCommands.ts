@@ -1,7 +1,7 @@
 import type { SubtitleSegment } from "../../types/task";
 import { useTranslation } from "react-i18next";
 import type { TranslatorMode } from "../../stores/translatorStore";
-import { useTaskContext } from "../../context/taskContext";
+import { useTaskActions } from "../../context/taskContext";
 import {
   applyExecutionOutcome,
   enqueueExecutionTask,
@@ -49,7 +49,7 @@ export function useTranslationCommands({
   previousTranslateModeRef,
 }: UseTranslationCommandsParams) {
   const { t } = useTranslation("translator");
-  const { addTask } = useTaskContext();
+  const { addTask } = useTaskActions();
   const contextRef = sourceFileRef;
 
   const startTranslation = async () => {

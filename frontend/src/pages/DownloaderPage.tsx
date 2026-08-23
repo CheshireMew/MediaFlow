@@ -11,7 +11,7 @@ export function DownloaderPage() {
   const { t } = useTranslation('downloader');
   const {
     // State
-    url, loading, analyzing, error, playlistInfo, showPlaylistDialog, selectedItems, canDownloadCurrent, downloadSubs, resolution, codec,
+    url, loading, analyzing, error, playlistInfo, showPlaylistDialog, selectedItems, canDownloadCurrent, downloadSubs, resolution, codec, mediaKind,
     // Actions
     setUrl, setResolution, setCodec, setDownloadSubs, setShowPlaylistDialog, setSelectedItems,
     analyzeAndDownload, downloadPlaylist, toggleItemSelection
@@ -48,6 +48,7 @@ export function DownloaderPage() {
               
               <div className="mt-8">
                 <VideoDownloadOptions 
+                  mediaKind={mediaKind}
                   resolution={resolution}
                   setResolution={setResolution}
                   codec={codec}
@@ -70,7 +71,7 @@ export function DownloaderPage() {
               <div className="mt-auto pt-6 border-t border-white/5">
                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">{t('supportedPlatforms')}</h3>
                  <div className="flex flex-wrap gap-2">
-                    {['YouTube', 'Bilibili', 'Douyin', 'TikTok', 'Twitter', 'Instagram'].map(p => (
+                    {['YouTube', 'Bilibili', 'Douyin', 'TikTok', 'Twitter', 'Instagram', 'Xiaoyuzhou'].map(p => (
                       <span key={p} className="px-2.5 py-1 rounded-md bg-white/5 text-slate-400 text-xs border border-white/5">
                         {p}
                       </span>

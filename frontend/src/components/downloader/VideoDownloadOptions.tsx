@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Download, ChevronDown, Check } from "lucide-react";
 
 interface VideoDownloadOptionsProps {
+  mediaKind: "video" | "audio";
   resolution: string;
   setResolution: (res: string) => void;
   codec: string;
@@ -16,6 +17,7 @@ interface VideoDownloadOptionsProps {
 }
 
 export function VideoDownloadOptions({
+  mediaKind,
   resolution,
   setResolution,
   codec,
@@ -29,32 +31,42 @@ export function VideoDownloadOptions({
 }: VideoDownloadOptionsProps) {
   const { t } = useTranslation('downloader');
   const resolutionId = useId();
+  const isAudio = mediaKind === "audio";
 
   return (
     <div className="flex flex-col gap-4">
       
       {/* Settings Grid */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className={`grid gap-4 ${isAudio ? "grid-cols-1" : "grid-cols-2"}`}>
           {/* Quality Card */}
           <div className="bg-black/20 backdrop-blur-md rounded-xl p-4 border border-white/5 flex flex-col gap-3 group hover:border-white/10 transition-colors">
             <label htmlFor={resolutionId} className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              {t('options.quality')}
-              <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-slate-800 text-indigo-300 border border-indigo-500/20">{t('options.mp4')}</span>
+              {isAudio ? t('options.format') : t('options.quality')}
+              <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-slate-800 text-indigo-300 border border-indigo-500/20">
+                {isAudio ? t('options.audioFile') : t('options.mp4')}
+              </span>
             </label>
             <div className="relative">
               <select
                 id={resolutionId}
-                value={resolution}
+                value={isAudio ? "audio" : resolution}
                 onChange={(e) => setResolution(e.target.value)}
+                disabled={isAudio}
                 className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 appearance-none cursor-pointer hover:bg-black/60 transition-all font-medium"
               >
-                <option value="best" className="bg-[#1a1a1a] text-white">{t('options.bestQuality')}</option>
-                <option value="4k" className="bg-[#1a1a1a] text-white">{t('options.4k')}</option>
-                <option value="2k" className="bg-[#1a1a1a] text-white">{t('options.2k')}</option>
-                <option value="1080p" className="bg-[#1a1a1a] text-white">{t('options.1080p')}</option>
-                <option value="720p" className="bg-[#1a1a1a] text-white">{t('options.720p')}</option>
-                <option value="480p" className="bg-[#1a1a1a] text-white">{t('options.480p')}</option>
-                <option value="audio" className="bg-[#1a1a1a] text-white">{t('options.audioOnly')}</option>
+                {isAudio ? (
+                  <option value="audio" className="bg-[#1a1a1a] text-white">{t('options.originalAudio')}</option>
+                ) : (
+                  <>
+                    <option value="best" className="bg-[#1a1a1a] text-white">{t('options.bestQuality')}</option>
+                    <option value="4k" className="bg-[#1a1a1a] text-white">{t('options.4k')}</option>
+                    <option value="2k" className="bg-[#1a1a1a] text-white">{t('options.2k')}</option>
+                    <option value="1080p" className="bg-[#1a1a1a] text-white">{t('options.1080p')}</option>
+                    <option value="720p" className="bg-[#1a1a1a] text-white">{t('options.720p')}</option>
+                    <option value="480p" className="bg-[#1a1a1a] text-white">{t('options.480p')}</option>
+                    <option value="audio" className="bg-[#1a1a1a] text-white">{t('options.audioOnly')}</option>
+                  </>
+                )}
               </select>
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                 <ChevronDown size={14} />
@@ -63,7 +75,7 @@ export function VideoDownloadOptions({
           </div>
 
           {/* Subtitles Card */}
-           <label 
+          {!isAudio && <label
               className={`rounded-xl p-4 border transition-all cursor-pointer select-none group relative overflow-hidden flex flex-col justify-between focus-within:ring-2 focus-within:ring-indigo-400
                 ${downloadSubs 
                   ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_15px_-3px_rgba(99,102,241,0.15)]" 
@@ -93,11 +105,11 @@ export function VideoDownloadOptions({
                 onChange={e => setDownloadSubs(e.target.checked)}
                 className="sr-only"
               />
-          </label>
+          </label>}
       </div>
 
       {/* Codec Strategy */}
-      <div className="bg-black/20 backdrop-blur-md rounded-xl p-1 border border-white/5 flex relative">
+      {!isAudio && <div className="bg-black/20 backdrop-blur-md rounded-xl p-1 border border-white/5 flex relative">
         <div 
           className="absolute inset-y-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 transition-all duration-300"
           style={{ 
@@ -126,7 +138,7 @@ export function VideoDownloadOptions({
         >
           {t('options.codecEfficient')}
         </button>
-      </div>
+      </div>}
 
       {/* Download Button */}
       <button
@@ -150,12 +162,14 @@ export function VideoDownloadOptions({
              <>
                 <div className="w-5 h-5 border-2 border-slate-500 border-t-white rounded-full animate-spin" />
                 <span>
-                   {analyzing ? t('options.analyzingStream') : t('options.downloadingMedia')}
+                   {analyzing
+                     ? t('options.analyzingStream')
+                     : t(isAudio ? 'options.downloadingAudio' : 'options.downloadingMedia')}
                 </span>
              </>
         ) : (
              <>
-                <span>{t('options.downloadMedia')}</span>
+                <span>{t(isAudio ? 'options.downloadAudio' : 'options.downloadMedia')}</span>
                 <Download size={20} className="stroke-[2.5]" />
              </>
         )}
