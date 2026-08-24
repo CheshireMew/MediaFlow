@@ -12,21 +12,11 @@ import {
   BACKEND_OUTPUT_DIAGNOSTICS_ENV,
   shouldForwardBackendOutput,
 } from "./backendOutputPolicy";
+import type { DesktopBackendRuntimeInfo } from "../../src/contracts/desktopBridgeContract";
 
 let backendProcess: ChildProcess | null = null;
 let backendRuntimeInfoPromise: Promise<DesktopBackendRuntimeInfo> | null = null;
 let managedBackendRuntimeInfo: DesktopBackendRuntimeInfo | null = null;
-
-export type DesktopBackendRuntimeInfo = {
-  status: "external" | "managed" | "failed";
-  host: string;
-  port: number | null;
-  api_base_url: string;
-  ws_base_url: string;
-  health_url: string;
-  health_status?: "starting" | "ready" | "failed";
-  error?: string;
-};
 
 const BACKEND_HOST = "127.0.0.1";
 
@@ -60,9 +50,22 @@ async function probeHealth(url: string, timeoutMs = 500) {
       cache: "no-store",
       signal: controller.signal,
     });
-    return response.ok;
+    const payload = (await response.json()) as {
+      status?: "starting" | "ready" | "failed";
+      error?: string | null;
+    };
+    if (response.ok && payload.status === "ready") {
+      return { status: "ready" as const };
+    }
+    if (payload.status === "failed") {
+      return {
+        status: "failed" as const,
+        error: payload.error || "Backend initialization failed.",
+      };
+    }
+    return { status: "starting" as const };
   } catch {
-    return false;
+    return { status: "starting" as const };
   } finally {
     clearTimeout(timeout);
   }
@@ -76,8 +79,14 @@ async function monitorBackendHealth(info: DesktopBackendRuntimeInfo) {
 
   const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
-    if (await probeHealth(info.health_url)) {
+    const health = await probeHealth(info.health_url);
+    if (health.status === "ready") {
       info.health_status = "ready";
+      return;
+    }
+    if (health.status === "failed") {
+      info.health_status = "failed";
+      info.error = health.error;
       return;
     }
     await wait(150);
@@ -219,15 +228,28 @@ async function startManagedBackend(): Promise<DesktopBackendRuntimeInfo> {
   });
 
   connectBackendOutput(backendProcess);
-  backendProcess.once("exit", (code) => {
+  const processHandle = backendProcess;
+  processHandle.once("exit", (code) => {
     console.log(`[Backend] exited with code ${code}`);
-    backendProcess = null;
-    managedBackendRuntimeInfo = null;
-    backendRuntimeInfoPromise = null;
+    if (managedBackendRuntimeInfo) {
+      managedBackendRuntimeInfo.health_status = "failed";
+      managedBackendRuntimeInfo.error = `Backend process exited with code ${code}.`;
+    }
+    if (backendProcess === processHandle) {
+      backendProcess = null;
+      backendRuntimeInfoPromise = null;
+    }
   });
-  backendProcess.once("error", (error) => {
+  processHandle.once("error", (error) => {
     console.error("[Backend] failed to start:", error);
-    backendProcess = null;
+    if (managedBackendRuntimeInfo) {
+      managedBackendRuntimeInfo.health_status = "failed";
+      managedBackendRuntimeInfo.error = error.message;
+    }
+    if (backendProcess === processHandle) {
+      backendProcess = null;
+      backendRuntimeInfoPromise = null;
+    }
   });
   managedBackendRuntimeInfo = endpointInfo("managed", port);
   return managedBackendRuntimeInfo;
@@ -251,21 +273,60 @@ export function startBundledBackend() {
 }
 
 export async function getDesktopBackendRuntimeInfo() {
-  return await startBundledBackend();
+  const runtimeInfo = await startBundledBackend();
+  if (runtimeInfo.status === "managed" && runtimeInfo.health_status === "failed") {
+    await stopBundledBackend();
+    return await startBundledBackend();
+  }
+  return runtimeInfo;
 }
 
-export function stopBundledBackend() {
-  if (!backendProcess?.pid) {
+export async function stopBundledBackend() {
+  const processHandle = backendProcess;
+  if (!processHandle?.pid) {
     backendProcess = null;
+    managedBackendRuntimeInfo = null;
+    backendRuntimeInfoPromise = null;
     return;
   }
 
+  const pid = processHandle.pid;
+  let exited = processHandle.exitCode !== null;
+  const exitPromise = new Promise<void>((resolve) => {
+    if (exited) {
+      resolve();
+      return;
+    }
+    processHandle.once("exit", () => {
+      exited = true;
+      resolve();
+    });
+  });
+
   try {
-    backendProcess.kill("SIGTERM");
+    processHandle.kill("SIGTERM");
+    await Promise.race([exitPromise, wait(5_000)]);
+    if (!exited) {
+      if (process.platform === "win32") {
+        const killer = spawn("taskkill.exe", ["/PID", String(pid), "/T", "/F"], {
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        await Promise.race([
+          new Promise<void>((resolve) => killer.once("exit", () => resolve())),
+          wait(5_000),
+        ]);
+      } else {
+        processHandle.kill("SIGKILL");
+      }
+      await Promise.race([exitPromise, wait(5_000)]);
+    }
   } catch (error) {
     console.error("[Backend] failed to stop:", error);
   } finally {
-    backendProcess = null;
+    if (backendProcess === processHandle) {
+      backendProcess = null;
+    }
     managedBackendRuntimeInfo = null;
     backendRuntimeInfoPromise = null;
   }

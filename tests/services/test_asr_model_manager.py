@@ -1,3 +1,4 @@
+import shutil
 import sys
 import threading
 import time
@@ -5,14 +6,12 @@ import types
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-import shutil
 from unittest.mock import MagicMock
 
 from backend.config import settings
-from backend.services.asr.model_manager import (
-    ModelManager,
-    _ModelDownloadProgressReporter,
-)
+from backend.services.asr.model_download_progress import _ModelDownloadProgressReporter
+from backend.services.asr.model_download_service import ModelDownloadService
+from backend.services.asr.model_manager import ModelManager
 
 
 def _install_fake_modelscope(monkeypatch, snapshot_download_impl):
@@ -92,20 +91,26 @@ def test_ensure_model_downloaded_reports_modelscope_progress(monkeypatch):
 
         target_dir = Path(local_dir)
         target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / "config.json").write_text("{}", encoding="utf-8")
         (target_dir / "model.bin").write_bytes(b"ok")
         return str(target_dir)
 
     _install_fake_modelscope(monkeypatch, snapshot_download_impl=fake_snapshot_download)
     temp_root = Path.cwd() / ".temp" / "pytest-model-manager" / str(uuid.uuid4())
     temp_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(settings, "RUNTIME_DIR", temp_root)
+    monkeypatch.setattr(settings, "USER_DATA_DIR", temp_root / "user_data")
     monkeypatch.setattr(settings, "ASR_MODEL_DIR", temp_root / "faster-whisper")
+    monkeypatch.setattr(settings, "TOOL_DIR", temp_root / "tools")
+    monkeypatch.setattr(settings, "RUNTIME_MAX_MANAGED_BYTES", 1024 * 1024)
+    monkeypatch.setattr(settings, "RUNTIME_MIN_FREE_BYTES", 0)
 
     try:
-        manager = ModelManager()
+        manager = ModelDownloadService()
         monkeypatch.setattr(
             manager,
-            "_resolve_modelscope_total_bytes",
-            lambda _repo_id: 100,
+            "_resolve_modelscope_download_spec",
+            lambda _repo_id: (100, "revision-1"),
         )
 
         emitted: list[tuple[float, str, dict]] = []
@@ -133,7 +138,12 @@ def test_ensure_model_downloaded_reports_modelscope_progress(monkeypatch):
 def test_ensure_model_downloaded_reports_huggingface_fallback_progress(monkeypatch):
     temp_root = Path.cwd() / ".temp" / "pytest-model-manager" / str(uuid.uuid4())
     temp_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(settings, "RUNTIME_DIR", temp_root)
+    monkeypatch.setattr(settings, "USER_DATA_DIR", temp_root / "user_data")
     monkeypatch.setattr(settings, "ASR_MODEL_DIR", temp_root / "faster-whisper")
+    monkeypatch.setattr(settings, "TOOL_DIR", temp_root / "tools")
+    monkeypatch.setattr(settings, "RUNTIME_MAX_MANAGED_BYTES", 1024 * 1024)
+    monkeypatch.setattr(settings, "RUNTIME_MIN_FREE_BYTES", 0)
 
     calls: list[tuple[str, object]] = []
 
@@ -166,15 +176,21 @@ def test_ensure_model_downloaded_reports_huggingface_fallback_progress(monkeypat
 
         target_dir = Path(local_dir)
         target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / "config.json").write_text("{}", encoding="utf-8")
         (target_dir / "model.bin").write_bytes(b"ok")
         return str(target_dir)
 
     try:
-        manager = ModelManager()
+        manager = ModelDownloadService()
         monkeypatch.setattr(
             manager,
             "_download_from_modelscope",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(ImportError("no modelscope")),
+        )
+        monkeypatch.setattr(
+            manager,
+            "_resolve_huggingface_download_spec",
+            lambda _repo_id: (100, "revision-2"),
         )
 
         import huggingface_hub
@@ -190,7 +206,6 @@ def test_ensure_model_downloaded_reports_huggingface_fallback_progress(monkeypat
         expected_dir = temp_root / "faster-whisper" / "faster-whisper-large-v2"
         assert local_path == str(expected_dir)
         assert (expected_dir / "model.bin").exists()
-        assert ("Systran/faster-whisper-large-v2", True) in calls
         assert ("Systran/faster-whisper-large-v2", False) in calls
         assert emitted[0] == (2, "asr_model_source_fallback", {})
         assert any(
@@ -203,6 +218,65 @@ def test_ensure_model_downloaded_reports_huggingface_fallback_progress(monkeypat
         assert emitted[-1][2]["model"] == "large-v2"
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)
+
+
+def test_huggingface_preflight_counts_cached_files_and_pins_the_resolved_revision(
+    monkeypatch,
+):
+    huggingface_module = types.ModuleType("huggingface_hub")
+    calls = {}
+
+    class FakeHfApi:
+        def model_info(self, repo_id):
+            calls["repo_id"] = repo_id
+            return types.SimpleNamespace(sha="immutable-revision")
+
+    def fake_snapshot_download(repo_id, **kwargs):
+        calls["download_repo_id"] = repo_id
+        calls["download_kwargs"] = kwargs
+        return [
+            types.SimpleNamespace(file_size=40, will_download=True),
+            types.SimpleNamespace(file_size=60, will_download=False),
+        ]
+
+    huggingface_module.HfApi = FakeHfApi
+    huggingface_module.snapshot_download = fake_snapshot_download
+    monkeypatch.setitem(sys.modules, "huggingface_hub", huggingface_module)
+
+    total_bytes, revision = ModelDownloadService()._resolve_huggingface_download_spec(
+        "Systran/faster-whisper-base"
+    )
+
+    assert total_bytes == 100
+    assert revision == "immutable-revision"
+    assert calls["download_kwargs"]["revision"] == "immutable-revision"
+    assert calls["download_kwargs"]["dry_run"] is True
+
+
+def test_incomplete_model_cache_is_not_reported_as_reusable(tmp_path, monkeypatch):
+    runtime = tmp_path / "runtime"
+    model_root = runtime / "models" / "faster-whisper"
+    target = model_root / "faster-whisper-base"
+    target.mkdir(parents=True)
+    (target / "model.bin").write_bytes(b"partial")
+    monkeypatch.setattr(settings, "RUNTIME_DIR", runtime)
+    monkeypatch.setattr(settings, "USER_DATA_DIR", runtime / "user_data")
+    monkeypatch.setattr(settings, "ASR_MODEL_DIR", model_root)
+    monkeypatch.setattr(settings, "TOOL_DIR", runtime / "tools")
+
+    calls = []
+    manager = ModelDownloadService()
+    monkeypatch.setattr(
+        manager,
+        "_download_from_modelscope",
+        lambda model_name, target_dir, progress_callback=None: calls.append(
+            (model_name, target_dir, progress_callback)
+        )
+        or "downloaded-model",
+    )
+
+    assert manager.ensure_model_downloaded("base") == "downloaded-model"
+    assert calls == [("base", target, None)]
 
 
 def test_model_cache_is_scoped_by_device(monkeypatch):

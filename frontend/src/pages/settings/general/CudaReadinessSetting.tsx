@@ -25,6 +25,40 @@ function dependencyStatusLabel(t: SettingsT, item: RuntimeDependencyCheck) {
   return t("general.cudaStatusUnknown");
 }
 
+const DEPENDENCY_LABEL_KEYS: Record<string, string> = {
+  nvidia_driver: "general.cudaDependencies.nvidiaDriver",
+  cuda_runtime: "general.cudaDependencies.cudaRuntime",
+  cublas: "general.cudaDependencies.cublas",
+  cudnn: "general.cudaDependencies.cudnn",
+};
+
+function dependencyLabel(t: SettingsT, item: RuntimeDependencyCheck) {
+  const key = DEPENDENCY_LABEL_KEYS[item.key];
+  return key ? t(key) : item.key;
+}
+
+function dependencyDetail(
+  t: SettingsT,
+  item: RuntimeDependencyCheck,
+  readiness: CudaReadinessResponse,
+) {
+  if (item.key === "nvidia_driver" && item.status === "ready") {
+    return t("general.cudaDependencyDetails.gpuReady", {
+      gpu: readiness.gpu_name || t("general.cudaDependencies.nvidiaGpu"),
+    });
+  }
+  const statusKey = item.status === "ready"
+    ? "ready"
+    : item.status === "not_on_path"
+      ? "notOnPath"
+      : item.status === "missing"
+        ? "missing"
+        : "unknown";
+  return t(`general.cudaDependencyDetails.${statusKey}`, {
+    name: dependencyLabel(t, item),
+  });
+}
+
 export function CudaReadinessSetting({ controller, t }: CudaReadinessSettingProps) {
   const [readiness, setReadiness] = useState<CudaReadinessResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -69,7 +103,9 @@ export function CudaReadinessSetting({ controller, t }: CudaReadinessSettingProp
     >
       <div className="mt-4 space-y-4">
         <div className={`text-sm ${summaryTone}`}>
-          {readiness?.summary || t("general.cudaLoading")}
+          {readiness
+            ? t(readiness.status === "ready" ? "general.cudaSummaryReady" : "general.cudaSummaryNotReady")
+            : t("general.cudaLoading")}
         </div>
 
         {readiness && (
@@ -82,7 +118,7 @@ export function CudaReadinessSetting({ controller, t }: CudaReadinessSettingProp
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 text-sm font-medium text-slate-200">
-                      {item.label}
+                      {dependencyLabel(t, item)}
                     </div>
                     <span
                       className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${
@@ -98,7 +134,7 @@ export function CudaReadinessSetting({ controller, t }: CudaReadinessSettingProp
                     ) : (
                       <TriangleAlert size={14} className="mt-0.5 shrink-0 text-amber-300" />
                     )}
-                    <span className="min-w-0">{item.detail}</span>
+                    <span className="min-w-0">{dependencyDetail(t, item, readiness)}</span>
                   </div>
                   {item.path && (
                     <div className="mt-2 break-all font-mono text-xs text-slate-400">
@@ -112,20 +148,38 @@ export function CudaReadinessSetting({ controller, t }: CudaReadinessSettingProp
             {(readiness.gpu_name || readiness.driver_cuda_capability) && (
               <div className="text-xs text-slate-400">
                 {readiness.gpu_name && <span>{readiness.gpu_name}</span>}
-                {readiness.driver_version && <span> | Driver {readiness.driver_version}</span>}
+                {readiness.driver_version && (
+                  <span> | {t("general.cudaDriverVersion", { version: readiness.driver_version })}</span>
+                )}
                 {readiness.driver_cuda_capability && (
                   <span> | CUDA {readiness.driver_cuda_capability}</span>
                 )}
               </div>
             )}
 
-            <div className="space-y-2">
-              {readiness.install_guidance.map((item) => (
-                <div key={item} className="text-xs text-slate-400">
-                  {item}
-                </div>
-              ))}
+            <div className="space-y-2 text-xs text-slate-400">
+              {readiness.status === "ready" ? (
+                <div>{t("general.cudaGuidanceReady")}</div>
+              ) : (
+                <>
+                  {readiness.dependencies.some((item) => item.key === "nvidia_driver" && item.status !== "ready") && (
+                    <div>{t("general.cudaGuidanceDriver")}</div>
+                  )}
+                  {readiness.dependencies.some((item) => item.key !== "nvidia_driver" && item.status !== "ready") && (
+                    <div>{t("general.cudaGuidanceRuntime")}</div>
+                  )}
+                </>
+              )}
             </div>
+
+            <details className="rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-slate-400">
+              <summary className="cursor-pointer text-slate-300 hover:text-white">
+                {t("general.cudaRawDetails")}
+              </summary>
+              <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-all font-mono text-xs leading-relaxed">
+                {JSON.stringify(readiness, null, 2)}
+              </pre>
+            </details>
           </>
         )}
       </div>

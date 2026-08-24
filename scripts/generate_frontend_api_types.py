@@ -4,34 +4,19 @@ import argparse
 from pathlib import Path
 import json
 import sys
-from types import ModuleType
+from types import SimpleNamespace
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from pydantic import BaseModel
-
-from backend.api.v1 import analyze, audio, cookies, settings as settings_api
-from backend.models import (
-    download_contracts,
-    editor_contracts,
-    glossary_contracts,
-    media_contracts,
-    pipeline_contracts,
-    subtitle_contracts,
-    synthesis_contracts,
-    task_result_contracts,
-    task_contracts,
-    transcription_contracts,
-    translation_contracts,
-)
+from backend.runtime.backend_bootstrap import _create_fastapi_app
+from backend.models.task_contracts import HealthResponse
 from backend.models.translation_target_language import (
     DEFAULT_TRANSLATION_TARGET_LANGUAGE,
     TranslationTargetLanguage,
     get_language_suffix,
 )
-from backend.services import runtime_diagnostics, settings_manager
 
 OUTPUT = REPO_ROOT / "frontend" / "src" / "types" / "generatedApi.ts"
 TASK_CATALOG_OUTPUT = REPO_ROOT / "frontend" / "src" / "contracts" / "generatedTaskCatalog.ts"
@@ -50,49 +35,50 @@ TRANSLATION_LANGUAGE_CATALOG_OUTPUT = (
     / "generatedTranslationTargetLanguages.ts"
 )
 
-WIRE_MODEL_MODULES: tuple[ModuleType, ...] = (
-    media_contracts,
-    subtitle_contracts,
-    transcription_contracts,
-    translation_contracts,
-    synthesis_contracts,
-    task_result_contracts,
-    download_contracts,
-    glossary_contracts,
-    editor_contracts,
-    task_contracts,
-    pipeline_contracts,
-    analyze,
-    audio,
-    cookies,
-    settings_api,
-    runtime_diagnostics,
-    settings_manager,
-)
+def _openapi_schema() -> dict[str, Any]:
+    dependency_stub = object()
+    dependencies = SimpleNamespace(
+        audio=dependency_stub,
+        transcription=dependency_stub,
+        translation=dependency_stub,
+        task_orchestrator=dependency_stub,
+        download=dependency_stub,
+        websocket_notifier=dependency_stub,
+        task_manager=dependency_stub,
+        settings=dependency_stub,
+        asr_service=dependency_stub,
+        glossary=dependency_stub,
+        editor=dependency_stub,
+    )
+    api_app, _ = _create_fastapi_app(dependencies)
+    schema = api_app.openapi()
+    # `/health` belongs to the outer Starlette readiness shell rather than the
+    # lazily loaded FastAPI app, so bridge that one real route into the same
+    # generated contract.
+    schema.setdefault("components", {}).setdefault("schemas", {})[
+        "HealthResponse"
+    ] = HealthResponse.model_json_schema(
+        ref_template="#/components/schemas/{model}",
+    )
+    schema.setdefault("paths", {})["/health"] = {
+        "get": {
+            "operationId": "health_check",
+            "responses": {
+                "200": {
+                    "description": "Backend readiness state",
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/HealthResponse"}
+                        }
+                    },
+                }
+            },
+        }
+    }
+    return schema
 
 
-def _discover_wire_models() -> list[type[BaseModel]]:
-    discovered: dict[str, type[BaseModel]] = {}
-    for module in WIRE_MODEL_MODULES:
-        for value in vars(module).values():
-            if (
-                not isinstance(value, type)
-                or not issubclass(value, BaseModel)
-                or value is BaseModel
-                or value.__module__ != module.__name__
-            ):
-                continue
-            existing = discovered.get(value.__name__)
-            if existing is not None and existing is not value:
-                raise RuntimeError(
-                    f"Duplicate wire model name {value.__name__}: "
-                    f"{existing.__module__} and {value.__module__}"
-                )
-            discovered[value.__name__] = value
-    return list(discovered.values())
-
-
-MODELS = _discover_wire_models()
+OPENAPI_SCHEMA = _openapi_schema()
 
 
 def _optional(schema: dict[str, Any], name: str) -> bool:
@@ -137,6 +123,9 @@ def _schema_type(schema: dict[str, Any]) -> str:
     if "oneOf" in schema:
         return " | ".join(_schema_type(part) for part in schema["oneOf"])
 
+    if "allOf" in schema:
+        return " & ".join(_schema_type(part) for part in schema["allOf"])
+
     schema_type = schema.get("type")
     if isinstance(schema_type, list):
         return " | ".join(_schema_type({**schema, "type": item}) for item in schema_type)
@@ -155,12 +144,30 @@ def _schema_type(schema: dict[str, Any]) -> str:
             item_type = f"({item_type})"
         return f"{item_type}[]"
     if schema_type == "object":
+        properties = schema.get("properties")
+        if isinstance(properties, dict):
+            required = set(schema.get("required", []))
+            fields = []
+            for field_name, field_schema in properties.items():
+                optional = "" if field_name in required else "?"
+                fields.append(
+                    f"{json.dumps(field_name, ensure_ascii=False)}{optional}: "
+                    f"{_schema_type(field_schema)}"
+                )
+            return "{ " + "; ".join(fields) + " }"
         additional = schema.get("additionalProperties")
         if isinstance(additional, dict):
             return f"Record<string, {_schema_type(additional)}>"
-        return "Record<string, unknown>"
+        if additional is True:
+            return "Record<string, JsonValue>"
+        return "Record<string, JsonValue>"
 
-    return "unknown"
+    if not schema or set(schema).issubset({"title", "description", "default", "examples"}):
+        return "JsonValue"
+    raise RuntimeError(
+        "Unsupported OpenAPI schema fragment: "
+        + json.dumps(schema, ensure_ascii=False, sort_keys=True)
+    )
 
 
 def _field(schema: dict[str, Any], name: str, prop_schema: dict[str, Any]) -> str:
@@ -169,7 +176,7 @@ def _field(schema: dict[str, Any], name: str, prop_schema: dict[str, Any]) -> st
 
 
 def _interface_from_schema(name: str, schema: dict[str, Any]) -> str:
-    if "enum" in schema or "const" in schema:
+    if any(key in schema for key in ("enum", "const", "oneOf", "anyOf", "allOf")):
         return f"export type {name} = {_schema_type(schema)};"
 
     lines = [f"export interface {name} {{"]
@@ -179,22 +186,91 @@ def _interface_from_schema(name: str, schema: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _interface_for_model(model: type[BaseModel]) -> str:
-    return _interface_from_schema(model.__name__, model.model_json_schema())
+def _operation_request_type(operation: dict[str, Any]) -> str:
+    parameter_properties: dict[str, Any] = {}
+    required_parameters: list[str] = []
+    for parameter in operation.get("parameters", []):
+        name = str(parameter["name"])
+        parameter_properties[name] = parameter.get("schema", {})
+        if parameter.get("required"):
+            required_parameters.append(name)
+
+    parts: list[str] = []
+    if parameter_properties:
+        parts.append(
+            _schema_type(
+                {
+                    "type": "object",
+                    "properties": parameter_properties,
+                    "required": required_parameters,
+                }
+            )
+        )
+
+    request_body = operation.get("requestBody", {})
+    content = request_body.get("content", {})
+    body_schema = None
+    for content_type in ("application/json", "multipart/form-data"):
+        if content_type in content:
+            body_schema = content[content_type].get("schema", {})
+            break
+    if body_schema is not None:
+        parts.append(_schema_type(body_schema))
+
+    return " & ".join(parts) if parts else "void"
 
 
-def _definition_interfaces() -> list[str]:
-    definitions: dict[str, dict[str, Any]] = {}
-    for model in MODELS:
-        definitions.update(model.model_json_schema().get("$defs", {}))
+def _operation_response_type(operation: dict[str, Any]) -> str:
+    responses = operation.get("responses", {})
+    success_codes = sorted(
+        code for code in responses if str(code).isdigit() and 200 <= int(code) < 300
+    )
+    if not success_codes:
+        return "void"
+    response = responses[success_codes[0]]
+    content = response.get("content", {})
+    json_content = content.get("application/json")
+    if not json_content:
+        return "void"
+    return _schema_type(json_content.get("schema", {}))
 
-    output: list[str] = []
-    model_names = {model.__name__ for model in MODELS}
-    for name in sorted(definitions):
-        if name in model_names:
-            continue
-        output.append(_interface_from_schema(name, definitions[name]))
-    return output
+
+def _render_api_operations() -> str:
+    lines = [
+        "export interface ApiOperation<Request, Response> {",
+        "  request: Request;",
+        "  response: Response;",
+        "}",
+        "",
+        "export interface ApiOperations {",
+    ]
+    endpoint_values: list[str] = []
+    for path in sorted(OPENAPI_SCHEMA.get("paths", {})):
+        path_item = OPENAPI_SCHEMA["paths"][path]
+        for method in ("get", "post", "patch", "put", "delete"):
+            operation = path_item.get(method)
+            if not operation:
+                continue
+            operation_id = str(operation["operationId"])
+            lines.append(
+                f"  {_string_literal(operation_id)}: ApiOperation<"
+                f"{_operation_request_type(operation)}, "
+                f"{_operation_response_type(operation)}>;"
+            )
+            endpoint_values.append(
+                f"  {_string_literal(operation_id)}: {{ method: "
+                f"{_string_literal(method.upper())}, path: {_string_literal(path)} }},"
+            )
+    lines.extend(
+        [
+            "}",
+            "",
+            "export const API_ENDPOINTS = {",
+            *endpoint_values,
+            "} as const satisfies Record<keyof ApiOperations, { method: string; path: string }>;",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _render_task_catalog() -> str:
@@ -300,13 +376,21 @@ def _render_translation_language_catalog() -> str:
 
 
 def _render_api_types() -> str:
-    interfaces = [*_definition_interfaces(), *[_interface_for_model(model) for model in MODELS]]
+    schemas = OPENAPI_SCHEMA.get("components", {}).get("schemas", {})
+    interfaces = [
+        _interface_from_schema(name, schemas[name])
+        for name in sorted(schemas)
+    ]
     return "\n".join(
         [
-            "// Generated by scripts/generate_frontend_api_types.py from backend wire models.",
+            "// Generated by scripts/generate_frontend_api_types.py from FastAPI OpenAPI.",
             "// Do not edit by hand.",
             "",
+            "export type JsonPrimitive = string | number | boolean | null;",
+            "export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };",
+            "",
             *interfaces,
+            _render_api_operations(),
             "",
         ]
     )

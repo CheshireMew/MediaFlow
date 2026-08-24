@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useTaskContext } from "../context/taskContext";
+import { useTaskStatus } from "../context/taskContext";
+import { useTasks } from "../context/taskStoreContext";
 import type { TranscribeResult } from "../types/transcriber";
 import type { ElectronFile } from "../types/electron";
 import {
@@ -28,7 +29,8 @@ import { useExecutionModeState } from "./execution/useExecutionModeState";
 import { prewarmFasterWhisperCliFromStoredPreferences } from "../services/asrCliPrewarm";
 
 export function useTranscriber() {
-  const { tasks, tasksSettled } = useTaskContext();
+  const tasks = useTasks();
+  const { tasksSettled } = useTaskStatus();
   const { executionMode, setExecutionMode } = useExecutionModeState("transcriber");
 
   // Settings

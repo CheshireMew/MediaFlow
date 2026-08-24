@@ -96,8 +96,6 @@ class TaskQueueRunner:
     async def _worker_loop(self, task_manager, worker_index: int) -> None:
         while True:
             task_id = await self._queue.get()
-            self._runtime_state.mark_running(task_id)
-            self._runtime_state.unmark_queued(task_id)
             try:
                 task = task_manager.get_task(task_id)
                 if not task:
@@ -128,6 +126,9 @@ class TaskQueueRunner:
                         message_params={},
                         error="Task execution spec is missing",
                     )
+                    continue
+
+                if not await task_manager.begin_task_execution(task_id):
                     continue
 
                 logger.info(f"[Queue:{worker_index}] Starting task {task_id}")

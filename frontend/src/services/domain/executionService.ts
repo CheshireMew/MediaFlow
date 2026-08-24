@@ -1,6 +1,14 @@
-import type { ClipExportRequest, DownloadParams, PipelineRequest } from "../../types/api";
+import type {
+  ClipExportRequest,
+  DownloadParams,
+  PipelineRequest,
+  SynthesizeOptions,
+} from "../../types/api";
 import type { SubtitleSegment } from "../../types/task";
-import type { MediaReference } from "../ui/mediaReference";
+import {
+  isVideoMediaReference,
+  type MediaReference,
+} from "../ui/mediaReference";
 import type { ExecutionOutcome } from "./taskSubmission";
 import {
   requireExecutionMediaReference,
@@ -60,13 +68,15 @@ async function buildSharedSynthesisExecutionPayload() {
   };
 }
 
-async function buildSharedAutoExecutionSteps(includeTranscription: boolean) {
+async function buildSharedAutoExecutionSteps(options: {
+  includeTranscription: boolean;
+  includeSynthesis: boolean;
+}) {
   const asrPreferences = restoreStoredAsrExecutionPreferences();
   const translationPreferences = restoreStoredTranslationPreferences();
-  const synthesisPayload = await buildSharedSynthesisExecutionPayload();
   const steps: Array<PipelineRequest["steps"][number]> = [];
 
-  if (includeTranscription) {
+  if (options.includeTranscription) {
     steps.push({
       step_name: "transcribe",
       params: {
@@ -84,18 +94,20 @@ async function buildSharedAutoExecutionSteps(includeTranscription: boolean) {
       mode: translationPreferences.mode,
     },
   });
-  steps.push({
-    step_name: "synthesize",
-    params: {
-      options: synthesisPayload.options,
-      watermark_ref: synthesisPayload.watermarkRef,
-    },
-  });
+  if (options.includeSynthesis) {
+    const synthesisPayload = await buildSharedSynthesisExecutionPayload();
+    steps.push({
+      step_name: "synthesize",
+      params: {
+        options: synthesisPayload.options,
+        watermark_ref: synthesisPayload.watermarkRef,
+      },
+    });
+  }
 
   return {
     asrPreferences,
     translationPreferences,
-    synthesisPayload,
     steps,
   };
 }
@@ -121,7 +133,10 @@ export const executionService = {
       backendSubmit: async (normalizedPayload) => {
         const settings = await settingsService.getSettings();
         const autoExecution = settings.auto_execute_flow
-          ? await buildSharedAutoExecutionSteps(false)
+          ? await buildSharedAutoExecutionSteps({
+              includeTranscription: false,
+              includeSynthesis: isVideoMediaReference(normalizedPayload.audio_ref),
+            })
           : null;
         const basePipelineReq: PipelineRequest = {
           pipeline_id: "transcriber_tool",
@@ -185,7 +200,7 @@ export const executionService = {
     srt_ref?: MediaReference | null;
     watermark_ref?: MediaReference | null;
     output_ref?: MediaReference | null;
-    options: Record<string, unknown>;
+    options: SynthesizeOptions;
   }): Promise<ExecutionOutcome> {
     return await executeTaskSubmission({
       payload,
@@ -253,8 +268,13 @@ export const executionService = {
     pipeline: PipelineRequest,
     settings?: DownloadExecutionSettings,
   ): Promise<ExecutionOutcome> {
+    const downloadStep = pipeline.steps.find((step) => step.step_name === "download");
+    const downloadMediaKind = (downloadStep?.params as DownloadParams | undefined)?.media_kind;
     const autoExecution = settings?.auto_execute_flow
-      ? await buildSharedAutoExecutionSteps(true)
+      ? await buildSharedAutoExecutionSteps({
+          includeTranscription: true,
+          includeSynthesis: downloadMediaKind !== "audio",
+        })
       : null;
     const pipelineForSubmission =
       settings?.auto_execute_flow

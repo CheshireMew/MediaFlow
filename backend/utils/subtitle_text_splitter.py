@@ -1,6 +1,10 @@
 import re
 
+from backend.contracts import load_contract
 from backend.models.subtitle_contracts import SubtitleSegment
+
+
+_SPLIT_CONTRACT = load_contract("subtitle-split-contract.json")
 
 MAX_WORD_COUNT_CJK = 25
 MAX_WORD_COUNT_ENGLISH = 18
@@ -44,12 +48,10 @@ BAD_END_WORDS = {
     "in", "into", "of", "on", "or", "so", "than", "that", "the", "to",
     "with",
 }
-REASON_PRIORITY = {
-    "sentence": 1,
-    "pause": 2,
-    "space": 3,
-    "midpoint": 4,
-}
+ABBREVIATIONS = tuple(_SPLIT_CONTRACT["abbreviations"])
+STRICT_MIN_UNITS = _SPLIT_CONTRACT["strict_min_units"]
+SOFT_MIN_UNITS = _SPLIT_CONTRACT["soft_min_units"]
+REASON_PRIORITY = _SPLIT_CONTRACT["reason_priority"]
 
 
 def is_mainly_cjk(text: str) -> bool:
@@ -61,7 +63,7 @@ def is_mainly_cjk(text: str) -> bool:
 
 def _text_profile(text: str) -> str:
     cjk_count = len(EAST_ASIAN_PATTERN.findall(text))
-    latin_count = len(LATIN_WORD_PATTERN.findall(text))
+    latin_count = sum(len(word) for word in LATIN_WORD_PATTERN.findall(text))
     if cjk_count == 0 and latin_count > 0:
         return "latin"
     if cjk_count > 0 and latin_count == 0:
@@ -97,11 +99,11 @@ def join_subtitle_text(left: str, right: str) -> str:
 
 
 def _strict_min_units(profile: str) -> int:
-    return {"latin": 2, "cjk": 4, "mixed": 3}[profile]
+    return int(STRICT_MIN_UNITS[profile])
 
 
 def _soft_min_units(profile: str) -> int:
-    return {"latin": 4, "cjk": 8, "mixed": 6}[profile]
+    return int(SOFT_MIN_UNITS[profile])
 
 
 def _protected_spans(text: str) -> list[tuple[int, int, bool]]:
@@ -135,6 +137,44 @@ def _touches_numeric_whitespace_boundary(text: str, split_at: int) -> bool:
     return index >= 0 and bool(NUMERIC_CHAR_PATTERN.search(text[index]))
 
 
+def _ends_with_latin_initialism(text: str) -> bool:
+    return bool(re.search(r"(?:^|[\s([{\"'“‘])(?:[A-Za-z]\.)+$", text))
+
+
+def _touches_latin_initialism_boundary(text: str, split_at: int) -> bool:
+    previous = text[split_at - 1] if split_at > 0 else ""
+    next_char = text[split_at] if split_at < len(text) else ""
+    before = text[:split_at]
+    if previous == "." and _ends_with_latin_initialism(before):
+        return True
+    if previous.isspace() and _ends_with_latin_initialism(before.rstrip()):
+        return bool(next_char and (next_char.isalpha() or EAST_ASIAN_PATTERN.match(next_char)))
+    return False
+
+
+def _raw_last_latin_word(text: str) -> str:
+    match = re.search(r"([A-Za-z]+(?:['’-][A-Za-z]+)*)\W*$", text.strip())
+    return match.group(1) if match else ""
+
+
+def _raw_first_latin_word(text: str) -> str:
+    match = re.match(r"([A-Za-z]+(?:['’-][A-Za-z]+)*)", text.strip())
+    return match.group(1) if match else ""
+
+
+def _is_likely_latin_name_part(word: str) -> bool:
+    return bool(re.fullmatch(r"[A-Z][a-z]+(?:['’-][A-Z]?[a-z]+)*", word))
+
+
+def _touches_latin_proper_name_boundary(text: str, split_at: int) -> bool:
+    previous = text[split_at - 1] if split_at > 0 else ""
+    if not previous.isspace():
+        return False
+    return _is_likely_latin_name_part(_raw_last_latin_word(text[:split_at])) and (
+        _is_likely_latin_name_part(_raw_first_latin_word(text[split_at:]))
+    )
+
+
 def _can_break_at(text: str, split_at: int, spans: list[tuple[int, int, bool]]) -> bool:
     if split_at <= 0 or split_at >= len(text):
         return False
@@ -149,6 +189,20 @@ def _can_break_at(text: str, split_at: int, spans: list[tuple[int, int, bool]]) 
     if next_char in LEADING_BREAK_PUNCTUATION:
         return False
     if prev in NAME_JOINERS or next_char in NAME_JOINERS:
+        return False
+    if _touches_latin_initialism_boundary(text, split_at):
+        return False
+    if _touches_latin_proper_name_boundary(text, split_at):
+        return False
+    char_before_boundary = text[split_at - 2] if split_at > 1 else ""
+    if (
+        prev in {".", ","}
+        and NUMERIC_CHAR_PATTERN.search(char_before_boundary)
+        and NUMERIC_CHAR_PATTERN.search(next_char)
+    ):
+        return False
+    last_token = text[:split_at].strip().split()
+    if last_token and any(last_token[-1].endswith(item) for item in ABBREVIATIONS):
         return False
     if prev in "([" or next_char in ")]}":
         return False
@@ -195,6 +249,12 @@ def _candidate_score(text: str, split_at: int, reason: str, profile: str) -> flo
     if right_units < soft_min:
         score += (soft_min - right_units) * 7
 
+    if profile != "cjk":
+        left_words = len(left.split())
+        right_words = len(right.split())
+        if left_words < 2 or right_words < 2:
+            score += 22
+
     prev_word = _last_word(left)
     next_word = _first_word(right)
     if prev_word in BAD_END_WORDS:
@@ -210,12 +270,19 @@ def _candidate_score(text: str, split_at: int, reason: str, profile: str) -> flo
         score += 12
     if reason == "pause" and text[split_at - 1] == "、":
         score += 18
+    if prev_cjk == "的":
+        score += 12
+    if next_cjk == "的":
+        score += 12
 
     return score
 
 
 def _candidate_indexes(text: str) -> list[tuple[int, str]]:
     candidates: list[tuple[int, str]] = []
+    for index in range(1, len(text) - 1):
+        if text[index] == "-" and text[index - 1] in {" ", "\n"}:
+            candidates.append((index, "dialog"))
     for index, char in enumerate(text[:-1]):
         if char in SENTENCE_ENDINGS:
             candidates.append((index + 1, "sentence"))
@@ -263,6 +330,12 @@ def find_text_split_index(text: str) -> int | None:
     if count_text_units(text) <= max_unit_count(text):
         return None
 
+    return get_best_split_index(text)
+
+
+def get_best_split_index(text: str) -> int | None:
+    if len(text) < 2:
+        return None
     best = _best_candidate(text, _candidate_indexes(text))
     if best is not None:
         return best

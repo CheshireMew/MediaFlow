@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { ElectronAPI } from "../../types/electron-api";
+import type { ElectronAPI } from "../../contracts/desktopBridgeContract";
 
 type MockFn = ReturnType<typeof vi.fn>;
 
@@ -22,16 +22,15 @@ function createBaseElectronMock(): MockedElectronAPI {
     getFileSize: vi.fn(),
     readWorkspaceState: vi.fn().mockResolvedValue(null),
     writeWorkspaceState: vi.fn().mockResolvedValue(true),
-    writeWorkspaceStateSync: vi.fn().mockReturnValue(true),
     getDesktopRuntimeInfo: vi.fn().mockResolvedValue({
       status: "pong",
-      contract_version: 4,
+      contract_version: 6,
       bridge_version: "test-bridge",
       capabilities: [
         "getDesktopRuntimeInfo",
         "readWorkspaceState",
         "writeWorkspaceState",
-        "writeWorkspaceStateSync",
+        "onPrepareToClose",
       ],
       backend: {
         status: "external",
@@ -46,6 +45,7 @@ function createBaseElectronMock(): MockedElectronAPI {
     maximize: vi.fn(),
     close: vi.fn(),
     notifyRendererReady: vi.fn(),
+    onPrepareToClose: vi.fn().mockReturnValue(() => undefined),
   };
 }
 

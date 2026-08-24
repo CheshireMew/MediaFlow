@@ -1,137 +1,77 @@
-import asyncio
-from fastapi import APIRouter, HTTPException, UploadFile
-from backend.models.editor_contracts import EditorPreviewMediaRequest, EditorPreviewMediaResponse, EditorWaveformPeaksResponse, HighlightDetectionRequest, HighlightDetectionResponse, ImagePreviewResponse, MediaExportTimelineRequest, MediaExportTimelineResponse
-from backend.services.video.timeline import resolve_media_export_timeline
-from backend.utils.path_validator import validate_input_file
+from fastapi import APIRouter, Query, Response, UploadFile
 
-async def upload_watermark_for_preview(file: UploadFile):
-    """
-    Upload a watermark file and return the generated preview.
-    """
-    try:
-        from backend.application.watermark_preview_service import save_watermark_preview
-
-        return await asyncio.to_thread(save_watermark_preview, file.filename, file.file)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-async def get_current_watermark():
-    """
-    Retrieve the last uploaded watermark (if exists).
-    Returns: { png_path, data_url, width, height } or 404
-    """
-    from backend.application.watermark_preview_service import get_latest_watermark_preview
-
-    return await asyncio.to_thread(get_latest_watermark_preview)
+from backend.models.editor_contracts import (
+    EditorPreviewMediaRequest,
+    EditorPreviewMediaResponse,
+    HighlightDetectionRequest,
+    HighlightDetectionResponse,
+    ImagePreviewResponse,
+    MediaExportTimelineRequest,
+    MediaExportTimelineResponse,
+)
+from backend.models.waveform_contract import (
+    WAVEFORM_BINARY_MEDIA_TYPE,
+    WAVEFORM_DEFAULT_RESPONSE_POINTS,
+    WAVEFORM_MAX_POINTS,
+)
 
 
-async def get_media_export_timeline(req: MediaExportTimelineRequest, *, settings_application):
-    try:
-        validate_input_file(req.video_ref.path, label="video_ref.path")
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    user_settings = settings_application.get_settings()
-    timeline = await asyncio.to_thread(
-        resolve_media_export_timeline,
-        req.video_ref.path,
-        speech_segments=req.speech_segments,
-        no_speech_trim_enabled=user_settings.auto_trim_silence,
-    )
-    return MediaExportTimelineResponse(**vars(timeline))
+async def upload_watermark_for_preview(file: UploadFile, *, editor_application):
+    return await editor_application.save_watermark_preview(file.filename, file.file)
 
 
-async def resolve_preview_media_source(req: EditorPreviewMediaRequest):
-    try:
-        source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        from backend.application.editor_preview_service import resolve_editor_preview_media
-
-        source_ref, media_ref, remuxed = await asyncio.to_thread(
-            resolve_editor_preview_media,
-            str(source_path),
-        )
-        return EditorPreviewMediaResponse(
-            source_ref=source_ref,
-            media_ref=media_ref,
-            remuxed=remuxed,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_current_watermark(*, editor_application):
+    return await editor_application.get_latest_watermark_preview()
 
 
-async def resolve_waveform_peaks(req: EditorPreviewMediaRequest):
-    try:
-        source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        from backend.application.waveform_service import resolve_waveform_peaks as resolve
-
-        return EditorWaveformPeaksResponse.model_validate(
-            await asyncio.to_thread(resolve, str(source_path))
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_media_export_timeline(req: MediaExportTimelineRequest, *, editor_application):
+    return await editor_application.get_media_export_timeline(req)
 
 
-async def detect_highlight_candidates(req: HighlightDetectionRequest, *, highlight_application):
-    try:
-        source_path = validate_input_file(req.video_ref.path, label="video_ref.path")
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        candidates, source, duration = await asyncio.to_thread(
-            highlight_application.detect,
-            video_path=str(source_path),
-            subtitle_segments=req.subtitle_segments,
-            max_candidates=req.max_candidates,
-            min_duration=req.min_duration,
-            max_duration=req.max_duration,
-        )
-        return HighlightDetectionResponse(
-            candidates=candidates,
-            source=source,
-            duration=duration,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def resolve_preview_media_source(req: EditorPreviewMediaRequest, *, editor_application):
+    return await editor_application.resolve_preview_media(req)
 
 
-def create_router(*, highlight_application, settings_application) -> APIRouter:
+async def resolve_waveform_peaks(
+    req: EditorPreviewMediaRequest,
+    *,
+    max_points: int,
+    editor_application,
+):
+    return await editor_application.resolve_waveform(req, max_points=max_points)
+
+
+async def detect_highlight_candidates(req: HighlightDetectionRequest, *, editor_application):
+    return await editor_application.detect_highlights(req)
+
+
+def create_router(editor_application) -> APIRouter:
     router = APIRouter(prefix="/editor", tags=["Editor"])
+    async def upload_watermark(file: UploadFile):
+        return await upload_watermark_for_preview(
+            file,
+            editor_application=editor_application,
+        )
+
     router.add_api_route(
         "/preview/upload-watermark",
-        upload_watermark_for_preview,
+        upload_watermark,
         methods=["POST"],
         response_model=ImagePreviewResponse,
     )
+    async def latest_watermark():
+        return await get_current_watermark(editor_application=editor_application)
+
     router.add_api_route(
         "/preview/watermark/latest",
-        get_current_watermark,
+        latest_watermark,
         methods=["GET"],
         response_model=ImagePreviewResponse | None,
     )
     async def export_timeline(req: MediaExportTimelineRequest):
         return await get_media_export_timeline(
             req,
-            settings_application=settings_application,
+            editor_application=editor_application,
         )
 
     router.add_api_route(
@@ -140,23 +80,53 @@ def create_router(*, highlight_application, settings_application) -> APIRouter:
         methods=["POST"],
         response_model=MediaExportTimelineResponse,
     )
+    async def preview_source(req: EditorPreviewMediaRequest):
+        return await resolve_preview_media_source(
+            req,
+            editor_application=editor_application,
+        )
+
     router.add_api_route(
         "/preview/media/source",
-        resolve_preview_media_source,
+        preview_source,
         methods=["POST"],
         response_model=EditorPreviewMediaResponse,
     )
+    async def waveform(
+        req: EditorPreviewMediaRequest,
+        max_points: int = Query(
+            default=WAVEFORM_DEFAULT_RESPONSE_POINTS,
+            ge=2,
+            le=WAVEFORM_MAX_POINTS,
+        ),
+    ):
+        payload = await resolve_waveform_peaks(
+            req,
+            max_points=max_points,
+            editor_application=editor_application,
+        )
+        return Response(content=payload, media_type=WAVEFORM_BINARY_MEDIA_TYPE)
+
     router.add_api_route(
         "/preview/media/waveform",
-        resolve_waveform_peaks,
+        waveform,
         methods=["POST"],
-        response_model=EditorWaveformPeaksResponse,
+        response_class=Response,
+        responses={
+            200: {
+                "content": {
+                    WAVEFORM_BINARY_MEDIA_TYPE: {
+                        "schema": {"type": "string", "format": "binary"}
+                    }
+                }
+            }
+        },
     )
 
     async def detect(req: HighlightDetectionRequest):
         return await detect_highlight_candidates(
             req,
-            highlight_application=highlight_application,
+            editor_application=editor_application,
         )
 
     router.add_api_route(

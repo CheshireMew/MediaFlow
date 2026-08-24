@@ -1,6 +1,8 @@
 from backend.application.synthesis_service import build_synthesis_worker_kwargs
 from backend.models.media_contracts import MediaReference
 from backend.models.synthesis_contracts import SynthesisRequest
+from pydantic import ValidationError
+import pytest
 
 
 def test_synthesis_worker_kwargs_forward_missing_subtitle_when_disabled(tmp_path):
@@ -26,4 +28,20 @@ def test_synthesis_worker_kwargs_forward_missing_subtitle_when_disabled(tmp_path
     assert worker_kwargs["output_path"] == str(output_path)
     assert worker_kwargs["srt_path"] is None
     assert worker_kwargs["watermark_path"] == str(watermark_path)
-    assert worker_kwargs["options"]["skip_subtitles"] is True
+    assert worker_kwargs["options"].skip_subtitles is True
+
+
+def test_synthesis_request_rejects_unknown_and_invalid_options():
+    video_ref = MediaReference(path="E:/video.mp4", name="video.mp4")
+
+    with pytest.raises(ValidationError, match="legacy_option"):
+        SynthesisRequest(
+            video_ref=video_ref,
+            options={"legacy_option": True},
+        )
+
+    with pytest.raises(ValidationError, match="trim_end must be greater"):
+        SynthesisRequest(
+            video_ref=video_ref,
+            options={"trim_start": 10, "trim_end": 5},
+        )

@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { getBestSplitIndex, getSplitTimingRatio } from "../utils/textSplitter";
 import { splitSubtitleSegment } from "../utils/subtitleSplit";
+import splitContract from "../../../contracts/subtitle-split-contract.json";
 
 describe("text splitter heuristics", () => {
+  it("matches every shared backend and renderer contract case", () => {
+    for (const testCase of splitContract.cases) {
+      expect(getBestSplitIndex(testCase.text), testCase.id).toBe(
+        testCase.expected_split_index,
+      );
+    }
+  });
+
   it("prefers a balanced comma pause over the trailing sentence period", () => {
     const text =
       "Well, is the inflation, well, that's not really the central bank's fault.";

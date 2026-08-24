@@ -1,5 +1,6 @@
-from backend.core.container import Services
 from loguru import logger
+
+from backend.core.container import Services
 
 
 class ApplicationRuntime:
@@ -12,12 +13,11 @@ class ApplicationRuntime:
         return register_all_services(self._container)
 
     def validate_runtime_contracts(self) -> None:
-        from backend.models.pipeline_contracts import PIPELINE_STEP_PARAM_MODELS
         from backend.contracts import pipeline_step_names
+        from backend.models.pipeline_contracts import PIPELINE_STEP_PARAM_MODELS
+        from backend.runtime.service_registry import configured_pipeline_step_names
 
-        configured_steps = set(
-            self._container.get(Services.PIPELINE_STEPS).list_steps()
-        )
+        configured_steps = configured_pipeline_step_names()
         catalog_steps = pipeline_step_names()
         model_steps = set(PIPELINE_STEP_PARAM_MODELS)
         if configured_steps != catalog_steps or configured_steps != model_steps:
@@ -30,40 +30,55 @@ class ApplicationRuntime:
     async def start(self) -> int:
         registered_count = self.register_services()
         self.validate_runtime_contracts()
+        # Readiness means the database and task queue can accept work. Task
+        # history hydration may continue in the background after this boundary.
+        await self._container.get(Services.TASK_MANAGER).warm_start_async()
         self._start_asr_cli_prewarm()
         return registered_count
 
     def build_api_dependencies(self):
+        from backend.application.audio_service import AudioApplicationService
         from backend.application.download_service import DownloadApplicationService
+        from backend.application.editor_service import EditorApplicationService
         from backend.application.glossary_service import GlossaryApplicationService
         from backend.application.highlight_service import HighlightApplicationService
         from backend.application.settings_service import SettingsApplicationService
-        from backend.application.transcription_service import TranscriptionApplicationService
-        from backend.application.translation_service import TranslationApplicationService
+        from backend.application.transcription_service import (
+            TranscriptionApplicationService,
+        )
+        from backend.application.translation_service import (
+            TranslationApplicationService,
+        )
         from backend.runtime.api_dependencies import ApiDependencies
 
-        task_orchestrator = self._container.get(Services.TASK_ORCHESTRATOR)
+        task_orchestrator = self._container.lazy(Services.TASK_ORCHESTRATOR)
         settings_manager = self._container.get(Services.SETTINGS_MANAGER)
+        settings_application = SettingsApplicationService(settings_manager)
+        highlight_application = HighlightApplicationService(settings_manager)
         return ApiDependencies(
+            audio=AudioApplicationService(),
             download=DownloadApplicationService(
-                analyzer=self._container.get(Services.ANALYZER),
-                cookie_manager=self._container.get(Services.COOKIE_MANAGER),
+                analyzer=self._container.lazy(Services.ANALYZER),
+                cookie_manager=self._container.lazy(Services.COOKIE_MANAGER),
             ),
             transcription=TranscriptionApplicationService(
-                self._container.get(Services.ASR)
+                self._container.lazy(Services.ASR)
             ),
             translation=TranslationApplicationService(
-                self._container.get(Services.LLM_TRANSLATOR)
+                self._container.lazy(Services.LLM_TRANSLATOR)
             ),
             task_manager=self._container.get(Services.TASK_MANAGER),
             task_orchestrator=task_orchestrator,
             websocket_notifier=self._container.get(Services.WS_NOTIFIER),
-            settings=SettingsApplicationService(settings_manager),
+            settings=settings_application,
             glossary=GlossaryApplicationService(
-                self._container.get(Services.GLOSSARY)
+                self._container.lazy(Services.GLOSSARY)
             ),
-            highlight=HighlightApplicationService(settings_manager),
-            asr_service=self._container.get(Services.ASR),
+            editor=EditorApplicationService(
+                highlight_application=highlight_application,
+                settings_application=settings_application,
+            ),
+            asr_service=self._container.lazy(Services.ASR),
         )
 
     def _start_asr_cli_prewarm(self) -> None:
@@ -89,6 +104,8 @@ class ApplicationRuntime:
     async def stop(self) -> None:
         if self._container.is_instantiated(Services.TASK_MANAGER):
             await self._container.get(Services.TASK_MANAGER).shutdown_async()
+        if self._container.is_instantiated(Services.LLM_TRANSLATOR):
+            self._container.get(Services.LLM_TRANSLATOR).close()
         if self._container.is_instantiated(Services.BROWSER):
             await self._container.get(Services.BROWSER).stop()
         from backend.core.database import shutdown_db

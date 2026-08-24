@@ -12,7 +12,11 @@ describe("apiClient transport errors", () => {
   it("throws a typed HTTP error without owning user notifications", async () => {
     const toastSpy = vi.spyOn(toast, "error");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
-      JSON.stringify({ detail: "Invalid request" }),
+      JSON.stringify({
+        code: "request_validation_failed",
+        message: "Invalid request",
+        details: { field: "steps" },
+      }),
       { status: 422, headers: { "content-type": "application/json" } },
     )));
 
@@ -22,6 +26,8 @@ describe("apiClient transport errors", () => {
       endpoint: "/tasks/",
       kind: "http",
       status: 422,
+      code: "request_validation_failed",
+      details: { field: "steps" },
       message: "Invalid request",
     });
     expect(toastSpy).not.toHaveBeenCalled();

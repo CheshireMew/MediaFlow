@@ -66,6 +66,7 @@
     "clearFolder": "クリア",
     "restoreDefault": "デフォルトに戻す",
     "savePath": "パスを保存",
+    "saveSmartSplitLimit": "スマート分割の文字数を保存",
     "cliPath": "Faster-Whisper CLI パス",
     "cliPathDesc": "ローカルの faster-whisper CLI 実行ファイルパスを設定します。CLI 転写エンジン選択時にこのパスを使用します。",
     "cliPathPlaceholder": "例: D:\\Tools\\faster-whisper-xxl.exe",
@@ -94,15 +95,36 @@
     "ytDlpVersionInfo": "バージョン: {{previous}} -> {{current}}",
     "updateSuccess": "設定を更新しました",
     "updateFailed": "設定の更新に失敗しました",
-    "cudaTitle": "CUDA Readiness",
-    "cudaDesc": "Checks whether built-in faster-whisper can use the NVIDIA GPU on this machine.",
-    "cudaRefresh": "Check",
-    "cudaLoading": "Checking CUDA dependencies...",
-    "cudaLoadFailed": "Failed to check CUDA readiness",
-    "cudaStatusReady": "Ready",
-    "cudaStatusMissing": "Missing",
-    "cudaStatusNotOnPath": "Not on PATH",
-    "cudaStatusUnknown": "Unknown"
+    "cudaTitle": "CUDA 準備状況",
+    "cudaDesc": "内蔵 faster-whisper がこの PC の NVIDIA GPU を使用できるか確認します。",
+    "cudaRefresh": "確認",
+    "cudaLoading": "CUDA 依存関係を確認中...",
+    "cudaLoadFailed": "CUDA の準備状況を確認できませんでした",
+    "cudaStatusReady": "準備完了",
+    "cudaStatusMissing": "不足",
+    "cudaStatusNotOnPath": "PATH に未登録",
+    "cudaStatusUnknown": "不明",
+    "cudaSummaryReady": "内蔵 faster-whisper の GPU 文字起こしに必要な CUDA 環境が整っています。",
+    "cudaSummaryNotReady": "CUDA 環境の準備ができていません。下の不足項目を解決してから再確認してください。",
+    "cudaDependencies": {
+      "nvidiaDriver": "NVIDIA ドライバー",
+      "nvidiaGpu": "NVIDIA GPU",
+      "cudaRuntime": "CUDA 12 ランタイム",
+      "cublas": "cuBLAS 12",
+      "cudnn": "CUDA 12 用 cuDNN 9"
+    },
+    "cudaDependencyDetails": {
+      "gpuReady": "{{gpu}} を検出しました。",
+      "ready": "現在のバックエンドプロセスで {{name}} を使用できます。",
+      "notOnPath": "{{name}} はインストール済みですが、現在のバックエンドプロセスの PATH にありません。",
+      "missing": "{{name}} が見つかりません。",
+      "unknown": "{{name}} の状態を確認できませんでした。"
+    },
+    "cudaDriverVersion": "ドライバー {{version}}",
+    "cudaGuidanceReady": "文字起こし時に「GPU (CUDA/Float16)」を選ぶと GPU を使用できます。",
+    "cudaGuidanceDriver": "NVIDIA ドライバーをインストールまたは更新し、nvidia-smi が正常に動作することを確認してください。",
+    "cudaGuidanceRuntime": "対応する CUDA 12、cuBLAS 12、cuDNN 9 ランタイムをインストールし、bin フォルダーをバックエンドプロセスの PATH に追加してください。",
+    "cudaRawDetails": "元の診断詳細を表示"
   },
   "loadFailed": "設定の読み込みに失敗しました"
 }

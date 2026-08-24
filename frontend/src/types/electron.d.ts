@@ -1,6 +1,6 @@
 declare global {
   interface Window {
-    electronAPI?: import("./electron-api").ElectronAPI;
+    electronAPI?: import("../contracts/desktopBridgeContract").ElectronAPI;
   }
 }
 

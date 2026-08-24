@@ -1,5 +1,5 @@
 import React, { type RefObject, useEffect, useMemo, useRef, useState } from "react";
-import { Clapperboard } from "lucide-react";
+import { Clapperboard, FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useVideoPreviewPlayback } from "../../hooks/editor/useVideoPreviewPlayback";
@@ -16,6 +16,7 @@ interface VideoPreviewProps {
   videoRef: RefObject<HTMLVideoElement | null>;
   regions: SubtitleSegment[];
   onLoadedMetadata?: () => void;
+  onOpenMedia?: () => void;
 }
 
 function useElementSize(ref: RefObject<HTMLDivElement | null>, dependency: unknown) {
@@ -40,6 +41,7 @@ function VideoPreviewComponent({
   videoRef,
   regions,
   onLoadedMetadata,
+  onOpenMedia,
 }: VideoPreviewProps) {
   const { t } = useTranslation("editor");
   const panelRef = useRef<HTMLDivElement>(null);
@@ -149,13 +151,26 @@ function VideoPreviewComponent({
           />
         </div>
       ) : (
-        <div className="text-slate-400 flex flex-col items-center gap-4">
+        <div className="text-slate-400 flex flex-col items-center gap-4 px-6 text-center">
           <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 shadow-inner">
             <Clapperboard size={64} className="opacity-20" />
           </div>
           <p className="text-sm font-medium tracking-wide">
             {hasError ? t("videoPreview.mediaFailed") : t("videoPreview.noMedia")}
           </p>
+          {onOpenMedia && (
+            <>
+              <button
+                type="button"
+                onClick={onOpenMedia}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-indigo-400/30 bg-indigo-500/15 px-4 text-sm font-semibold text-indigo-200 transition-colors hover:bg-indigo-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+              >
+                <FolderOpen size={16} />
+                {hasError ? t("videoPreview.replaceMedia") : t("videoPreview.openMedia")}
+              </button>
+              <p className="text-xs text-slate-400">{t("videoPreview.dropHint")}</p>
+            </>
+          )}
         </div>
       )}
     </div>

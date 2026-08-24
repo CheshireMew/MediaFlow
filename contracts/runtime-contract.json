@@ -1,6 +1,6 @@
 {
-  "task_contract_version": 9,
-  "desktop_bridge_contract_version": 4,
+  "task_contract_version": 10,
+  "desktop_bridge_contract_version": 6,
   "task_statuses": [
     "pending",
     "running",

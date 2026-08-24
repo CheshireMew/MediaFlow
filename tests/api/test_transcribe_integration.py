@@ -1,7 +1,7 @@
 import time
 from pathlib import Path
 
-from backend.core.container import Services, container
+from backend.core.container import Services
 from backend.models.media_contracts import MediaReference, TaskArtifact, TaskResult
 from backend.models.task_result_contracts import PipelineOutputs, TranscriptionOutput
 
@@ -141,7 +141,7 @@ def test_transcribe_flow_integration(isolated_api_client, tmp_path, monkeypatch)
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
     asr_service = MockASRService()
     monkeypatch.setattr(
-        container.get(Services.ASR),
+        client.app.state.service_container.get(Services.ASR),
         "transcribe",
         asr_service.transcribe,
     )
@@ -223,7 +223,7 @@ def test_transcribe_segment_forwards_the_canonical_asr_contract(
 ):
     asr_service = MockASRService()
     monkeypatch.setattr(
-        container.get(Services.ASR),
+        isolated_api_client.app.state.service_container.get(Services.ASR),
         "transcribe_segment",
         asr_service.transcribe_segment,
     )

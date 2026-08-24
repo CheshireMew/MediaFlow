@@ -31,7 +31,8 @@ export function VideoDownloadOptions({
 }: VideoDownloadOptionsProps) {
   const { t } = useTranslation('downloader');
   const resolutionId = useId();
-  const isAudio = mediaKind === "audio";
+  const isSourceAudio = mediaKind === "audio";
+  const isAudio = isSourceAudio || resolution === "audio";
 
   return (
     <div className="flex flex-col gap-4">
@@ -49,12 +50,16 @@ export function VideoDownloadOptions({
             <div className="relative">
               <select
                 id={resolutionId}
-                value={isAudio ? "audio" : resolution}
-                onChange={(e) => setResolution(e.target.value)}
-                disabled={isAudio}
+                value={isSourceAudio ? "audio" : resolution}
+                onChange={(e) => {
+                  const nextResolution = e.target.value;
+                  setResolution(nextResolution);
+                  if (nextResolution === "audio") setDownloadSubs(false);
+                }}
+                disabled={isSourceAudio}
                 className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 appearance-none cursor-pointer hover:bg-black/60 transition-all font-medium"
               >
-                {isAudio ? (
+                {isSourceAudio ? (
                   <option value="audio" className="bg-[#1a1a1a] text-white">{t('options.originalAudio')}</option>
                 ) : (
                   <>

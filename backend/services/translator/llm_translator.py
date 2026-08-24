@@ -1,13 +1,14 @@
-from typing import Callable, List, Literal, Optional
+from collections.abc import Callable
+from typing import Literal
 
 from loguru import logger
 
 from backend.config import settings
 from backend.models.subtitle_contracts import SubtitleSegment
 from backend.services.llm_io_logger import log_llm_messages, log_llm_response
-from backend.services.translator.text_normalizer import normalize_text_for_target_language
-from backend.services.translator.translation_cache import TranslationCache
-from backend.services.translator.translation_client import TranslationClientFactory
+from backend.services.translator.text_normalizer import (
+    normalize_text_for_target_language,
+)
 from backend.services.translator.translation_batch_runner import (
     build_translation_batches,
     checkpoint,
@@ -15,6 +16,8 @@ from backend.services.translator.translation_batch_runner import (
     resolve_max_concurrency,
     run_translation_batches,
 )
+from backend.services.translator.translation_cache import TranslationCache
+from backend.services.translator.translation_client import TranslationClientFactory
 from backend.services.translator.translation_models import (
     IntelligentTranslationResponse,
     TranslationBatch,
@@ -22,8 +25,12 @@ from backend.services.translator.translation_models import (
     TranslationResponse,
 )
 from backend.services.translator.translation_prompts import TranslationPromptBuilder
-from backend.services.translator.translation_response_parser import TranslationResponseParser
-from backend.services.translator.translation_validator import TranslationResponseValidator
+from backend.services.translator.translation_response_parser import (
+    TranslationResponseParser,
+)
+from backend.services.translator.translation_validator import (
+    TranslationResponseValidator,
+)
 
 
 class LLMTranslator:
@@ -36,13 +43,16 @@ class LLMTranslator:
         self._response_parser = TranslationResponseParser()
         self._response_validator = TranslationResponseValidator()
 
+    def close(self) -> None:
+        self._client_factory.close()
+
     def _translate_planned_batch(
         self,
         batch: TranslationBatch,
         target_language: str,
         mode: str,
-        cancel_check: Optional[Callable[[], None]] = None,
-    ) -> List[SubtitleSegment]:
+        cancel_check: Callable[[], None] | None = None,
+    ) -> list[SubtitleSegment]:
         self._checkpoint(cancel_check)
         return self._translate_batch_struct(
             batch.segments,
@@ -53,17 +63,17 @@ class LLMTranslator:
         )
 
     @staticmethod
-    def _checkpoint(cancel_check: Optional[Callable[[], None]]) -> None:
+    def _checkpoint(cancel_check: Callable[[], None] | None) -> None:
         checkpoint(cancel_check)
 
     def _translate_single_fallback(
         self,
         client,
         model_name: str,
-        segments: List[SubtitleSegment],
+        segments: list[SubtitleSegment],
         target_language: str,
         mode_label: str,
-        cancel_check: Optional[Callable[[], None]] = None,
+        cancel_check: Callable[[], None] | None = None,
     ) -> TranslationOutcome:
         logger.warning(f"[LLM] {mode_label}: falling back to single-line translation for {len(segments)} segments")
         result = []
@@ -97,7 +107,7 @@ class LLMTranslator:
                     logger.warning(f"[LLM] Single-line returned empty text for [{segment.id}], keeping source text")
                     cacheable = False
                     result.append(segment)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - provider SDK errors require fallback
                 logger.warning(f"[LLM] Single-line failed for [{segment.id}]: {exc}")
                 cacheable = False
                 result.append(segment)
@@ -108,11 +118,11 @@ class LLMTranslator:
         client,
         model_name: str,
         system_prompt: str,
-        segments: List[SubtitleSegment],
+        segments: list[SubtitleSegment],
         input_json_str: str,
         target_language: str,
         mode_label: str = "Standard",
-        cancel_check: Optional[Callable[[], None]] = None,
+        cancel_check: Callable[[], None] | None = None,
     ) -> TranslationOutcome:
         segment_count = len(segments)
         messages = [
@@ -128,7 +138,7 @@ class LLMTranslator:
                 messages=messages,
                 temperature=0.3,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider SDK errors require recovery
             recovered = self._response_parser.recover_structured_response_from_exception(
                 exc,
                 TranslationResponse,
@@ -178,12 +188,12 @@ class LLMTranslator:
 
     def _translate_batch_struct(
         self,
-        segments: List[SubtitleSegment],
+        segments: list[SubtitleSegment],
         target_language: str,
         mode: Literal["standard", "proofread", "intelligent"],
-        context_before: Optional[List[SubtitleSegment]] = None,
-        cancel_check: Optional[Callable[[], None]] = None,
-    ) -> List[SubtitleSegment]:
+        context_before: list[SubtitleSegment] | None = None,
+        cancel_check: Callable[[], None] | None = None,
+    ) -> list[SubtitleSegment]:
         self._checkpoint(cancel_check)
         client, model_name = self._client_factory.get_client()
         if not client:
@@ -354,14 +364,14 @@ class LLMTranslator:
 
     def translate_segments(
         self,
-        segments: List[SubtitleSegment],
+        segments: list[SubtitleSegment],
         target_language: str,
         mode: str = "standard",
         batch_size: int = 10,
         progress_callback=None,
-        max_concurrency: Optional[int] = None,
-        cancel_check: Optional[Callable[[], None]] = None,
-    ) -> List[SubtitleSegment]:
+        max_concurrency: int | None = None,
+        cancel_check: Callable[[], None] | None = None,
+    ) -> list[SubtitleSegment]:
         if not segments:
             logger.warning("[Translate] Received empty segments list.")
             return []

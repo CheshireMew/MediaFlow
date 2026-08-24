@@ -1,11 +1,13 @@
 import pytest
+from fastapi.testclient import TestClient
 
 from backend.application.translation_service import (
     get_language_suffix,
     get_translation_output_suffix,
 )
-from backend.main import app
-from fastapi.testclient import TestClient
+from backend.core.container import ServiceContainer
+from backend.main import create_app
+from backend.runtime.backend_bootstrap import BackendBootstrap
 
 
 def test_get_language_suffix_uses_frontend_compatible_codes():
@@ -28,6 +30,10 @@ def test_get_translation_output_suffix_uses_proofread_suffix():
 
 
 def test_retired_background_translate_endpoint_does_not_exist():
+    app = create_app(
+        runtime_container=ServiceContainer(),
+        bootstrap=BackendBootstrap(),
+    )
     client = TestClient(app)
 
     response = client.post(

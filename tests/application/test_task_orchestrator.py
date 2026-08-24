@@ -21,8 +21,8 @@ class FakePipelineRunner:
     def __init__(self):
         self.calls = []
 
-    async def run(self, steps, task_id):
-        self.calls.append((steps, task_id))
+    async def run(self, steps, task_id, checkpoint=None):
+        self.calls.append((steps, task_id, checkpoint))
 
 
 class FakeTaskManager:
@@ -161,6 +161,11 @@ async def test_resume_pipeline_rebuilds_runner_from_persisted_request():
         message_code="paused",
         message_params={},
         request_params=request.model_dump(mode="json"),
+        checkpoint={
+            "format": "mediaflow-pipeline-checkpoint-v1",
+            "next_step_index": 0,
+            "history": [],
+        },
         revision=2,
     )
     manager = FakeTaskManager({paused.id: paused})
@@ -172,6 +177,7 @@ async def test_resume_pipeline_rebuilds_runner_from_persisted_request():
     assert result["status"] == "pending"
     assert runner.calls[0][1] == paused.id
     assert [step.step_name for step in runner.calls[0][0]] == ["download"]
+    assert runner.calls[0][2] == paused.checkpoint
 
 
 @pytest.mark.asyncio

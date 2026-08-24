@@ -2,6 +2,9 @@
 Declarative service assembly for runtime wiring.
 """
 
+from collections.abc import Callable
+from dataclasses import dataclass
+
 from backend.core.container import Services
 from backend.core.service_assembly import ServiceAssembly, ServiceProvider
 
@@ -15,39 +18,79 @@ def _create_pipeline_runner(container):
     )
 
 
-def _create_pipeline_step_registry(container):
-    from backend.application.pipeline_steps.clip_export import ClipExportStep
+@dataclass(frozen=True)
+class PipelineStepProvider:
+    name: str
+    build: Callable
+
+
+def _build_download_step(container, task_manager):
     from backend.application.pipeline_steps.download import DownloadStep
-    from backend.application.pipeline_steps.registry import StepRegistry
-    from backend.application.pipeline_steps.synthesize import SynthesizeStep
+
+    return DownloadStep(
+        downloader=container.get(Services.DOWNLOADER),
+        task_manager=task_manager,
+    )
+
+
+def _build_transcribe_step(container, task_manager):
     from backend.application.pipeline_steps.transcribe import TranscribeStep
+
+    return TranscribeStep(
+        asr_service=container.get(Services.ASR),
+        task_manager=task_manager,
+    )
+
+
+def _build_translate_step(container, task_manager):
     from backend.application.pipeline_steps.translate import TranslateStep
 
-    task_manager = container.get(Services.TASK_MANAGER)
-    return StepRegistry(
-        [
-            DownloadStep(
-                downloader=container.get(Services.DOWNLOADER),
-                task_manager=task_manager,
-            ),
-            TranscribeStep(
-                asr_service=container.get(Services.ASR),
-                task_manager=task_manager,
-            ),
-            TranslateStep(
-                translator=container.get(Services.LLM_TRANSLATOR),
-                task_manager=task_manager,
-            ),
-            SynthesizeStep(
-                synthesis=container.get(Services.VIDEO_SYNTHESIS),
-                task_manager=task_manager,
-            ),
-            ClipExportStep(
-                video_synthesis=container.get(Services.VIDEO_SYNTHESIS),
-                task_manager=task_manager,
-            ),
-        ]
+    return TranslateStep(
+        translator=container.get(Services.LLM_TRANSLATOR),
+        task_manager=task_manager,
     )
+
+
+def _build_synthesize_step(container, task_manager):
+    from backend.application.pipeline_steps.synthesize import SynthesizeStep
+
+    return SynthesizeStep(
+        synthesis=container.get(Services.VIDEO_SYNTHESIS),
+        task_manager=task_manager,
+    )
+
+
+def _build_clip_export_step(container, task_manager):
+    from backend.application.pipeline_steps.clip_export import ClipExportStep
+
+    return ClipExportStep(
+        video_synthesis=container.get(Services.VIDEO_SYNTHESIS),
+        task_manager=task_manager,
+    )
+
+
+PIPELINE_STEP_PROVIDERS = (
+    PipelineStepProvider("download", _build_download_step),
+    PipelineStepProvider("transcribe", _build_transcribe_step),
+    PipelineStepProvider("translate", _build_translate_step),
+    PipelineStepProvider("synthesize", _build_synthesize_step),
+    PipelineStepProvider("clip_export", _build_clip_export_step),
+)
+
+
+def configured_pipeline_step_names() -> set[str]:
+    return {provider.name for provider in PIPELINE_STEP_PROVIDERS}
+
+
+def _create_pipeline_step_registry(container):
+    from backend.application.pipeline_steps.registry import StepRegistry
+
+    task_manager = container.get(Services.TASK_MANAGER)
+    steps = [provider.build(container, task_manager) for provider in PIPELINE_STEP_PROVIDERS]
+    registry = StepRegistry(steps)
+    if set(registry.list_steps()) != configured_pipeline_step_names():
+        raise RuntimeError("Constructed pipeline steps do not match their providers")
+    return registry
 
 
 def _create_task_orchestrator(container):
@@ -64,12 +107,12 @@ def _create_task_orchestrator(container):
 
 
 def _create_task_manager(container):
-    from backend.services.task_event_publisher import TaskEventPublisher
-    from backend.services.task_queue_view import TaskQueueView
     from backend.services.task_control_service import TaskControlService
+    from backend.services.task_event_publisher import TaskEventPublisher
+    from backend.services.task_manager import TaskManager
+    from backend.services.task_queue_view import TaskQueueView
     from backend.services.task_repository import TaskRepository
     from backend.services.task_runtime_state import TaskRuntimeState
-    from backend.services.task_manager import TaskManager
 
     return TaskManager(
         repository=TaskRepository(),

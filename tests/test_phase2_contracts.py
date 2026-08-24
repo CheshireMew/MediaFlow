@@ -16,6 +16,7 @@ async def test_pipeline_runner_result_structure():
     # Mock a step that adds data to context
     class MockStep:
         name = "download"
+        resume_policy = "idempotent"
 
         async def execute(self, ctx, params, task_id):
             ctx.set_media(

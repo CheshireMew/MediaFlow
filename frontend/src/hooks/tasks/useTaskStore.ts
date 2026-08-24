@@ -6,6 +6,7 @@ import { normalizeTaskForRenderer } from "../../context/taskSources/shared";
 export type TaskSocketMessage =
   | { type: "snapshot"; tasks: Task[]; stream_id: string; sequence: number }
   | { type: "update"; task: Task; stream_id: string; sequence: number }
+  | { type: "queue_positions"; positions: Record<string, number>; stream_id: string; sequence: number }
   | { type: "delete"; task_id: string; revision: number; stream_id: string; sequence: number }
   | { type: "merge"; tasks: Task[] }
   | { type: "merge_one"; task: Task };
@@ -32,6 +33,17 @@ export function isTaskSocketMessage(value: unknown): value is Extract<
   if (message.type === "update") {
     return Boolean(message.task && typeof message.task === "object");
   }
+  if (message.type === "queue_positions") {
+    if (!message.positions || typeof message.positions !== "object" || Array.isArray(message.positions)) {
+      return false;
+    }
+    return Object.values(message.positions).every(
+      (position) =>
+        typeof position === "number"
+        && Number.isSafeInteger(position)
+        && position >= 1,
+    );
+  }
   if (message.type === "delete") {
     return (
       typeof message.task_id === "string" &&
@@ -45,6 +57,29 @@ export function isTaskSocketMessage(value: unknown): value is Extract<
 
 function sortTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => b.created_at - a.created_at);
+}
+
+function mergeTaskDetail(existing: Task | undefined, incoming: Task): Task {
+  if (!existing) return incoming;
+  const existingRevision = existing.revision ?? 0;
+  const incomingRevision = incoming.revision ?? 0;
+  if (incomingRevision === existingRevision) {
+    const addsRequestParams =
+      existing.request_params === undefined && incoming.request_params !== undefined;
+    const addsResult = existing.result === undefined && incoming.result !== undefined;
+    if (!addsRequestParams && !addsResult) {
+      return existing;
+    }
+  }
+  return {
+    ...existing,
+    ...incoming,
+    request_params:
+      incoming.request_params === undefined
+        ? existing.request_params
+        : incoming.request_params,
+    result: incoming.result === undefined ? existing.result : incoming.result,
+  };
 }
 
 export type TaskStoreApi = {
@@ -129,9 +164,12 @@ export function useTaskStore() {
             next.push(task);
             added = true;
             changed = true;
-          } else if (!Object.is(existing, task)) {
-            next[existingIndex] = task;
-            changed = true;
+          } else {
+            const merged = mergeTaskDetail(existing, task);
+            if (!Object.is(existing, merged)) {
+              next[existingIndex] = merged;
+              changed = true;
+            }
           }
         }
       });
@@ -150,12 +188,43 @@ export function useTaskStore() {
         .map((task) => normalizeTaskForRenderer(task, "event:snapshot"))
         .filter((task): task is Task => task !== null)
         .filter((task) => (task.revision ?? 0) > (tombstoneRevisionsRef.current.get(task.id) ?? -1));
-      setTasks(() => sortTasks(normalized));
+      setTasks((previous) => {
+        const previousById = new Map(previous.map((task) => [task.id, task]));
+        const next = sortTasks(
+          normalized.map((task) => mergeTaskDetail(previousById.get(task.id), task)),
+        );
+        if (
+          next.length === previous.length
+          && next.every((task, index) => Object.is(task, previous[index]))
+        ) {
+          return previous;
+        }
+        return next;
+      });
       return;
     }
 
     if (message.type === "update" || message.type === "merge_one") {
       mergeTasks([message.task], message.type === "update" ? "event:update" : "http:task");
+      return;
+    }
+
+    if (message.type === "queue_positions") {
+      setTasks((previous) => {
+        let changed = false;
+        const next = previous.map((task) => {
+          if (task.queue_state !== "queued") {
+            return task;
+          }
+          const queuePosition = message.positions[task.id] ?? null;
+          if (task.queue_position === queuePosition) {
+            return task;
+          }
+          changed = true;
+          return { ...task, queue_position: queuePosition };
+        });
+        return changed ? next : previous;
+      });
       return;
     }
 

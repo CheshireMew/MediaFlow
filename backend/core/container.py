@@ -2,8 +2,11 @@
 Service Container - lightweight dependency injection for MediaFlow.
 Provides centralized service registration and lazy instantiation.
 """
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, TypeVar
+from typing import Any, TypeVar
+
 from loguru import logger
 
 T = TypeVar('T')
@@ -37,8 +40,9 @@ class ServiceContainer:
     """
 
     def __init__(self):
-        self._factories: Dict[str, Callable[[], Any]] = {}
-        self._instances: Dict[str, Any] = {}
+        self._factories: dict[str, Callable[[], Any]] = {}
+        self._instances: dict[str, Any] = {}
+        self._lock = threading.RLock()
 
     def register(self, name: "ServiceKey | str", factory: Callable[[], T]) -> None:
         """
@@ -49,14 +53,15 @@ class ServiceContainer:
             factory: Callable that creates the service instance
         """
         service_name = _service_name(name)
-        if service_name in self._factories:
-            existing_factory = self._factories[service_name]
-            if existing_factory is factory:
-                logger.warning(f"[Container] Duplicate registration ignored for service: {service_name}")
-                return
-            raise RuntimeError(f"Service '{service_name}' already registered")
+        with self._lock:
+            if service_name in self._factories:
+                existing_factory = self._factories[service_name]
+                if existing_factory is factory:
+                    logger.warning(f"[Container] Duplicate registration ignored for service: {service_name}")
+                    return
+                raise RuntimeError(f"Service '{service_name}' already registered")
 
-        self._factories[service_name] = factory
+            self._factories[service_name] = factory
         logger.debug(f"[Container] Registered service: {service_name}")
 
     def get(self, name: "ServiceKey | str") -> Any:
@@ -73,13 +78,19 @@ class ServiceContainer:
             KeyError: If service not registered
         """
         service_name = _service_name(name)
-        if service_name not in self._instances:
-            if service_name not in self._factories:
-                raise KeyError(f"Service '{service_name}' not registered. "
-                             f"Available: {list(self._factories.keys())}")
-            self._instances[service_name] = self._factories[service_name]()
-            logger.debug(f"[Container] Instantiated service: {service_name}")
-        return self._instances[service_name]
+        with self._lock:
+            if service_name not in self._instances:
+                if service_name not in self._factories:
+                    raise KeyError(f"Service '{service_name}' not registered. "
+                                 f"Available: {list(self._factories.keys())}")
+                self._instances[service_name] = self._factories[service_name]()
+                logger.debug(f"[Container] Instantiated service: {service_name}")
+            return self._instances[service_name]
+
+    def lazy(self, name: "ServiceKey | str") -> "LazyServiceProxy":
+        if not self.has(name):
+            raise KeyError(f"Service '{_service_name(name)}' is not registered")
+        return LazyServiceProxy(self, name)
 
     def has(self, name: "ServiceKey | str") -> bool:
         """Check if a service is registered."""
@@ -94,13 +105,15 @@ class ServiceContainer:
         Reset all instances (for testing or shutdown).
         Factories remain registered.
         """
-        self._instances.clear()
+        with self._lock:
+            self._instances.clear()
         logger.debug("[Container] All service instances cleared")
 
     def clear(self) -> None:
         """Clear all factories and instances. Intended for tests/bootstrap reset."""
-        self._factories.clear()
-        self._instances.clear()
+        with self._lock:
+            self._factories.clear()
+            self._instances.clear()
         logger.debug("[Container] Cleared all factories and instances")
     
     def override(self, name: "ServiceKey | str", instance: Any) -> None:
@@ -112,8 +125,20 @@ class ServiceContainer:
             instance: The mock/custom instance to use
         """
         service_name = _service_name(name)
-        self._instances[service_name] = instance
+        with self._lock:
+            self._instances[service_name] = instance
         logger.debug(f"[Container] Overrode service: {service_name}")
+
+
+class LazyServiceProxy:
+    """Resolve a registered singleton on its first real method/property access."""
+
+    def __init__(self, container: ServiceContainer, name: "ServiceKey | str") -> None:
+        self._container = container
+        self._name = name
+
+    def __getattr__(self, attribute: str) -> Any:
+        return getattr(self._container.get(self._name), attribute)
 
 
 # Global container instance

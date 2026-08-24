@@ -107,6 +107,30 @@ describe("real form consumers expose accessible names and states", () => {
     expect(screen.getByRole("button", { name: "options.downloadAudio" })).toBeInTheDocument();
   });
 
+  it("switches the full downloader form to audio when audio-only quality is selected", () => {
+    render(
+      <VideoDownloadOptions
+        mediaKind="video"
+        resolution="audio"
+        setResolution={vi.fn()}
+        codec="avc"
+        setCodec={vi.fn()}
+        downloadSubs
+        setDownloadSubs={vi.fn()}
+        loading={false}
+        analyzing={false}
+        url="https://example.test/video"
+        onAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: /options\.format/ })).toHaveValue("audio");
+    expect(screen.getByRole("combobox")).toBeEnabled();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "options.codecCompatible" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "options.downloadAudio" })).toBeInTheDocument();
+  });
+
   it("names synthesis settings and preview icon controls", () => {
     const output = createOutputState();
     const crop: CropState = {

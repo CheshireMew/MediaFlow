@@ -7,13 +7,14 @@ Separated from TaskManager (Issue #4) to follow Single Responsibility:
 """
 
 import asyncio
-from uuid import uuid4
 from collections.abc import Callable
-from typing import List
+from uuid import uuid4
+
 from fastapi import WebSocket
 from loguru import logger
 
-from backend.models.task_contracts import TaskView
+from backend.models.task_contracts import TaskSummaryView
+from backend.services.task_event_publisher import task_event_payload
 
 WEBSOCKET_SEND_TIMEOUT_SECONDS = 2.0
 
@@ -22,7 +23,7 @@ class WebSocketNotifier:
     """Manages WebSocket connections and broadcasts task updates."""
 
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: list[WebSocket] = []
         self._send_lock = asyncio.Lock()
         self._stream_id = uuid4().hex
         self._sequence = 0
@@ -58,7 +59,7 @@ class WebSocketNotifier:
                         timeout=WEBSOCKET_SEND_TIMEOUT_SECONDS,
                     )
                     return None
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - isolate failed socket clients
                     logger.warning(f"Failed to send to client: {e}")
                     return connection
 
@@ -73,7 +74,7 @@ class WebSocketNotifier:
     async def send_snapshot(
         self,
         websocket: WebSocket,
-        snapshot_factory: Callable[[], list[TaskView]],
+        snapshot_factory: Callable[[], list[TaskSummaryView]],
     ):
         """Send all current tasks to a specific client (initial sync)."""
         try:
@@ -85,7 +86,7 @@ class WebSocketNotifier:
                             {
                                 "type": "snapshot",
                                 "tasks": [
-                                    task.model_dump(mode="json") for task in tasks_data
+                                    task_event_payload(task) for task in tasks_data
                                 ],
                             }
                         )
@@ -93,5 +94,5 @@ class WebSocketNotifier:
                     timeout=WEBSOCKET_SEND_TIMEOUT_SECONDS,
                 )
         except Exception as e:
-            logger.error(f"Error sending snapshot: {repr(e)}")
+            logger.error(f"Error sending snapshot: {e!r}")
             raise

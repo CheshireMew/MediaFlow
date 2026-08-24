@@ -1,9 +1,10 @@
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.models.media_contracts import MediaReference
 from backend.models.subtitle_contracts import SubtitleSegment
+from backend.models.synthesis_contracts import SynthesisOptions
 
 
 class MediaExportTimelineRequest(BaseModel):
@@ -30,12 +31,6 @@ class EditorPreviewMediaResponse(BaseModel):
     source_ref: MediaReference
     media_ref: MediaReference
     remuxed: bool
-
-
-class EditorWaveformPeaksResponse(BaseModel):
-    duration: float = Field(ge=0, allow_inf_nan=False)
-    points_per_second: float = Field(ge=0, allow_inf_nan=False)
-    peaks: list[list[float]]
 
 
 class ImagePreviewResponse(BaseModel):
@@ -91,5 +86,5 @@ class ClipExportRequest(BaseModel):
     render_mode: Literal["burned", "source"] = "burned"
     srt_ref: MediaReference | None = None
     watermark_ref: MediaReference | None = None
-    options: dict[str, Any] | None = None
+    options: SynthesisOptions | None = None
     output_dir: str | None = None

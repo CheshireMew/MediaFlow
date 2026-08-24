@@ -1,5 +1,6 @@
 import { getApiUrl } from "./runtime";
 import { ApiError } from "./errors";
+import type { ApiErrorResponse } from "../types/generatedApi";
 
 export { ApiError, isApiError } from "./errors";
 
@@ -39,7 +40,6 @@ export type {
   MediaExportTimelineRequest,
   MediaExportTimelineResponse,
   SynthesizeOptions,
-  SynthesizeRequest,
   TranscribeSegmentRequest,
   TranscribeSegmentResponse,
   TranslationRequest,
@@ -87,9 +87,10 @@ import type { Task } from "../types/task";
 // ─── Internal Generic Request Wrapper ────────────────────────────
 
 async function request<T>(
-  endpoint: string,
-  options: RequestInit = {},
-  timeoutMs: number = 30_000,
+    endpoint: string,
+    options: RequestInit = {},
+    timeoutMs: number = 30_000,
+    parseResponse?: (response: Response) => Promise<T>,
 ): Promise<T> {
   const url = getApiUrl(endpoint);
 
@@ -125,14 +126,22 @@ async function request<T>(
 
     if (!res.ok) {
       let errorMessage = `API request failed: ${res.status} ${res.statusText}`;
+      let errorCode: string | undefined;
+      let errorDetails: Record<string, unknown> = {};
       try {
         const errorText = await res.text();
-        // Try parsing JSON error detail if available
         try {
-          const errorJson = JSON.parse(errorText);
-          if (errorJson.detail) errorMessage = errorJson.detail;
-          else if (errorJson.message) errorMessage = errorJson.message;
+          const errorJson = JSON.parse(errorText) as Partial<ApiErrorResponse> & {
+            detail?: string;
+          };
+          if (errorJson.message) errorMessage = errorJson.message;
+          else if (errorJson.detail) errorMessage = errorJson.detail;
           else errorMessage = errorText;
+          errorCode = typeof errorJson.code === "string" ? errorJson.code : undefined;
+          errorDetails =
+            errorJson.details && typeof errorJson.details === "object"
+              ? errorJson.details as Record<string, unknown>
+              : {};
         } catch {
           if (errorText) errorMessage = errorText;
         }
@@ -143,7 +152,13 @@ async function request<T>(
         endpoint,
         kind: "http",
         status: res.status,
+        code: errorCode,
+        details: errorDetails,
       });
+    }
+
+    if (parseResponse) {
+      return await parseResponse(res);
     }
 
     // Check content type before parsing json
@@ -181,6 +196,49 @@ async function request<T>(
     clearTimeout(timeout);
     options.signal?.removeEventListener("abort", handleCallerAbort);
   }
+}
+
+const WAVEFORM_HEADER_BYTES = 24;
+const WAVEFORM_BINARY_VERSION = 1;
+
+async function parseWaveformResponse(
+  response: Response,
+): Promise<EditorWaveformPeaksResponse> {
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength < WAVEFORM_HEADER_BYTES) {
+    throw new Error("Waveform response is shorter than its binary header");
+  }
+  const view = new DataView(buffer);
+  const magic = String.fromCharCode(
+    view.getUint8(0),
+    view.getUint8(1),
+    view.getUint8(2),
+    view.getUint8(3),
+  );
+  const version = view.getUint16(4, true);
+  const channels = view.getUint16(6, true);
+  const duration = view.getFloat64(8, true);
+  const pointCount = view.getUint32(16, true);
+  const pointsPerSecond = view.getFloat32(20, true);
+  if (
+    magic !== "MFWF"
+    || version !== WAVEFORM_BINARY_VERSION
+    || channels !== 1
+    || pointCount < 2
+    || pointCount % 2 !== 0
+    || !Number.isFinite(duration)
+    || duration < 0
+    || !Number.isFinite(pointsPerSecond)
+    || pointsPerSecond < 0
+    || buffer.byteLength !== WAVEFORM_HEADER_BYTES + pointCount * 4
+  ) {
+    throw new Error("Waveform response has an invalid binary contract");
+  }
+  return {
+    duration,
+    points_per_second: pointsPerSecond,
+    peaks: [new Float32Array(buffer, WAVEFORM_HEADER_BYTES, pointCount)],
+  };
 }
 
 // ─── API Client ──────────────────────────────────────────────────
@@ -372,11 +430,12 @@ export const apiClient = {
     }, 300_000);
   },
 
-  getEditorWaveformPeaks: (payload: EditorPreviewMediaRequest) => {
-    return request<EditorWaveformPeaksResponse>("/editor/preview/media/waveform", {
+  getEditorWaveformPeaks: (payload: EditorPreviewMediaRequest, maxPoints: number) => {
+    const query = new URLSearchParams({ max_points: String(maxPoints) });
+    return request<EditorWaveformPeaksResponse>(`/editor/preview/media/waveform?${query}`, {
       method: "POST",
       body: JSON.stringify(payload),
-    }, 300_000);
+    }, 300_000, parseWaveformResponse);
   },
 
   detectHighlightCandidates: (payload: HighlightDetectionRequest) => {

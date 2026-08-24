@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTaskSocket } from "../hooks/tasks/useTaskSocket";
 import { useTaskStore } from "../hooks/tasks/useTaskStore";
-import { TaskActionsContext, TaskContext, TaskStatusContext } from "./taskContext";
+import { TaskActionsContext, TaskStatusContext } from "./taskContext";
 import { isTaskActive } from "../services/tasks/taskRuntimeState";
 import { resetTaskSourceDiagnostics } from "./taskSources/diagnostics";
 import type { TaskSocketMessage } from "../hooks/tasks/useTaskStore";
@@ -9,6 +9,7 @@ import { apiClient } from "../api/client";
 import { TaskStoreContext } from "./taskStoreContext";
 
 const ACTIVE_TASK_RECONCILE_INTERVAL_MS = 5000;
+const TERMINAL_TASK_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
 type TaskProviderProps = { children: React.ReactNode; enabled?: boolean };
 
@@ -27,9 +28,25 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
   } = useTaskStore();
   const applySocketMessage = useCallback(
     (message: TaskSocketMessage) => {
-      applyMessage(message);
       if (message.type === "snapshot") {
+        applyMessage({
+          ...message,
+          tasks: message.tasks.filter((task) => !TERMINAL_TASK_STATUSES.has(task.status)),
+        });
         setRemoteSnapshotReady(true);
+      } else if (
+        message.type === "update" &&
+        TERMINAL_TASK_STATUSES.has(message.task.status)
+      ) {
+        void apiClient
+          .getTaskStatus(message.task.id)
+          .then((task) => applyMessage({ type: "merge_one", task }))
+          .catch((error) => {
+            console.error(`Failed to load completed task ${message.task.id}:`, error);
+            applyMessage(message);
+          });
+      } else {
+        applyMessage(message);
       }
     },
     [applyMessage],
@@ -37,7 +54,7 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
   const handleSocketDisconnected = useCallback(() => {
     setRemoteSnapshotReady(false);
   }, []);
-  const { connected: wsConnected, sendPause } = useTaskSocket({
+  const { connected: wsConnected } = useTaskSocket({
     onMessage: applySocketMessage,
     onDisconnected: handleSocketDisconnected,
     enabled,
@@ -56,10 +73,8 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
   );
 
   const pauseTask = useCallback(async (taskId: string) => {
-    if (!sendPause(taskId)) {
-      await apiClient.pauseTask(taskId);
-    }
-  }, [sendPause]);
+    await apiClient.pauseTask(taskId);
+  }, []);
 
   const pauseAllTasks = useCallback(async () => {
     if (store.getSnapshot().some((task) => isTaskActive(task))) {
@@ -174,12 +189,6 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
     remoteTasksReady,
     tasksSettled,
   }), [connected, remoteTasksReady, tasksSettled]);
-  const legacyValue = useMemo(() => ({
-    tasks,
-    ...status,
-    ...actions,
-  }), [actions, status, tasks]);
-
   return React.createElement(
     TaskStatusContext.Provider,
     { value: status },
@@ -189,7 +198,7 @@ const TaskProviderSession: React.FC<TaskProviderProps> = ({
       React.createElement(
         TaskStoreContext.Provider,
         { value: store },
-        React.createElement(TaskContext.Provider, { value: legacyValue }, children),
+        children,
       ),
     ),
   );

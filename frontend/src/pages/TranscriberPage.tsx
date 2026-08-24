@@ -74,10 +74,10 @@ export const TranscriberPage = () => {
     <PageShell padded={false} className="flex flex-col">
       <PageHeader icon={FileAudio} title={t('title')} subtitle={t('subtitle')} accent="purple" />
 
-      <PageContent className="flex flex-col overflow-y-auto lg:overflow-hidden">
-      <div className="flex-none min-h-0 flex flex-col gap-6 overflow-visible lg:flex-1 lg:flex-row lg:overflow-hidden">
+      <PageContent className="flex flex-col overflow-y-auto md:overflow-hidden">
+      <div className="flex-none min-h-0 flex flex-col gap-6 overflow-visible md:flex-1 md:flex-row md:gap-4 md:overflow-hidden lg:gap-6">
         {/* Left Column: Controls */}
-        <WorkPanel className="flex min-h-[480px] w-full flex-none flex-col lg:h-full lg:min-h-0 lg:w-[420px]">
+        <WorkPanel className="flex min-h-[440px] w-full flex-none flex-col md:h-full md:min-h-0 md:w-[390px] lg:w-[420px]">
            <PanelHeader title={t('taskPanel.title')} accent="purple" />
 
             <div className="p-5 flex-1 flex flex-col gap-5 min-h-0 overflow-y-auto custom-scrollbar">
@@ -100,6 +100,7 @@ export const TranscriberPage = () => {
                   isFileSelected={!!state.file}
                   currentTranscriptionTaskId={state.currentTranscriptionTaskId}
                   isSubmitting={state.isUploading}
+                  progressPercent={activeTask ? progressPercent : undefined}
                 />
 
                 {/* Progress Card (Persistent) */}
@@ -141,7 +142,7 @@ export const TranscriberPage = () => {
         </WorkPanel>
 
         {/* Right Panel: Results */}
-        <div className="flex h-[360px] min-w-0 flex-none flex-col lg:h-full lg:flex-1">
+        <div className="flex h-[360px] min-w-0 flex-none flex-col md:h-full md:flex-1">
             <TranscriptionResults 
                 result={state.result}
                 isSmartSplitting={state.isSmartSplitting}

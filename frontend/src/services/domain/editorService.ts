@@ -91,6 +91,7 @@ export const editorService = {
 
   async getWaveformPeaks(payload: {
     video_ref: MediaReference;
+    max_points: number;
   }): Promise<EditorWaveformPeaksResponse> {
     return await executeBackendDirectCall({
       payload,
@@ -99,7 +100,10 @@ export const editorService = {
         video_ref: requireExecutionMediaReference(nextPayload.video_ref, "Video"),
       }),
       backendCall: (normalizedPayload) =>
-        apiClient.getEditorWaveformPeaks(normalizedPayload),
+        apiClient.getEditorWaveformPeaks(
+          { video_ref: normalizedPayload.video_ref },
+          normalizedPayload.max_points,
+        ),
     });
   },
 

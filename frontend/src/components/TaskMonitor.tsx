@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderOpen } from "lucide-react";
-import { useTaskContext } from "../context/taskContext";
+import { useTaskActions } from "../context/taskContext";
 import type { Task } from "../types/task";
 import { useTaskMonitorOverview } from "./task-monitor/useTaskMonitorOverview";
 import { canRetryTask } from "../services/tasks/taskRuntimeState";
@@ -14,7 +14,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
   showHeaderOverview = true,
 }) => {
   const { t } = useTranslation("taskmonitor");
-  const { pauseTask, resumeTask, retryTask, deleteTask } = useTaskContext();
+  const { pauseTask, resumeTask, retryTask, deleteTask } = useTaskActions();
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const {
     connected,
@@ -64,6 +64,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
         connected={connected}
         remoteTasksReady={remoteTasksReady}
         summary={summary}
+        taskCount={filteredTasks.length}
         executionBadges={executionBadges}
       />
 

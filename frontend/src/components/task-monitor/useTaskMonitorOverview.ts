@@ -1,7 +1,8 @@
 import React from 'react';
 import { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useTaskContext } from '../../context/taskContext';
+import { useTaskStatus } from '../../context/taskContext';
+import { useTasks } from '../../context/taskStoreContext';
 import { getExecutionModeDisplay } from '../../services/ui/executionModeDisplay';
 import type { ExecutionMode } from '../../services/domain';
 import { useRuntimeExecutionStore } from '../../stores/runtimeExecutionStore';
@@ -25,11 +26,8 @@ const matchesFilterType = (task: Task, filterTypes?: string[]) => {
 
 export const useTaskMonitorOverview = (filterTypes?: string[]) => {
     const { t } = useTranslation('common');
-    const {
-        tasks,
-        connected,
-        remoteTasksReady,
-    } = useTaskContext();
+    const tasks = useTasks();
+    const { connected, remoteTasksReady } = useTaskStatus();
     const runtimeExecutionScopes = useRuntimeExecutionStore((state) => state.scopes);
     const taskFeedDiagnostics = useSyncExternalStore(
         subscribeTaskSourceDiagnostics,

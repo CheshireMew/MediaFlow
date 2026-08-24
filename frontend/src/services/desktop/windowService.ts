@@ -20,4 +20,9 @@ export const windowService = {
     const api = getDesktopApi();
     if (api) api.notifyRendererReady();
   },
+
+  onPrepareToClose(listener: () => boolean | Promise<boolean>) {
+    const api = getDesktopApi();
+    return api?.onPrepareToClose(listener) ?? (() => undefined);
+  },
 };

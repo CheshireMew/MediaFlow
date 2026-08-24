@@ -14,6 +14,7 @@ import {
 } from "./translator/translatorFileHelpers";
 import { useTranslatorFileLoader } from "./translator/useTranslatorFileLoader";
 import { useTranslatorOutputActions } from "./translator/useTranslatorOutputActions";
+import { useShallow } from "zustand/react/shallow";
 
 export {
   buildTranslatorOutputPath,
@@ -28,7 +29,11 @@ export const useFileIO = () => {
     sourceFileRef,
     sourceSegments,
     targetSegments,
-  } = useTranslatorStore();
+  } = useTranslatorStore(useShallow((state) => ({
+    sourceFileRef: state.sourceFileRef,
+    sourceSegments: state.sourceSegments,
+    targetSegments: state.targetSegments,
+  })));
   const { handleFileUpload } = useTranslatorFileLoader();
   const { exportSRT, handleOpenInEditor } = useTranslatorOutputActions();
 

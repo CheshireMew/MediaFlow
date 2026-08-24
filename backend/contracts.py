@@ -12,18 +12,26 @@ def _contract_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "contracts"
 
 
+@lru_cache(maxsize=None)
+def load_contract(filename: str) -> dict[str, Any]:
+    if Path(filename).name != filename or not filename.endswith(".json"):
+        raise ValueError(f"Invalid contract filename: {filename}")
+    contract_path = _contract_dir() / filename
+    with contract_path.open("r", encoding="utf-8") as contract_file:
+        payload = json.load(contract_file)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Contract root must be an object: {filename}")
+    return payload
+
+
 @lru_cache(maxsize=1)
 def _load_runtime_contract() -> dict[str, Any]:
-    contract_path = _contract_dir() / "runtime-contract.json"
-    with contract_path.open("r", encoding="utf-8") as contract_file:
-        return json.load(contract_file)
+    return load_contract("runtime-contract.json")
 
 
 @lru_cache(maxsize=1)
 def _load_task_catalog() -> dict[str, Any]:
-    catalog_path = _contract_dir() / "task-catalog.json"
-    with catalog_path.open("r", encoding="utf-8") as catalog_file:
-        return json.load(catalog_file)
+    return load_contract("task-catalog.json")
 
 
 RUNTIME_CONTRACT = _load_runtime_contract()

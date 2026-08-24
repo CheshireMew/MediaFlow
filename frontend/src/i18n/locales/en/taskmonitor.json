@@ -61,6 +61,11 @@
     "retryFailed": "Failed to retry the task",
     "clearAllFailed": "Failed to clear tasks",
     "deleteFailed": "Failed to delete task",
+    "mediaMissing": "The file recorded for this task was moved or deleted",
+    "mediaMissingOpenManually": "The task file was moved or deleted. Select it again on the destination page.",
+    "mediaResolveFailed": "Could not check the task file. Try again.",
+    "showFolderFailed": "Could not show the task file in its folder",
+    "outputMissingUsingSource": "The output file is missing. Using the available source file instead.",
     "initializing": "Initializing...",
     "downloading": "Downloading"
   },

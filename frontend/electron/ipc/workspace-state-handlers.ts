@@ -3,6 +3,11 @@ import fs from "fs";
 import path from "path";
 
 import { DESKTOP_FILE_SYSTEM_CHANNELS } from "../../src/contracts/desktopFileSystemContract";
+import {
+  WORKSPACE_PATCH_FORMAT,
+  type WorkspacePatchEnvelope,
+  type WorkspaceState,
+} from "../../src/contracts/workspaceStateContract";
 import { resolveDesktopWorkspaceStatePath } from "../desktopRuntime";
 import { withTransientFileRetry } from "../persistence/transientFileRetry";
 
@@ -15,34 +20,72 @@ const latestRevisionBySession = new Map<string, number>();
 const workspaceStateBySession = new Map<string, Record<string, unknown>>();
 let workspaceWriteQueue: Promise<boolean> = Promise.resolve(true);
 
-type WorkspaceState = Record<string, unknown>;
-type WorkspacePatchOperation =
-  | { op: "set"; path: Array<string | number>; value: unknown }
-  | { op: "delete"; path: Array<string | number> };
-type WorkspacePatchEnvelope = {
-  format: "mediaflow-workspace-patch-v1";
-  operations: WorkspacePatchOperation[];
-};
 type WorkspaceJournalRecord = WorkspacePatchEnvelope & {
   sessionId: string;
   revision: number;
 };
 
 const JOURNAL_COMPACT_BYTES = 1024 * 1024;
+const MAX_WORKSPACE_STATE_BYTES = 16 * 1024 * 1024;
+const MAX_WORKSPACE_PATCH_BYTES = 4 * 1024 * 1024;
+const MAX_WORKSPACE_OPERATIONS = 4_096;
+const MAX_WORKSPACE_PATH_DEPTH = 32;
+const MAX_WORKSPACE_VALUE_DEPTH = 64;
+const MAX_WORKSPACE_VALUE_NODES = 200_000;
+const MAX_WORKSPACE_STRING_LENGTH = 2 * 1024 * 1024;
 
 function isRecord(value: unknown): value is WorkspaceState {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function isWorkspacePatch(value: WorkspaceState | WorkspacePatchEnvelope): value is WorkspacePatchEnvelope {
-  return value.format === "mediaflow-workspace-patch-v1" && Array.isArray(value.operations);
+  return value.format === WORKSPACE_PATCH_FORMAT && Array.isArray(value.operations);
+}
+
+function assertContentByteLimit(content: string, limit: number, label: string) {
+  const byteLength = Buffer.byteLength(content, "utf-8");
+  if (byteLength > limit) {
+    throw new Error(`${label} exceeds the ${limit}-byte persistence limit.`);
+  }
+}
+
+function assertWorkspaceValueBudget(value: unknown) {
+  const stack: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }];
+  let nodes = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    nodes += 1;
+    if (nodes > MAX_WORKSPACE_VALUE_NODES) {
+      throw new Error("Workspace state contains too many values.");
+    }
+    if (current.depth > MAX_WORKSPACE_VALUE_DEPTH) {
+      throw new Error("Workspace state exceeds the supported nesting depth.");
+    }
+    if (typeof current.value === "string" && current.value.length > MAX_WORKSPACE_STRING_LENGTH) {
+      throw new Error("Workspace state contains an oversized string value.");
+    }
+    if (Array.isArray(current.value)) {
+      for (const child of current.value) {
+        stack.push({ value: child, depth: current.depth + 1 });
+      }
+    } else if (isRecord(current.value)) {
+      for (const [key, child] of Object.entries(current.value)) {
+        if (!isSafePathPart(key)) {
+          throw new Error("Workspace state contains an unsafe object key.");
+        }
+        stack.push({ value: child, depth: current.depth + 1 });
+      }
+    }
+  }
 }
 
 function parseWorkspaceState(content: string): WorkspaceState {
+  assertContentByteLimit(content, MAX_WORKSPACE_STATE_BYTES, "Workspace state");
   const parsed: unknown = JSON.parse(content);
   if (!isRecord(parsed)) {
     throw new Error("Workspace state must be a JSON object.");
   }
+  assertWorkspaceValueBudget(parsed);
   return parsed;
 }
 
@@ -57,19 +100,30 @@ function isSafePathPart(value: unknown): value is string | number {
   );
 }
 
-function parseWorkspaceWrite(content: string): WorkspaceState | WorkspacePatchEnvelope {
+export function parseWorkspaceWrite(content: string): WorkspaceState | WorkspacePatchEnvelope {
+  assertContentByteLimit(content, MAX_WORKSPACE_STATE_BYTES, "Workspace write");
   const parsed: unknown = JSON.parse(content);
   if (!isRecord(parsed)) {
     throw new Error("Workspace state write must be a JSON object.");
   }
-  if (parsed.format !== "mediaflow-workspace-patch-v1") {
+  if (parsed.format !== WORKSPACE_PATCH_FORMAT) {
+    assertWorkspaceValueBudget(parsed);
     return parsed;
   }
+  assertContentByteLimit(content, MAX_WORKSPACE_PATCH_BYTES, "Workspace patch");
   if (!Array.isArray(parsed.operations)) {
     throw new Error("Workspace patch operations must be an array.");
   }
+  if (parsed.operations.length > MAX_WORKSPACE_OPERATIONS) {
+    throw new Error("Workspace patch contains too many operations.");
+  }
   const operations = parsed.operations.map((candidate) => {
-    if (!isRecord(candidate) || !Array.isArray(candidate.path) || candidate.path.length === 0) {
+    if (
+      !isRecord(candidate)
+      || !Array.isArray(candidate.path)
+      || candidate.path.length === 0
+      || candidate.path.length > MAX_WORKSPACE_PATH_DEPTH
+    ) {
       throw new Error("Workspace patch operation path is invalid.");
     }
     const operationPath = candidate.path;
@@ -80,11 +134,52 @@ function parseWorkspaceWrite(content: string): WorkspaceState | WorkspacePatchEn
       return { op: "delete" as const, path: operationPath };
     }
     if (candidate.op === "set" && "value" in candidate) {
+      assertWorkspaceValueBudget(candidate.value);
       return { op: "set" as const, path: operationPath, value: candidate.value };
     }
     throw new Error("Workspace patch operation is invalid.");
   });
-  return { format: "mediaflow-workspace-patch-v1", operations };
+  return { format: WORKSPACE_PATCH_FORMAT, operations };
+}
+
+export function applyWorkspaceJournal(state: WorkspaceState, content: string) {
+  assertContentByteLimit(
+    content,
+    JOURNAL_COMPACT_BYTES + MAX_WORKSPACE_PATCH_BYTES,
+    "Workspace journal",
+  );
+  const lines = content.split(/\r?\n/);
+  let finalRecordIndex = lines.length - 1;
+  while (finalRecordIndex >= 0 && !lines[finalRecordIndex].trim()) {
+    finalRecordIndex -= 1;
+  }
+  const latestRevisionByJournalSession = new Map<string, number>();
+  for (let index = 0; index <= finalRecordIndex; index += 1) {
+    const line = lines[index];
+    if (!line.trim()) continue;
+    let record: WorkspaceJournalRecord;
+    try {
+      record = JSON.parse(line) as WorkspaceJournalRecord;
+    } catch (error) {
+      if (index === finalRecordIndex) {
+        break;
+      }
+      throw new Error(`Workspace journal is corrupt at record ${index + 1}.`, {
+        cause: error,
+      });
+    }
+    const patch = parseWorkspaceWrite(JSON.stringify(record));
+    if (!isWorkspacePatch(patch) || typeof record.sessionId !== "string") {
+      throw new Error(`Workspace journal record ${index + 1} is invalid.`);
+    }
+    const latestRevision = latestRevisionByJournalSession.get(record.sessionId) ?? -1;
+    if (!Number.isSafeInteger(record.revision) || record.revision <= latestRevision) {
+      throw new Error(`Workspace journal record ${index + 1} has an invalid revision.`);
+    }
+    applyWorkspacePatch(state, patch);
+    latestRevisionByJournalSession.set(record.sessionId, record.revision);
+  }
+  return state;
 }
 
 function applyWorkspacePatch(state: WorkspaceState, patch: WorkspacePatchEnvelope) {
@@ -117,74 +212,40 @@ function getWorkspaceJournalPath() {
   return `${getWorkspaceStatePath()}.journal`;
 }
 
-function readWorkspaceStateFromDiskSync(): WorkspaceState {
+async function readWorkspaceStateFromDisk(): Promise<WorkspaceState> {
   let state: WorkspaceState = {};
   try {
-    state = parseWorkspaceState(fs.readFileSync(getWorkspaceStatePath(), "utf-8"));
+    state = parseWorkspaceState(await fs.promises.readFile(getWorkspaceStatePath(), "utf-8"));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   try {
-    const latestRevisionByJournalSession = new Map<string, number>();
-    for (const line of fs.readFileSync(getWorkspaceJournalPath(), "utf-8").split(/\r?\n/)) {
-      if (!line.trim()) continue;
-      try {
-        const record = JSON.parse(line) as WorkspaceJournalRecord;
-        const patch = parseWorkspaceWrite(JSON.stringify(record));
-        if (!isWorkspacePatch(patch) || typeof record.sessionId !== "string") continue;
-        const latestRevision = latestRevisionByJournalSession.get(record.sessionId) ?? -1;
-        if (!Number.isSafeInteger(record.revision) || record.revision <= latestRevision) continue;
-        applyWorkspacePatch(state, patch);
-        latestRevisionByJournalSession.set(record.sessionId, record.revision);
-      } catch {
-        // A truncated final journal record is ignored; earlier fsynced records remain recoverable.
-      }
-    }
+    state = applyWorkspaceJournal(
+      state,
+      await fs.promises.readFile(getWorkspaceJournalPath(), "utf-8"),
+    );
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   return state;
 }
 
-function writeFullWorkspaceStateSync(state: WorkspaceState) {
-  const statePath = getWorkspaceStatePath();
-  const tempPath = `${statePath}.${process.pid}.tmp`;
-  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+async function writeTextFileAtomic(targetPath: string, content: string, suffix: string) {
+  const tempPath = `${targetPath}.${suffix}.tmp`;
+  await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
   try {
-    const fileDescriptor = fs.openSync(tempPath, "w");
+    const file = await fs.promises.open(tempPath, "w");
     try {
-      fs.writeFileSync(fileDescriptor, `${JSON.stringify(state)}\n`, "utf-8");
-      fs.fsyncSync(fileDescriptor);
+      await file.writeFile(content, "utf-8");
+      await file.sync();
     } finally {
-      fs.closeSync(fileDescriptor);
+      await file.close();
     }
-    fs.renameSync(tempPath, statePath);
+    await fs.promises.rename(tempPath, targetPath);
   } catch (error) {
-    try { fs.unlinkSync(tempPath); } catch { /* no temporary file */ }
+    await fs.promises.unlink(tempPath).catch((): void => {});
     throw error;
   }
-}
-
-function appendWorkspacePatchSync(record: WorkspaceJournalRecord) {
-  const journalPath = getWorkspaceJournalPath();
-  fs.mkdirSync(path.dirname(journalPath), { recursive: true });
-  const descriptor = fs.openSync(journalPath, "a");
-  try {
-    fs.writeFileSync(descriptor, `${JSON.stringify(record)}\n`, "utf-8");
-    fs.fsyncSync(descriptor);
-  } finally {
-    fs.closeSync(descriptor);
-  }
-}
-
-function compactWorkspaceJournalSync(state: WorkspaceState) {
-  try {
-    if (fs.statSync(getWorkspaceJournalPath()).size < JOURNAL_COMPACT_BYTES) return;
-  } catch {
-    return;
-  }
-  writeFullWorkspaceStateSync(state);
-  fs.writeFileSync(getWorkspaceJournalPath(), "", "utf-8");
 }
 
 async function writeFullWorkspaceState(
@@ -214,19 +275,19 @@ async function writeFullWorkspaceState(
 
 async function appendWorkspacePatch(record: WorkspaceJournalRecord) {
   const journalPath = getWorkspaceJournalPath();
-  const serialized = JSON.stringify(record);
-  await withTransientFileRetry(async (attempt) => {
-    await fs.promises.mkdir(path.dirname(journalPath), { recursive: true });
-    const file = await fs.promises.open(journalPath, "a");
+  await withTransientFileRetry(async () => {
+    let current = "";
     try {
-      // A retry may follow a partial Windows write.  The leading newline keeps
-      // that fragment isolated so journal recovery can still parse this copy.
-      const separator = attempt > 0 ? "\n" : "";
-      await file.writeFile(`${separator}${serialized}\n`, "utf-8");
-      await file.sync();
-    } finally {
-      await file.close();
+      current = await fs.promises.readFile(journalPath, "utf-8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
+    const prefix = current && !current.endsWith("\n") ? `${current}\n` : current;
+    await writeTextFileAtomic(
+      journalPath,
+      `${prefix}${JSON.stringify(record)}\n`,
+      `${process.pid}.${record.sessionId}.${record.revision}.journal`,
+    );
   });
 }
 
@@ -242,7 +303,11 @@ async function compactWorkspaceJournal(
   }
   await writeFullWorkspaceState(state, rendererId, revision);
   await withTransientFileRetry(() =>
-    fs.promises.writeFile(getWorkspaceJournalPath(), "", "utf-8"),
+    writeTextFileAtomic(
+      getWorkspaceJournalPath(),
+      "",
+      `${process.pid}.${rendererId}.${revision}.compact`,
+    ),
   );
 }
 
@@ -259,38 +324,11 @@ function validateWorkspaceStateWrite(
     throw new Error("Workspace state revision must be a non-negative safe integer.");
   }
   const latestWriteRevision = latestRevisionBySession.get(sessionId) ?? -1;
-  if (revision < latestWriteRevision) {
+  if (revision <= latestWriteRevision) {
     return false;
   }
 
   return parseWorkspaceWrite(content);
-}
-
-function writeWorkspaceStateFileSync(
-  rendererId: number,
-  content: string,
-  sessionId: string,
-  revision: number,
-) {
-  const write = validateWorkspaceStateWrite(rendererId, content, sessionId, revision);
-  if (write === false) {
-    return false;
-  }
-  if (isWorkspacePatch(write)) {
-    const state = workspaceStateBySession.get(sessionId) ?? readWorkspaceStateFromDiskSync();
-    appendWorkspacePatchSync({ ...write, sessionId, revision });
-    if ((latestRevisionBySession.get(sessionId) ?? -1) <= revision) {
-      applyWorkspacePatch(state, write);
-      workspaceStateBySession.set(sessionId, state);
-      compactWorkspaceJournalSync(state);
-    }
-  } else {
-    writeFullWorkspaceStateSync(write);
-    fs.writeFileSync(getWorkspaceJournalPath(), "", "utf-8");
-    workspaceStateBySession.set(sessionId, write);
-  }
-  latestRevisionBySession.set(sessionId, revision);
-  return true;
 }
 
 async function writeWorkspaceStateFile(
@@ -303,11 +341,8 @@ async function writeWorkspaceStateFile(
     const write = validateWorkspaceStateWrite(rendererId, content, sessionId, revision);
     if (write === false) return false;
     if (isWorkspacePatch(write)) {
-      const state = workspaceStateBySession.get(sessionId) ?? readWorkspaceStateFromDiskSync();
+      const state = workspaceStateBySession.get(sessionId) ?? await readWorkspaceStateFromDisk();
       await appendWorkspacePatch({ ...write, sessionId, revision });
-      if (validateWorkspaceStateWrite(rendererId, content, sessionId, revision) === false) {
-        return false;
-      }
       applyWorkspacePatch(state, write);
       workspaceStateBySession.set(sessionId, state);
       latestRevisionBySession.set(sessionId, revision);
@@ -315,7 +350,11 @@ async function writeWorkspaceStateFile(
       return true;
     }
     await writeFullWorkspaceState(write, rendererId, revision);
-    await fs.promises.writeFile(getWorkspaceJournalPath(), "", "utf-8");
+    await writeTextFileAtomic(
+      getWorkspaceJournalPath(),
+      "",
+      `${process.pid}.${rendererId}.${revision}.replace`,
+    );
     workspaceStateBySession.set(sessionId, write);
     latestRevisionBySession.set(sessionId, revision);
     return true;
@@ -330,39 +369,32 @@ export function registerWorkspaceStateHandlers() {
       throw new Error("Workspace persistence session id is required.");
     }
     const rendererId = event.sender.id;
-    const previousSession = activeSessionByRenderer.get(rendererId);
-    if (previousSession) {
-      latestRevisionBySession.delete(previousSession);
-    }
-    activeSessionByRenderer.set(rendererId, sessionId);
-    latestRevisionBySession.set(sessionId, -1);
-    event.sender.once("destroyed", () => {
-      if (activeSessionByRenderer.get(rendererId) === sessionId) {
-        activeSessionByRenderer.delete(rendererId);
-        latestRevisionBySession.delete(sessionId);
-        workspaceStateBySession.delete(sessionId);
+    const readOperation = workspaceWriteQueue.catch(() => false).then(async () => {
+      const previousSession = activeSessionByRenderer.get(rendererId);
+      if (previousSession) {
+        latestRevisionBySession.delete(previousSession);
+        workspaceStateBySession.delete(previousSession);
       }
+      activeSessionByRenderer.set(rendererId, sessionId);
+      latestRevisionBySession.set(sessionId, -1);
+      event.sender.once("destroyed", () => {
+        if (activeSessionByRenderer.get(rendererId) === sessionId) {
+          activeSessionByRenderer.delete(rendererId);
+          latestRevisionBySession.delete(sessionId);
+          workspaceStateBySession.delete(sessionId);
+        }
+      });
+      const state = await readWorkspaceStateFromDisk();
+      workspaceStateBySession.set(sessionId, state);
+      return Object.keys(state).length > 0 ? `${JSON.stringify(state)}\n` : null;
     });
-    const state = readWorkspaceStateFromDiskSync();
-    workspaceStateBySession.set(sessionId, state);
-    return Object.keys(state).length > 0 ? `${JSON.stringify(state)}\n` : null;
+    workspaceWriteQueue = readOperation.then(() => true, () => false);
+    return await readOperation;
   });
 
   ipcMain.handle(
     DESKTOP_FILE_SYSTEM_CHANNELS.writeWorkspaceState,
     async (event, content: string, sessionId: string, revision: number) =>
       writeWorkspaceStateFile(event.sender.id, content, sessionId, revision),
-  );
-
-  ipcMain.on(
-    DESKTOP_FILE_SYSTEM_CHANNELS.writeWorkspaceStateSync,
-    (event, content: string, sessionId: string, revision: number) => {
-      event.returnValue = writeWorkspaceStateFileSync(
-        event.sender.id,
-        content,
-        sessionId,
-        revision,
-      );
-    },
   );
 }

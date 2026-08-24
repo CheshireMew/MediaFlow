@@ -1,14 +1,16 @@
 from loguru import logger
 
 from backend.application.pipeline_steps.base import PipelineStep
+from backend.application.transcription_service import build_transcription_worker_kwargs
 from backend.core.context import PipelineContext
 from backend.core.task_runtime import TaskRuntimeContext
 from backend.models.media_contracts import MediaReference
 from backend.models.transcription_contracts import TranscribeRequest
-from backend.application.transcription_service import build_transcription_worker_kwargs
 
 
 class TranscribeStep(PipelineStep):
+    resume_policy = "replace_output"
+
     def __init__(self, *, asr_service, task_manager):
         self._asr_service = asr_service
         self._task_manager = task_manager
@@ -17,7 +19,8 @@ class TranscribeStep(PipelineStep):
     def name(self) -> str:
         return "transcribe"
 
-    async def execute(self, ctx: PipelineContext, params: dict, task_id: str = None):
+    async def execute(self, ctx: PipelineContext, params: dict, task_id: str | None = None):
+        ctx.begin_step(self.name)
         input_ref = ctx.get_media("audio_ref", "video_ref")
         if input_ref is None and params.get("audio_ref"):
             input_ref = MediaReference.model_validate(params["audio_ref"])
@@ -31,7 +34,11 @@ class TranscribeStep(PipelineStep):
         )
         
         # Also run transcribe in executor because it blocks!
-        runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
+        runtime = TaskRuntimeContext(
+            task_id,
+            task_manager=self._task_manager,
+            progress_transform=ctx.project_step_progress,
+        )
         progress_cb = runtime.build_progress_callback()
         
         result = await runtime.run_blocking(
@@ -46,7 +53,7 @@ class TranscribeStep(PipelineStep):
         
         if not result.success:
             runtime.checkpoint()
-            raise Exception(result.error or "Transcription failed")
+            raise RuntimeError(result.error or "Transcription failed")
         transcription_output = result.outputs.transcription
         if transcription_output is None:
             raise RuntimeError(

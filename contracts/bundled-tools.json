@@ -1,0 +1,63 @@
+{
+  "contractVersion": 1,
+  "tools": [
+    {
+      "id": "ffmpeg-gyan-8.1-essentials",
+      "displayName": "FFmpeg 8.1 essentials build for Windows",
+      "distribution": {
+        "provider": "Gyan Doshi",
+        "releasePage": "https://github.com/GyanD/codexffmpeg/releases/tag/8.1",
+        "downloadUrl": "https://github.com/GyanD/codexffmpeg/releases/download/8.1/ffmpeg-8.1-essentials_build.zip",
+        "archiveSha256": "8748283d821613d930b0e7be685aaa9df4ca6f0ad4d0c42fd02622b3623463c6",
+        "upstreamSource": "https://github.com/FFmpeg/FFmpeg/commit/9047fa1b08"
+      },
+      "delivery": {
+        "acquisitionStatus": "verified-pinned-official-archive",
+        "packaged": true,
+        "modification": "unmodified-selected-binaries",
+        "redistributionStatus": "verified-under-gpl-3.0-only"
+      },
+      "license": {
+        "spdx": "GPL-3.0-only",
+        "licenseFile": "third_party_licenses/FFmpeg-GPL-3.0.txt",
+        "buildReadme": "third_party_licenses/FFmpeg-8.1-BUILD-README.txt",
+        "provenanceFile": "third_party_licenses/FFmpeg-SOURCE.md"
+      },
+      "binaries": [
+        {
+          "path": "bin/ffmpeg.exe",
+          "sha256": "1a65d5b0b10d8d9a81d2824a3538046a40ed3607c906b335a166add87613f705",
+          "versionContains": "ffmpeg version 8.1-essentials_build-www.gyan.dev"
+        },
+        {
+          "path": "bin/ffprobe.exe",
+          "sha256": "54b944d6095c4588d7548424d7acd5118390a9d4f01b1c92f841547fc9a7429c",
+          "versionContains": "ffprobe version 8.1-essentials_build-www.gyan.dev"
+        }
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "id": "lxgw-wenkai-regular",
+      "displayName": "LXGW WenKai Regular",
+      "source": "https://github.com/lxgw/LxgwWenKai/blob/main/fonts/TTF/LXGWWenKai-Regular.ttf",
+      "delivery": {
+        "acquisitionStatus": "verified-upstream-file",
+        "packaged": true,
+        "modification": "unmodified",
+        "redistributionStatus": "verified-under-ofl-1.1"
+      },
+      "license": {
+        "spdx": "OFL-1.1",
+        "licenseFile": "third_party_licenses/LXGW-WenKai-OFL-1.1.txt"
+      },
+      "file": {
+        "path": "frontend/src/assets/fonts/LXGWWenKai-Regular.ttf",
+        "sha256": "0819604ad9357afbc6e7cc097328a16ed85143ee0848ffda09fda35a30da6506",
+        "size": 19073964,
+        "packageTarget": "resources/fonts/LXGWWenKai-Regular.ttf"
+      }
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 from collections.abc import Iterable
 
 from loguru import logger
-from backend.application.pipeline_steps.base import PipelineStep
+
+from backend.application.pipeline_steps.base import RESUME_POLICIES, PipelineStep
 
 
 class StepRegistry:
@@ -12,6 +13,12 @@ class StepRegistry:
 
     def register(self, step: PipelineStep) -> None:
         """Register a new step instance."""
+        resume_policy = getattr(step, "resume_policy", None)
+        if resume_policy not in RESUME_POLICIES:
+            raise RuntimeError(
+                f"Pipeline step {step.name!r} must declare one resume policy: "
+                f"{sorted(RESUME_POLICIES)}"
+            )
         if step.name in self._steps:
             raise RuntimeError(f"Pipeline step already registered: {step.name}")
         self._steps[step.name] = step

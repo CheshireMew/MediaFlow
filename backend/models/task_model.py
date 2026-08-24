@@ -1,8 +1,9 @@
-from typing import Optional, Dict, Any
-from sqlmodel import Field, SQLModel, JSON, Column
-from sqlalchemy import Integer
 import time
+from typing import Any
+
 from pydantic import ConfigDict, field_validator, model_validator
+from sqlalchemy import Integer, String
+from sqlmodel import JSON, Column, Field, SQLModel
 
 from backend.contracts import (
     TASK_CONTRACT_VERSION,
@@ -11,8 +12,8 @@ from backend.contracts import (
     TASK_SOURCES,
     TASK_STATUSES,
     require_task_message_code,
+    require_task_type,
 )
-from backend.contracts import require_task_type
 
 
 def task_timestamp_ms() -> int:
@@ -21,7 +22,7 @@ def task_timestamp_ms() -> int:
 
 class Task(SQLModel, table=True):
     id: str = Field(primary_key=True)
-    name: Optional[str] = Field(default=None) # User friendly name
+    name: str | None = Field(default=None) # User friendly name
     type: str
     status: str
     task_source: str = Field(default="backend")
@@ -35,17 +36,26 @@ class Task(SQLModel, table=True):
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
     message_code: str = Field(default="queued")
-    message_params: Dict[str, Any] = Field(
+    message_params: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False),
+    )
+    primary_operation: str = Field(
+        default="",
+        sa_column=Column(String, nullable=False, server_default=""),
+    )
+    summary_artifacts: list[dict[str, Any]] = Field(
+        default_factory=list,
+        sa_column=Column(JSON, nullable=False, server_default="[]"),
     )
     created_at: int = Field(default_factory=task_timestamp_ms)
     
     # JSON Fields (Use explicit column type for SQLite compatibility)
-    result: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
-    error: Optional[str] = Field(default=None)
+    result: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    error: str | None = Field(default=None)
     cancelled: bool = Field(default=False)
-    request_params: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    request_params: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    checkpoint: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

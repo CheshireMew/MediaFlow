@@ -1,7 +1,10 @@
 import type { ElectronFile } from "../../types/electron";
-import { getMediaExtensionsWithDot } from "../../contracts/openFileContract";
 import type { TranscribeResult } from "../../types/transcriber";
-import { normalizeMediaReference, type MediaReference } from "../ui/mediaReference";
+import {
+  isVideoMediaReference,
+  normalizeMediaReference,
+  type MediaReference,
+} from "../ui/mediaReference";
 
 type MediaSeed = {
   path: string;
@@ -28,22 +31,13 @@ function chooseResultMediaRef(
   );
 }
 
-const VIDEO_EXTENSIONS = new Set(getMediaExtensionsWithDot("video"));
-
 function normalizeVideoMediaReference(
   value?: MediaSeed | ElectronFile | MediaReference | null,
 ): MediaReference | null {
   const ref = normalizeMediaReference(value);
   if (!ref) return null;
 
-  const mediaKind = typeof ref.media_kind === "string" ? ref.media_kind.toLowerCase() : "";
-  const mimeType = typeof ref.type === "string" ? ref.type.toLowerCase() : "";
-  const lowerPath = ref.path.toLowerCase();
-  const hasVideoExtension = [...VIDEO_EXTENSIONS].some((extension) => lowerPath.endsWith(extension));
-
-  return mediaKind === "video" || mimeType.startsWith("video/") || hasVideoExtension
-    ? ref
-    : null;
+  return isVideoMediaReference(ref) ? ref : null;
 }
 
 export function normalizeTranscribeResult(

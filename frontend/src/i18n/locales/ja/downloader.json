@@ -53,8 +53,8 @@
     "analyzingStream": "分析中...",
     "downloadingMedia": "ダウンロード中...",
     "downloadMedia": "メディアをダウンロード",
-    "downloadingAudio": "ポッドキャスト音声をダウンロード中...",
-    "downloadAudio": "ポッドキャスト音声をダウンロード"
+    "downloadingAudio": "音声をダウンロード中...",
+    "downloadAudio": "音声をダウンロード"
   },
   "playlist": {
     "detected": "プレイリストを検出",

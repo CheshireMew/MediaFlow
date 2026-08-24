@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { downloaderService, executionService } from "../services/domain";
 import { useDownloaderController } from "../hooks/useDownloaderController";
 import { useDownloaderStore } from "../stores/downloaderStore";
-import { clearElectronMock } from "./testUtils/electronMock";
+import { clearElectronMock, installElectronMock } from "./testUtils/electronMock";
 import { TASK_CONTRACT_VERSION } from "../contracts/runtimeContracts";
 
 const useTaskContextMock = vi.fn();
@@ -24,7 +24,14 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("../context/taskContext", () => ({
-  useTaskContext: () => useTaskContextMock(),
+  useTaskActions: () => useTaskContextMock(),
+  useTaskStatus: () => useTaskContextMock(),
+}));
+
+vi.mock("../context/taskStoreContext", () => ({
+  useTasks: () => useTaskContextMock().tasks,
+  useTaskById: (taskId: string | null) =>
+    useTaskContextMock().tasks.find((task: { id: string }) => task.id === taskId) ?? null,
 }));
 
 vi.mock("../services/asrCliPrewarm", () => ({
@@ -282,5 +289,38 @@ describe("useDownloaderController", () => {
         "Failed to queue https://example.com/broken: backend offline",
       );
     });
+  });
+
+  it("uses the same playlist analysis path after a cookie retry", async () => {
+    const fetchCookies = vi.fn().mockResolvedValue([
+      { name: "session", value: "ready", domain: ".example.com" },
+    ]);
+    installElectronMock({ fetchCookies });
+    vi.mocked(downloaderService.saveCookies).mockResolvedValue({
+      domain: "example.com",
+      has_valid_cookies: true,
+      cookie_path: "D:/Tools/cookies.txt",
+    });
+    vi.mocked(downloaderService.analyzeUrl)
+      .mockRejectedValueOnce(new Error("COOKIES_REQUIRED:example.com"))
+      .mockResolvedValueOnce({
+        type: "playlist",
+        title: "Recovered playlist",
+        url: "https://example.com/playlist",
+        items: [
+          { title: "First", url: "https://example.com/1", index: 1 },
+          { title: "Second", url: "https://example.com/2", index: 2 },
+        ],
+      });
+
+    const { result } = renderHook(() => useDownloaderController());
+    act(() => result.current.setUrl("https://example.com/playlist"));
+    await act(async () => result.current.analyzeAndDownload());
+
+    expect(downloaderService.analyzeUrl).toHaveBeenCalledTimes(2);
+    expect(fetchCookies).toHaveBeenCalledWith("https://www.example.com");
+    expect(downloaderService.saveCookies).toHaveBeenCalledTimes(1);
+    expect(result.current.playlistInfo?.title).toBe("Recovered playlist");
+    expect(result.current.showPlaylistDialog).toBe(true);
   });
 });

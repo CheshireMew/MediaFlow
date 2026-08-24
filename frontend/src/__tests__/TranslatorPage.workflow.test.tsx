@@ -19,8 +19,14 @@ const taskContextMock = vi.hoisted(() => ({
 }));
 
 vi.mock("../context/taskContext", () => ({
-  useTaskContext: () => taskContextMock,
   useTaskActions: () => taskContextMock,
+  useTaskStatus: () => taskContextMock,
+}));
+
+vi.mock("../context/taskStoreContext", () => ({
+  useTasks: () => taskContextMock.tasks,
+  useTaskById: (taskId: string | null) =>
+    taskContextMock.tasks.find((task) => task.id === taskId) ?? null,
 }));
 
 vi.mock("../components/translator/SegmentsTable", () => ({
@@ -103,10 +109,8 @@ describe("TranslatorPage translation workflow", () => {
       activeMode: null,
       resultMode: null,
       taskId: null,
-      taskStatus: "",
-      progress: 0,
-      taskError: null,
-      executionMode: null,
+      submissionPhase: "idle",
+      localError: null,
     });
   });
 
@@ -186,7 +190,7 @@ describe("TranslatorPage translation workflow", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("workflow-target").textContent).toBe("你好");
-      expect(useTranslatorStore.getState().taskStatus).toBe("finalizing");
+      expect(useTranslatorStore.getState().taskId).toBe("translation-task-1");
     });
   });
 });

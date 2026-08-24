@@ -6,6 +6,7 @@ const taskSocketUrl = "ws://127.0.0.1:8800/api/v1/ws/tasks";
 type BackendMockOptions = {
   analyzeFailure?: boolean;
   translationWorkflow?: boolean;
+  language?: "en" | "zh";
 };
 
 const userSettings = {
@@ -32,23 +33,68 @@ async function installBackendMock(
   options: BackendMockOptions = {},
 ) {
   let sendCompletedTranslation: ((requestParams: unknown) => void) | null = null;
+  let completedTranslationTask: Record<string, unknown> | null = null;
 
   await page.route(`${backendOrigin}/**`, async (route) => {
     const request = route.request();
     const { pathname } = new URL(request.url());
 
     if (request.method() === "GET" && pathname === "/health") {
-      await route.fulfill({ json: { status: "ok" } });
+      await route.fulfill({ json: { status: "ready" } });
       return;
     }
 
     if (request.method() === "GET" && pathname === "/api/v1/settings/") {
-      await route.fulfill({ json: userSettings });
+      await route.fulfill({
+        json: { ...userSettings, language: options.language ?? userSettings.language },
+      });
+      return;
+    }
+
+    if (request.method() === "GET" && pathname === "/api/v1/settings/cuda-readiness") {
+      await route.fulfill({
+        json: {
+          status: "ready",
+          summary: "CUDA is ready for built-in faster-whisper transcription.",
+          gpu_name: "NVIDIA GeForce RTX E2E",
+          driver_version: "999.1",
+          driver_cuda_capability: "12.9",
+          dependencies: [
+            {
+              key: "nvidia_driver",
+              label: "NVIDIA driver",
+              status: "ready",
+              detail: "Detected NVIDIA GeForce RTX E2E.",
+              path: "C:/Windows/System32/nvidia-smi.exe",
+              version: "999.1",
+            },
+            {
+              key: "cuda_runtime",
+              label: "CUDA 12 runtime",
+              status: "ready",
+              detail: "cudart64_12.dll is available in PATH.",
+              path: "D:/Tools/CUDA/bin/cudart64_12.dll",
+            },
+          ],
+          install_guidance: [
+            "CUDA is ready. Use device=cuda for built-in transcription.",
+          ],
+        },
+      });
       return;
     }
 
     if (request.method() === "GET" && pathname === "/api/v1/tasks/") {
       await route.fulfill({ json: [] });
+      return;
+    }
+
+    if (
+      request.method() === "GET" &&
+      pathname === "/api/v1/tasks/e2e-translation-task" &&
+      completedTranslationTask
+    ) {
+      await route.fulfill({ json: completedTranslationTask });
       return;
     }
 
@@ -89,7 +135,7 @@ async function installBackendMock(
           task_id: "e2e-translation-task",
           status: "pending",
           task_source: "backend",
-          task_contract_version: 9,
+          task_contract_version: 10,
           revision: 0,
           persistence_scope: "runtime",
           lifecycle: "resumable",
@@ -132,57 +178,61 @@ async function installBackendMock(
             name: "e2e_zh.srt",
           },
         };
+        completedTranslationTask = {
+          id: "e2e-translation-task",
+          type: "pipeline",
+          status: "completed",
+          task_source: "backend",
+          task_contract_version: 10,
+          persistence_scope: "history",
+          lifecycle: "history-only",
+          progress: 100,
+          revision: 1,
+          name: "e2e.srt",
+          message_code: "pipeline_completed",
+          message_params: {},
+          result: {
+            success: true,
+            artifacts: [outputArtifact],
+            outputs: {
+              translation: {
+                segments: [{
+                  id: "1",
+                  start: 0,
+                  end: 2,
+                  text: "Playwright 已显示翻译结果",
+                }],
+                language: "SimplifiedChinese",
+                mode: "standard",
+              },
+            },
+            execution_trace: [],
+          },
+          request_params: requestParams,
+          primary_operation: "translate",
+          artifacts: [
+            {
+              kind: "subtitle",
+              role: "context",
+              ref: {
+                path: "E:/subs/e2e.srt",
+                name: "e2e.srt",
+              },
+            },
+            outputArtifact,
+          ],
+          created_at: Date.now(),
+          queue_state: "completed",
+          queue_position: null,
+        };
+        const taskSummary = { ...completedTranslationTask };
+        delete taskSummary.result;
+        delete taskSummary.request_params;
         socket.send(JSON.stringify({
           type: "update",
           stream_id: streamId,
           sequence: 2,
-          task: {
-            id: "e2e-translation-task",
-            type: "pipeline",
-            status: "completed",
-            task_source: "backend",
-            task_contract_version: 9,
-            persistence_scope: "history",
-            lifecycle: "history-only",
-            progress: 100,
-            revision: 1,
-            name: "e2e.srt",
-            message_code: "pipeline_completed",
-            message_params: {},
-            result: {
-              success: true,
-              artifacts: [outputArtifact],
-              outputs: {
-                translation: {
-                  segments: [{
-                    id: "1",
-                    start: 0,
-                    end: 2,
-                    text: "Playwright 已显示翻译结果",
-                  }],
-                  language: "SimplifiedChinese",
-                  mode: "standard",
-                },
-              },
-              execution_trace: [],
-            },
-            request_params: requestParams,
-            primary_operation: "translate",
-            artifacts: [
-              {
-                kind: "subtitle",
-                role: "context",
-                ref: {
-                  path: "E:/subs/e2e.srt",
-                  name: "e2e.srt",
-                },
-              },
-              outputArtifact,
-            ],
-            created_at: Date.now(),
-            queue_state: "completed",
-            queue_position: null,
-          },
+          task: taskSummary,
         }));
       }, 100);
     };
@@ -201,7 +251,7 @@ async function openReadyDownloader(
   await installBackendMock(page, options);
   await page.goto("/#/downloader");
 
-  await expect(page.getByRole("heading", { name: "Video Downloader" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Media Downloader" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "MediaFlow" })).toBeVisible();
   await expect(page.getByText("No active tasks")).toBeVisible();
 }
@@ -222,11 +272,28 @@ async function expectNoHorizontalPageOverflow(page: Page) {
     });
 }
 
+async function expectInViewport(page: Page, locator: ReturnType<Page["locator"]>) {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  const viewport = page.viewportSize();
+  expect(viewport).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height);
+}
+
 test("starts in a ready downloader workspace without horizontal overflow", async ({
   page,
 }, testInfo) => {
   await openReadyDownloader(page);
   await expectNoHorizontalPageOverflow(page);
+  await expect(page.getByTitle("Pause all active tasks")).toBeDisabled();
+  await expect(page.getByTitle("Delete all tasks")).toBeDisabled();
+
+  if (testInfo.project.name === "compact") {
+    await expectInViewport(page, page.getByText("No active tasks", { exact: true }));
+  }
 
   await expect(
     page
@@ -234,7 +301,7 @@ test("starts in a ready downloader workspace without horizontal overflow", async
       .getByRole("button", { name: "Download", exact: true }),
   ).toHaveAttribute("aria-current", "page");
 
-  if (testInfo.project.name === "desktop") {
+  if (testInfo.project.name === "desktop" || testInfo.project.name === "compact") {
     await expect(page).toHaveScreenshot("downloader-ready.png");
   }
 });
@@ -311,7 +378,27 @@ for (const workspace of workspaceRoutes) {
     ).toHaveAttribute("aria-current", "page");
     await expectNoHorizontalPageOverflow(page);
 
-    if (testInfo.project.name === "desktop") {
+    if (workspace.route === "editor") {
+      await expect(page.getByRole("button", { name: "Open Media" }).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: "Open Subtitles" }).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+    }
+    if (workspace.route === "translator") {
+      const modeSelect = page.getByRole("combobox", { name: "Mode" });
+      await expect(modeSelect.locator('option[value="proofread"]')).toHaveCount(0);
+      await expect(page.getByTitle("Translate subtitles with the selected mode")).toBeVisible();
+    }
+    if (workspace.route === "transcriber" && testInfo.project.name === "compact") {
+      await expectInViewport(
+        page,
+        page.getByText("No transcription results yet", { exact: true }),
+      );
+    }
+
+    if (
+      testInfo.project.name === "desktop"
+      || (testInfo.project.name === "compact" && ["editor", "transcriber"].includes(workspace.route))
+    ) {
       await expect(page).toHaveScreenshot(`${workspace.route}-ready.png`);
     }
   });
@@ -321,12 +408,45 @@ test("shows a visible error when backend analysis fails", async ({ page }) => {
   await openReadyDownloader(page, { analyzeFailure: true });
 
   await page
-    .getByPlaceholder("Paste video URL here (e.g. YouTube, Bilibili...)")
+    .getByRole("textbox", {
+      name: "Paste a video or podcast URL (e.g. YouTube, Bilibili, Xiaoyuzhou...)",
+    })
     .fill("https://example.test/video");
   await page.getByRole("button", { name: "Download Media" }).click();
 
   await expect(page.getByText("E2E analysis unavailable", { exact: true })).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
+});
+
+test("treats audio-only quality as an audio download workflow", async ({ page }) => {
+  await openReadyDownloader(page);
+
+  await page.getByRole("combobox", { name: /Quality/ }).selectOption("audio");
+
+  await expect(page.getByRole("combobox", { name: /Format/ })).toHaveValue("audio");
+  await expect(page.getByRole("checkbox", { name: /Subtitles/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Compatible" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Download Audio" })).toBeVisible();
+});
+
+test("localizes CUDA diagnostics and uses a specific smart-split save action", async ({ page }) => {
+  await installBackendMock(page, { language: "zh" });
+  await page.goto("/#/settings");
+
+  await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
+  await page.getByRole("button", { name: "通用设置" }).click();
+  await expect(page.getByRole("button", { name: "保存智能分割长度" })).toBeVisible();
+
+  await page.getByRole("button", { name: "CUDA 就绪检查" }).click();
+  await expect(
+    page.getByText("CUDA 环境已就绪，可以使用内置 faster-whisper 的 GPU 转写。"),
+  ).toBeVisible();
+  await expect(page.getByText("NVIDIA 驱动", { exact: true })).toBeVisible();
+  await expect(page.getByText("已检测到 NVIDIA GeForce RTX E2E。", { exact: true })).toBeVisible();
+  await expect(page.getByText("查看原始诊断详情", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("CUDA is ready for built-in faster-whisper transcription.", { exact: true }),
+  ).toBeHidden();
 });
 
 test("translates a subtitle and renders the completed task output", async ({ page }) => {

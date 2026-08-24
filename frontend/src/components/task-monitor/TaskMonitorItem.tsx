@@ -27,10 +27,13 @@ import {
   hasTaskSubtitleMedia,
   hasTaskTranscribableMedia,
   hasTaskVideoMedia,
-  resolveTaskOutputPath,
+  resolveTaskRevealTarget,
   resolveTaskNavigationPayload,
 } from "../../services/ui/taskMedia";
-import { NavigationService } from "../../services/ui/navigation";
+import {
+  createNavigationMediaPayload,
+  NavigationService,
+} from "../../services/ui/navigation";
 import { clampProgress } from "../../utils/number";
 import { TaskTraceView } from "../TaskTraceView";
 import { formatTaskDisplayId } from "./taskIdDisplay";
@@ -132,8 +135,8 @@ export function TaskMonitorItem({
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${typeInfo.bg} ${typeInfo.color} ${typeInfo.border}`}>
                 {typeInfo.icon}
                 <span className="uppercase tracking-wider">{typeInfo.label}</span>
@@ -144,7 +147,7 @@ export function TaskMonitorItem({
               </span>
             </div>
 
-            <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+            <div className="ml-auto flex shrink-0 items-center gap-1">
               {canPauseTask && (
                 <button
                   type="button"
@@ -200,9 +203,21 @@ export function TaskMonitorItem({
                       type="button"
                       aria-label={t("actions.showFolder.tooltip")}
                       onClick={() => {
-                        void resolveTaskOutputPath(task).then((outputPath) => {
-                          if (outputPath) return fileService.showInExplorer(outputPath);
-                        });
+                        void (async () => {
+                          try {
+                            const target = await resolveTaskRevealTarget(task);
+                            if (!target.path) {
+                              toast.error(t("messages.mediaMissing"));
+                              return;
+                            }
+                            if (target.usedFallback) {
+                              toast.warning(t("messages.outputMissingUsingSource"));
+                            }
+                            await fileService.showInExplorer(target.path);
+                          } catch {
+                            toast.error(t("messages.showFolderFailed"));
+                          }
+                        })();
                       }}
                       className="p-1.5 rounded-lg hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                       title={t("actions.showFolder.tooltip")}
@@ -247,7 +262,7 @@ export function TaskMonitorItem({
             {task.name || (task.primary_operation === "download" ? t("messages.downloading") : t("taskTypes.generic"))}
           </div>
 
-          <div className="mt-3 flex items-center justify-between gap-6">
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex-1 min-w-0">
               <p className="text-xs text-slate-400 truncate flex items-center gap-2">
                 {task.error ? (
@@ -262,7 +277,7 @@ export function TaskMonitorItem({
             </div>
 
             {(task.status === "running" || task.progress > 0) && (
-              <div className="w-48 flex items-center gap-3 shrink-0">
+              <div className="flex w-full shrink-0 items-center gap-3 sm:w-48">
                 <div
                   role="progressbar"
                   aria-label={t("progress.label")}
@@ -316,6 +331,7 @@ function TaskNavigationButton({
   title: string;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation("taskmonitor");
   return (
     <button
       type="button"
@@ -328,7 +344,12 @@ function TaskNavigationButton({
               : Boolean(payload.video_ref?.path);
           if (hasRequiredMedia) {
             NavigationService.navigate(destination, payload);
+            return;
           }
+          toast.error(t("messages.mediaMissingOpenManually"));
+          NavigationService.navigate(destination, createNavigationMediaPayload({}));
+        }).catch(() => {
+          toast.error(t("messages.mediaResolveFailed"));
         });
       }}
       className="p-1.5 rounded-lg hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"

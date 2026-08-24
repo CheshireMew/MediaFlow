@@ -1,40 +1,21 @@
-import subprocess
-import threading
-import shutil
-import json
-import zipfile
-from importlib import import_module
-from pathlib import Path
-from typing import Optional
-from urllib.error import URLError
-from urllib.request import Request, urlopen
-
-from backend.config import settings
-from backend.services.llm_io_logger import log_llm_messages, log_llm_response
-from backend.services.runtime_diagnostics import CudaReadinessResponse, RuntimeDiagnosticsService
-from backend.services.settings_manager import (
+from backend.models.settings_contracts import (
+    CudaReadinessResponse,
     LLMProvider,
     UiStatePatch,
     UserPreferencesPatch,
     UserSettings,
 )
+from backend.services.llm_io_logger import log_llm_messages, log_llm_response
+from backend.services.runtime_diagnostics import RuntimeDiagnosticsService
+from backend.services.runtime_tool_installer import RuntimeToolInstaller
 
 OpenAI = None
-
-FASTER_WHISPER_CLI_VERSION = "r245.4"
-FASTER_WHISPER_CLI_ARCHIVE = "Faster-Whisper-XXL_r245.4_windows.7z"
-FASTER_WHISPER_CLI_URL = (
-    "https://github.com/Purfview/whisper-standalone-win/releases/download/"
-    f"Faster-Whisper-XXL/{FASTER_WHISPER_CLI_ARCHIVE}"
-)
-FASTER_WHISPER_CLI_SIZE = 1_424_256_246
-PYPI_YT_DLP_JSON_URL = "https://pypi.org/pypi/yt-dlp/json"
-_faster_whisper_cli_install_lock = threading.Lock()
 
 
 class SettingsApplicationService:
     def __init__(self, settings_manager):
         self._settings_manager = settings_manager
+        self._tool_installer = RuntimeToolInstaller(settings_manager)
 
     def get_settings(self) -> UserSettings:
         return self._settings_manager.get_settings()
@@ -97,180 +78,7 @@ class SettingsApplicationService:
         return {"status": "success", "message": "Connection successful"}
 
     def update_yt_dlp(self) -> dict[str, str | None]:
-        previous_version = self.get_yt_dlp_version()
-        release = self._fetch_latest_yt_dlp_wheel()
-        wheel_path = settings.TOOL_DOWNLOAD_DIR / release["filename"]
-        self._download_with_resume(
-            release["url"],
-            wheel_path,
-            expected_size=release["size"],
-        )
-        self._install_yt_dlp_wheel(wheel_path)
-
-        return {
-            "status": "success",
-            "message": "yt-dlp update installed into the writable runtime tools directory. Restart the backend if the new version is not picked up immediately.",
-            "previous_version": previous_version,
-            "current_version": release["version"],
-        }
+        return self._tool_installer.update_yt_dlp()
 
     def install_faster_whisper_cli(self) -> dict[str, str | None]:
-        target_dir = settings.TOOL_DIR / "Faster-Whisper-XXL"
-        cli_path = target_dir / "faster-whisper-xxl.exe"
-        archive_path = settings.TOOL_DOWNLOAD_DIR / FASTER_WHISPER_CLI_ARCHIVE
-
-        with _faster_whisper_cli_install_lock:
-            if cli_path.exists():
-                return self._save_faster_whisper_cli_path(
-                    cli_path,
-                    "Faster-Whisper CLI is already installed.",
-                )
-
-            self._ensure_install_space(archive_path.parent)
-
-            archive_path.parent.mkdir(parents=True, exist_ok=True)
-            self._download_with_resume(
-                FASTER_WHISPER_CLI_URL,
-                archive_path,
-                expected_size=FASTER_WHISPER_CLI_SIZE,
-            )
-
-            target_dir.parent.mkdir(parents=True, exist_ok=True)
-            result = subprocess.run(
-                ["tar", "-xf", str(archive_path), "-C", str(target_dir.parent)],
-                capture_output=True,
-                text=True,
-                timeout=900,
-                check=False,
-            )
-            if result.returncode != 0:
-                detail = (result.stderr or result.stdout or "tar extraction failed").strip()
-                raise RuntimeError(detail)
-
-            if not cli_path.exists():
-                raise RuntimeError(f"Faster-Whisper CLI executable was not found after extraction: {cli_path}")
-
-            return self._save_faster_whisper_cli_path(
-                cli_path,
-                "Faster-Whisper CLI installed.",
-            )
-
-    def _save_faster_whisper_cli_path(self, cli_path: Path, message: str) -> dict[str, str | None]:
-        self._settings_manager.patch_preferences(
-            UserPreferencesPatch(faster_whisper_cli_path=str(cli_path))
-        )
-        settings.FASTER_WHISPER_CLI_PATH = str(cli_path)
-        return {
-            "status": "success",
-            "message": message,
-            "cli_path": str(cli_path),
-            "version": FASTER_WHISPER_CLI_VERSION,
-        }
-
-    @staticmethod
-    def _ensure_install_space(path: Path) -> None:
-        path.mkdir(parents=True, exist_ok=True)
-        usage = shutil.disk_usage(path)
-        # Archive plus extraction currently needs roughly 3 GiB; keep headroom
-        # for partial downloads and filesystem overhead.
-        required = 4 * 1024 * 1024 * 1024
-        if usage.free < required:
-            raise RuntimeError(
-                f"Not enough free disk space for Faster-Whisper CLI install. "
-                f"Need at least 4 GiB, available {usage.free / (1024 ** 3):.1f} GiB."
-            )
-
-    @staticmethod
-    def _fetch_latest_yt_dlp_wheel() -> dict[str, str | int]:
-        request = Request(PYPI_YT_DLP_JSON_URL, headers={"User-Agent": "MediaFlow setup"})
-        try:
-            with urlopen(request, timeout=60) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except Exception as exc:
-            raise RuntimeError(f"Failed to fetch yt-dlp release metadata: {exc}") from exc
-
-        version = str(payload.get("info", {}).get("version") or "")
-        candidates = payload.get("urls", [])
-        for item in candidates:
-            filename = str(item.get("filename") or "")
-            if filename.endswith(".whl") and item.get("packagetype") == "bdist_wheel":
-                return {
-                    "version": version,
-                    "filename": filename,
-                    "url": str(item["url"]),
-                    "size": int(item.get("size") or 0),
-                }
-        raise RuntimeError("No yt-dlp wheel found in PyPI release metadata")
-
-    @staticmethod
-    def _install_yt_dlp_wheel(wheel_path: Path) -> None:
-        target = settings.PYTHON_TOOL_PACKAGES_DIR
-        target.mkdir(parents=True, exist_ok=True)
-        for stale in [*target.glob("yt_dlp"), *target.glob("yt_dlp-*.dist-info")]:
-            if stale.is_dir():
-                shutil.rmtree(stale)
-            else:
-                stale.unlink(missing_ok=True)
-
-        with zipfile.ZipFile(wheel_path) as wheel:
-            for member in wheel.infolist():
-                if member.filename.startswith("yt_dlp/") or (
-                    member.filename.startswith("yt_dlp-")
-                    and ".dist-info/" in member.filename
-                ):
-                    wheel.extract(member, target)
-
-    @staticmethod
-    def _download_with_resume(
-        url: str,
-        destination: Path,
-        expected_size: int,
-    ) -> None:
-        for attempt in range(1, 8):
-            current_size = destination.stat().st_size if destination.exists() else 0
-            if expected_size > 0 and current_size == expected_size:
-                return
-            if expected_size > 0 and current_size > expected_size:
-                destination.unlink()
-                current_size = 0
-
-            headers = {"User-Agent": "MediaFlow setup"}
-            if current_size > 0:
-                headers["Range"] = f"bytes={current_size}-"
-
-            request = Request(url, headers=headers)
-            try:
-                with urlopen(request, timeout=60) as response:
-                    status = getattr(response, "status", 200)
-                    if current_size > 0 and status != 206:
-                        current_size = 0
-                        destination.unlink(missing_ok=True)
-                    mode = "ab" if current_size > 0 and status == 206 else "wb"
-                    with destination.open(mode) as output:
-                        while True:
-                            chunk = response.read(1024 * 1024)
-                            if not chunk:
-                                break
-                            output.write(chunk)
-                            current_size += len(chunk)
-            except (TimeoutError, URLError, OSError) as exc:
-                if attempt == 7:
-                    raise RuntimeError(f"Failed to download Faster-Whisper CLI: {exc}") from exc
-                continue
-
-        final_size = destination.stat().st_size if destination.exists() else 0
-        if expected_size > 0 and final_size != expected_size:
-            raise RuntimeError(
-                f"Downloaded Faster-Whisper CLI archive is incomplete: {final_size} / {expected_size}"
-            )
-
-    @staticmethod
-    def get_yt_dlp_version() -> Optional[str]:
-        try:
-            yt_dlp = import_module("yt_dlp")
-            version = getattr(getattr(yt_dlp, "version", None), "__version__", None)
-            if version:
-                return str(version)
-        except Exception:
-            return None
-        return None
+        return self._tool_installer.install_faster_whisper_cli()

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "max_path_length": 240,
+  "max_filename_length": 240,
+  "hash_algorithm": "sha1-utf8",
+  "hash_hex_length": 8,
+  "cases": [
+    {
+      "id": "translation-normal",
+      "source_path": "E:/subs/demo.ts.srt",
+      "suffix": "_ZH-CN",
+      "extension": ".srt",
+      "expected_path": "E:/subs/demo.ts_ZH-CN.srt"
+    },
+    {
+      "id": "synthesis-normal",
+      "source_path": "E:/clips/demo.ts",
+      "suffix": "_synthesized",
+      "extension": ".mp4",
+      "expected_path": "E:/clips/demo_synthesized.mp4"
+    },
+    {
+      "id": "translation-long",
+      "source_path": "C:/exports/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.srt",
+      "suffix": "_ZH-CN",
+      "extension": ".srt",
+      "expected_path": "C:/exports/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-a71eb993_ZH-CN.srt"
+    }
+  ]
+}

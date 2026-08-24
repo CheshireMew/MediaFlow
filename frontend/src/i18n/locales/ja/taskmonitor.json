@@ -61,6 +61,11 @@
     "retryFailed": "タスクを再試行できませんでした",
     "clearAllFailed": "タスクをクリアできませんでした",
     "deleteFailed": "タスクを削除できませんでした",
+    "mediaMissing": "タスクに記録されたファイルは移動または削除されています",
+    "mediaMissingOpenManually": "タスクのファイルは移動または削除されています。移動先のページで選び直してください。",
+    "mediaResolveFailed": "タスクのファイルを確認できませんでした。もう一度お試しください。",
+    "showFolderFailed": "タスクのファイルをフォルダーに表示できませんでした",
+    "outputMissingUsingSource": "出力ファイルが見つからないため、利用可能な元ファイルを使用します。",
     "initializing": "初期化中...",
     "downloading": "ダウンロード中"
   },

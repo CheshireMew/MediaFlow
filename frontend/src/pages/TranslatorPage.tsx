@@ -205,7 +205,6 @@ export const TranslatorPage = () => {
                                 >
                                     <option value="standard">{t('modes.standard')}</option>
                                     <option value="intelligent">{t('modes.intelligent')}</option>
-                                    <option value="proofread">{t('modes.proofread')}</option>
                                 </select>
                              </div>
                          </div>

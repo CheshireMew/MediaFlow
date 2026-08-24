@@ -3,7 +3,7 @@ name = "mediaflow-core"
 version = "0.1.0"
 description = "The headless AI media processing engine for MediaFlow."
 authors = [
-    {name = "Weifeng", email = "author@example.com"},
+    {name = "MediaFlow Contributors"},
 ]
 dependencies = [
     "fastapi>=0.110.0",
@@ -25,10 +25,11 @@ dependencies = [
     "json_repair>=0.10.0",
     "instructor>=1.0.0",
     "modelscope>=1.11.0",
+    "numpy>=1.24.0",
 ]
 requires-python = ">=3.10"
 readme = "README.md"
-license = {text = "MIT"}
+license = "AGPL-3.0-or-later"
 
 [project.optional-dependencies]
 dev = [

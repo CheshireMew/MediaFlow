@@ -1,8 +1,7 @@
 import asyncio
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, select
 
@@ -60,7 +59,10 @@ async def task_manager(test_engine, monkeypatch):
 
     tm = create_task_manager()
     await tm.init_async()
-    return tm
+    try:
+        yield tm
+    finally:
+        await tm.shutdown_async()
 
 
 @pytest.mark.asyncio
@@ -149,6 +151,40 @@ async def test_update_task_serializes_terminal_control_updates(task_manager, mon
 
 
 @pytest.mark.asyncio
+async def test_slow_update_for_one_task_does_not_block_another_task(task_manager, monkeypatch):
+    first_task_id = await task_manager.create_task("pipeline")
+    second_task_id = await task_manager.create_task("pipeline")
+    first_update_started = asyncio.Event()
+    release_first_update = asyncio.Event()
+
+    async def delayed_update(task_id, cached_task=None, **kwargs):
+        if task_id == first_task_id:
+            first_update_started.set()
+            await release_first_update.wait()
+        task = cached_task or task_manager.tasks[task_id]
+        for key, value in kwargs.items():
+            setattr(task, key, value)
+        task.revision = int(task.revision or 0) + 1
+        return task
+
+    monkeypatch.setattr(task_manager._repository, "update_task", delayed_update)
+    first_update = asyncio.create_task(
+        task_manager.update_task(first_task_id, progress=10.0)
+    )
+    await asyncio.wait_for(first_update_started.wait(), timeout=1.0)
+
+    await asyncio.wait_for(
+        task_manager.update_task(second_task_id, progress=20.0),
+        timeout=0.1,
+    )
+
+    assert task_manager.tasks[second_task_id].progress == 20.0
+    assert not first_update.done()
+    release_first_update.set()
+    await first_update
+
+
+@pytest.mark.asyncio
 async def test_threadsafe_progress_updates_are_coalesced(task_manager, monkeypatch):
     task_id = await task_manager.create_task("pipeline")
     await task_manager.update_task(task_id, status="running")
@@ -165,7 +201,7 @@ async def test_threadsafe_progress_updates_are_coalesced(task_manager, monkeypat
         "persist_task_snapshot",
         count_progress_checkpoints,
     )
-    task_manager._last_progress_persisted_at.pop(task_id, None)
+    task_manager._progress._last_progress_persisted_at.pop(task_id, None)
     loop = asyncio.get_running_loop()
     for progress in range(25):
         task_manager.submit_threadsafe_update(
@@ -195,10 +231,10 @@ async def test_progress_projection_updates_ui_without_committing_every_event(tas
         return await persist_snapshot(*args, **kwargs)
 
     monkeypatch.setattr(task_manager._repository, "persist_task_snapshot", count_checkpoints)
-    task_manager._last_progress_persisted_at.pop(task_id, None)
+    task_manager._progress._last_progress_persisted_at.pop(task_id, None)
 
     for progress in range(20):
-        await task_manager._update_progress_projection(
+        await task_manager._progress._update_progress_projection(
             task_id,
             progress=float(progress),
             message_code="transcription_progress",
@@ -207,6 +243,21 @@ async def test_progress_projection_updates_ui_without_committing_every_event(tas
 
     assert checkpoint_count == 1
     assert task_manager.tasks[task_id].progress == 19.0
+
+
+@pytest.mark.asyncio
+async def test_progress_projection_never_regresses_when_an_older_callback_arrives(task_manager):
+    task_id = await task_manager.create_task("pipeline")
+    await task_manager.update_task(task_id, status="running", progress=60.0)
+
+    await task_manager._progress._update_progress_projection(
+        task_id,
+        progress=15.0,
+        message_code="transcription_progress",
+        message_params={"percent": 15},
+    )
+
+    assert task_manager.tasks[task_id].progress == 60.0
 
 
 @pytest.mark.asyncio
@@ -312,16 +363,16 @@ async def test_warm_start_returns_before_background_task_hydration_finishes(
         await release_load.wait()
         tm.tasks = {}
 
-    monkeypatch.setattr(tm, "load_runtime_tasks", slow_load_runtime_tasks)
+    monkeypatch.setattr(tm._lifecycle, "load_runtime_tasks", slow_load_runtime_tasks)
 
     await tm.warm_start_async()
     await asyncio.wait_for(load_started.wait(), timeout=1.0)
 
-    assert tm._startup_load_task is not None
-    assert not tm._startup_load_task.done()
+    assert tm._lifecycle._startup_load_task is not None
+    assert not tm._lifecycle._startup_load_task.done()
 
     release_load.set()
-    await asyncio.wait_for(tm._startup_load_task, timeout=1.0)
+    await asyncio.wait_for(tm._lifecycle._startup_load_task, timeout=1.0)
     await tm.shutdown_async()
 
 
@@ -347,9 +398,9 @@ async def test_warm_start_blocks_task_creation_until_hydration_finishes(
         load_started.set()
         await release_load.wait()
         tm.tasks = {}
-        tm._tasks_loaded.set()
+        tm._lifecycle._tasks_loaded.set()
 
-    monkeypatch.setattr(tm, "load_runtime_tasks", slow_load_runtime_tasks)
+    monkeypatch.setattr(tm._lifecycle, "load_runtime_tasks", slow_load_runtime_tasks)
 
     await tm.warm_start_async()
     await asyncio.wait_for(load_started.wait(), timeout=1.0)

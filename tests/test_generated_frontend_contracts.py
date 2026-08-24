@@ -22,3 +22,11 @@ def test_generated_frontend_contracts_have_no_drift() -> None:
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+    generated = (
+        REPO_ROOT / "frontend" / "src" / "types" / "generatedApi.ts"
+    ).read_text(encoding="utf-8")
+    assert "export type PipelineStepRequest = DownloadStepRequest |" in generated
+    assert "export interface ApiOperations" in generated
+    assert "export const API_ENDPOINTS" in generated
+    assert "[key: string]: unknown" not in generated

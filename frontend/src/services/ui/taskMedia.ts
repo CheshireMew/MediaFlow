@@ -5,7 +5,6 @@ import {
 } from "./navigation";
 import {
   getTaskMediaCandidates as buildTaskMediaCandidates,
-  resolvePrimaryTaskMedia,
   getTaskStructuredMediaRefs,
 } from "../tasks/taskMediaResolver";
 import type { MediaReference } from "./mediaReference";
@@ -39,8 +38,28 @@ export async function resolveTaskMediaPaths(task: Task) {
 }
 
 export async function resolveTaskOutputPath(task: Task) {
-  const { outputPath } = await resolveTaskMediaPaths(task);
-  return outputPath;
+  const target = await resolveTaskRevealTarget(task);
+  return target.path;
+}
+
+export async function resolveTaskRevealTarget(task: Task) {
+  const candidates = getTaskMediaCandidates(task);
+  const paths = await resolvePreferredMediaPaths(candidates);
+  const path = paths.outputPath
+    ?? paths.videoPath
+    ?? paths.subtitlePath
+    ?? paths.contextPath;
+  const resolvedArtifact = path
+    ? (task.artifacts ?? []).find((artifact) => artifact.ref.path === path)
+    : undefined;
+  return {
+    path,
+    usedFallback: Boolean(
+      path
+      && candidates.output.length > 0
+      && resolvedArtifact?.role !== "output",
+    ),
+  };
 }
 
 export async function resolveTaskMediaReferences(task: Task): Promise<{
@@ -49,7 +68,17 @@ export async function resolveTaskMediaReferences(task: Task): Promise<{
   contextRef: MediaReference | null;
   outputRef: MediaReference | null;
 }> {
-  return resolvePrimaryTaskMedia(task);
+  const paths = await resolveTaskMediaPaths(task);
+  const artifacts = task.artifacts ?? [];
+  const refForPath = (path: string | null) =>
+    path ? artifacts.find((artifact) => artifact.ref.path === path)?.ref ?? null : null;
+
+  return {
+    videoRef: refForPath(paths.videoPath),
+    subtitleRef: refForPath(paths.subtitlePath),
+    contextRef: refForPath(paths.contextPath),
+    outputRef: refForPath(paths.outputPath),
+  };
 }
 
 export async function resolveTaskNavigationPayload(

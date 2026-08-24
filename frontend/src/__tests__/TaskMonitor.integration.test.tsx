@@ -23,7 +23,14 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("../context/taskContext", () => ({
-  useTaskContext: () => useTaskContextMock(),
+  useTaskActions: () => useTaskContextMock(),
+  useTaskStatus: () => useTaskContextMock(),
+}));
+
+vi.mock("../context/taskStoreContext", () => ({
+  useTasks: () => useTaskContextMock().tasks,
+  useTaskById: (taskId: string | null) =>
+    useTaskContextMock().tasks.find((task: { id: string }) => task.id === taskId) ?? null,
 }));
 
 vi.mock("../components/ui/confirmationContext", () => ({
@@ -230,6 +237,27 @@ describe("TaskMonitor integration", () => {
     await waitFor(() => {
       expect(clearTasksMock).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("disables bulk actions when there is no matching work", () => {
+    useTaskContextMock.mockReturnValue({
+      tasks: [],
+      connected: true,
+      remoteTasksReady: true,
+      tasksSettled: true,
+      pauseAllTasks: pauseAllTasksMock,
+      pauseTask: pauseTaskMock,
+      resumeTask: resumeTaskMock,
+      retryTask: retryTaskMock,
+      addTask: addTaskMock,
+      deleteTask: deleteTaskMock,
+      clearTasks: clearTasksMock,
+    });
+
+    render(<TaskMonitor />);
+
+    expect(screen.getByTitle("buttons.pauseAll.tooltip")).toBeDisabled();
+    expect(screen.getByTitle("buttons.clearAll.tooltip")).toBeDisabled();
   });
 
   it("calls deleteTask for a running backend task", async () => {

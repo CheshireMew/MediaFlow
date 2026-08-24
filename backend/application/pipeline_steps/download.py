@@ -6,6 +6,8 @@ from backend.core.task_runtime import TaskRuntimeContext
 
 
 class DownloadStep(PipelineStep):
+    resume_policy = "idempotent"
+
     def __init__(self, *, downloader, task_manager):
         self._downloader = downloader
         self._task_manager = task_manager
@@ -15,11 +17,16 @@ class DownloadStep(PipelineStep):
         return "download"
 
     async def execute(self, ctx: PipelineContext, params: dict, task_id: str = None):
+        ctx.begin_step(self.name)
         url = params.get("url")
         if not url:
             raise ValueError("Download step requires 'url' param")
         
-        runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
+        runtime = TaskRuntimeContext(
+            task_id,
+            task_manager=self._task_manager,
+            progress_transform=ctx.project_step_progress,
+        )
         tm = runtime.task_manager
         
         # Callbacks for sync code

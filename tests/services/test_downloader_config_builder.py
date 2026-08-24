@@ -31,4 +31,4 @@ def test_config_builder_applies_shared_ytdlp_runtime_options(tmp_path: Path):
     assert options["fragment_retries"] == 10
     assert options["extractor_retries"] == 5
     assert options["file_access_retries"] == 3
-    assert "user_agent" in options
+    assert "user_agent" not in options

@@ -2,6 +2,17 @@ import { Settings, Play } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from 'react-i18next';
 
+const MODEL_LABEL_KEYS: Record<string, string> = {
+  tiny: 'config.models.tiny',
+  base: 'config.models.base',
+  small: 'config.models.small',
+  medium: 'config.models.medium',
+  'large-v1': 'config.models.largev1',
+  'large-v2': 'config.models.largev2',
+  'large-v3': 'config.models.largev3',
+  'large-v3-turbo': 'config.models.largev3turbo',
+};
+
 interface TranscriptionConfigProps {
   engine: "builtin" | "cli";
   setEngine: (engine: "builtin" | "cli") => void;
@@ -13,6 +24,7 @@ interface TranscriptionConfigProps {
   isFileSelected: boolean;
   currentTranscriptionTaskId: string | null;
   isSubmitting: boolean;
+  progressPercent?: number;
 }
 
 export function TranscriptionConfig({
@@ -26,12 +38,15 @@ export function TranscriptionConfig({
   isFileSelected,
   currentTranscriptionTaskId,
   isSubmitting,
+  progressPercent,
 }: TranscriptionConfigProps) {
   const { t } = useTranslation('transcriber');
   const isDisabled = !isFileSelected || !!currentTranscriptionTaskId || isSubmitting;
   const engineId = useId();
   const modelId = useId();
   const deviceId = useId();
+  const modelLabelKey = MODEL_LABEL_KEYS[model];
+  const selectedModelLabel = modelLabelKey ? t(modelLabelKey) : model;
 
   return (
     <div className="flex flex-col gap-6">
@@ -41,13 +56,14 @@ export function TranscriptionConfig({
         <span>{t('config.title')}</span>
       </div>
       
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-1.5">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="col-span-2 space-y-1.5">
           <label htmlFor={engineId} className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">{t('config.engineLabel')}</label>
           <div className="relative group">
             <select
               id={engineId}
               value={engine}
+              title={t(`config.engines.${engine}`)}
               onChange={(e) => setEngine(e.target.value as "builtin" | "cli")}
               className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-xs text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 appearance-none cursor-pointer hover:bg-black/60 transition-all shadow-sm font-medium truncate pr-8"
             >
@@ -66,6 +82,7 @@ export function TranscriptionConfig({
             <select 
               id={modelId}
               value={model} 
+              title={selectedModelLabel}
               onChange={(e) => setModel(e.target.value)}
               className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-xs text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 appearance-none cursor-pointer hover:bg-black/60 transition-all shadow-sm font-medium truncate pr-8"
             >
@@ -90,6 +107,7 @@ export function TranscriptionConfig({
             <select 
               id={deviceId}
               value={device} 
+              title={t(`config.devices.${device}`)}
               onChange={(e) => setDevice(e.target.value)}
               className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-xs text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 appearance-none cursor-pointer hover:bg-black/60 transition-all shadow-sm font-medium truncate pr-8"
             >
@@ -106,6 +124,7 @@ export function TranscriptionConfig({
       <button
         onClick={onTranscribe}
         disabled={isDisabled}
+        aria-live="polite"
         className={`w-full h-12 rounded-xl flex items-center justify-center gap-2.5 font-bold text-sm transition-all shadow-lg relative overflow-hidden group/btn
           ${isDisabled
             ? 'bg-slate-800/50 border border-white/5 text-slate-400 cursor-not-allowed shadow-none'
@@ -117,7 +136,7 @@ export function TranscriptionConfig({
           {currentTranscriptionTaskId || isSubmitting ? (
             <>
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              {t('config.processingButton')}
+              {t('config.processingButton')}{progressPercent === undefined ? '' : ` ${progressPercent}%`}
             </>
           ) : (
             <>

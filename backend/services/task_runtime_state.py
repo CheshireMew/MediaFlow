@@ -22,7 +22,6 @@ class TaskRuntimeState:
 
     def mark_running(self, task_id: str) -> None:
         self.running_ids.add(task_id)
-        self.stop_requests.pop(task_id, None)
 
     def unmark_running(self, task_id: str) -> None:
         self.running_ids.discard(task_id)

@@ -1,6 +1,9 @@
 import type { SubtitleSegment } from "../../types/task";
 import { useTranslation } from "react-i18next";
-import type { TranslatorMode } from "../../stores/translatorStore";
+import type {
+  TranslatorExecutionMode,
+  TranslatorMode,
+} from "../../stores/translatorStore";
 import { useTaskActions } from "../../context/taskContext";
 import {
   applyExecutionOutcome,
@@ -18,17 +21,15 @@ type UseTranslationCommandsParams = {
   sourceFileRef: MediaReference | null;
   targetLang: TranslationTargetLanguage;
   mode: TranslatorMode;
-  setTaskStatus: (status: string) => void;
-  setProgress: (progress: number) => void;
-  setTaskError: (error: string | null) => void;
+  setSubmissionPhase: (phase: "idle" | "submitting") => void;
+  setLocalError: (error: string | null) => void;
   setExecutionMode: (mode: NullableExecutionMode) => void;
   setTaskId: (id: string | null) => void;
   setSourceFileRef: (reference: MediaReference | null) => void;
-  setMode: (mode: TranslatorMode) => void;
-  setActiveMode: (mode: TranslatorMode | null) => void;
-  setResultMode: (mode: TranslatorMode | null) => void;
-  activeTaskModeRef: React.MutableRefObject<TranslatorMode>;
-  previousTranslateModeRef: React.MutableRefObject<"standard" | "intelligent">;
+  setActiveMode: (mode: TranslatorExecutionMode | null) => void;
+  setResultMode: (mode: TranslatorExecutionMode | null) => void;
+  activeTaskModeRef: React.MutableRefObject<TranslatorExecutionMode>;
+  previousTranslateModeRef: React.MutableRefObject<TranslatorMode>;
 };
 
 export function useTranslationCommands({
@@ -36,13 +37,11 @@ export function useTranslationCommands({
   sourceFileRef,
   targetLang,
   mode,
-  setTaskStatus,
-  setProgress,
-  setTaskError,
+  setSubmissionPhase,
+  setLocalError,
   setExecutionMode,
   setTaskId,
   setSourceFileRef,
-  setMode,
   setActiveMode,
   setResultMode,
   activeTaskModeRef,
@@ -54,11 +53,10 @@ export function useTranslationCommands({
 
   const startTranslation = async () => {
     if (sourceSegments.length === 0) return;
-    const effectiveMode = mode === "proofread" ? previousTranslateModeRef.current : mode;
+    const effectiveMode = mode;
 
-    setTaskStatus("starting");
-    setProgress(0);
-    setTaskError(null);
+    setSubmissionPhase("submitting");
+    setLocalError(null);
     setExecutionMode(null);
 
     try {
@@ -77,9 +75,6 @@ export function useTranslationCommands({
         setExecutionMode,
       });
 
-      if (mode === "proofread") {
-        setMode(effectiveMode);
-      }
       const submission = enqueueExecutionTask({
         addTask,
         outcome: executionResult,
@@ -101,7 +96,8 @@ export function useTranslationCommands({
         },
       });
       setTaskId(submission.task_id);
-      setTaskStatus("pending");
+      setSubmissionPhase("idle");
+      setLocalError(null);
     } catch (e) {
       console.error(e);
       if (isAiTranslationSetupRequiredError(e)) {
@@ -110,31 +106,24 @@ export function useTranslationCommands({
         setResultMode(null);
         setExecutionMode(null);
         setTaskId(null);
-        setTaskStatus("");
-        setTaskError(null);
-        return;
-      }
-      if (e instanceof Error && /paused|cancelled/i.test(e.message)) {
-        setTaskStatus("paused");
+        setSubmissionPhase("idle");
+        setLocalError(null);
         return;
       }
       setExecutionMode(null);
-      setTaskStatus("failed");
+      setSubmissionPhase("idle");
       const detail = e instanceof Error ? e.message : t("feedback.unknownError");
-      setTaskError(detail);
+      setLocalError(detail);
       toast.error(t("feedback.startTranslationFailed", { detail }));
     }
   };
 
   const proofreadSubtitle = async () => {
     if (sourceSegments.length === 0) return;
-    if (mode !== "proofread") {
-      previousTranslateModeRef.current = mode;
-    }
+    previousTranslateModeRef.current = mode;
 
-    setTaskStatus("starting");
-    setProgress(0);
-    setTaskError(null);
+    setSubmissionPhase("submitting");
+    setLocalError(null);
     setExecutionMode(null);
 
     try {
@@ -174,7 +163,8 @@ export function useTranslationCommands({
         },
       });
       setTaskId(submission.task_id);
-      setTaskStatus("pending");
+      setSubmissionPhase("idle");
+      setLocalError(null);
     } catch (e) {
       console.error(e);
       if (isAiTranslationSetupRequiredError(e)) {
@@ -183,19 +173,15 @@ export function useTranslationCommands({
         setResultMode(null);
         setExecutionMode(null);
         setTaskId(null);
-        setTaskStatus("");
-        setTaskError(null);
-        return;
-      }
-      if (e instanceof Error && /paused|cancelled/i.test(e.message)) {
-        setTaskStatus("paused");
+        setSubmissionPhase("idle");
+        setLocalError(null);
         return;
       }
       setActiveMode(null);
       setExecutionMode(null);
-      setTaskStatus("failed");
+      setSubmissionPhase("idle");
       const detail = e instanceof Error ? e.message : t("feedback.unknownError");
-      setTaskError(detail);
+      setLocalError(detail);
       toast.error(t("feedback.startProofreadFailed", { detail }));
     }
   };

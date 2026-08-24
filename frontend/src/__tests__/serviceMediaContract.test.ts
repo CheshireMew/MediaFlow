@@ -242,6 +242,81 @@ describe("service media contract", () => {
     });
   });
 
+  it("stops an audio-only auto flow after translation", async () => {
+    apiClientMock.getSettings.mockResolvedValue(
+      createMockUserSettings({ auto_execute_flow: true }),
+    );
+
+    await executionService.transcribe({
+      audio_ref: {
+        path: "E:/canonical/podcast.mp3",
+        name: "podcast.mp3",
+        media_kind: "audio",
+        type: "audio/mpeg",
+      },
+      task_name: "Transcribe podcast.mp3",
+      model: "base",
+      device: "cpu",
+    });
+
+    const request = apiClientMock.runPipeline.mock.calls[0]?.[0];
+    expect(request?.steps.map((step) => step.step_name)).toEqual([
+      "transcribe",
+      "translate",
+    ]);
+  });
+
+  it("keeps synthesis in a video auto flow", async () => {
+    apiClientMock.getSettings.mockResolvedValue(
+      createMockUserSettings({ auto_execute_flow: true }),
+    );
+
+    await executionService.transcribe({
+      audio_ref: {
+        path: "E:/canonical/interview.mp4",
+        name: "interview.mp4",
+        media_kind: "video",
+        type: "video/mp4",
+      },
+      task_name: "Transcribe interview.mp4",
+      model: "base",
+      device: "cpu",
+    });
+
+    const request = apiClientMock.runPipeline.mock.calls[0]?.[0];
+    expect(request?.steps.map((step) => step.step_name)).toEqual([
+      "transcribe",
+      "translate",
+      "synthesize",
+    ]);
+  });
+
+  it("does not append video synthesis to an audio download auto flow", async () => {
+    await executionService.download(
+      {
+        pipeline_id: "downloader_tool",
+        steps: [{
+          step_name: "download",
+          params: {
+            url: "https://example.com/podcast",
+            media_kind: "audio",
+          },
+        }],
+      },
+      {
+        default_download_path: "D:/MediaFlow Downloads",
+        auto_execute_flow: true,
+      },
+    );
+
+    const request = apiClientMock.runPipeline.mock.calls[0]?.[0];
+    expect(request?.steps.map((step) => step.step_name)).toEqual([
+      "download",
+      "transcribe",
+      "translate",
+    ]);
+  });
+
   it("normalizes task results into structured media refs before UI consumption", () => {
     expect(
       normalizeTranscribeResult(

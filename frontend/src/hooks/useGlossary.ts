@@ -1,8 +1,12 @@
 import { useTranslatorStore } from "../stores/translatorStore";
 import { glossaryService } from "../services/domain";
+import { useShallow } from "zustand/react/shallow";
 
 export const useGlossary = () => {
-  const { glossary, setGlossary } = useTranslatorStore();
+  const { glossary, setGlossary } = useTranslatorStore(useShallow((state) => ({
+    glossary: state.glossary,
+    setGlossary: state.setGlossary,
+  })));
 
   const refreshGlossary = async () => {
     try {

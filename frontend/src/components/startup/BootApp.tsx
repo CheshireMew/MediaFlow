@@ -17,7 +17,10 @@ import i18n, {
 import { resolveCurrentPresentationRoute } from "../../services/ui/pagePresentation";
 import { probeBackendHealth } from "../../startup/backendHealthProbe";
 import { initializeUiStateSettings } from "../../services/persistence/uiStateSettings";
-import { initializeWorkspaceState } from "../../services/persistence/workspaceState";
+import {
+  flushWorkspaceStateForShutdown,
+  initializeWorkspaceState,
+} from "../../services/persistence/workspaceState";
 import { configureApiRuntime } from "../../api/runtime";
 import {
   clearStartupBootstrap,
@@ -33,7 +36,7 @@ const REQUIRED_DESKTOP_CAPABILITIES = [
   "getDesktopRuntimeInfo",
   "readWorkspaceState",
   "writeWorkspaceState",
-  "writeWorkspaceStateSync",
+  "onPrepareToClose",
 ] as const;
 
 const STARTUP_HEALTH_RETRY_DELAY_MS = 150;
@@ -61,13 +64,14 @@ async function waitForBackendHealth() {
   const deadline = Date.now() + STARTUP_HEALTH_TIMEOUT_MS;
 
   while (Date.now() < deadline) {
-    try {
-      const health = await probeBackendHealth();
-      if (health.ok) {
-        return;
-      }
-    } catch (error) {
-      console.warn("[Init] Backend health probe failed.", error);
+    const health = await probeBackendHealth();
+    if (health.ok) {
+      return;
+    }
+    if (health.state === "failed") {
+      throw health.error instanceof Error
+        ? health.error
+        : new Error(String(health.error));
     }
 
     if (!retryMessageShown) {
@@ -84,18 +88,12 @@ async function waitForBackendHealth() {
 }
 
 async function loadUserSettings() {
-  try {
-    const settings = await settingsService.getSettings();
-    initializeUiStateSettings(settings);
-    if (settings?.language) {
-      await i18n.changeLanguage(settings.language);
-    }
-    return settings;
-  } catch (error) {
-    console.warn("[Init] Failed to load user settings during startup.", error);
-    initializeUiStateSettings(null);
-    return null;
+  const settings = await settingsService.getSettings();
+  initializeUiStateSettings(settings);
+  if (settings?.language) {
+    await i18n.changeLanguage(settings.language);
   }
+  return settings;
 }
 
 async function initializePersistentState() {
@@ -262,6 +260,10 @@ export function BootApp() {
     return () => {
       window.cancelAnimationFrame(frameId);
     };
+  }, []);
+
+  useEffect(() => {
+    return windowService.onPrepareToClose(flushWorkspaceStateForShutdown);
   }, []);
 
   return (

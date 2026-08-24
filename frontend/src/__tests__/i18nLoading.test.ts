@@ -63,4 +63,11 @@ describe("i18n loading paths", () => {
       ).toBe(taskMessageText);
     },
   );
+
+  it("loads the English fallback before initialization returns", async () => {
+    await initI18nWithNamespaces("ja", ["common"]);
+
+    expect(i18n.hasResourceBundle("en", "common")).toBe(true);
+    expect(i18n.options.fallbackLng).toBe("en");
+  });
 });

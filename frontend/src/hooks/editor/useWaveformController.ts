@@ -129,7 +129,25 @@ export function useWaveformController({
         end: Math.min(nextDuration, Math.max(container.clientWidth / zoomRef.current, 1)),
       });
     };
-    void editorService.getWaveformPeaks({ video_ref: video }).then((waveform) => {
+    const mediaDuration = Number.isFinite(videoElement.duration) && videoElement.duration > 0
+      ? videoElement.duration
+      : 0;
+    const transcriptDuration = timelineIndexRef.current.prefixMaxEnd.at(-1) ?? 0;
+    const knownDuration = Math.max(mediaDuration, transcriptDuration);
+    const maxWaveformPoints = knownDuration > 0
+      ? Math.min(
+          1_500_000,
+          Math.max(
+            2_048,
+            container.clientWidth * 4,
+            Math.ceil(knownDuration * zoomRef.current * 2),
+          ),
+        )
+      : 250_000;
+    void editorService.getWaveformPeaks({
+      video_ref: video,
+      max_points: maxWaveformPoints,
+    }).then((waveform) => {
       if (cancelled) return;
       setLoadingState({ mediaUrl, progress: 90 });
       runtime = createWaveformRuntime({
@@ -183,7 +201,7 @@ export function useWaveformController({
       baseRegionColorsRef.current = new Map();
       highlightedRegionIdRef.current = null;
     };
-  }, [mediaUrl, onContextMenuRef, onInteractStartRef, onRegionClickRef, onRegionUpdateRef, persistedRegionIdsRef, video, videoRef, zoomRef]);
+  }, [mediaUrl, onContextMenuRef, onInteractStartRef, onRegionClickRef, onRegionUpdateRef, persistedRegionIdsRef, timelineIndexRef, video, videoRef, zoomRef]);
 
   useEffect(() => {
     const container = containerRef.current;

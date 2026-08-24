@@ -1,4 +1,4 @@
-import type { DesktopRuntimeInfo, ElectronAPI } from "../../types/electron-api";
+import type { DesktopRuntimeInfo, ElectronAPI } from "../../contracts/desktopBridgeContract";
 
 let desktopRuntimeInfoPromise: Promise<DesktopRuntimeInfo> | null = null;
 

@@ -14,10 +14,8 @@ class TaskResumeService:
     ) -> None:
         updates = {
             "status": "pending",
-            "progress": 0.0,
             "message_code": message_code,
             "message_params": message_params or {},
-            "result": None,
             "error": None,
             "cancelled": False,
         }

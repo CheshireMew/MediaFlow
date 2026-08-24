@@ -1,14 +1,23 @@
 import { app } from "electron";
 import { existsSync, promises as fs } from "fs";
 import path from "path";
-import { spawnSync } from "child_process";
 
 const MEDIAFLOW_RENDERER_DEV_URL_ENV = "MEDIAFLOW_RENDERER_DEV_URL";
 const DESKTOP_RUNTIME_DIRNAME = "runtime";
 const MEDIAFLOW_RUNTIME_DIR_ENV = "MEDIAFLOW_RUNTIME_DIR";
 const MEDIAFLOW_BACKEND_PORT_ENV = "PORT";
 const WINDOWS_SHARED_RUNTIME_ROOT = "D:\\Tools\\MediaFlow\\runtime";
-const DESKTOP_RUNTIME_MIGRATION_MARKER = ".runtime-migration-v1-complete";
+const DESKTOP_RUNTIME_MIGRATION_MARKER = ".runtime-migration-v2-complete.json";
+const MANAGED_RUNTIME_DIRECTORIES = [
+  "workspace",
+  "output",
+  "models",
+  "user_data",
+  "tools",
+  ".cache",
+] as const;
+const DEFAULT_RUNTIME_MAX_MANAGED_BYTES = 200 * 1024 * 1024 * 1024;
+const DEFAULT_RUNTIME_MIN_FREE_BYTES = 5 * 1024 * 1024 * 1024;
 
 export function isDesktopDevMode() {
   return process.env.IS_DEV === "true";
@@ -26,49 +35,6 @@ function resolveDesktopRendererFile() {
   return path.join(app.getAppPath(), "dist", "index.html");
 }
 
-function isDesktopSourceCheckout() {
-  const appPath = app.getAppPath();
-  return existsSync(path.join(appPath, "index.html")) && existsSync(path.join(appPath, "package.json"));
-}
-
-function tryBuildDesktopRendererBundle(target: string) {
-  if (existsSync(target) || !isDesktopSourceCheckout()) {
-    return;
-  }
-
-  const appPath = app.getAppPath();
-  const result =
-    process.platform === "win32"
-      ? spawnSync(
-          process.env.ComSpec || "cmd.exe",
-          ["/d", "/s", "/c", `"${path.join(appPath, "node_modules", ".bin", "vite.cmd")}" build`],
-          {
-            cwd: appPath,
-            env: process.env,
-            encoding: "utf-8",
-            timeout: 300_000,
-            windowsVerbatimArguments: true,
-          },
-        )
-      : spawnSync(path.join(appPath, "node_modules", ".bin", "vite"), ["build"], {
-          cwd: appPath,
-          env: process.env,
-          encoding: "utf-8",
-          timeout: 300_000,
-        });
-
-  if (result.status !== 0 || !existsSync(target)) {
-    const stdout = result.stdout?.trim();
-    const stderr = result.stderr?.trim();
-    console.error("[Desktop] Failed to auto-build renderer bundle.", {
-      target,
-      status: result.status,
-      stdout,
-      stderr,
-    });
-  }
-}
-
 export function resolveDesktopRendererTarget() {
   if (isDesktopDevMode()) {
     const devServerUrl = process.env[MEDIAFLOW_RENDERER_DEV_URL_ENV]?.trim();
@@ -83,7 +49,11 @@ export function resolveDesktopRendererTarget() {
   }
 
   const target = resolveDesktopRendererFile();
-  tryBuildDesktopRendererBundle(target);
+  if (!existsSync(target)) {
+    throw new Error(
+      `Desktop renderer bundle is missing: ${target}. Run the declared build:app command before starting production mode.`,
+    );
+  }
 
   return {
     kind: "file" as const,
@@ -119,10 +89,60 @@ function samePath(left: string, right: string) {
     : normalizedLeft === normalizedRight;
 }
 
-async function copyLegacyPathIfMissing(source: string, target: string) {
-  if (samePath(source, target) || existsSync(target) || !existsSync(source)) {
+function parseStorageBudget(name: string, fallback: number) {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative safe integer.`);
+  }
+  return value;
+}
+
+async function measurePathBytes(source: string): Promise<number> {
+  const stats = await fs.lstat(source);
+  if (stats.isSymbolicLink()) return 0;
+  if (stats.isFile()) return stats.size;
+  if (!stats.isDirectory()) return 0;
+  let total = 0;
+  const entries = await fs.readdir(source, { withFileTypes: true });
+  for (const entry of entries) {
+    total += await measurePathBytes(path.join(source, entry.name));
+  }
+  return total;
+}
+
+async function ensureMigrationCapacity(source: string, targetRoot: string) {
+  const peakBytes = await measurePathBytes(source);
+  const maximumManagedBytes = parseStorageBudget(
+    "MEDIAFLOW_RUNTIME_MAX_MANAGED_BYTES",
+    DEFAULT_RUNTIME_MAX_MANAGED_BYTES,
+  );
+  const minimumFreeBytes = parseStorageBudget(
+    "MEDIAFLOW_RUNTIME_MIN_FREE_BYTES",
+    DEFAULT_RUNTIME_MIN_FREE_BYTES,
+  );
+  if (peakBytes > maximumManagedBytes) {
+    throw new Error(
+      `Legacy runtime migration exceeds the managed runtime budget: ${peakBytes} > ${maximumManagedBytes} bytes.`,
+    );
+  }
+  const volume = await fs.statfs(targetRoot);
+  const freeBytes = Number(volume.bavail) * Number(volume.bsize);
+  if (!Number.isSafeInteger(freeBytes) || freeBytes < peakBytes + minimumFreeBytes) {
+    throw new Error(
+      `Legacy runtime migration needs ${peakBytes + minimumFreeBytes} free bytes; ${freeBytes} are available.`,
+    );
+  }
+}
+
+async function copyLegacyOwnedPath(source: string, target: string, runtimeRoot: string) {
+  if (samePath(source, target) || !existsSync(source)) {
     return;
   }
+  const sourceStats = await fs.stat(source);
+  if (sourceStats.isFile() && existsSync(target)) return;
+  await ensureMigrationCapacity(source, runtimeRoot);
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.cp(source, target, {
     recursive: true,
@@ -143,30 +163,44 @@ export async function migrateDesktopRuntimeData() {
     return;
   }
 
+  await fs.mkdir(runtimeRoot, { recursive: true });
+
   const legacyUserDataRoot = app.getPath("userData");
   const legacyRuntimeRoot = path.join(legacyUserDataRoot, DESKTOP_RUNTIME_DIRNAME);
 
   if (!samePath(legacyRuntimeRoot, runtimeRoot) && existsSync(legacyRuntimeRoot)) {
-    await fs.mkdir(path.dirname(runtimeRoot), { recursive: true });
-    await fs.cp(legacyRuntimeRoot, runtimeRoot, {
-      recursive: true,
-      force: false,
-      errorOnExist: false,
-      preserveTimestamps: true,
-    });
+    for (const directory of MANAGED_RUNTIME_DIRECTORIES) {
+      await copyLegacyOwnedPath(
+        path.join(legacyRuntimeRoot, directory),
+        path.join(runtimeRoot, directory),
+        runtimeRoot,
+      );
+    }
   }
 
-  await copyLegacyPathIfMissing(
+  await copyLegacyOwnedPath(
     path.join(runtimeRoot, "workspace-state.json"),
     resolveDesktopWorkspaceStatePath(),
+    runtimeRoot,
   );
-  await copyLegacyPathIfMissing(
+  await copyLegacyOwnedPath(
     path.join(legacyUserDataRoot, "user-preferences.json"),
     path.join(runtimeRoot, "user_data", "user-preferences.json"),
+    runtimeRoot,
   );
 
   await fs.mkdir(path.dirname(migrationMarker), { recursive: true });
-  await fs.writeFile(migrationMarker, "completed\n", { encoding: "utf-8", flag: "wx" }).catch(
+  await fs.writeFile(
+    migrationMarker,
+    `${JSON.stringify({
+      version: 2,
+      source: legacyRuntimeRoot,
+      target: runtimeRoot,
+      migrated_directories: MANAGED_RUNTIME_DIRECTORIES,
+      skipped_directories: [".temp"],
+    }, null, 2)}\n`,
+    { encoding: "utf-8", flag: "wx" },
+  ).catch(
     async (error: NodeJS.ErrnoException) => {
       if (error.code !== "EEXIST") {
         throw error;

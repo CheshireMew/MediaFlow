@@ -53,8 +53,8 @@
     "analyzingStream": "Analyzing Stream...",
     "downloadingMedia": "Downloading Media...",
     "downloadMedia": "Download Media",
-    "downloadingAudio": "Downloading Podcast Audio...",
-    "downloadAudio": "Download Podcast Audio"
+    "downloadingAudio": "Downloading Audio...",
+    "downloadAudio": "Download Audio"
   },
   "playlist": {
     "detected": "Playlist Detected",

@@ -33,20 +33,20 @@ export function DownloaderPage() {
     <PageShell padded={false} className="flex flex-col">
       <PageHeader icon={Download} title={t('title')} subtitle={t('subtitle')} />
 
-      <PageContent className="flex flex-col overflow-y-auto lg:overflow-hidden">
-      <div className="flex-none min-h-0 flex flex-col gap-6 overflow-visible lg:flex-1 lg:flex-row lg:overflow-hidden">
+      <PageContent className="flex flex-col overflow-y-auto md:overflow-hidden">
+      <div className="flex-none min-h-0 flex flex-col gap-6 overflow-visible md:flex-1 md:flex-row md:gap-4 md:overflow-hidden lg:gap-6">
         {/* Left Column: Input & Controls */}
-        <WorkPanel className="flex min-h-[340px] w-full flex-none flex-col lg:h-full lg:min-h-0 lg:w-[480px]">
+        <WorkPanel className="flex min-h-[340px] w-full flex-none flex-col md:h-full md:min-h-0 md:w-[390px] lg:w-[480px]">
            <PanelHeader title={t('taskPanel.title')} />
            
-           <div className="p-6 flex-1 flex flex-col min-h-0">
+           <div className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6">
               <DownloaderInput 
                 url={url} 
                 onChange={setUrl} 
                 onPaste={handlePaste} 
               />
               
-              <div className="mt-8">
+              <div className="mt-5 sm:mt-8">
                 <VideoDownloadOptions 
                   mediaKind={mediaKind}
                   resolution={resolution}
@@ -82,7 +82,7 @@ export function DownloaderPage() {
         </WorkPanel>
 
         {/* Right Column: Task Monitor */}
-        <div className="flex h-[360px] min-w-0 flex-none flex-col lg:h-full lg:flex-1">
+        <div className="flex h-[360px] min-w-0 flex-none flex-col md:h-full md:flex-1">
             <TaskMonitor filterTypes={['download']} showHeaderOverview={false} />
         </div>
       </div>

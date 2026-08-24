@@ -32,7 +32,7 @@ export function createWaveformRuntime({
   container: HTMLDivElement;
   timelineContainer: HTMLDivElement;
   video: HTMLVideoElement;
-  peaks: number[][];
+  peaks: Array<Float32Array | number[]>;
   duration: number;
   zoom: number;
   isPersistedRegion: (id: string) => boolean;

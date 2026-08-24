@@ -15,7 +15,7 @@
   "buttons": {
     "import": { "tooltip": "字幕をインポート", "label": "インポート" },
     "proofread": { "tooltip": "AI文法・タイポ校正（翻訳なし）", "label": "校正" },
-    "translate": { "label": "翻訳" },
+    "translate": { "tooltip": "選択したモードで字幕を翻訳", "label": "翻訳" },
     "export": { "tooltip": "SRTをディスクに保存", "label": "エクスポート" },
     "editor": { "tooltip": "字幕エディタで開く", "label": "エディタ" }
   },

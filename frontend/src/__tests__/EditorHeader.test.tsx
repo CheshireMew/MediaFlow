@@ -27,6 +27,17 @@ function renderHeader(canExport: boolean, onExport = vi.fn()) {
 }
 
 describe("EditorHeader export entry", () => {
+  it("keeps both open actions in the header and disables actions without inputs", () => {
+    renderHeader(false);
+
+    expect(screen.getByTitle("header.openFileTooltip")).toBeEnabled();
+    expect(screen.getByTitle("header.openSubtitleTooltip")).toBeEnabled();
+    expect(screen.getByText("header.saveButton").closest("button")).toBeDisabled();
+    expect(screen.getAllByTitle("header.saveRequiresVideoTooltip")).toHaveLength(2);
+    expect(screen.getAllByTitle("header.saveRequiresVideoTooltip").every((button) => button.hasAttribute("disabled"))).toBe(true);
+    expect(screen.getByTitle("header.translateRequiresSubtitlesTooltip")).toBeDisabled();
+  });
+
   it("does not open an empty export panel without a video", () => {
     const onExport = renderHeader(false);
     const exportButton = screen.getByText("header.exportButton").closest("button");

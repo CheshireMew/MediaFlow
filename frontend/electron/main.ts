@@ -2,7 +2,12 @@
 import { app, BrowserWindow, Menu, shell } from "electron";
 
 import { registerDialogHandlers } from "./ipc/dialog-handlers";
-import { bindRendererReadyCallback, registerWindowHandlers } from "./ipc/window-handlers";
+import {
+  bindGracefulWindowClose,
+  bindRendererReadyCallback,
+  registerWindowHandlers,
+  requestGracefulWindowClose,
+} from "./ipc/window-handlers";
 import { registerCookieHandlers } from "./ipc/cookie-handlers";
 import { registerDesktopHandlers } from "./ipc/desktop-handlers";
 import { registerWorkspaceStateHandlers } from "./ipc/workspace-state-handlers";
@@ -18,6 +23,7 @@ import {
   buildRendererLoadFailureDataUrl,
   getElectronMessages,
 } from "./localization";
+import { flushDesktopLogging, initializeDesktopLogging } from "./desktopLogger";
 
 function registerIpcHandlers() {
   registerDialogHandlers();
@@ -50,6 +56,7 @@ function createWindow() {
       webSecurity: !isDev,
     },
   });
+  bindGracefulWindowClose(mainWindow);
 
   let loadFailureHandled = false;
   const revealWindow = () => {
@@ -125,21 +132,56 @@ function createWindow() {
 }
 
 function registerAppLifecycle() {
+  let quitAuthorized = false;
+  let quitInProgress = false;
+
   app.on("ready", () => {
-    void migrateDesktopRuntimeData()
-      .then(() => {
+    void (async () => {
+      try {
+        await initializeDesktopLogging();
+      } catch (error) {
+        console.error("[Desktop] File diagnostics could not be initialized.", error);
+      }
+      try {
+        await migrateDesktopRuntimeData();
+      } catch (error) {
+        console.error("[Desktop] Runtime data migration failed.", error);
+        app.quit();
+        return;
+      }
+      try {
         registerIpcHandlers();
         startBundledBackend();
         createWindow();
-      })
-      .catch((error) => {
-        console.error("[Desktop] Failed to migrate runtime data.", error);
+      } catch (error) {
+        console.error("[Desktop] Application startup failed.", error);
         app.quit();
-      });
+      }
+    })();
   });
 
-  app.on("before-quit", () => {
-    stopBundledBackend();
+  app.on("before-quit", (event) => {
+    if (quitAuthorized) return;
+    event.preventDefault();
+    if (quitInProgress) return;
+    quitInProgress = true;
+
+    void (async () => {
+      const closeResults = await Promise.all(
+        BrowserWindow.getAllWindows().map((window) => requestGracefulWindowClose(window)),
+      );
+      if (closeResults.some((closed) => !closed)) {
+        quitInProgress = false;
+        return;
+      }
+      await stopBundledBackend();
+      await flushDesktopLogging();
+      quitAuthorized = true;
+      app.quit();
+    })().catch((error) => {
+      quitInProgress = false;
+      console.error("[Desktop] Graceful shutdown failed.", error);
+    });
   });
 
   app.on("window-all-closed", () => {

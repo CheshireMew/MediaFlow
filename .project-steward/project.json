@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "managed_by": "project-steward",
+  "catalog_version": "2.4.0",
+  "project_name": "MediaFlow",
+  "templates": [
+    {
+      "id": "base",
+      "version": "1.1.0",
+      "sha256": "a42635dee95b576c75a1eb2b0429cd2d794449edf615f26c8afd0f4d15a03cab"
+    },
+    {
+      "id": "managed-runtime-artifacts",
+      "version": "1.1.0",
+      "sha256": "369b6429952cc805368baa333d498adbbe138ff24b03b0cdd2063dfb076f3473"
+    }
+  ],
+  "decisions": {
+    "source_of_truth": "project-files",
+    "change_strategy": "root-cause-full-migration",
+    "verification_chain": "producer-boundary-consumer-observable",
+    "git_role": "optional-history-and-publication",
+    "runtime_artifact_roots": "project-or-environment-owned",
+    "runtime_artifact_preflight": "required-and-blocking",
+    "runtime_artifact_reuse": "content-addressed-where-repeatable",
+    "runtime_artifact_finalization": "owned-inventory-required",
+    "runtime_artifact_cleanup": "report-until-authorized"
+  },
+  "overrides": {},
+  "deviations": [],
+  "adopted_at_utc": "2026-08-23T07:27:29.785377+00:00",
+  "updated_at_utc": "2026-08-23T08:49:05.213378+00:00"
+}

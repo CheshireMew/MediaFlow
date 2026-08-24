@@ -6,6 +6,22 @@ import {
 } from "../src/contracts/desktopFileSystemContract";
 import type { OpenFileDialogRequest } from "../src/contracts/openFileContract";
 
+let prepareToCloseListener: (() => boolean | Promise<boolean>) | null = null;
+
+ipcRenderer.on("window:prepare-close", async (_event, requestId: string) => {
+  try {
+    const ready = prepareToCloseListener ? await prepareToCloseListener() : true;
+    ipcRenderer.send("window:close-ready", requestId, ready, ready ? null : "Workspace persistence failed.");
+  } catch (error) {
+    ipcRenderer.send(
+      "window:close-ready",
+      requestId,
+      false,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+});
+
 contextBridge.exposeInMainWorld("electronAPI", {
   openFile: (request: OpenFileDialogRequest) =>
     ipcRenderer.invoke(DESKTOP_FILE_SYSTEM_CHANNELS.openFile, request),
@@ -21,6 +37,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   maximize: () => ipcRenderer.send("window:maximize"),
   close: () => ipcRenderer.send("window:close"),
   notifyRendererReady: () => ipcRenderer.send("window:renderer-ready"),
+  onPrepareToClose: (listener: () => boolean | Promise<boolean>) => {
+    prepareToCloseListener = listener;
+    return () => {
+      if (prepareToCloseListener === listener) {
+        prepareToCloseListener = null;
+      }
+    };
+  },
   // Cookie management
   fetchCookies: (targetUrl: string) =>
     ipcRenderer.invoke("cookies:fetch", targetUrl),
@@ -47,13 +71,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   writeWorkspaceState: (content: string, sessionId: string, revision: number) =>
     ipcRenderer.invoke(
       DESKTOP_FILE_SYSTEM_CHANNELS.writeWorkspaceState,
-      content,
-      sessionId,
-      revision,
-    ),
-  writeWorkspaceStateSync: (content: string, sessionId: string, revision: number) =>
-    ipcRenderer.sendSync(
-      DESKTOP_FILE_SYSTEM_CHANNELS.writeWorkspaceStateSync,
       content,
       sessionId,
       revision,

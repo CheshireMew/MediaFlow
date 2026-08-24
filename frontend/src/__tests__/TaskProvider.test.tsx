@@ -2,8 +2,8 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useTaskActions, useTaskContext } from "../context/taskContext";
-import { useTaskById } from "../context/taskStoreContext";
+import { useTaskActions, useTaskStatus } from "../context/taskContext";
+import { useTaskById, useTasks } from "../context/taskStoreContext";
 import { SUPPORTED_TASK_CONTRACT_VERSION } from "../context/taskSources/shared";
 import type { TaskSocketMessage } from "../hooks/tasks/useTaskStore";
 
@@ -17,7 +17,6 @@ const deleteTaskMock = vi.fn();
 const deleteAllTasksMock = vi.fn();
 const listTasksMock = vi.fn();
 const getTaskStatusMock = vi.fn();
-const sendPauseMock = vi.fn();
 
 vi.mock("../hooks/tasks/useTaskSocket", () => ({
   useTaskSocket: (args: unknown) => useTaskSocketMock(args),
@@ -36,7 +35,9 @@ vi.mock("../api/client", () => ({
 }));
 
 function Probe() {
-  const { tasks, connected, remoteTasksReady, pauseTask, pauseAllTasks } = useTaskContext();
+  const tasks = useTasks();
+  const { connected, remoteTasksReady } = useTaskStatus();
+  const { pauseTask, pauseAllTasks } = useTaskActions();
   return (
     <div>
       <div data-testid="connected">{String(connected)}</div>
@@ -91,9 +92,7 @@ describe("TaskProvider", () => {
     ({ TaskProvider } = await import("../context/TaskProvider"));
     useTaskSocketMock.mockReturnValue({
       connected: true,
-      sendPause: sendPauseMock,
     });
-    sendPauseMock.mockReturnValue(true);
     pauseTaskMock.mockResolvedValue(undefined);
     pauseAllTasksMock.mockResolvedValue(undefined);
     resumeTaskMock.mockResolvedValue(undefined);
@@ -179,7 +178,7 @@ describe("TaskProvider", () => {
     });
   });
 
-  it("uses the backend socket/API for task control", async () => {
+  it("waits for the backend HTTP acknowledgement for task control", async () => {
     render(
       <TaskProvider enabled>
         <Probe />
@@ -196,14 +195,11 @@ describe("TaskProvider", () => {
       screen.getByTestId("pause-all").click();
     });
 
-    expect(sendPauseMock).toHaveBeenCalledWith("remote-task");
-    expect(pauseTaskMock).not.toHaveBeenCalled();
+    expect(pauseTaskMock).toHaveBeenCalledWith("remote-task");
     expect(pauseAllTasksMock).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to the task HTTP endpoint when the task socket is unavailable", async () => {
-    sendPauseMock.mockReturnValue(false);
-
+  it("uses the task HTTP endpoint even before the socket snapshot is ready", async () => {
     render(
       <TaskProvider>
         <Probe />
@@ -215,7 +211,6 @@ describe("TaskProvider", () => {
       await Promise.resolve();
     });
 
-    expect(sendPauseMock).toHaveBeenCalledWith("remote-task");
     expect(pauseTaskMock).toHaveBeenCalledWith("remote-task");
   });
 
@@ -272,6 +267,77 @@ describe("TaskProvider", () => {
         "remote-task:completed:100",
       );
     });
+  });
+
+  it("waits for full HTTP detail before exposing a terminal socket summary", async () => {
+    let resolveCompletedTask: ((task: unknown) => void) | null = null;
+    getTaskStatusMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCompletedTask = resolve;
+      }),
+    );
+    listTasksMock.mockResolvedValue([]);
+
+    render(
+      <TaskProvider enabled>
+        <Probe />
+      </TaskProvider>,
+    );
+    sendSocketMessage({
+      type: "snapshot",
+      stream_id: "terminal-detail-stream",
+      sequence: 1,
+      tasks: [{
+        id: "remote-task",
+        type: "pipeline",
+        primary_operation: "translate",
+        status: "running",
+        ...backendContractFields(),
+        queue_state: "running",
+        progress: 65,
+        created_at: 1,
+      }],
+    });
+    sendSocketMessage({
+      type: "update",
+      stream_id: "terminal-detail-stream",
+      sequence: 2,
+      task: {
+        id: "remote-task",
+        type: "pipeline",
+        primary_operation: "translate",
+        status: "completed",
+        ...backendContractFields(),
+        persistence_scope: "history",
+        lifecycle: "history-only",
+        queue_state: "completed",
+        progress: 100,
+        created_at: 1,
+      },
+    });
+
+    await waitFor(() => {
+      expect(getTaskStatusMock).toHaveBeenCalledWith("remote-task");
+      expect(screen.getByTestId("task-statuses").textContent).toBe("remote-task:running:65");
+    });
+
+    await act(async () => {
+      resolveCompletedTask?.({
+        id: "remote-task",
+        type: "pipeline",
+        primary_operation: "translate",
+        status: "completed",
+        ...backendContractFields(),
+        persistence_scope: "history",
+        lifecycle: "history-only",
+        queue_state: "completed",
+        progress: 100,
+        created_at: 1,
+        result: { success: true, artifacts: [], outputs: { translation: { segments: [] } } },
+      });
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId("task-statuses").textContent).toBe("remote-task:completed:100");
   });
 
   it("waits for the backend socket snapshot instead of HTTP task polling", async () => {

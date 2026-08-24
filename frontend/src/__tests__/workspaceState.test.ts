@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   flushWorkspaceState,
-  flushWorkspaceStateSynchronously,
+  flushWorkspaceStateForShutdown,
   initializeWorkspaceState,
   readWorkspaceStateValue,
   resetWorkspaceStateForTests,
@@ -39,18 +39,77 @@ describe("workspaceState", () => {
     expect(localStorage.getItem("mediaflow:workspace-state:v1")).toBeNull();
   });
 
-  it("synchronously commits the latest dirty snapshot before renderer unload", async () => {
-    const electronApi = installElectronMock();
+  it("waits for an in-flight write and persists mutations made while it was pending", async () => {
+    let releaseFirstWrite: (written: boolean) => void = () => undefined;
+    const firstWrite = new Promise<boolean>((resolve) => {
+      releaseFirstWrite = resolve;
+    });
+    const electronApi = installElectronMock({
+      writeWorkspaceState: vi.fn()
+        .mockReturnValueOnce(firstWrite)
+        .mockResolvedValue(true),
+    });
     await initializeWorkspaceState();
 
+    writeWorkspaceStateValue("editor-storage", { documentId: "first" });
+    const initialFlush = flushWorkspaceState();
+    await Promise.resolve();
     writeWorkspaceStateValue("editor-storage", { documentId: "latest" });
 
-    expect(flushWorkspaceStateSynchronously()).toBe(true);
-    expect(electronApi.writeWorkspaceStateSync).toHaveBeenCalledWith(
-      expect.stringContaining('"documentId":"latest"'),
-      expect.any(String),
-      expect.any(Number),
-    );
+    let shutdownFinished = false;
+    const shutdown = flushWorkspaceStateForShutdown().then((result) => {
+      shutdownFinished = true;
+      return result;
+    });
+    await Promise.resolve();
+    expect(shutdownFinished).toBe(false);
+
+    releaseFirstWrite(true);
+    await initialFlush;
+    await expect(shutdown).resolves.toBe(true);
+
+    const writes = vi.mocked(electronApi.writeWorkspaceState).mock.calls;
+    expect(writes).toHaveLength(2);
+    expect(JSON.parse(writes[1][0])).toEqual({
+      format: "mediaflow-workspace-patch-v1",
+      operations: [{
+        op: "set",
+        path: ["editor-storage", "documentId"],
+        value: "latest",
+      }],
+    });
+  });
+
+  it("serializes a close flush behind an older asynchronous write", async () => {
+    let releaseFirstWrite: (written: boolean) => void = () => undefined;
+    const firstWrite = new Promise<boolean>((resolve) => {
+      releaseFirstWrite = resolve;
+    });
+    const electronApi = installElectronMock({
+      writeWorkspaceState: vi.fn().mockReturnValue(firstWrite),
+    });
+    await initializeWorkspaceState();
+
+    writeWorkspaceStateValue("editor-storage", { documentId: "first" });
+    const initialFlush = flushWorkspaceState();
+    await Promise.resolve();
+    writeWorkspaceStateValue("editor-storage", { documentId: "latest" });
+
+    const closeFlush = flushWorkspaceStateForShutdown();
+    releaseFirstWrite(true);
+    await initialFlush;
+    await expect(closeFlush).resolves.toBe(true);
+    expect(electronApi.writeWorkspaceState).toHaveBeenCalledTimes(2);
+    const finalWrite = vi.mocked(electronApi.writeWorkspaceState).mock.calls.at(-1);
+    expect(finalWrite?.slice(1)).toEqual([expect.any(String), expect.any(Number)]);
+    expect(JSON.parse(finalWrite?.[0] ?? "{}")).toEqual({
+      format: "mediaflow-workspace-patch-v1",
+      operations: [{
+        op: "set",
+        path: ["editor-storage", "documentId"],
+        value: "latest",
+      }],
+    });
   });
 
   it("writes only the changed subtitle field after the initial snapshot", async () => {
@@ -85,6 +144,40 @@ describe("workspaceState", () => {
       }],
     });
     expect(serializedPatch.length).toBeLessThan(JSON.stringify(updated).length / 10);
+  });
+
+  it("uses JSON semantics before diffing optional fields", async () => {
+    const electronApi = installElectronMock();
+    await initializeWorkspaceState();
+
+    writeWorkspaceStateValue("editor-storage", {
+      video: {
+        path: "E:/media/demo.mp4",
+        name: "demo.mp4",
+        size: 42,
+      },
+    });
+    await flushWorkspaceState();
+    vi.mocked(electronApi.writeWorkspaceState).mockClear();
+
+    writeWorkspaceStateValue("editor-storage", {
+      video: {
+        path: "E:/media/demo.mp4",
+        name: "demo.mp4",
+        size: undefined,
+        type: undefined,
+      },
+    });
+    await flushWorkspaceState();
+
+    const serializedPatch = vi.mocked(electronApi.writeWorkspaceState).mock.calls[0][0];
+    expect(JSON.parse(serializedPatch)).toEqual({
+      format: "mediaflow-workspace-patch-v1",
+      operations: [{
+        op: "delete",
+        path: ["editor-storage", "video", "size"],
+      }],
+    });
   });
 
   it("persists workspace state outside user settings", async () => {

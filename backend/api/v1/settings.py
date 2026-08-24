@@ -1,23 +1,23 @@
 import asyncio
 import subprocess
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.services.runtime_diagnostics import CudaReadinessResponse
-from backend.services.settings_manager import (
+from backend.models.settings_contracts import (
+    CudaReadinessResponse,
     UiStatePatch,
     UserPreferencesPatch,
     UserSettings,
 )
+
 
 class ActiveProviderRequest(BaseModel):
     provider_id: str
 
 
 class ProviderConnectionRequest(BaseModel):
-    name: Optional[str] = None
+    name: str | None = None
     base_url: str
     api_key: str
     model: str
@@ -36,15 +36,15 @@ class ProviderConnectionResponse(BaseModel):
 class ToolUpdateResponse(BaseModel):
     status: str
     message: str
-    previous_version: Optional[str] = None
-    current_version: Optional[str] = None
+    previous_version: str | None = None
+    current_version: str | None = None
 
 
 class FasterWhisperCliInstallResponse(BaseModel):
     status: str
     message: str
     cli_path: str
-    version: Optional[str] = None
+    version: str | None = None
 
 
 class FasterWhisperCliPrewarmRequest(BaseModel):

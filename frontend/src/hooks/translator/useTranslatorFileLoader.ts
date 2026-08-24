@@ -12,11 +12,13 @@ import {
   type MediaReference,
 } from "../../services/ui/mediaReference";
 import {
+  buildTranslatorOutputPath,
   getTranslatorAutoloadSuffixes,
   isSupportedTranslatorSubtitlePath,
   loadTranslatorSubtitle,
 } from "./translatorFileHelpers";
 import { toast } from "../../utils/toast";
+import { useShallow } from "zustand/react/shallow";
 
 export function useTranslatorFileLoader() {
   const { t } = useTranslation("translator");
@@ -31,7 +33,18 @@ export function useTranslatorFileLoader() {
     setTargetLang,
     setTargetSubtitleRef,
     resetTask,
-  } = useTranslatorStore();
+  } = useTranslatorStore(useShallow((state) => ({
+    sourceFileRef: state.sourceFileRef,
+    sourceSegments: state.sourceSegments,
+    targetLang: state.targetLang,
+    mode: state.mode,
+    setSourceFileRef: state.setSourceFileRef,
+    setSourceSegments: state.setSourceSegments,
+    setTargetSegments: state.setTargetSegments,
+    setTargetLang: state.setTargetLang,
+    setTargetSubtitleRef: state.setTargetSubtitleRef,
+    resetTask: state.resetTask,
+  })));
   const sourceFilePath = sourceFileRef?.path ?? null;
 
   const hasSameSubtitleContent = useCallback(
@@ -65,7 +78,7 @@ export function useTranslatorFileLoader() {
 
     const priorities = getTranslatorAutoloadSuffixes(targetLang, mode);
     for (const suffix of priorities) {
-      const targetPath = sourcePath.replace(/(\.[^.]+)$/, `${suffix}.srt`);
+      const targetPath = buildTranslatorOutputPath(sourcePath, suffix);
 
       try {
         const parsed = await loadTranslatorSubtitle(targetPath);

@@ -122,4 +122,71 @@ describe("useTaskStore", () => {
 
     expect(result.current.tasks).toEqual([]);
   });
+
+  it("does not notify subscribers for an identical equal-revision task", () => {
+    let renderCount = 0;
+    const { result } = renderHook(() => {
+      renderCount += 1;
+      return useTaskStore();
+    });
+    const task = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
+      id: "stable-task",
+      type: "pipeline" as const,
+      status: "running" as const,
+      progress: 50,
+      revision: 3,
+      created_at: 3,
+      task_contract_version: SUPPORTED_TASK_CONTRACT_VERSION,
+    };
+
+    act(() => {
+      result.current.applyMessage({ type: "merge_one", task });
+    });
+    const renderCountAfterInsert = renderCount;
+
+    act(() => {
+      result.current.applyMessage({ type: "merge_one", task: { ...task } });
+    });
+
+    expect(renderCount).toBe(renderCountAfterInsert);
+  });
+
+  it("applies compact queue position updates without replacing task details", () => {
+    const { result } = renderHook(() => useTaskStore());
+    const queuedTask = {
+      ...BACKEND_TASK_CONTRACT_FIELDS,
+      id: "queued-task",
+      type: "pipeline" as const,
+      status: "pending" as const,
+      queue_state: "queued" as const,
+      queue_position: 3,
+      progress: 0,
+      revision: 1,
+      created_at: 1,
+      task_contract_version: SUPPORTED_TASK_CONTRACT_VERSION,
+      request_params: {
+        pipeline_id: "queued-task-pipeline",
+        steps: [
+          {
+            step_name: "download" as const,
+            params: { url: "https://example.com/video" },
+          },
+        ],
+      },
+    };
+
+    act(() => {
+      result.current.applyMessage({ type: "merge_one", task: queuedTask });
+      result.current.applyMessage({
+        type: "queue_positions",
+        positions: { "queued-task": 1 },
+        stream_id: "queue-stream",
+        sequence: 1,
+      });
+    });
+
+    expect(result.current.tasks[0]?.queue_position).toBe(1);
+    expect(result.current.tasks[0]?.request_params).toEqual(queuedTask.request_params);
+  });
 });

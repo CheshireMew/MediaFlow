@@ -1,4 +1,4 @@
-import type { DesktopRuntimeInfo } from "../../types/electron-api";
+import type { DesktopRuntimeInfo } from "../../contracts/desktopBridgeContract";
 import type { Task } from "../../types/task";
 
 export type RuntimeExecutionSummary = {

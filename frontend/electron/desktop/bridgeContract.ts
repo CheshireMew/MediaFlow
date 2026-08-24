@@ -1,4 +1,4 @@
-import type { ElectronAPI } from "../../src/types/electron-api";
+import type { ElectronAPI } from "../../src/contracts/desktopBridgeContract";
 
 export const DESKTOP_BRIDGE_CAPABILITIES = [
   "openFile",
@@ -12,10 +12,10 @@ export const DESKTOP_BRIDGE_CAPABILITIES = [
   "getFileSize",
   "readWorkspaceState",
   "writeWorkspaceState",
-  "writeWorkspaceStateSync",
   "getDesktopRuntimeInfo",
   "minimize",
   "maximize",
   "close",
   "notifyRendererReady",
+  "onPrepareToClose",
 ] as const satisfies readonly (keyof ElectronAPI)[];

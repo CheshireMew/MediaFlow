@@ -18,6 +18,8 @@ interface EditorHeaderProps {
     isDetectingHighlights?: boolean;
     canDetectHighlights?: boolean;
     canExport?: boolean;
+    canSave?: boolean;
+    canTranslate?: boolean;
 }
 
 export function EditorHeader({
@@ -33,6 +35,8 @@ export function EditorHeader({
     isDetectingHighlights = false,
     canDetectHighlights = false,
     canExport = false,
+    canSave = false,
+    canTranslate = false,
 }: EditorHeaderProps) {
     const { t } = useTranslation('editor');
     return (
@@ -45,6 +49,7 @@ export function EditorHeader({
                 <div className="flex items-center rounded-lg border border-white/10 bg-black/20 p-1">
                     <button
                         onClick={() => onModeChange("subtitles")}
+                        aria-label={t('header.subtitleMode')}
                         className={`flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-colors ${mode === "subtitles" ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-white"}`}
                         title={t('header.subtitleModeTooltip')}
                     >
@@ -53,6 +58,7 @@ export function EditorHeader({
                     </button>
                     <button
                         onClick={() => onModeChange("clips")}
+                        aria-label={t('header.clipMode')}
                         className={`flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-colors ${mode === "clips" ? "bg-amber-500 text-black" : "text-slate-400 hover:text-white"}`}
                         title={t('header.clipModeTooltip')}
                     >
@@ -61,40 +67,44 @@ export function EditorHeader({
                     </button>
                 </div>
 
-                <div className="hidden items-center gap-2 2xl:flex">
+                <div className="flex items-center gap-1.5">
                     <ToolbarButton
                         onClick={onOpenFile}
+                        aria-label={t('header.openButton')}
                         icon={FolderOpen}
                         variant="accent"
-                        className="h-8 px-3 text-xs"
+                        className="h-8 px-2.5 text-xs"
                         title={t('header.openFileTooltip')}
                     >
-                        {t('header.openButton')}
+                        <span className="hidden min-[1100px]:inline">{t('header.openButton')}</span>
                     </ToolbarButton>
                     <ToolbarButton
                         onClick={onOpenSubtitle}
+                        aria-label={t('header.openSubtitleButton')}
                         icon={FileType2}
                         variant="subtle"
-                        className="h-8 px-3 text-xs"
+                        className="h-8 px-2.5 text-xs"
                         title={t('header.openSubtitleTooltip')}
                     >
-                        {t('header.openSubtitleButton')}
+                        <span className="hidden min-[1100px]:inline">{t('header.openSubtitleButton')}</span>
                     </ToolbarButton>
                 </div>
 
                 <div className="hidden h-6 w-px bg-white/10 2xl:block" />
                 <ToolbarButton
                     onClick={onTranslate}
-                    disabled={mode !== "subtitles"}
+                    aria-label={t('header.translateButton')}
+                    disabled={mode !== "subtitles" || !canTranslate}
                     icon={Languages}
                     variant="subtle"
                     className="h-8 px-2.5 text-xs text-purple-300 hover:text-purple-200 max-[900px]:hidden"
-                    title={t('header.translateTooltip')}
+                    title={canTranslate ? t('header.translateTooltip') : t('header.translateRequiresSubtitlesTooltip')}
                 >
                     <span className="hidden 2xl:inline">{t('header.translateButton')}</span>
                 </ToolbarButton>
                 <ToolbarButton
                     onClick={onDetectHighlights}
+                    aria-label={t('header.detectHighlightsButton')}
                     disabled={isDetectingHighlights || !canDetectHighlights}
                     icon={Sparkles}
                     variant="warning"
@@ -111,29 +121,35 @@ export function EditorHeader({
                 </ToolbarButton>
                 <ToolbarButton
                     onClick={onExport}
+                    aria-label={t('header.exportButton')}
                     disabled={!canExport}
                     icon={Download}
                     variant="success"
                     className="h-8 px-3 text-xs"
                     title={canExport ? t('header.exportTooltip') : t('header.exportRequiresVideoTooltip')}
                 >
-                    <span>{t('header.exportButton')}</span>
+                    <span className="hidden min-[1000px]:inline">{t('header.exportButton')}</span>
                 </ToolbarButton>
-                <div className="mx-2 h-6 w-px bg-white/10" />
+                <div className="mx-2 hidden h-6 w-px bg-white/10 min-[1000px]:block" />
                 <ToolbarButton
                     onClick={onSave}
+                    aria-label={t('header.saveButton')}
+                    disabled={!canSave}
                     icon={Save}
                     variant="primary"
-                    className="h-8 px-3.5 text-xs font-bold"
+                    className="h-8 px-2.5 text-xs font-bold min-[1000px]:px-3.5"
+                    title={canSave ? t('header.saveButton') : t('header.saveRequiresVideoTooltip')}
                 >
-                    {t('header.saveButton')}
+                    <span className="hidden min-[1000px]:inline">{t('header.saveButton')}</span>
                 </ToolbarButton>
                 <IconButton
                     onClick={onSaveAs}
+                    aria-label={t('header.saveAsTooltip')}
+                    disabled={!canSave}
                     icon={SaveAll}
                     variant="primary"
                     className="h-8 w-8"
-                    title={t('header.saveAsTooltip')}
+                    title={canSave ? t('header.saveAsTooltip') : t('header.saveRequiresVideoTooltip')}
                 />
                 </>
             )}

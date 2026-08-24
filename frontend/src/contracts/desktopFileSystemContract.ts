@@ -8,7 +8,6 @@ export const DESKTOP_FILE_SYSTEM_CHANNELS = {
   rememberRendererFile: "fs:rememberRendererFile",
   readWorkspaceState: "workspace:readState",
   writeWorkspaceState: "workspace:writeState",
-  writeWorkspaceStateSync: "workspace:writeStateSync",
 } as const;
 
 export type SaveFileDialogRequest = {

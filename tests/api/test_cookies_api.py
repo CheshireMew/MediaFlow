@@ -27,7 +27,9 @@ class FakeDownloadApplication:
 def test_bootstrapped_api_registers_cookie_save_and_status_routes():
     download = FakeDownloadApplication()
     dependencies = SimpleNamespace(
+        audio=MagicMock(),
         download=download,
+        editor=MagicMock(),
         transcription=MagicMock(),
         translation=MagicMock(),
         websocket_notifier=MagicMock(),
@@ -35,7 +37,6 @@ def test_bootstrapped_api_registers_cookie_save_and_status_routes():
         task_orchestrator=MagicMock(),
         settings=MagicMock(),
         glossary=MagicMock(),
-        highlight=MagicMock(),
         asr_service=MagicMock(),
     )
     api_app, _router_count = _create_fastapi_app(dependencies)

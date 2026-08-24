@@ -3,7 +3,7 @@ import uuid
 from pathlib import Path
 
 from backend.config import settings
-from backend.core.container import Services, container
+from backend.core.container import Services
 from backend.models.task_model import Task
 from backend.models.media_contracts import MediaReference, TaskArtifact, TaskResult
 from backend.models.task_result_contracts import PipelineOutputs, TranscriptionOutput
@@ -93,6 +93,17 @@ def _media_ref(path: Path) -> dict:
     return {"path": str(path), "name": path.name, "type": "audio/mpeg", "media_kind": "audio"}
 
 
+def test_task_api_uses_the_stable_error_contract(isolated_api_client):
+    response = isolated_api_client.get("/api/v1/tasks/missing-task")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "code": "task_not_found",
+        "message": "Task not found",
+        "details": {},
+    }
+
+
 def _transcribe_pipeline_request(path: Path, pipeline_id: str) -> dict:
     return {
         "pipeline_id": pipeline_id,
@@ -128,6 +139,38 @@ def _wait_for_task_status(
     raise AssertionError(f"Task {task_id} did not reach status {expected_status}. Last payload: {last_payload}")
 
 
+def _wait_for_running_progress(client, task_id: str, timeout_s: float = 5.0):
+    deadline = time.time() + timeout_s
+    last_payload = None
+    while time.time() < deadline:
+        response = client.get(f"/api/v1/tasks/{task_id}")
+        assert response.status_code == 200
+        last_payload = response.json()
+        if (
+            last_payload["status"] == "running"
+            and last_payload["queue_state"] == "running"
+            and last_payload["progress"] > 0
+        ):
+            return last_payload
+        time.sleep(0.05)
+    raise AssertionError(
+        f"Task {task_id} did not report running progress. Last payload: {last_payload}"
+    )
+
+
+def _wait_for_queue_summary(client, expected: dict, timeout_s: float = 5.0):
+    deadline = time.time() + timeout_s
+    last_payload = None
+    while time.time() < deadline:
+        response = client.get("/api/v1/tasks/queue/summary")
+        assert response.status_code == 200
+        last_payload = response.json()
+        if last_payload == expected:
+            return last_payload
+        time.sleep(0.05)
+    raise AssertionError(f"Queue summary did not reach {expected}. Last payload: {last_payload}")
+
+
 def _wait_for_queue_idle(
     client,
     timeout_s: float = 3.0,
@@ -140,7 +183,6 @@ def _wait_for_queue_idle(
         assert response.status_code == 200
         last_payload = response.json()
         if last_payload["running"] == 0 and last_payload["queued"] == 0:
-            time.sleep(0.1)
             return
         time.sleep(poll_s)
     raise AssertionError(f"Queue did not become idle. Last payload: {last_payload}")
@@ -152,7 +194,11 @@ def test_queue_summary_limits_concurrency_to_two(isolated_api_client, monkeypatc
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
     slow_asr = SlowMockASR(steps=4, delay_s=0.25)
-    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
+    monkeypatch.setattr(
+        client.app.state.service_container.get(Services.ASR),
+        "transcribe",
+        slow_asr.transcribe,
+    )
 
     task_ids: list[str] = []
     for index in range(3):
@@ -163,11 +209,10 @@ def test_queue_summary_limits_concurrency_to_two(isolated_api_client, monkeypatc
         assert response.status_code == 200
         task_ids.append(response.json()["task_id"])
 
-    time.sleep(0.15)
-
-    queue_summary = client.get("/api/v1/tasks/queue/summary")
-    assert queue_summary.status_code == 200
-    assert queue_summary.json() == {"max_concurrent": 2, "running": 2, "queued": 1}
+    _wait_for_queue_summary(
+        client,
+        {"max_concurrent": 2, "running": 2, "queued": 1},
+    )
 
     tasks_by_id = {}
     for task_id in task_ids:
@@ -215,7 +260,11 @@ def test_pause_and_resume_transition_task_state(isolated_api_client, monkeypatch
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
     slow_asr = SlowMockASR(steps=10, delay_s=0.15)
-    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
+    monkeypatch.setattr(
+        client.app.state.service_container.get(Services.ASR),
+        "transcribe",
+        slow_asr.transcribe,
+    )
 
     create_response = client.post(
         "/api/v1/pipeline/run",
@@ -224,25 +273,14 @@ def test_pause_and_resume_transition_task_state(isolated_api_client, monkeypatch
     assert create_response.status_code == 200
     task_id = create_response.json()["task_id"]
 
-    time.sleep(0.35)
-
-    before_pause = client.get(f"/api/v1/tasks/{task_id}")
-    assert before_pause.status_code == 200
-    before_payload = before_pause.json()
-    assert before_payload["status"] == "running"
-    assert before_payload["queue_state"] == "running"
-    assert before_payload["progress"] > 0
+    _wait_for_running_progress(client, task_id)
 
     pause_response = client.post(f"/api/v1/tasks/{task_id}/pause")
     assert pause_response.status_code == 200
     assert pause_response.json()["message_code"] == "pause_requested"
     assert pause_response.json()["message_params"] == {}
 
-    time.sleep(0.30)
-
-    paused = client.get(f"/api/v1/tasks/{task_id}")
-    assert paused.status_code == 200
-    paused_payload = paused.json()
+    paused_payload = _wait_for_task_status(client, task_id, "paused")
     assert paused_payload["status"] == "paused"
     assert paused_payload["queue_state"] == "paused"
     paused_progress = paused_payload["progress"]
@@ -253,14 +291,10 @@ def test_pause_and_resume_transition_task_state(isolated_api_client, monkeypatch
     assert resume_response.json()["message_code"] == "resumed"
     assert resume_response.json()["message_params"] == {}
 
-    time.sleep(0.20)
-
-    resumed = client.get(f"/api/v1/tasks/{task_id}")
-    assert resumed.status_code == 200
-    resumed_payload = resumed.json()
+    resumed_payload = _wait_for_running_progress(client, task_id)
     assert resumed_payload["status"] == "running"
     assert resumed_payload["queue_state"] == "running"
-    assert resumed_payload["progress"] <= paused_progress
+    assert resumed_payload["progress"] >= paused_progress
 
     final_payload = _wait_for_task_status(client, task_id, "completed", timeout_s=4.0)
     assert final_payload["status"] == "completed"

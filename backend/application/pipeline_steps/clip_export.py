@@ -8,6 +8,8 @@ from backend.models.task_result_contracts import ClipExportOutput
 
 
 class ClipExportStep(PipelineStep):
+    resume_policy = "atomic_publish"
+
     def __init__(self, *, video_synthesis, task_manager):
         self._video_synthesis = video_synthesis
         self._task_manager = task_manager
@@ -22,8 +24,13 @@ class ClipExportStep(PipelineStep):
         params: dict,
         task_id: str | None = None,
     ) -> None:
+        ctx.begin_step(self.name)
         request = ClipExportRequest.model_validate(params)
-        runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
+        runtime = TaskRuntimeContext(
+            task_id,
+            task_manager=self._task_manager,
+            progress_transform=ctx.project_step_progress,
+        )
         exported = await runtime.run_blocking(
             lambda: export_clips(
                 video_synthesis=self._video_synthesis,

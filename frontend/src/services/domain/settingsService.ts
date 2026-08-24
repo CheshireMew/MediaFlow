@@ -9,6 +9,7 @@ import type {
   UserSettings as WireUserSettings,
   UserPreferencesPatch,
   UiStatePatch,
+  JsonValue,
 } from "../../types/api";
 import { resolveSmartSplitTextLimit } from "../../utils/subtitleSmartSplit";
 import { apiClient } from "../../api/client";
@@ -25,7 +26,7 @@ export interface ResolvedUserSettings {
   auto_execute_flow: boolean;
   auto_trim_silence: boolean;
   smart_split_text_limit: number;
-  ui_state: Record<string, unknown>;
+  ui_state: Record<string, JsonValue>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

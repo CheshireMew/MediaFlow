@@ -1,6 +1,6 @@
 import { Activity, Pause, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useTaskContext } from "../../context/taskContext";
+import { useTaskActions } from "../../context/taskContext";
 import { useConfirmation } from "../ui/confirmationContext";
 import { toast } from "../../utils/toast";
 
@@ -13,6 +13,7 @@ type TaskMonitorHeaderProps = {
     running: number;
     paused: number;
   };
+  taskCount: number;
   executionBadges: Array<{
     key: string;
     label: string;
@@ -26,6 +27,7 @@ export function TaskMonitorHeader({
   connected,
   remoteTasksReady,
   summary,
+  taskCount,
   executionBadges,
 }: TaskMonitorHeaderProps) {
   const { t } = useTranslation("taskmonitor");
@@ -33,16 +35,16 @@ export function TaskMonitorHeader({
   const {
     pauseAllTasks,
     clearTasks,
-  } = useTaskContext();
+  } = useTaskActions();
   const taskFeedReady = connected && remoteTasksReady;
 
   return (
-    <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02] flex-none">
+    <div className="flex flex-none flex-wrap items-center justify-between gap-3 border-b border-white/5 bg-white/[0.02] p-3 sm:p-4">
       <h3 className="text-base font-semibold text-white flex items-center gap-2">
         <Activity className="w-4 h-4 text-indigo-400" />
         {t("title")}
       </h3>
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
         {showHeaderOverview && (
           <>
             <div className="hidden md:flex items-center gap-2 text-xs text-slate-400">
@@ -93,12 +95,12 @@ export function TaskMonitorHeader({
                 toast.error(t("messages.pauseAllFailed"));
               }
             }}
-            disabled={!taskFeedReady}
+            disabled={!taskFeedReady || summary.pending + summary.running === 0}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 text-xs transition-all hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
             title={t("buttons.pauseAll.tooltip")}
           >
             <Pause size={12} />
-            {t("buttons.pauseAll.label")}
+            <span className="hidden min-[1100px]:inline">{t("buttons.pauseAll.label")}</span>
           </button>
 
           <button
@@ -117,11 +119,12 @@ export function TaskMonitorHeader({
                 toast.error(t("messages.clearAllFailed"));
               }
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-xs transition-all hover:text-rose-300"
+            disabled={taskCount === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-xs transition-all hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40"
             title={t("buttons.clearAll.tooltip")}
           >
             <Trash2 size={12} />
-            {t("buttons.clearAll.label")}
+            <span className="hidden min-[1100px]:inline">{t("buttons.clearAll.label")}</span>
           </button>
         </div>
       </div>

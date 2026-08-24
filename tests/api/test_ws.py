@@ -1,13 +1,19 @@
-import pytest
-import time
+import asyncio
 import queue
 import threading
+import time
 from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
+
 from backend.config import settings
-from backend.core.container import container, Services
+from backend.core.container import Services
+from backend.core.ws_notifier import WebSocketNotifier
 from backend.models.media_contracts import MediaReference, TaskArtifact, TaskResult
+from backend.models.task_contracts import TaskSummaryView
 from backend.models.task_result_contracts import PipelineOutputs, TranscriptionOutput
+from backend.services.task_event_publisher import TaskEventPublisher
 
 
 class SlowMockASR:
@@ -99,11 +105,11 @@ def _receive_until(websocket, predicate, limit: int = 30):
     for _ in range(limit):
         result_queue: queue.Queue = queue.Queue(maxsize=1)
 
-        def _recv():
+        def _recv(target_queue=result_queue):
             try:
-                result_queue.put(("message", websocket.receive_json()))
-            except Exception as exc:  # pragma: no cover - test helper failure path
-                result_queue.put(("error", exc))
+                target_queue.put(("message", websocket.receive_json()))
+            except Exception as exc:  # noqa: BLE001  # pragma: no cover
+                target_queue.put(("error", exc))
 
         receiver = threading.Thread(target=_recv, daemon=True)
         receiver.start()
@@ -120,6 +126,17 @@ def _receive_until(websocket, predicate, limit: int = 30):
         if predicate(last_message):
             return last_message
     raise AssertionError(f"Did not receive expected websocket payload. Last message: {last_message}")
+
+
+def _has_queue_position(message: dict, task_id: str, position: int) -> bool:
+    if message.get("type") == "queue_positions":
+        return message.get("positions", {}).get(task_id) == position
+    return (
+        message.get("type") == "update"
+        and message.get("task", {}).get("id") == task_id
+        and message.get("task", {}).get("queue_state") == "queued"
+        and message.get("task", {}).get("queue_position") == position
+    )
 
 
 def _wait_for_terminal_tasks(client, task_ids: list[str], timeout_s: float = 10.0):
@@ -157,7 +174,7 @@ def _wait_for_queue_idle(client, timeout_s: float = 3.0):
 def test_websocket_connection(isolated_api_client: TestClient):
     with isolated_api_client.websocket_connect("/api/v1/ws/tasks") as websocket:
         # 1. Connection established
-        notifier = container.get(Services.WS_NOTIFIER)
+        notifier = isolated_api_client.app.state.service_container.get(Services.WS_NOTIFIER)
         assert len(notifier.active_connections) == 1
         
         # 2. Simulate task update broadcast
@@ -172,7 +189,7 @@ def test_websocket_connection(isolated_api_client: TestClient):
         # 3. Disconnect
         websocket.close()
 
-    notifier = container.get(Services.WS_NOTIFIER)
+    notifier = isolated_api_client.app.state.service_container.get(Services.WS_NOTIFIER)
     for _ in range(10):
         if len(notifier.active_connections) == 0:
             break
@@ -180,10 +197,7 @@ def test_websocket_connection(isolated_api_client: TestClient):
     assert len(notifier.active_connections) == 0
 
 @pytest.mark.asyncio
-async def test_task_update_broadcast(isolated_api_client: TestClient):
-    # This test verifies the TaskManager's logic specifically not the full WS transport
-    # which is harder to test async without a running server.
-    
+async def test_task_update_broadcast():
     class MockWS:
         def __init__(self):
             self.sent_messages = []
@@ -195,36 +209,79 @@ async def test_task_update_broadcast(isolated_api_client: TestClient):
             self.sent_messages.append(data)
             
     mock_ws = MockWS()
-    notifier = container.get(Services.WS_NOTIFIER)
-    task_manager = container.get(Services.TASK_MANAGER)
+    notifier = WebSocketNotifier()
+    publisher = TaskEventPublisher(notifier)
+    publisher.start()
     await notifier.connect(mock_ws)
-    
-    from backend.models.task_model import Task, task_timestamp_ms
-    
-    # Create a real Task object
-    task_manager.tasks["test_task"] = Task(
-        id="test_task", 
-        type="test", 
-        status="pending", 
-        created_at=task_timestamp_ms(), 
-        message_code="queued",
-        message_params={},
-    )
-    
-    await task_manager.update_task(
-        "test_task",
+
+    task_id = "task-broadcast"
+    await publisher.publish_update(TaskSummaryView(
+        id=task_id,
+        type="pipeline",
         status="running",
+        task_source="backend",
+        task_contract_version=10,
+        persistence_scope="runtime",
+        lifecycle="resumable",
+        progress=10,
+        revision=2,
         message_code="running",
         message_params={},
-    )
-    
-    print(f"DEBUG MESSAGES: {mock_ws.sent_messages}")
+        primary_operation="transcribe",
+        created_at=1,
+        queue_state="running",
+    ))
+    await publisher.flush()
+
     msg = mock_ws.sent_messages[-1]
     assert msg["type"] == "update"
-    assert msg["task"]["id"] == "test_task"
+    assert msg["task"]["id"] == task_id
     assert msg["task"]["status"] == "running"
-    
+    assert "request_params" not in msg["task"]
+    assert "result" not in msg["task"]
+
     notifier.disconnect(mock_ws)
+    await publisher.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_task_event_publication_does_not_wait_for_slow_websocket_clients():
+    broadcast_started = asyncio.Event()
+    release_broadcast = asyncio.Event()
+
+    class SlowNotifier:
+        async def broadcast(self, _message):
+            broadcast_started.set()
+            await release_broadcast.wait()
+
+    publisher = TaskEventPublisher(SlowNotifier())
+    publisher.start()
+    task = TaskSummaryView(
+        id="slow-client-task",
+        type="pipeline",
+        status="running",
+        task_source="backend",
+        task_contract_version=10,
+        persistence_scope="runtime",
+        lifecycle="resumable",
+        progress=10,
+        revision=2,
+        message_code="running",
+        message_params={},
+        primary_operation="transcribe",
+        created_at=1,
+        queue_state="running",
+    )
+
+    await publisher.publish_update(task)
+    await asyncio.wait_for(broadcast_started.wait(), timeout=1.0)
+    await asyncio.wait_for(
+        publisher.publish_update(task.model_copy(update={"revision": 3})),
+        timeout=0.1,
+    )
+
+    release_broadcast.set()
+    await publisher.shutdown()
 
 
 def test_websocket_pushes_queue_position_and_pause_resume_updates(
@@ -236,7 +293,7 @@ def test_websocket_pushes_queue_position_and_pause_resume_updates(
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
     slow_asr = SlowMockASR(steps=10, delay_s=0.15)
-    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
+    monkeypatch.setattr(isolated_api_client.app.state.service_container.get(Services.ASR), "transcribe", slow_asr.transcribe)
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
@@ -253,15 +310,11 @@ def test_websocket_pushes_queue_position_and_pause_resume_updates(
 
             queued_message = _receive_until(
                 websocket,
-                lambda message: (
-                    message.get("type") == "update"
-                    and message.get("task", {}).get("id") == created_task_ids[2]
-                    and message.get("task", {}).get("queue_state") == "queued"
-                    and message.get("task", {}).get("queue_position") == 1
-                ),
+                lambda message: _has_queue_position(message, created_task_ids[2], 1),
                 limit=40,
             )
-            queued_task_id = queued_message["task"]["id"]
+            assert queued_message["type"] in {"update", "queue_positions"}
+            queued_task_id = created_task_ids[2]
             assert queued_task_id == created_task_ids[2]
 
             pause_target_id = created_task_ids[0]
@@ -321,7 +374,7 @@ def test_websocket_pushes_cancel_updates_for_running_and_queued_tasks(
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
     slow_asr = SlowMockASR(steps=10, delay_s=0.15)
-    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
+    monkeypatch.setattr(isolated_api_client.app.state.service_container.get(Services.ASR), "transcribe", slow_asr.transcribe)
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
@@ -338,15 +391,10 @@ def test_websocket_pushes_cancel_updates_for_running_and_queued_tasks(
 
             queued_message = _receive_until(
                 websocket,
-                lambda message: (
-                    message.get("type") == "update"
-                    and message.get("task", {}).get("id") == created_task_ids[2]
-                    and message.get("task", {}).get("queue_state") == "queued"
-                    and message.get("task", {}).get("queue_position") == 1
-                ),
+                lambda message: _has_queue_position(message, created_task_ids[2], 1),
                 limit=40,
             )
-            assert queued_message["task"]["id"] == created_task_ids[2]
+            assert queued_message["type"] in {"update", "queue_positions"}
 
             running_message = _receive_until(
                 websocket,
@@ -400,7 +448,7 @@ def test_websocket_pushes_pause_all_updates_for_running_and_queued_tasks(
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
     slow_asr = SlowMockASR(steps=10, delay_s=0.15)
-    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
+    monkeypatch.setattr(isolated_api_client.app.state.service_container.get(Services.ASR), "transcribe", slow_asr.transcribe)
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
@@ -417,15 +465,10 @@ def test_websocket_pushes_pause_all_updates_for_running_and_queued_tasks(
 
             queued_message = _receive_until(
                 websocket,
-                lambda message: (
-                    message.get("type") == "update"
-                    and message.get("task", {}).get("id") == created_task_ids[2]
-                    and message.get("task", {}).get("queue_state") == "queued"
-                    and message.get("task", {}).get("queue_position") == 1
-                ),
+                lambda message: _has_queue_position(message, created_task_ids[2], 1),
                 limit=40,
             )
-            assert queued_message["task"]["id"] == created_task_ids[2]
+            assert queued_message["type"] in {"update", "queue_positions"}
 
             for task_id in created_task_ids[:2]:
                 running_message = _receive_until(
@@ -487,7 +530,7 @@ def test_websocket_delete_sequence_for_running_and_queued_tasks(
     client = isolated_api_client
     assert client.get("/api/v1/tasks/queue/summary").status_code == 200
     slow_asr = SlowMockASR(steps=10, delay_s=0.15)
-    monkeypatch.setattr(container.get(Services.ASR), "transcribe", slow_asr.transcribe)
+    monkeypatch.setattr(isolated_api_client.app.state.service_container.get(Services.ASR), "transcribe", slow_asr.transcribe)
     created_task_ids = []
 
     with client.websocket_connect("/api/v1/ws/tasks") as websocket:
@@ -504,15 +547,10 @@ def test_websocket_delete_sequence_for_running_and_queued_tasks(
 
             queued_message = _receive_until(
                 websocket,
-                lambda message: (
-                    message.get("type") == "update"
-                    and message.get("task", {}).get("id") == created_task_ids[2]
-                    and message.get("task", {}).get("queue_state") == "queued"
-                    and message.get("task", {}).get("queue_position") == 1
-                ),
+                lambda message: _has_queue_position(message, created_task_ids[2], 1),
                 limit=40,
             )
-            assert queued_message["task"]["id"] == created_task_ids[2]
+            assert queued_message["type"] in {"update", "queue_positions"}
 
             running_message = _receive_until(
                 websocket,

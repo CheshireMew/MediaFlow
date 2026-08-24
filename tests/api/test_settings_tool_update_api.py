@@ -1,10 +1,17 @@
-from fastapi.testclient import TestClient
 from unittest.mock import patch
 
-from backend.main import app
+from fastapi.testclient import TestClient
+
+from backend.core.container import ServiceContainer
+from backend.main import create_app
+from backend.runtime.backend_bootstrap import BackendBootstrap
 
 
 def test_update_yt_dlp_endpoint():
+    app = create_app(
+        runtime_container=ServiceContainer(),
+        bootstrap=BackendBootstrap(),
+    )
     client = TestClient(app)
 
     with patch(

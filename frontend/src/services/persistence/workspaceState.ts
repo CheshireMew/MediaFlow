@@ -3,19 +3,16 @@ import {
   clearPersistenceFailure,
   reportPersistenceFailure,
 } from "./persistenceHealth";
-
-type WorkspaceState = Record<string, unknown>;
-type WorkspacePatchOperation =
-  | { op: "set"; path: Array<string | number>; value: unknown }
-  | { op: "delete"; path: Array<string | number> };
-
-type WorkspacePatchEnvelope = {
-  format: "mediaflow-workspace-patch-v1";
-  operations: WorkspacePatchOperation[];
-};
+import {
+  WORKSPACE_PATCH_FORMAT,
+  type WorkspacePatchEnvelope,
+  type WorkspacePatchOperation,
+  type WorkspaceState,
+} from "../../contracts/workspaceStateContract";
 
 const WORKSPACE_STORAGE_KEY = "mediaflow:workspace-state:v1";
 const WRITE_DEBOUNCE_MS = 250;
+const MAX_AUTOMATIC_WRITE_ATTEMPTS = 3;
 
 function createPersistenceSessionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -34,11 +31,24 @@ let dirty = false;
 let desktopPersistenceAvailable = false;
 let pendingWrite: Promise<void> | null = null;
 let writeRevision = 0;
+let lastCompletedRevision = 0;
+let mutationRevision = 0;
+let automaticWriteAttempts = 0;
 const dirtyKeys = new Set<string>();
+const mutationRevisionByKey = new Map<string, number>();
 const initializedListeners = new Set<() => void>();
 
 function isRecord(value: unknown): value is WorkspaceState {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function createJsonWorkspaceSnapshot(state: WorkspaceState): WorkspaceState {
+  const serialized = JSON.stringify(state);
+  const parsed: unknown = JSON.parse(serialized);
+  if (!isRecord(parsed)) {
+    throw new Error("Workspace state must serialize to a JSON object.");
+  }
+  return parsed;
 }
 
 function readStorage(): WorkspaceState {
@@ -112,7 +122,7 @@ function buildPatchEnvelope(
       operations.push({ op: "set", path: [key], value: target[key] });
     }
   }
-  return { format: "mediaflow-workspace-patch-v1", operations };
+  return { format: WORKSPACE_PATCH_FORMAT, operations };
 }
 
 function scheduleWrite() {
@@ -183,8 +193,28 @@ export function writeWorkspaceStateValue<T>(key: string, value: T | null) {
     cachedWorkspaceState = { ...cachedWorkspaceState, [key]: value };
   }
   dirtyKeys.add(key);
+  mutationRevisionByKey.set(key, ++mutationRevision);
   dirty = true;
+  automaticWriteAttempts = 0;
   scheduleWrite();
+}
+
+function markWorkspaceKeysPersisted(
+  targetSnapshot: WorkspaceState,
+  keyRevisions: ReadonlyMap<string, number>,
+  revision: number,
+) {
+  if (revision < lastCompletedRevision) {
+    return;
+  }
+  lastCompletedRevision = revision;
+  lastPersistedWorkspaceState = targetSnapshot;
+  for (const [key, keyRevision] of keyRevisions) {
+    if (mutationRevisionByKey.get(key) === keyRevision) {
+      dirtyKeys.delete(key);
+    }
+  }
+  dirty = dirtyKeys.size > 0;
 }
 
 export async function flushWorkspaceState(): Promise<void> {
@@ -198,21 +228,28 @@ export async function flushWorkspaceState(): Promise<void> {
   if (!dirty) {
     return;
   }
-  const targetSnapshot = cachedWorkspaceState;
+  let targetSnapshot: WorkspaceState;
+  try {
+    targetSnapshot = createJsonWorkspaceSnapshot(cachedWorkspaceState);
+  } catch (error) {
+    console.warn("[WorkspaceState] Workspace state is not JSON serializable.", error);
+    reportPersistenceFailure("workspace-write", error);
+    throw error;
+  }
   const keysToWrite = new Set(dirtyKeys);
+  const keyRevisions = new Map(
+    [...keysToWrite].map((key) => [key, mutationRevisionByKey.get(key) ?? 0]),
+  );
+  const revision = ++writeRevision;
   const patch = buildPatchEnvelope(targetSnapshot, keysToWrite);
   if (patch.operations.length === 0) {
-    keysToWrite.forEach((key) => dirtyKeys.delete(key));
-    dirty = dirtyKeys.size > 0;
+    markWorkspaceKeysPersisted(targetSnapshot, keyRevisions, revision);
     return;
   }
   const serialized = desktopPersistenceAvailable
     ? JSON.stringify(patch)
     : JSON.stringify(targetSnapshot);
-  const revision = ++writeRevision;
-  keysToWrite.forEach((key) => dirtyKeys.delete(key));
-  dirty = false;
-  pendingWrite = (async () => {
+  const write = (async () => {
     try {
       const desktopWriter = getDesktopApi()?.writeWorkspaceState;
       if (desktopPersistenceAvailable && desktopWriter) {
@@ -224,72 +261,47 @@ export async function flushWorkspaceState(): Promise<void> {
         if (!written) {
           throw new Error("Desktop workspace state rejected a stale persistence session.");
         }
-        lastPersistedWorkspaceState = targetSnapshot;
         localStorage.removeItem(WORKSPACE_STORAGE_KEY);
       } else if (typeof localStorage !== "undefined") {
         localStorage.setItem(WORKSPACE_STORAGE_KEY, serialized);
       }
-      lastPersistedWorkspaceState = targetSnapshot;
+      markWorkspaceKeysPersisted(targetSnapshot, keyRevisions, revision);
+      automaticWriteAttempts = 0;
       clearPersistenceFailure("workspace-write");
     } catch (error) {
-      keysToWrite.forEach((key) => dirtyKeys.add(key));
-      dirty = true;
+      if (revision < lastCompletedRevision) {
+        return;
+      }
+      dirty = dirtyKeys.size > 0;
+      automaticWriteAttempts += 1;
       console.warn("[WorkspaceState] Failed to persist workspace state.", error);
       reportPersistenceFailure("workspace-write", error);
     }
   })();
-  await pendingWrite;
-  pendingWrite = null;
-  if (dirty) {
+  pendingWrite = write;
+  await write;
+  if (pendingWrite === write) {
+    pendingWrite = null;
+  }
+  if (dirty && automaticWriteAttempts < MAX_AUTOMATIC_WRITE_ATTEMPTS) {
     scheduleWrite();
   }
 }
 
-export function flushWorkspaceStateSynchronously() {
+export async function flushWorkspaceStateForShutdown() {
   if (writeTimer !== null) {
     clearTimeout(writeTimer);
     writeTimer = null;
   }
-  if (!dirty) {
-    return true;
-  }
 
-  const targetSnapshot = cachedWorkspaceState;
-  const keysToWrite = new Set(dirtyKeys);
-  const patch = buildPatchEnvelope(targetSnapshot, keysToWrite);
-  if (patch.operations.length === 0) {
-    keysToWrite.forEach((key) => dirtyKeys.delete(key));
-    dirty = dirtyKeys.size > 0;
-    return true;
-  }
-  const serialized = desktopPersistenceAvailable
-    ? JSON.stringify(patch)
-    : JSON.stringify(targetSnapshot);
-  const revision = ++writeRevision;
-  try {
-    const desktopWriter = getDesktopApi()?.writeWorkspaceStateSync;
-    if (desktopPersistenceAvailable && desktopWriter) {
-      const written = desktopWriter(serialized, persistenceSessionId, revision);
-      if (!written) {
-        throw new Error("Desktop workspace state rejected the latest revision.");
-      }
-      lastPersistedWorkspaceState = targetSnapshot;
-      localStorage.removeItem(WORKSPACE_STORAGE_KEY);
-    } else if (typeof localStorage !== "undefined") {
-      localStorage.setItem(WORKSPACE_STORAGE_KEY, serialized);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await flushWorkspaceState();
+    if (!pendingWrite && !dirty) {
+      return true;
     }
-    lastPersistedWorkspaceState = targetSnapshot;
-    keysToWrite.forEach((key) => dirtyKeys.delete(key));
-    dirty = false;
-    clearPersistenceFailure("workspace-write");
-    return true;
-  } catch (error) {
-    keysToWrite.forEach((key) => dirtyKeys.add(key));
-    dirty = true;
-    console.warn("[WorkspaceState] Failed to synchronously persist workspace state.", error);
-    reportPersistenceFailure("workspace-write", error);
-    return false;
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
+  return !pendingWrite && !dirty;
 }
 
 export function resetWorkspaceStateForTests() {
@@ -304,16 +316,17 @@ export function resetWorkspaceStateForTests() {
   desktopPersistenceAvailable = false;
   pendingWrite = null;
   writeRevision = 0;
+  lastCompletedRevision = 0;
+  mutationRevision = 0;
+  automaticWriteAttempts = 0;
   dirtyKeys.clear();
+  mutationRevisionByKey.clear();
   if (typeof localStorage !== "undefined") {
     localStorage.removeItem(WORKSPACE_STORAGE_KEY);
   }
 }
 
 if (typeof window !== "undefined") {
-  window.addEventListener("beforeunload", () => {
-    flushWorkspaceStateSynchronously();
-  });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
       void flushWorkspaceState();

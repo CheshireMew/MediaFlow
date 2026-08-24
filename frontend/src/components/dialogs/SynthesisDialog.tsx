@@ -2,7 +2,7 @@
 // All state logic lives in hooks, all UI sections live in subcomponents.
 // This component only handles: hook wiring, export submission, and dialog layout.
 
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import { MonitorPlay } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
@@ -10,37 +10,21 @@ import { useSubtitleStyle } from './synthesis/hooks/useSubtitleStyle';
 import { useWatermark } from './synthesis/hooks/useWatermark';
 import { useOutputSettings } from './synthesis/hooks/useOutputSettings';
 import { useCrop } from './synthesis/hooks/useCrop';
+import { useSynthesisDialogPreferences } from './synthesis/hooks/useSynthesisDialogPreferences';
+import { useSynthesisExportSubmission } from './synthesis/hooks/useSynthesisExportSubmission';
+import { useSynthesisPreviewSession } from './synthesis/hooks/useSynthesisPreviewSession';
 import { SubtitleStylePanel } from './synthesis/components/SubtitleStylePanel';
 import { WatermarkPanel } from './synthesis/components/WatermarkPanel';
 import { OutputSettingsPanel } from './synthesis/components/OutputSettingsPanel';
 import { VideoPreview } from './synthesis/components/VideoPreview';
 import {
-    buildSynthesisOptionsFromPreferences,
-    editorService,
     getVideoExportClipDuration,
     resolvePreviewViewportMetrics,
-    resolveSynthesisWatermarkReference,
     type VideoExportScope,
     type VideoExportSubmission,
 } from '../../services/domain';
-import { mediaReferenceFromPath, type MediaReference } from '../../services/ui/mediaReference';
-import {
-    restoreStoredSynthesisExecutionPreferences,
-    type SynthesisExecutionPreferences,
-    updateStoredSynthesisExecutionPreferences,
-} from '../../services/persistence/synthesisExecutionPreferences';
+import type { MediaReference } from '../../services/ui/mediaReference';
 import { Dialog } from '../ui/Dialog';
-import type { MediaExportTimelineResponse } from '../../types/api';
-
-const PREVIEW_VISIBLE_FRAME_OFFSET_SECONDS = 1 / 30;
-const PROBE_FAILURE_FALLBACK_VISIBLE_START_SECONDS = 2 / 30;
-
-function resolvePreviewVisibleStart(visibleStart: number) {
-    if (visibleStart <= 0) {
-        return 0;
-    }
-    return visibleStart + PREVIEW_VISIBLE_FRAME_OFFSET_SECONDS;
-}
 
 interface VideoExportDialogProps {
     isOpen: boolean;
@@ -57,147 +41,15 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
 }) => {
     const videoPath = video?.path ?? null;
     const { t } = useTranslation('synthesis');
-    const [persistedPreferences, setPersistedPreferences] = useState(() => restoreStoredSynthesisExecutionPreferences());
-    // --- Shared refs ---
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
-    const [currentTime, setCurrentTime] = useState(0);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [mediaExportTimeline, setMediaExportTimeline] = useState<MediaExportTimelineResponse | null>(null);
-    const [isMediaExportTimelineResolving, setIsMediaExportTimelineResolving] = useState(false);
-    const [mediaExportTimelineFailed, setMediaExportTimelineFailed] = useState(false);
-    const [activeClipIndex, setActiveClipIndex] = useState(0);
     const isClipExport = exportScope.kind === "clips";
-    const clipSegments = exportScope.kind === "clips" ? exportScope.segments : [];
-    const activeClip = clipSegments[activeClipIndex] ?? null;
-    const firstClipStart = clipSegments[0]?.start ?? 0;
-    const subtitleAvailable = regions.some((region) => region.text.trim().length > 0);
     const clipDuration = getVideoExportClipDuration(exportScope);
-
-    useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
-
-        setPersistedPreferences(restoreStoredSynthesisExecutionPreferences());
-    }, [isOpen]);
-
-    useEffect(() => {
-        if (!isOpen) {
-            setVideoSize({ w: 0, h: 0 });
-            setCurrentTime(0);
-            setMediaExportTimeline(null);
-            setIsMediaExportTimelineResolving(false);
-            setMediaExportTimelineFailed(false);
-            return;
-        }
-
-        setVideoSize({ w: 0, h: 0 });
-        setCurrentTime(isClipExport ? firstClipStart : 0);
-        setMediaExportTimeline(null);
-        setMediaExportTimelineFailed(false);
-        setActiveClipIndex(0);
-    }, [firstClipStart, isClipExport, isOpen, videoPath, mediaUrl]);
-
-    useEffect(() => {
-        if (!isOpen || isClipExport || !video) {
-            return;
-        }
-
-        let cancelled = false;
-        setIsMediaExportTimelineResolving(true);
-        setMediaExportTimelineFailed(false);
-        void editorService
-            .getMediaExportTimeline({
-                video_ref: video,
-                speech_segments: regions,
-            })
-            .then((result) => {
-                if (cancelled) {
-                    return;
-                }
-                setMediaExportTimeline(result);
-                if (result.trim_start > 0) {
-                    const nextPreviewStart = resolvePreviewVisibleStart(result.trim_start);
-                    setCurrentTime(nextPreviewStart);
-                    if (videoRef.current) {
-                        videoRef.current.currentTime = nextPreviewStart;
-                    }
-                }
-            })
-            .catch(() => {
-                if (!cancelled) {
-                    setMediaExportTimelineFailed(true);
-                }
-            })
-            .finally(() => {
-                if (!cancelled) {
-                    setIsMediaExportTimelineResolving(false);
-                }
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [isClipExport, isOpen, mediaUrl, regions, video]);
-
-    useEffect(() => {
-        if (!isOpen || !activeClip || !videoRef.current) return;
-
-        const video = videoRef.current;
-        const seekToClip = () => {
-            video.pause();
-            video.currentTime = activeClip.start;
-            setCurrentTime(activeClip.start);
-        };
-        if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-            seekToClip();
-        } else {
-            video.addEventListener("loadedmetadata", seekToClip, { once: true });
-        }
-        return () => video.removeEventListener("loadedmetadata", seekToClip);
-    }, [activeClip, isOpen]);
-
-    // --- Toggle switches with shared settings persistence ---
-    const [subtitleEnabled, setSubtitleEnabled] = useState(() => {
-        return persistedPreferences.subtitleEnabled;
-    });
-    const [watermarkEnabled, setWatermarkEnabled] = useState(() => {
-        return persistedPreferences.watermarkEnabled;
-    });
-    const togglesInitialized = useRef(false);
-
-    useEffect(() => {
-        if (!isOpen) {
-            togglesInitialized.current = false;
-            return;
-        }
-
-        togglesInitialized.current = false;
-        const timer = setTimeout(() => {
-            setSubtitleEnabled(persistedPreferences.subtitleEnabled);
-            setWatermarkEnabled(persistedPreferences.watermarkEnabled);
-            togglesInitialized.current = true;
-        }, 0);
-
-        return () => clearTimeout(timer);
-    }, [isOpen, persistedPreferences]);
-
-    useEffect(() => {
-        if (!togglesInitialized.current) {
-            return;
-        }
-
-        updateStoredSynthesisExecutionPreferences({
-            subtitleEnabled,
-            watermarkEnabled,
-        });
-    }, [subtitleEnabled, watermarkEnabled]);
+    const preferences = useSynthesisDialogPreferences(isOpen, regions);
+    const preview = useSynthesisPreviewSession({ isOpen, video, mediaUrl, regions, exportScope });
 
     const crop = useCrop(isOpen, videoPath);
     const outputViewportMetrics = resolvePreviewViewportMetrics({
-        sourceWidth: videoSize.w,
-        sourceHeight: videoSize.h,
+        sourceWidth: preview.videoSize.w,
+        sourceHeight: preview.videoSize.h,
         crop: crop.isEnabled ? crop.crop : null,
     });
 
@@ -205,13 +57,13 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
     const style = useSubtitleStyle(
         isOpen,
         regions,
-        currentTime,
+        preview.currentTime,
         {
             w: outputViewportMetrics.outputSourceWidth,
             h: outputViewportMetrics.outputSourceHeight,
         },
         videoPath,
-        persistedPreferences,
+        preferences.persistedPreferences,
     );
     const watermark = useWatermark(
         isOpen,
@@ -219,117 +71,41 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
             w: outputViewportMetrics.outputSourceWidth,
             h: outputViewportMetrics.outputSourceHeight,
         },
-        persistedPreferences,
+        preferences.persistedPreferences,
     );
     const output = useOutputSettings(
         isOpen,
         videoPath,
-        persistedPreferences,
+        preferences.persistedPreferences,
         exportScope.kind,
     );
-    const automaticTrimStart = mediaExportTimeline?.trim_start
-        ?? (mediaExportTimelineFailed ? PROBE_FAILURE_FALLBACK_VISIBLE_START_SECONDS : 0);
-    const fullVideoPreviewRange = !isClipExport && mediaExportTimeline
+    const fullVideoPreviewRange = !isClipExport && preview.timeline
         ? {
-            start: output.trimStart > 0 ? output.trimStart : automaticTrimStart,
-            end: output.trimEnd > 0 ? output.trimEnd : mediaExportTimeline.trim_end,
+            start: output.trimStart > 0 ? output.trimStart : preview.automaticTrimStart,
+            end: output.trimEnd > 0 ? output.trimEnd : preview.timeline.trim_end,
         }
         : null;
-    const previewRange = activeClip
-        ? { start: activeClip.start, end: activeClip.end }
+    const previewRange = preview.activeClip
+        ? { start: preview.activeClip.start, end: preview.activeClip.end }
         : fullVideoPreviewRange;
-
-    // --- Export action (cross-cutting: reads from all settings hooks) ---
-    const handleExport = async () => {
-        if (!videoPath || isSubmitting) return;
-        
-        setIsSubmitting(true);
-        try {
-            const effectiveSubtitleEnabled = subtitleAvailable && subtitleEnabled;
-            const effectivePreferences: SynthesisExecutionPreferences = {
-                ...persistedPreferences,
-                subtitleEnabled: effectiveSubtitleEnabled,
-                watermarkEnabled,
-                quality: output.quality,
-                useGpu: output.useGpu,
-                targetResolution: output.targetResolution,
-                lastOutputDir: output.outputDir,
-                subtitleStyle: {
-                    ...persistedPreferences.subtitleStyle,
-                    fontName: style.fontName,
-                    fontSize: style.fontSize,
-                    fontColor: style.fontColor,
-                    isBold: style.isBold,
-                    isItalic: style.isItalic,
-                    outlineSize: style.outlineSize,
-                    shadowSize: style.shadowSize,
-                    outlineColor: style.outlineColor,
-                    bgEnabled: style.bgEnabled,
-                    bgColor: style.bgColor,
-                    bgOpacity: style.bgOpacity,
-                    bgPadding: style.bgPadding,
-                    alignment: style.alignment,
-                    multilineAlign: style.multilineAlign,
-                    subPos: style.subPos,
-                    customPresets: style.customPresets,
-                },
-                watermark: {
-                    ...persistedPreferences.watermark,
-                    wmScale: watermark.wmScale,
-                    wmOpacity: watermark.wmOpacity,
-                    wmPos: watermark.wmPos,
-                    hasCustomLayout: true,
-                },
-            };
-
-            const options = buildSynthesisOptionsFromPreferences(
-                effectivePreferences,
-                {
-                    targetResolution: output.targetResolution,
-                    trimStart: isClipExport
-                        ? undefined
-                        : fullVideoPreviewRange?.start ?? Math.max(output.trimStart, automaticTrimStart),
-                    trimEnd: isClipExport
-                        ? undefined
-                        : output.trimEnd > 0 || mediaExportTimeline?.has_trailing_no_speech
-                            ? fullVideoPreviewRange?.end
-                            : undefined,
-                    crop: crop.isEnabled ? crop.crop : null,
-                    videoSize,
-                },
-            );
-
-            let outputRef: MediaReference | null = null;
-            if (!isClipExport && output.outputDir && output.outputFilename) {
-                const sep = output.outputDir.includes('\\') ? '\\' : '/';
-                const cleanDir = output.outputDir.endsWith(sep) ? output.outputDir.slice(0, -1) : output.outputDir;
-                const targetPath = `${cleanDir}${sep}${output.outputFilename}`;
-                outputRef = mediaReferenceFromPath(targetPath, {
-                        type: "video/mp4",
-                        media_kind: "video",
-                        role: "output",
-                        origin: "task",
-                    });
-            }
-
-            const effectiveWatermarkRef = watermarkEnabled
-                ? watermark.watermarkRef ?? await resolveSynthesisWatermarkReference(effectivePreferences)
-                : null;
-            const submitted = await onExport({
-                options,
-                outputRef,
-                outputDir: output.outputDir,
-                watermarkRef: effectiveWatermarkRef,
-                subtitleEnabled: effectiveSubtitleEnabled,
-                watermarkEnabled,
-            });
-            if (submitted) onClose();
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+    const submission = useSynthesisExportSubmission({
+        videoPath,
+        videoSize: preview.videoSize,
+        exportScope,
+        subtitleAvailable: preferences.subtitleAvailable,
+        subtitleEnabled: preferences.subtitleEnabled,
+        watermarkEnabled: preferences.watermarkEnabled,
+        persistedPreferences: preferences.persistedPreferences,
+        style,
+        watermark,
+        output,
+        crop,
+        automaticTrimStart: preview.automaticTrimStart,
+        fullVideoPreviewRange,
+        timeline: preview.timeline,
+        onExport,
+        onClose,
+    });
 
 
     if (!isOpen) return null;
@@ -339,7 +115,7 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
             open={isOpen}
             onClose={onClose}
             ariaLabel={isClipExport ? t('clipExport.title') : t('title')}
-            busy={isSubmitting}
+            busy={submission.isSubmitting}
             closeOnBackdrop={false}
             overlayClassName="z-[100] bg-black/80 p-2 backdrop-blur-sm sm:p-4"
             className="relative flex h-[90vh] w-[95vw] overflow-hidden rounded-lg border border-white/10 bg-[#0a0a0a] shadow-2xl ring-1 ring-white/5 max-[900px]:h-[95vh] max-[900px]:flex-col"
@@ -357,7 +133,7 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                         {isClipExport && (
                             <p className="mt-2 text-xs text-slate-400">
                                 {t('clipExport.summary', {
-                                    count: clipSegments.length,
+                                    count: preview.clipSegments.length,
                                     duration: clipDuration.toFixed(1),
                                 })}
                             </p>
@@ -367,16 +143,16 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                     <div className="custom-scrollbar flex flex-1 flex-col gap-6 overflow-y-auto p-6 pt-0 max-[900px]:p-4 max-[900px]:pt-0">
                         <SubtitleStylePanel
                             style={style}
-                            enabled={subtitleAvailable && subtitleEnabled}
-                            available={subtitleAvailable}
-                            onToggle={setSubtitleEnabled}
+                            enabled={preferences.subtitleAvailable && preferences.subtitleEnabled}
+                            available={preferences.subtitleAvailable}
+                            onToggle={preferences.setSubtitleEnabled}
                         />
                         <OutputSettingsPanel
                             output={output}
                             batchMode={isClipExport}
-                            batchCount={clipSegments.length}
+                            batchCount={preview.clipSegments.length}
                         />
-                        <WatermarkPanel watermark={watermark} enabled={watermarkEnabled} onToggle={setWatermarkEnabled} />
+                        <WatermarkPanel watermark={watermark} enabled={preferences.watermarkEnabled} onToggle={preferences.setWatermarkEnabled} />
                     </div>
                 </div>
 
@@ -387,30 +163,30 @@ export const VideoExportDialog: React.FC<VideoExportDialogProps> = ({
                     watermark={watermark}
                     output={output}
                     crop={crop}
-                    subtitleEnabled={subtitleAvailable && subtitleEnabled}
-                    watermarkEnabled={watermarkEnabled}
+                    subtitleEnabled={preferences.subtitleAvailable && preferences.subtitleEnabled}
+                    watermarkEnabled={preferences.watermarkEnabled}
                     onClose={onClose}
-                    onExportClick={handleExport}
-                    isSubmitting={isSubmitting}
-                    videoRef={videoRef}
-                    setVideoSize={setVideoSize}
-                    currentTime={currentTime}
-                    onTimeUpdate={setCurrentTime}
+                    onExportClick={submission.handleExport}
+                    isSubmitting={submission.isSubmitting}
+                    videoRef={preview.videoRef}
+                    setVideoSize={preview.setVideoSize}
+                    currentTime={preview.currentTime}
+                    onTimeUpdate={preview.setCurrentTime}
                     previewRange={previewRange}
-                    clipNavigator={activeClip ? {
-                        index: activeClipIndex,
-                        count: clipSegments.length,
-                        title: activeClip.title || t('clipExport.untitled'),
-                        onPrevious: () => setActiveClipIndex((current) => Math.max(0, current - 1)),
-                        onNext: () => setActiveClipIndex((current) => Math.min(clipSegments.length - 1, current + 1)),
+                    clipNavigator={preview.activeClip ? {
+                        index: preview.activeClipIndex,
+                        count: preview.clipSegments.length,
+                        title: preview.activeClip.title || t('clipExport.untitled'),
+                        onPrevious: () => preview.setActiveClipIndex((current) => Math.max(0, current - 1)),
+                        onNext: () => preview.setActiveClipIndex((current) => Math.min(preview.clipSegments.length - 1, current + 1)),
                     } : null}
                     allowTrim={!isClipExport}
-                    isPreparing={isMediaExportTimelineResolving}
+                    isPreparing={preview.isResolving}
                     actionLabel={isClipExport
-                        ? t('clipExport.startExport', { count: clipSegments.length })
+                        ? t('clipExport.startExport', { count: preview.clipSegments.length })
                         : t('preview.startExport')}
                 />
-                {isSubmitting && (
+                {submission.isSubmitting && (
                     <div
                         className="absolute inset-0 z-[200] cursor-wait"
                         aria-hidden="true"

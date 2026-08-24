@@ -1,17 +1,20 @@
 from loguru import logger
 
 from backend.application.pipeline_steps.base import PipelineStep
+from backend.application.translation_service import (
+    build_translation_task_result,
+    build_translation_worker_kwargs,
+)
 from backend.core.context import PipelineContext
 from backend.core.task_runtime import TaskRuntimeContext
 from backend.models.media_contracts import MediaReference
 from backend.models.subtitle_contracts import SubtitleSegment
 from backend.models.translation_contracts import TranslationRequest
-from backend.application.translation_service import (
-    build_translation_task_result,
-    build_translation_worker_kwargs,
-)
+
 
 class TranslateStep(PipelineStep):
+    resume_policy = "replace_output"
+
     def __init__(self, *, translator, task_manager):
         self._translator = translator
         self._task_manager = task_manager
@@ -20,7 +23,8 @@ class TranslateStep(PipelineStep):
     def name(self) -> str:
         return "translate"
 
-    async def execute(self, ctx: PipelineContext, params: dict, task_id: str = None):
+    async def execute(self, ctx: PipelineContext, params: dict, task_id: str | None = None):
+        ctx.begin_step(self.name)
         # 1. Input Validation
         transcription_output = ctx.outputs.transcription
         segments_data = (
@@ -53,7 +57,11 @@ class TranslateStep(PipelineStep):
         )
 
         # 2. Dependencies
-        runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
+        runtime = TaskRuntimeContext(
+            task_id,
+            task_manager=self._task_manager,
+            progress_transform=ctx.project_step_progress,
+        )
 
         # 3. Execution
         translated_segments = await runtime.run_blocking(
@@ -66,7 +74,7 @@ class TranslateStep(PipelineStep):
         )
         
         if not translated_segments:
-            raise Exception("Translation produced no segments")
+            raise RuntimeError("Translation produced no segments")
 
         # 4. Save Output next to the canonical input reference.
         result = build_translation_task_result(

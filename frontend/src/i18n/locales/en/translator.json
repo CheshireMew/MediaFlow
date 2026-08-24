@@ -15,7 +15,7 @@
   "buttons": {
     "import": { "tooltip": "Import Subtitle", "label": "Import" },
     "proofread": { "tooltip": "AI Grammar & Typos Correction (No Translation)", "label": "Proofread" },
-    "translate": { "label": "Translate" },
+    "translate": { "tooltip": "Translate subtitles with the selected mode", "label": "Translate" },
     "export": { "tooltip": "Save SRT to disk", "label": "Export" },
     "editor": { "tooltip": "Open in Subtitle Editor", "label": "Editor" }
   },

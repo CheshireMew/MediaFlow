@@ -8,8 +8,9 @@ from sqlalchemy.pool import NullPool
 
 import backend.core.database as database_module
 from backend.config import settings
-from backend.core.container import container
-from backend.main import app
+from backend.core.container import ServiceContainer
+from backend.main import create_app
+from backend.runtime.backend_bootstrap import BackendBootstrap
 from backend.services.settings_manager import SettingsManager
 
 
@@ -50,7 +51,11 @@ def isolated_api_client(tmp_path, monkeypatch):
     monkeypatch.setattr(database_module, "engine", engine)
     monkeypatch.setattr(database_module, "async_session_maker", async_session_maker)
 
-    container.reset()
+    runtime_container = ServiceContainer()
+    app = create_app(
+        runtime_container=runtime_container,
+        bootstrap=BackendBootstrap(),
+    )
 
     with TestClient(app) as client:
         # The desktop bootstrap intentionally becomes ready in the background.
@@ -62,7 +67,6 @@ def isolated_api_client(tmp_path, monkeypatch):
         assert readiness_response.status_code == 200
         yield client
 
-    container.reset()
     try:
         asyncio.run(engine.dispose())
     except RuntimeError:

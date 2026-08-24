@@ -1,8 +1,8 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, HttpUrl, model_validator
+from pydantic import BaseModel, Field, HttpUrl, RootModel
 
-from backend.contracts import pipeline_step_names, pipeline_step_param_model_names
+from backend.contracts import pipeline_step_param_model_names
 from backend.models.editor_contracts import ClipExportRequest
 from backend.models.media_contracts import MediaReference
 from backend.models.subtitle_contracts import SubtitleSegment
@@ -10,7 +10,7 @@ from backend.models.transcription_contracts import (
     TranscriptionOptions,
 )
 from backend.models.translation_contracts import TranslationOptions
-from backend.models.synthesis_contracts import SynthesisOptions
+from backend.models.synthesis_contracts import SynthesisInputs
 
 
 class DownloadParams(BaseModel):
@@ -38,7 +38,7 @@ class TranslateParams(TranslationOptions):
     segments: list[SubtitleSegment] | None = None
 
 
-class SynthesizeParams(SynthesisOptions):
+class SynthesizeParams(SynthesisInputs):
     video_ref: MediaReference | None = None
 
 
@@ -66,28 +66,57 @@ PipelineStepParams = (
 )
 
 
-class PipelineStepRequest(BaseModel):
-    step_name: str
-    params: PipelineStepParams
+class DownloadStepRequest(BaseModel):
+    step_name: Literal["download"]
+    params: DownloadParams
 
-    @model_validator(mode="before")
-    @classmethod
-    def validate_catalog_step(cls, value):
-        if not isinstance(value, dict):
-            return value
 
-        step_name = value.get("step_name")
-        if step_name not in pipeline_step_names():
-            raise ValueError(f"Unknown pipeline step: {step_name}")
-        param_model = PIPELINE_STEP_PARAM_MODELS.get(step_name)
-        if param_model is None:
-            raise ValueError(f"Pipeline step has no parameter model: {step_name}")
-        if "params" not in value:
-            return value
-        return {**value, "params": param_model.model_validate(value["params"])}
+class TranscribeStepRequest(BaseModel):
+    step_name: Literal["transcribe"]
+    params: TranscribeParams
+
+
+class TranslateStepRequest(BaseModel):
+    step_name: Literal["translate"]
+    params: TranslateParams
+
+
+class SynthesizeStepRequest(BaseModel):
+    step_name: Literal["synthesize"]
+    params: SynthesizeParams
+
+
+class ClipExportStepRequest(BaseModel):
+    step_name: Literal["clip_export"]
+    params: ClipExportRequest
+
+
+DiscriminatedPipelineStep = Annotated[
+    DownloadStepRequest
+    | TranscribeStepRequest
+    | TranslateStepRequest
+    | SynthesizeStepRequest
+    | ClipExportStepRequest,
+    Field(discriminator="step_name"),
+]
+
+
+class PipelineStepRequest(RootModel[DiscriminatedPipelineStep]):
+    """Compatibility wrapper whose JSON shape is the discriminated step itself."""
+
+    def __init__(self, root=None, **data):
+        super().__init__(root=root if root is not None else data)
+
+    @property
+    def step_name(self) -> str:
+        return self.root.step_name
+
+    @property
+    def params(self) -> PipelineStepParams:
+        return self.root.params
 
 
 class PipelineRequest(BaseModel):
     pipeline_id: str = "default_ingest_flow"
     task_name: str | None = None
-    steps: list[PipelineStepRequest]
+    steps: list[PipelineStepRequest] = Field(min_length=1)

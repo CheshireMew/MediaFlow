@@ -1,11 +1,10 @@
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, Field
 
 from backend.contracts import require_task_message_code
 from backend.models.media_contracts import TaskArtifact, TaskResult
 from backend.models.pipeline_contracts import PipelineRequest
-
 
 TaskMessageCode = Annotated[str, AfterValidator(require_task_message_code)]
 TaskMessageParams = dict[str, str | int | float | bool | None]
@@ -53,12 +52,13 @@ class TaskQueueSummary(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    status: str
+    status: Literal["starting", "ready", "failed"]
     service: str
     version: str
+    error: str | None = None
 
 
-class TaskView(BaseModel):
+class TaskSummaryView(BaseModel):
     id: str
     type: str
     status: str
@@ -72,10 +72,15 @@ class TaskView(BaseModel):
     message_code: TaskMessageCode
     message_params: TaskMessageParams
     error: str | None = None
-    result: TaskResult | None = None
-    request_params: PipelineRequest | None = None
     primary_operation: str
     artifacts: list[TaskArtifact] = Field(default_factory=list)
     created_at: int
     queue_state: str
     queue_position: int | None = None
+
+
+class TaskView(TaskSummaryView):
+    """Full task detail returned only by the single-task endpoint."""
+
+    result: TaskResult | None = None
+    request_params: PipelineRequest | None = None

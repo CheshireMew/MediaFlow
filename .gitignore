@@ -2,12 +2,17 @@
 Archive/
 !archive/
 archive/*
+!archive/README.md
 !archive/frontend-unused-components/
 !archive/frontend-unused-components/**
 !archive/frontend-unused-contracts/
 !archive/frontend-unused-contracts/**
 !archive/backend-unused-runtime/
 !archive/backend-unused-runtime/**
+!archive/build-profiles/
+!archive/build-profiles/**
+!archive/license-history/
+!archive/license-history/**
 !archive/frontend-unused-tests/
 !archive/frontend-unused-tests/**
 !archive/propainter-prototype/
@@ -58,6 +63,7 @@ release/
 # User Data (DB, local config)
 user_data/
 /workspace-state.json
+/.project-steward/*.local.json
 
 # Logs
 *.log

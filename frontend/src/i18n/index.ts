@@ -146,28 +146,6 @@ function collectCachedResources(languages: readonly string[], namespaces: readon
   return resources;
 }
 
-function scheduleFallbackLanguagePreload(
-  language: SupportedLanguageCode,
-  namespaces: readonly I18nNamespace[],
-) {
-  if (language === "en") {
-    return;
-  }
-
-  const loadFallback = () => {
-    void preloadNamespaces("en", namespaces).then(() => {
-      i18n.options.fallbackLng = "en";
-    });
-  };
-
-  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-    window.requestIdleCallback(loadFallback, { timeout: 5000 });
-    return;
-  }
-
-  setTimeout(loadFallback, 2000);
-}
-
 const lazyLocaleBackend: BackendModule = {
   type: "backend",
   init: () => undefined,
@@ -197,18 +175,23 @@ export function initI18nWithNamespaces(
   const resolvedLanguage = normalizeLanguage(language);
   const bootstrapNamespaces = resolveNamespaces(namespaces);
 
-  return preloadNamespaces(resolvedLanguage, bootstrapNamespaces).then(async () => {
+  return Promise.all([
+    preloadNamespaces(resolvedLanguage, bootstrapNamespaces),
+    resolvedLanguage === "en"
+      ? Promise.resolve()
+      : preloadNamespaces("en", bootstrapNamespaces),
+  ]).then(async () => {
     if (!i18n.isInitialized) {
       return await i18n
         .use(lazyLocaleBackend)
         .use(initReactI18next)
         .init({
           resources: collectCachedResources(
-            [resolvedLanguage],
+            Array.from(new Set([resolvedLanguage, "en"])),
             bootstrapNamespaces,
           ),
           lng: resolvedLanguage,
-          fallbackLng: false,
+          fallbackLng: "en",
           showSupportNotice: false,
           defaultNS: "common",
           ns: bootstrapNamespaces,
@@ -216,14 +199,11 @@ export function initI18nWithNamespaces(
           interpolation: { escapeValue: false },
           react: { useSuspense: false },
         })
-        .then((instance) => {
-          scheduleFallbackLanguagePreload(resolvedLanguage, bootstrapNamespaces);
-          return instance;
-        });
+        .then((instance) => instance);
     }
 
     await i18n.changeLanguage(resolvedLanguage);
-    scheduleFallbackLanguagePreload(resolvedLanguage, bootstrapNamespaces);
+    i18n.options.fallbackLng = "en";
     return i18n;
   });
 }

@@ -17,21 +17,32 @@ class PipelineRunner:
         self.task_manager = task_manager
         self._step_registry = step_registry
 
-    async def run(self, steps: List[PipelineStepRequest], task_id: str = None) -> Dict[str, Any]:
-        ctx = PipelineContext()
+    async def run(
+        self,
+        steps: List[PipelineStepRequest],
+        task_id: str = None,
+        checkpoint: dict | None = None,
+    ) -> Dict[str, Any]:
+        ctx, start_step_index = PipelineContext.from_checkpoint(checkpoint)
+        expected_history = [step.step_name for step in steps[:start_step_index]]
+        if start_step_index > len(steps) or ctx.history != expected_history:
+            raise ValueError("Pipeline checkpoint does not match the persisted request")
         runtime = TaskRuntimeContext(task_id, task_manager=self.task_manager)
         logger.info(f"Starting pipeline with {len(steps)} steps. TaskID: {task_id}")
 
         try:
             if task_id:
                 await runtime.update(
-                    status="running",
                     cancelled=False,
+                    progress=(start_step_index / len(steps)) * 100.0,
                     message_code="pipeline_starting",
-                    message_params={},
+                    message_params={"completed_steps": start_step_index, "total_steps": len(steps)},
                 )
 
-            for i, step_req in enumerate(steps):
+            for i in range(start_step_index, len(steps)):
+                step_req = steps[i]
+                ctx.configure_step_progress(i, len(steps))
+                ctx.begin_step(step_req.step_name)
                 logger.info(f"Executing step {i+1}: {step_req.step_name}")
 
                 if task_id:
@@ -60,6 +71,13 @@ class PipelineRunner:
                     finally:
                         duration = time.time() - start_time
                         ctx.add_trace(step_req.step_name, duration, status, error_msg)
+
+                    if task_id:
+                        await runtime.drain_progress()
+                        await runtime.update(
+                            progress=((i + 1) / len(steps)) * 100.0,
+                            checkpoint=ctx.to_checkpoint(i + 1),
+                        )
 
                 except (TaskPauseRequested, TaskCancelRequested):
                     raise
@@ -107,6 +125,7 @@ class PipelineRunner:
                     message_code="pipeline_completed",
                     message_params={},
                     result=task_result.model_dump(mode="json"),
+                    checkpoint=None,
                 )
 
             return {

@@ -1,44 +1,14 @@
 
-import asyncio
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import List, Tuple
-from loguru import logger
-from backend.models.media_contracts import MediaReference
-from backend.utils.path_validator import validate_input_file
+from fastapi import APIRouter
 
-router = APIRouter(tags=["Audio"])
+from backend.models.audio_contracts import DetectSilenceRequest, DetectSilenceResponse
 
-class DetectSilenceRequest(BaseModel):
-    audio_ref: MediaReference
-    threshold: str = "-30dB"
-    min_duration: float = 0.5
 
-class DetectSilenceResponse(BaseModel):
-    silence_intervals: List[Tuple[float, float]]
+def create_router(audio_application) -> APIRouter:
+    router = APIRouter(tags=["Audio"])
 
-@router.post("/audio/detect-silence", response_model=DetectSilenceResponse)
-async def detect_silence(req: DetectSilenceRequest):
-    """
-    Detect silence intervals in an audio file.
-    """
-    try:
-        audio_path = str(validate_input_file(req.audio_ref.path, label="audio_ref.path"))
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    @router.post("/audio/detect-silence", response_model=DetectSilenceResponse)
+    async def detect_silence(request: DetectSilenceRequest):
+        return await audio_application.detect_silence(request)
 
-    try:
-        from backend.utils.audio_processor import AudioProcessor
-
-        intervals = await asyncio.to_thread(
-            AudioProcessor.detect_silence,
-            audio_path,
-            silence_thresh=req.threshold,
-            min_silence_dur=req.min_duration,
-        )
-        return DetectSilenceResponse(silence_intervals=intervals)
-    except Exception as e:
-        logger.error(f"Silence detection error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return router

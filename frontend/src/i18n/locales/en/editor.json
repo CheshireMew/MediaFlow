@@ -8,6 +8,7 @@
     "openSubtitleButton": "Open Subtitle",
     "autoScrollLabel": "Auto-Scroll",
     "translateTooltip": "Send to AI Translator",
+    "translateRequiresSubtitlesTooltip": "Open media and load subtitles first",
     "translateButton": "Translate",
     "subtitleMode": "Subtitles",
     "subtitleModeTooltip": "Switch to subtitle editing",
@@ -21,6 +22,7 @@
     "exportRequiresVideoTooltip": "Open a video before exporting",
     "exportButton": "Export",
     "saveButton": "Save",
+    "saveRequiresVideoTooltip": "Open media before saving subtitles",
     "saveAsTooltip": "Save As..."
   },
   "document": {
@@ -60,6 +62,8 @@
     "deleteTooltip": "Delete Segment",
     "emptySegmentLabel": "Empty segment",
     "emptyState": "No subtitles",
+    "openSubtitleButton": "Open Subtitles",
+    "dropHint": "Or drop a subtitle file here",
     "validationOverlap": "Overlap with"
   },
   "clips": {
@@ -127,7 +131,10 @@
     "fullscreen": "Enter fullscreen",
     "exitFullscreen": "Exit fullscreen",
     "mediaFailed": "Media failed to load",
-    "noMedia": "No media loaded"
+    "noMedia": "No media loaded",
+    "openMedia": "Open Media",
+    "replaceMedia": "Choose Another Media File",
+    "dropHint": "Or drop a media file here"
   },
   "contextMenu": {
     "noSpeechFallback": "[No speech]",

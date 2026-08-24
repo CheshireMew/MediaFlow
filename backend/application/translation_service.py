@@ -13,6 +13,7 @@ from backend.models.translation_target_language import (
 )
 from backend.services.generated_output_paths import build_suffixed_output_path
 from backend.services.media_refs import create_media_ref
+from backend.application.media_input import require_input_file
 
 
 def _target_language_value(target_language: str | TranslationTargetLanguage) -> str:
@@ -151,6 +152,8 @@ class TranslationApplicationService:
     ) -> dict:
         import asyncio
 
+        if request.context_ref:
+            require_input_file(request.context_ref.path, label="context_ref.path")
         return await asyncio.to_thread(
             _translation_immediate,
             request,

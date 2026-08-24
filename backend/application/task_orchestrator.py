@@ -4,6 +4,12 @@ from typing import TYPE_CHECKING
 from backend.models.pipeline_contracts import PipelineRequest
 from backend.models.task_message import TaskMessageParams
 from backend.application.task_submission_response import task_submission_response
+from backend.models.application_errors import (
+    ConflictError,
+    InvalidInputError,
+    ResourceNotFoundError,
+    TaskConsistencyError,
+)
 
 if TYPE_CHECKING:
     from backend.services.task_manager import TaskManager
@@ -49,7 +55,10 @@ class TaskOrchestrator:
 
     def serialize_task(self, task):
         if task is None:
-            raise ValueError("Task not found")
+            raise ResourceNotFoundError(
+                "Task not found",
+                code="task_not_found",
+            )
         return self._task_manager.serialize_task(task)
 
     async def wait_until_task_state_ready(self) -> None:
@@ -63,7 +72,7 @@ class TaskOrchestrator:
     ) -> None:
         task = self.get_task(task_id)
         if not task:
-            raise ValueError("Task not found")
+            raise ResourceNotFoundError("Task not found", code="task_not_found")
         await self._task_manager.enqueue_task(
             task_id,
             self.build_resume_runner(task),
@@ -88,9 +97,17 @@ class TaskOrchestrator:
 
     def build_resume_runner(self, task) -> callable:
         if not task.request_params:
-            raise ValueError("Cannot resume task: Missing parameters")
+            raise InvalidInputError(
+                "Cannot resume task: missing parameters",
+                code="task_resume_parameters_missing",
+                details={"task_id": task.id},
+            )
         request = PipelineRequest.model_validate(task.request_params)
-        return lambda: self._pipeline_runner.run(request.steps, task.id)
+        return lambda: self._pipeline_runner.run(
+            request.steps,
+            task.id,
+            checkpoint=getattr(task, "checkpoint", None),
+        )
 
     async def submit_pipeline(self, req: PipelineRequest) -> dict:
         await self.wait_until_task_state_ready()
@@ -115,7 +132,11 @@ class TaskOrchestrator:
             )
             task = self.get_task(task_id)
             if not task:
-                raise ValueError(f"Task not found after creation: {task_id}")
+                raise TaskConsistencyError(
+                    f"Task {task_id} was not available after creation",
+                    code="task_missing_after_creation",
+                    details={"task_id": task_id},
+                )
             await self._task_manager.enqueue_task(
                 task_id,
                 self.build_resume_runner(task),
@@ -132,9 +153,13 @@ class TaskOrchestrator:
         await self.wait_until_task_state_ready()
         task = self.get_task(task_id)
         if not task:
-            raise ValueError("Task not found")
+            raise ResourceNotFoundError("Task not found", code="task_not_found")
         if not task.request_params:
-            raise ValueError("Cannot resume task: Missing parameters")
+            raise InvalidInputError(
+                "Cannot resume task: missing parameters",
+                code="task_resume_parameters_missing",
+                details={"task_id": task_id},
+            )
         if task.status == "running":
             return {
                 "message_code": "already_running",
@@ -142,7 +167,11 @@ class TaskOrchestrator:
                 "status": "running",
             }
         if task.status != "paused":
-            raise ValueError("Only paused tasks can be resumed")
+            raise ConflictError(
+                "Only paused tasks can be resumed",
+                code="task_not_paused",
+                details={"task_id": task_id, "status": task.status},
+            )
 
         await self.reset_paused_task(task_id)
         await self.enqueue_existing_task(task_id, queued_message_code="queued")
@@ -152,11 +181,19 @@ class TaskOrchestrator:
         await self.wait_until_task_state_ready()
         task = await self.get_task_record(task_id)
         if not task:
-            raise ValueError("Task not found")
+            raise ResourceNotFoundError("Task not found", code="task_not_found")
         if task.status != "failed":
-            raise ValueError("Only failed tasks can be retried")
+            raise ConflictError(
+                "Only failed tasks can be retried",
+                code="task_not_failed",
+                details={"task_id": task_id, "status": task.status},
+            )
         if not task.request_params:
-            raise ValueError("Cannot retry task: Missing parameters")
+            raise InvalidInputError(
+                "Cannot retry task: missing parameters",
+                code="task_retry_parameters_missing",
+                details={"task_id": task_id},
+            )
         return await self.submit_pipeline(
             PipelineRequest.model_validate(task.request_params)
         )

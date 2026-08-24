@@ -1,15 +1,18 @@
 from loguru import logger
 
 from backend.application.pipeline_steps.base import PipelineStep
+from backend.application.synthesis_service import build_synthesis_worker_kwargs
 from backend.core.context import PipelineContext
 from backend.core.task_runtime import TaskRuntimeContext
 from backend.models.media_contracts import MediaReference
-from backend.services.media_refs import create_media_ref
-from backend.models.synthesis_contracts import SynthesisRequest
+from backend.models.synthesis_contracts import SynthesisOptions, SynthesisRequest
 from backend.models.task_result_contracts import SynthesisOutput
-from backend.application.synthesis_service import build_synthesis_worker_kwargs
+from backend.services.media_refs import create_media_ref
+
 
 class SynthesizeStep(PipelineStep):
+    resume_policy = "replace_output"
+
     def __init__(self, *, synthesis, task_manager):
         self._synthesis = synthesis
         self._task_manager = task_manager
@@ -18,7 +21,8 @@ class SynthesizeStep(PipelineStep):
     def name(self) -> str:
         return "synthesize"
 
-    async def execute(self, ctx: PipelineContext, params: dict, task_id: str = None):
+    async def execute(self, ctx: PipelineContext, params: dict, task_id: str | None = None):
+        ctx.begin_step(self.name)
         # Upstream pipeline media takes priority; explicit parameters are the fallback.
         video_ref = ctx.get_media("video_ref")
         if video_ref is None and params.get("video_ref"):
@@ -32,10 +36,10 @@ class SynthesizeStep(PipelineStep):
             else None
         )
 
-        options = params.get("options") or {}
+        options = SynthesisOptions.model_validate(params.get("options") or {})
         if not video_ref:
             raise ValueError("Synthesize step requires video_ref")
-        if not subtitle_ref and not options.get("skip_subtitles"):
+        if not subtitle_ref and not options.skip_subtitles:
             raise ValueError("Synthesize step requires srt_ref unless subtitles are disabled")
         requested_output_ref = (
             MediaReference.model_validate(params["output_ref"])
@@ -50,7 +54,11 @@ class SynthesizeStep(PipelineStep):
             options=options,
         )
 
-        runtime = TaskRuntimeContext(task_id, task_manager=self._task_manager)
+        runtime = TaskRuntimeContext(
+            task_id,
+            task_manager=self._task_manager,
+            progress_transform=ctx.project_step_progress,
+        )
 
         if task_id:
             await runtime.update(

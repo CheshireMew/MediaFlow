@@ -9,7 +9,7 @@ import type { SynthesisExecutionPreferences } from "../persistence/synthesisExec
 import { mediaReferenceFromPath } from "../ui/mediaReference";
 
 type SynthesisExecutionOverrides = {
-  targetResolution?: string;
+  targetResolution?: SynthesisExecutionPreferences["targetResolution"];
   trimStart?: number;
   trimEnd?: number;
   crop?:

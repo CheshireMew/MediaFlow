@@ -36,8 +36,14 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("../context/taskContext", () => ({
-  useTaskContext: () => useTaskContextMock(),
   useTaskActions: () => useTaskContextMock(),
+  useTaskStatus: () => useTaskContextMock(),
+}));
+
+vi.mock("../context/taskStoreContext", () => ({
+  useTasks: () => useTaskContextMock().tasks,
+  useTaskById: (taskId: string | null) =>
+    useTaskContextMock().tasks.find((task: Task) => task.id === taskId) ?? null,
 }));
 
 describe("useTranscriber", () => {

@@ -49,7 +49,7 @@ export async function resolvePreferredMediaPath(
     }
   }
 
-  return paths[0];
+  return null;
 }
 
 export async function resolvePreferredMediaPaths(candidates: {
@@ -61,12 +61,7 @@ export async function resolvePreferredMediaPaths(candidates: {
   const outputPath = await resolvePreferredMediaPath(candidates.output ?? []);
   const videoPath = await resolvePreferredMediaPath(candidates.video ?? []);
   const subtitlePath = await resolvePreferredMediaPath(candidates.subtitle ?? []);
-  const contextPath = await resolvePreferredMediaPath([
-    ...(candidates.context ?? []),
-    outputPath,
-    videoPath,
-    subtitlePath,
-  ]);
+  const contextPath = await resolvePreferredMediaPath(candidates.context ?? []);
 
   return {
     outputPath,

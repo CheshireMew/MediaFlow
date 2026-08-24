@@ -8,6 +8,8 @@ import { useGlossary } from "./useGlossary";
 import { useFileIO } from "./useFileIO";
 import type { GlossaryTerm } from "../services/domain";
 import type { MediaReference } from "../services/ui/mediaReference";
+import type { NullableExecutionMode } from "../services/domain";
+import { useShallow } from "zustand/react/shallow";
 
 // --- Types ---
 export type { TranslatorMode };
@@ -22,16 +24,16 @@ type UseTranslatorReturn = Pick<
   | "mode"
   | "activeMode"
   | "resultMode"
-  | "taskId"
-  | "taskStatus"
-  | "progress"
-  | "taskError"
-  | "executionMode"
   | "setSourceSegments"
   | "updateTargetSegment"
   | "setTargetLang"
   | "setMode"
 > & {
+  taskId: string | null;
+  taskStatus: string;
+  progress: number;
+  taskError: string | null;
+  executionMode: NullableExecutionMode;
   glossary: GlossaryTerm[];
   isTranslating: boolean;
   handleFileUpload: (input: MediaReference) => Promise<void>;
@@ -53,7 +55,16 @@ export const useTranslator = (): UseTranslatorReturn => {
     targetSubtitleRef,
     setSourceSegments,
     updateTargetSegment,
-  } = useTranslatorStore();
+  } = useTranslatorStore(useShallow((state) => ({
+    sourceSegments: state.sourceSegments,
+    targetSegments: state.targetSegments,
+    sourceFileRef: state.sourceFileRef,
+    activeMode: state.activeMode,
+    resultMode: state.resultMode,
+    targetSubtitleRef: state.targetSubtitleRef,
+    setSourceSegments: state.setSourceSegments,
+    updateTargetSegment: state.updateTargetSegment,
+  })));
 
   // 2. Sub-hooks
   const task = useTranslationTask();

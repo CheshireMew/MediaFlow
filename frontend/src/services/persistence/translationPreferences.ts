@@ -6,11 +6,12 @@ import {
   type TranslationTargetLanguage,
 } from "../domain/translationTargetLanguages";
 
-export type TranslationExecutionMode = "standard" | "intelligent" | "proofread";
+export type TranslationPreferenceMode = "standard" | "intelligent";
+export type TranslationExecutionMode = TranslationPreferenceMode | "proofread";
 
 export type TranslationPreferences = {
   targetLanguage: TranslationTargetLanguage;
-  mode: TranslationExecutionMode;
+  mode: TranslationPreferenceMode;
 };
 
 const TRANSLATION_PREFERENCES_KEY = "translation_preferences";
@@ -28,8 +29,7 @@ function normalizeTranslationPreferences(
     targetLanguage: normalizeTranslationTargetLanguage(payload?.targetLanguage),
     mode:
       payload?.mode === "standard" ||
-      payload?.mode === "intelligent" ||
-      payload?.mode === "proofread"
+      payload?.mode === "intelligent"
         ? payload.mode
         : DEFAULT_TRANSLATION_PREFERENCES.mode,
   };

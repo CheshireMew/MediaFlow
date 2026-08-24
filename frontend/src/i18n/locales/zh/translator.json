@@ -15,7 +15,7 @@
   "buttons": {
     "import": { "tooltip": "导入字幕", "label": "导入" },
     "proofread": { "tooltip": "AI 语法和拼写校正（不翻译）", "label": "校对" },
-    "translate": { "label": "翻译" },
+    "translate": { "tooltip": "按所选模式翻译字幕", "label": "翻译" },
     "export": { "tooltip": "保存 SRT 到磁盘", "label": "导出" },
     "editor": { "tooltip": "在字幕编辑器中打开", "label": "编辑器" }
   },

@@ -10,9 +10,9 @@ permissions:
 
 jobs:
   backend:
-    name: Backend contracts, static checks, and tests
+    name: Backend contracts, tests, and production runtime
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
 
     steps:
       - uses: actions/checkout@v4
@@ -24,18 +24,32 @@ jobs:
       - name: Verify and install the Python lock
         run: |
           pdm lock --check
-          pdm sync -G dev --no-self --fail-fast
+          pdm sync -G dev -G build --no-self --fail-fast
       - name: Check Python for syntax, undefined names, and dead bindings
         run: pdm run ruff check --select E9,F401,F63,F7,F811,F82,F841 backend scripts tests
+      - name: Check reviewed architecture boundaries
+        run: pdm run python scripts/verify/scan_god_classes.py --check
       - name: Check generated frontend contract drift
         run: pdm run python scripts/generate_frontend_api_types.py --check
       - name: Run backend tests
         run: pdm run pytest
+      - name: Build the production desktop backend
+        run: pdm run python scripts/build_desktop_backend.py
+      - name: Start and verify the production desktop backend
+        run: pdm run python scripts/verify_desktop_backend.py
+      - name: Upload the verified desktop backend
+        uses: actions/upload-artifact@v4
+        with:
+          name: mediaflow-desktop-backend
+          path: dist-desktop-backend/mediaflow-backend
+          if-no-files-found: error
+          retention-days: 1
 
   frontend:
     name: Frontend lint, types, tests, E2E, and Electron smoke build
+    needs: backend
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: frontend
@@ -49,6 +63,11 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install frontend dependencies
         run: npm ci
+      - name: Download the verified desktop backend
+        uses: actions/download-artifact@v4
+        with:
+          name: mediaflow-desktop-backend
+          path: dist-desktop-backend/mediaflow-backend
       - name: Lint frontend
         run: npm run lint
       - name: Check frontend types

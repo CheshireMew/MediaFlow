@@ -4,14 +4,14 @@ import threading
 import pytest
 
 from backend.contracts import ASR_EXECUTION_PREFERENCES
-from backend.services.settings_manager import (
+from backend.models.settings_contracts import (
     LLMProvider,
     SMART_SPLIT_TEXT_LIMIT_DEFAULT,
-    SettingsManager,
     UiStatePatch,
     UserPreferencesPatch,
     UserSettings,
 )
+from backend.services.settings_manager import SettingsManager
 
 
 def test_settings_manager_defaults_auto_execute_flow_disabled():

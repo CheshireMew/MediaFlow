@@ -98,26 +98,7 @@ export function useTaskSocket({
     };
   }, [connect, enabled]);
 
-  const sendPause = useCallback((taskId: string) => {
-    if (wsRef.current?.readyState !== WebSocket.OPEN) {
-      return false;
-    }
-
-    try {
-      wsRef.current.send(
-        JSON.stringify({
-          action: "pause",
-          task_id: taskId,
-        }),
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }, []);
-
   return {
     connected: enabled && connected,
-    sendPause,
   };
 }

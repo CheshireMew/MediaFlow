@@ -6,6 +6,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import numpy as np
+
 from backend.application import waveform_service
 from backend.services.video.media_prober import MediaInfo
 
@@ -59,15 +61,17 @@ def test_resolve_waveform_streams_peaks_and_reuses_cache(tmp_path: Path, monkeyp
 
     monkeypatch.setattr(waveform_service.subprocess, "Popen", fake_popen)
 
-    first = waveform_service.resolve_waveform_peaks(str(source))
-    second = waveform_service.resolve_waveform_peaks(str(source))
+    first = waveform_service.resolve_waveform(str(source))
+    second = waveform_service.resolve_waveform(str(source))
 
     assert process_calls == 1
     assert len(probe_calls) == 1
-    assert second == first
-    assert first["duration"] == 1.0
-    assert first["peaks"][0] == [-1.0, 32767 / 32768.0]
-    assert len(first["peaks"][0]) <= waveform_service.WAVEFORM_MAX_POINTS
+    assert second.duration == first.duration
+    np.testing.assert_array_equal(second.peaks, first.peaks)
+    assert first.duration == 1.0
+    np.testing.assert_allclose(first.peaks, [-1.0, 32767 / 32768.0])
+    assert first.peaks.size <= waveform_service.WAVEFORM_MAX_POINTS
+    assert next((tmp_path / "cache").glob("*.mfwf"), None) is not None
 
 
 def test_resolve_waveform_coalesces_concurrent_requests(tmp_path: Path, monkeypatch):
@@ -78,23 +82,24 @@ def test_resolve_waveform_coalesces_concurrent_requests(tmp_path: Path, monkeypa
 
     decode_calls = 0
 
-    def fake_decode(_source: Path, _duration: float) -> list[float]:
+    def fake_decode(_source: Path, _duration: float) -> np.ndarray:
         nonlocal decode_calls
         decode_calls += 1
         time.sleep(0.02)
-        return [-0.5, 0.5]
+        return np.asarray([-0.5, 0.5], dtype=np.float32)
 
     monkeypatch.setattr(waveform_service, "_decode_peak_envelope", fake_decode)
 
     with ThreadPoolExecutor(max_workers=8) as executor:
         results = list(executor.map(
-            lambda _: waveform_service.resolve_waveform_peaks(str(source)),
+            lambda _: waveform_service.resolve_waveform(str(source)),
             range(8),
         ))
 
     assert decode_calls == 1
     assert len(probe_calls) == 1
-    assert all(result == results[0] for result in results)
+    assert all(result.duration == results[0].duration for result in results)
+    assert all(np.array_equal(result.peaks, results[0].peaks) for result in results)
 
 
 def test_resolve_waveform_returns_flat_peaks_without_audio(tmp_path: Path, monkeypatch):
@@ -108,7 +113,28 @@ def test_resolve_waveform_returns_flat_peaks_without_audio(tmp_path: Path, monke
         lambda *_: (_ for _ in ()).throw(AssertionError("decoder should not run")),
     )
 
-    result = waveform_service.resolve_waveform_peaks(str(source))
+    result = waveform_service.resolve_waveform(str(source))
 
-    assert result["duration"] == 3.5
-    assert result["peaks"] == [[0.0]]
+    assert result.duration == 3.5
+    np.testing.assert_array_equal(result.peaks, [0.0, 0.0])
+
+
+def test_waveform_binary_downsamples_by_extrema_without_json() -> None:
+    envelope = waveform_service.WaveformEnvelope(
+        duration=4.0,
+        peaks=np.asarray(
+            [-0.1, 0.2, -0.8, 0.4, -0.3, 0.9, -0.2, 0.5],
+            dtype=np.float32,
+        ),
+    )
+
+    reduced = waveform_service.WaveformEnvelope(
+        duration=envelope.duration,
+        peaks=waveform_service._downsample_peaks(envelope.peaks, 4),
+    )
+    payload = waveform_service.encode_waveform_binary(reduced)
+    decoded = waveform_service.decode_waveform_binary(payload)
+
+    assert payload[:4] == b"MFWF"
+    assert len(payload) == waveform_service.WAVEFORM_BINARY_HEADER.size + 4 * 4
+    np.testing.assert_allclose(decoded.peaks, [-0.8, 0.4, -0.3, 0.9])

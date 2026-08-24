@@ -30,10 +30,8 @@ describe("useTranslatorOutputActions", () => {
       activeMode: null,
       resultMode: "standard",
       taskId: null,
-      taskStatus: "completed",
-      progress: 100,
-      taskError: null,
-      executionMode: null,
+      submissionPhase: "idle",
+      localError: null,
     });
 
     installElectronMock({

@@ -1,19 +1,20 @@
 import json
 
 import pytest
-from sqlalchemy import JSON, Boolean, Column, Float, Integer, MetaData, String, Table, text
+from sqlalchemy import JSON, Boolean, Column, Float, Integer, MetaData, String, Table, inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import backend.core.database as database_module
+import backend.core.task_schema_migrations as task_schema_migrations
 from backend.contracts import TASK_CONTRACT_VERSION, TASK_LIFECYCLE
-from backend.core.database import (
+from backend.core.database import init_db
+from backend.core.task_schema_migrations import (
     SCHEMA_VERSION_TABLE,
     TASK_SCHEMA_COMPONENT,
     TASK_SCHEMA_VERSION,
-    init_db,
 )
 from backend.models.media_contracts import TaskResult
 from backend.models.task_model import Task
@@ -108,7 +109,7 @@ async def test_init_db_migrates_incompatible_task_table_without_losing_rows(
             columns = await conn.run_sync(
                 lambda sync_conn: {
                     column["name"]
-                    for column in database_module.inspect(sync_conn).get_columns(Task.__tablename__)
+                    for column in inspect(sync_conn).get_columns(Task.__tablename__)
                 }
             )
             schema_version = (
@@ -500,7 +501,7 @@ async def test_v2_message_migration_uses_status_codes_and_removes_legacy_column(
             columns = await conn.run_sync(
                 lambda sync_conn: {
                     column["name"]
-                    for column in database_module.inspect(sync_conn).get_columns("task")
+                    for column in inspect(sync_conn).get_columns("task")
                 }
             )
         assert "message" not in columns
@@ -1013,7 +1014,7 @@ async def test_task_migration_failure_rolls_back_payload_and_version(
                 )
             )
 
-        monkeypatch.setitem(database_module._TASK_MIGRATIONS, 1, failing_migration)
+        monkeypatch.setitem(task_schema_migrations._TASK_MIGRATIONS, 1, failing_migration)
         with pytest.raises(RuntimeError, match="forced migration failure"):
             await init_db()
 

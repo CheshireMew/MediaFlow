@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useEditorFileLoader } from "../hooks/editor/useEditorFileLoader";
 import { editorService } from "../services/domain";
 import { useEditorStore } from "../stores/editorStore";
-import type { ElectronAPI } from "../types/electron-api";
+import type { ElectronAPI } from "../contracts/desktopBridgeContract";
 import { resetEditorStoreForTests } from "./testFixtures";
 import { installElectronMock } from "./testUtils/electronMock";
 import { ConfirmationProvider } from "../components/ui/ConfirmationProvider";

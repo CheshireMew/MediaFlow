@@ -77,6 +77,7 @@ interface SubtitleListProps {
     onAutoFix?: (newSegments: SubtitleSegment[]) => void;
     searchTerm?: string;
     matchCase?: boolean;
+    onOpenSubtitle?: () => void;
 }
 
 const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
@@ -96,7 +97,8 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
         isSmartSplitting = false,
         onAutoFix,
         searchTerm,
-        matchCase
+        matchCase,
+        onOpenSubtitle,
     } = props;
 
     const [scrollTop, setScrollTop] = React.useState(0);
@@ -318,11 +320,23 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
             {/* Native List Container -> Virtualized */}
             <div className="flex-1 min-h-0 w-full bg-[#090909]">
                 {segments.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-2">
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-3 px-4 text-center">
                          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
                             <span className="text-2xl opacity-20">T</span>
                          </div>
                         <p>{t('subtitleList.emptyState')}</p>
+                        {onOpenSubtitle && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={onOpenSubtitle}
+                                    className="inline-flex h-9 items-center rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-semibold text-slate-200 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                                >
+                                    {t('subtitleList.openSubtitleButton')}
+                                </button>
+                                <p className="text-xs text-slate-400">{t('subtitleList.dropHint')}</p>
+                            </>
+                        )}
                     </div>
                 ) : (
                     <div

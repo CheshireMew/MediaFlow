@@ -1,20 +1,56 @@
 import { useRef, useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   useTranslatorStore,
-  type TranslatorMode,
+  type TranslatorExecutionMode,
 } from "../stores/translatorStore";
-import { useTaskContext } from "../context/taskContext";
+import { useTaskStatus } from "../context/taskContext";
+import { useTaskById, useTasks } from "../context/taskStoreContext";
 import { useTranslationTaskSync } from "./translator/useTranslationTaskSync";
 import { useTranslationCommands } from "./translator/useTranslationCommands";
 import { useExecutionModeState } from "./execution/useExecutionModeState";
 
 export const useTranslationTask = () => {
-  const { tasks, tasksSettled } = useTaskContext();
+  const tasks = useTasks();
+  const { tasksSettled } = useTaskStatus();
   const { executionMode, setExecutionMode } = useExecutionModeState("translator");
-  const translatorStore = useTranslatorStore();
+  const translatorStore = useTranslatorStore(useShallow((state) => ({
+    sourceSegments: state.sourceSegments,
+    targetSegments: state.targetSegments,
+    sourceFileRef: state.sourceFileRef,
+    targetLang: state.targetLang,
+    mode: state.mode,
+    activeMode: state.activeMode,
+    resultMode: state.resultMode,
+    taskId: state.taskId,
+    submissionPhase: state.submissionPhase,
+    localError: state.localError,
+    setTaskId: state.setTaskId,
+    setSubmissionPhase: state.setSubmissionPhase,
+    setLocalError: state.setLocalError,
+    setTargetSegments: state.setTargetSegments,
+    setSourceFileRef: state.setSourceFileRef,
+    setTargetSubtitleRef: state.setTargetSubtitleRef,
+    setActiveMode: state.setActiveMode,
+    setResultMode: state.setResultMode,
+    setTargetLang: state.setTargetLang,
+    setMode: state.setMode,
+  })));
+  const task = useTaskById(translatorStore.taskId);
+  const taskStatus = translatorStore.localError
+    ? "failed"
+    : translatorStore.submissionPhase === "submitting"
+      ? "starting"
+      : task?.status
+        ?? (translatorStore.targetSegments.length > 0 && translatorStore.resultMode
+          ? "completed"
+          : "");
+  const progress = task?.progress ?? (taskStatus === "completed" ? 100 : 0);
+  const taskError = translatorStore.localError ?? task?.error ?? null;
+  const { activeMode, setActiveMode } = translatorStore;
 
   const previousTranslateModeRef = useRef<"standard" | "intelligent">("standard");
-  const activeTaskModeRef = useRef<TranslatorMode>("standard");
+  const activeTaskModeRef = useRef<TranslatorExecutionMode>("standard");
   const taskBinding = {
     ...translatorStore,
     setExecutionMode,
@@ -24,21 +60,18 @@ export const useTranslationTask = () => {
 
   useEffect(() => {
     const shouldClearProofreadExecution =
-      !translatorStore.taskId &&
-      translatorStore.activeMode === "proofread" &&
-      (translatorStore.taskStatus === "finalizing" || translatorStore.taskStatus === "completed");
+      activeMode === "proofread" &&
+      (taskStatus === "completed" || taskStatus === "failed" || taskStatus === "cancelled");
 
     if (shouldClearProofreadExecution) {
-      translatorStore.setActiveMode(null);
+      setActiveMode(null);
     }
-  }, [translatorStore]);
+  }, [activeMode, setActiveMode, taskStatus]);
 
   const isTranslating =
-    translatorStore.taskStatus === "translating" ||
-    translatorStore.taskStatus === "starting" ||
-    translatorStore.taskStatus === "finalizing" ||
-    translatorStore.taskStatus === "running" ||
-    translatorStore.taskStatus === "pending";
+    translatorStore.submissionPhase === "submitting"
+    || taskStatus === "running"
+    || taskStatus === "pending";
 
   useTranslationTaskSync({
     tasks,
@@ -52,9 +85,9 @@ export const useTranslationTask = () => {
 
   return {
     taskId: translatorStore.taskId,
-    taskStatus: translatorStore.taskStatus,
-    progress: translatorStore.progress,
-    taskError: translatorStore.taskError,
+    taskStatus,
+    progress,
+    taskError,
     executionMode,
     sourceFileRef: translatorStore.sourceFileRef,
     targetLang: translatorStore.targetLang,

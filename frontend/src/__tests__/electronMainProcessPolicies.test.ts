@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import {
   buildRendererLoadFailureDataUrl,
   buildRendererLoadFailureHtml,
@@ -7,6 +9,10 @@ import {
 } from "../../electron/localization";
 import { shouldForwardBackendOutput } from "../../electron/backend/backendOutputPolicy";
 import { DESKTOP_BRIDGE_CAPABILITIES } from "../../electron/desktop/bridgeContract";
+import {
+  DESKTOP_LOG_MAX_BYTES,
+  DESKTOP_LOG_RETENTION_MS,
+} from "../../electron/desktopLogger";
 
 describe("Electron desktop bridge policy", () => {
   it("exposes one generic file-picker capability", () => {
@@ -22,13 +28,29 @@ describe("Electron desktop bridge policy", () => {
       "getFileSize",
       "readWorkspaceState",
       "writeWorkspaceState",
-      "writeWorkspaceStateSync",
       "getDesktopRuntimeInfo",
       "minimize",
       "maximize",
       "close",
       "notifyRendererReady",
+      "onPrepareToClose",
     ]);
+  });
+
+  it("uses one asynchronous workspace writer and never builds the renderer at runtime", () => {
+    const workspaceHandler = fs.readFileSync(
+      path.resolve("electron/ipc/workspace-state-handlers.ts"),
+      "utf-8",
+    );
+    const desktopRuntime = fs.readFileSync(
+      path.resolve("electron/desktopRuntime.ts"),
+      "utf-8",
+    );
+
+    expect(workspaceHandler).not.toContain("writeWorkspaceStateSync");
+    expect(workspaceHandler).not.toContain("writeWorkspaceStateFileSync");
+    expect(desktopRuntime).not.toContain("spawnSync");
+    expect(desktopRuntime).not.toContain("auto-build renderer");
   });
 });
 
@@ -98,5 +120,12 @@ describe("bundled backend output policy", () => {
     expect(shouldForwardBackendOutput(true, undefined)).toBe(true);
     expect(shouldForwardBackendOutput(false, "true")).toBe(true);
     expect(shouldForwardBackendOutput(false, " ON ")).toBe(true);
+  });
+});
+
+describe("desktop diagnostic file policy", () => {
+  it("keeps desktop logs bounded by size and retention", () => {
+    expect(DESKTOP_LOG_MAX_BYTES).toBe(10 * 1024 * 1024);
+    expect(DESKTOP_LOG_RETENTION_MS).toBe(7 * 24 * 60 * 60 * 1000);
   });
 });

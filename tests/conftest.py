@@ -1,40 +1,50 @@
-import pytest
-from fastapi.testclient import TestClient
-from backend.main import app
-from backend.core.container import container, Services
-from unittest.mock import MagicMock
-from pathlib import Path
 import shutil
 import uuid
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+from fastapi.testclient import TestClient
+
+from backend.core.container import ServiceContainer, Services
+from backend.main import create_app
+from backend.runtime.backend_bootstrap import BackendBootstrap
+
 
 @pytest.fixture
-def client():
+def runtime_container():
+    return ServiceContainer()
+
+@pytest.fixture
+def client(runtime_container):
     """FastAPI test client fixture."""
-    return TestClient(app)
+    app = create_app(
+        runtime_container=runtime_container,
+        bootstrap=BackendBootstrap(),
+    )
+    with TestClient(app) as test_client:
+        yield test_client
 
 @pytest.fixture
-def mock_asr():
+def mock_asr(runtime_container):
     """Mock for ASRService."""
     mock = MagicMock()
-    container.override(Services.ASR, mock)
+    runtime_container.override(Services.ASR, mock)
     yield mock
-    container.reset()
 
 @pytest.fixture
-def mock_downloader():
+def mock_downloader(runtime_container):
     """Mock for DownloaderService."""
     mock = MagicMock()
-    container.override(Services.DOWNLOADER, mock)
+    runtime_container.override(Services.DOWNLOADER, mock)
     yield mock
-    container.reset()
 
 @pytest.fixture
-def mock_llm():
+def mock_llm(runtime_container):
     """Mock for LLMTranslator."""
     mock = MagicMock()
-    container.override(Services.LLM_TRANSLATOR, mock)
+    runtime_container.override(Services.LLM_TRANSLATOR, mock)
     yield mock
-    container.reset()
 
 @pytest.fixture
 def tmp_path():

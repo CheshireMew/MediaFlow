@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
 
 import type { Task } from "../types/task";
-import { useTaskContext } from "./taskContext";
+import { useTaskStatus } from "./taskContext";
+import { useTasks } from "./taskStoreContext";
 import { isTaskQueued, isTaskRunning } from "../services/tasks/taskRuntimeState";
 import { TaskSummaryContext, type TaskSummaryContextType } from "./taskSummaryShared";
 
@@ -20,7 +21,8 @@ export function TaskSummaryProvider({
   children: React.ReactNode;
   enabled?: boolean;
 }) {
-  const { tasks, tasksSettled } = useTaskContext();
+  const tasks = useTasks();
+  const { tasksSettled } = useTaskStatus();
 
   const value = useMemo(
     (): TaskSummaryContextType => ({

@@ -5,6 +5,7 @@
  * protected spans -> candidate breakpoints -> reason priority -> balance score.
  */
 import { clamp } from "./number";
+import splitContract from "../../../contracts/subtitle-split-contract.json";
 
 type SplitReason = "dialog" | "sentence" | "pause" | "space" | "midpoint";
 type TextProfile = "latin" | "cjk" | "mixed";
@@ -34,20 +35,7 @@ interface WeightedToken {
   weight: number;
 }
 
-const ABBREVIATIONS = [
-  "Mr.",
-  "Mrs.",
-  "Dr.",
-  "Ms.",
-  "Prof.",
-  "Sr.",
-  "Jr.",
-  "St.",
-  "No.",
-  "Vol.",
-  "Fig.",
-  "vs.",
-];
+const ABBREVIATIONS = splitContract.abbreviations;
 
 const EAST_ASIAN_CHAR_CLASS =
   "\\u3040-\\u309F\\u30A0-\\u30FF\\u3130-\\u318F\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uAC00-\\uD7AF";
@@ -131,17 +119,9 @@ const BAD_END_WORDS = new Set([
 const BAD_START_CJK = new Set(["的", "了", "呢", "吗", "は", "が", "を", "に", "で", "と", "か"]);
 const BAD_END_CJK = new Set(["的", "了", "和", "与", "及", "は", "が", "を", "に", "で", "と"]);
 
-const STRICT_MIN_UNITS: Record<TextProfile, number> = {
-  latin: 2,
-  cjk: 4,
-  mixed: 3,
-};
+const STRICT_MIN_UNITS = splitContract.strict_min_units as Record<TextProfile, number>;
 
-const SOFT_MIN_UNITS: Record<TextProfile, number> = {
-  latin: 4,
-  cjk: 8,
-  mixed: 6,
-};
+const SOFT_MIN_UNITS = splitContract.soft_min_units as Record<TextProfile, number>;
 
 const RELAXED_SOFT_MIN_UNITS: Record<TextProfile, number> = {
   latin: 4,
@@ -149,13 +129,7 @@ const RELAXED_SOFT_MIN_UNITS: Record<TextProfile, number> = {
   mixed: 5,
 };
 
-const REASON_PRIORITY: Record<SplitReason, number> = {
-  dialog: 1,
-  sentence: 1,
-  pause: 2,
-  space: 3,
-  midpoint: 4,
-};
+const REASON_PRIORITY = splitContract.reason_priority as Record<SplitReason, number>;
 
 function detectTextProfile(text: string): TextProfile {
   const cjkCount = (text.match(REGEX_EAST_ASIAN) || []).join("").length;

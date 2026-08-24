@@ -1,0 +1,118 @@
+{
+  "protocol": "project-steward-production-storage-contract",
+  "version": 2,
+  "project_id": "mediaflow",
+  "policy": {
+    "unknown_peak": "block",
+    "outside_owned_roots": "block",
+    "over_budget": "block",
+    "cleanup_without_authorization": "report-only"
+  },
+  "producers": [
+    {
+      "id": "asr-model",
+      "root_source": {
+        "kind": "runtime-config",
+        "value": "MEDIAFLOW_RUNTIME_DIR/models/faster-whisper"
+      },
+      "artifact_classes": [
+        "cache",
+        "evidence"
+      ],
+      "peak_estimate": {
+        "source": "ModelScope repository metadata or Hugging Face dry-run bytes, doubled for cache and materialization overhead",
+        "unknown_behavior": "block"
+      },
+      "budget": {
+        "maximum_managed_bytes_source": "MEDIAFLOW_RUNTIME_MAX_MANAGED_BYTES",
+        "minimum_free_bytes_source": "MEDIAFLOW_RUNTIME_MIN_FREE_BYTES",
+        "registered_roots_inventory_source": "backend/services/storage_policy.py:registered_roots_inventory",
+        "filesystem_allocated_bytes_source": "backend/services/storage_policy.py:filesystem_allocated_bytes",
+        "managed_object_identity_source": "backend/services/storage_policy.py:managed_object_identity"
+      },
+      "reuse": {
+        "required": true,
+        "identity": "source repository plus resolved immutable revision"
+      },
+      "lifecycle": {
+        "preflight": "Reserve estimated bytes before snapshot_download creates the target",
+        "finalization": "Publish a storage manifest and model provenance with the retained inventory",
+        "interruption": "Mark an active manifest interrupted on the next backend start and report no cleanup candidates"
+      },
+      "implementation_files": [
+        "backend/services/storage_policy.py",
+        "backend/services/asr/model_manager.py",
+        "backend/config.py",
+        "backend/configuration/environment.py",
+        "backend/configuration/runtime_paths.py"
+      ],
+      "test_files": [
+        "tests/services/test_storage_policy.py",
+        "tests/services/test_asr_model_manager.py"
+      ],
+      "enforcement": {
+        "file": "backend/services/asr/model_manager.py",
+        "tokens": [
+          "managed_storage_run",
+          "_resolve_modelscope_download_spec",
+          "_resolve_huggingface_download_spec",
+          "record_storage_reuse"
+        ]
+      }
+    },
+    {
+      "id": "runtime-tool",
+      "root_source": {
+        "kind": "runtime-config",
+        "value": "MEDIAFLOW_RUNTIME_DIR/tools"
+      },
+      "artifact_classes": [
+        "cache",
+        "truth",
+        "evidence",
+        "temporary"
+      ],
+      "peak_estimate": {
+        "source": "Pinned Faster-Whisper archive and extraction budget or PyPI wheel metadata with installation overhead",
+        "unknown_behavior": "block"
+      },
+      "budget": {
+        "maximum_managed_bytes_source": "MEDIAFLOW_RUNTIME_MAX_MANAGED_BYTES",
+        "minimum_free_bytes_source": "MEDIAFLOW_RUNTIME_MIN_FREE_BYTES",
+        "registered_roots_inventory_source": "backend/services/storage_policy.py:registered_roots_inventory",
+        "filesystem_allocated_bytes_source": "backend/services/storage_policy.py:filesystem_allocated_bytes",
+        "managed_object_identity_source": "backend/services/storage_policy.py:managed_object_identity"
+      },
+      "reuse": {
+        "required": true,
+        "identity": "tool source, version and upstream SHA-256 when the upstream publishes one"
+      },
+      "lifecycle": {
+        "preflight": "Reserve archive, staging and installation bytes before opening the download destination",
+        "finalization": "Publish a storage inventory and tool provenance record after installation",
+        "interruption": "Retain partial owned files, mark the manifest interrupted after restart and require explicit cleanup authorization"
+      },
+      "implementation_files": [
+        "backend/services/storage_policy.py",
+        "backend/application/settings_service.py",
+        "backend/config.py",
+        "backend/configuration/environment.py",
+        "backend/configuration/runtime_paths.py"
+      ],
+      "test_files": [
+        "tests/services/test_storage_policy.py",
+        "tests/api/test_settings_tool_update_api.py",
+        "tests/application/test_settings_tool_installs.py"
+      ],
+      "enforcement": {
+        "file": "backend/application/settings_service.py",
+        "tokens": [
+          "managed_storage_run",
+          "expected_sha256",
+          "_record_tool_provenance",
+          "record_storage_reuse"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "abbreviations": [
+    "Mr.",
+    "Mrs.",
+    "Dr.",
+    "Ms.",
+    "Prof.",
+    "Sr.",
+    "Jr.",
+    "St.",
+    "No.",
+    "Vol.",
+    "Fig.",
+    "vs."
+  ],
+  "strict_min_units": {
+    "latin": 2,
+    "cjk": 4,
+    "mixed": 3
+  },
+  "soft_min_units": {
+    "latin": 4,
+    "cjk": 8,
+    "mixed": 6
+  },
+  "reason_priority": {
+    "dialog": 1,
+    "sentence": 1,
+    "pause": 2,
+    "space": 3,
+    "midpoint": 4
+  },
+  "cases": [
+    {
+      "id": "latin-balanced-pause",
+      "text": "Well, is the inflation, well, that's not really the central bank's fault.",
+      "expected_split_index": 29
+    },
+    {
+      "id": "mixed-balanced-pause",
+      "text": "\"Pydantic is still all you need\", 大概是在去年这个时候,",
+      "expected_split_index": 33
+    },
+    {
+      "id": "numeric-expression-boundary",
+      "text": "然后股价下跌，他们一直在等了三四年，等它涨回60美元",
+      "expected_split_index": 18
+    },
+    {
+      "id": "latin-abbreviation",
+      "text": "The speaker introduced Prof. Johnson to the audience, and everyone listened carefully to the final explanation.",
+      "expected_split_index": 53
+    },
+    {
+      "id": "latin-proper-name",
+      "text": "我不知道 David Pereira 是否会认为我们正在做的是正确的决定",
+      "expected_split_index": 19
+    },
+    {
+      "id": "cjk-enumeration",
+      "text": "这个方案需要速度、稳定性和兼容性，后半句也需要足够长才能形成更自然的分割结果",
+      "expected_split_index": 17
+    }
+  ]
+}

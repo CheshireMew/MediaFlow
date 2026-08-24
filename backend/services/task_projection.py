@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import ValidationError
+
 from backend.contracts import pipeline_step_operation
 from backend.models.media_contracts import MediaReference, TaskArtifact
 from backend.services.media_extensions import media_kind_from_extension
-
 
 REF_KEY_ROLES: dict[str, str] = {
     "audio_ref": "input",
@@ -15,6 +16,7 @@ REF_KEY_ROLES: dict[str, str] = {
     "context_ref": "context",
     "output_ref": "output",
 }
+
 
 def primary_operation(task_type: str, request_params: dict[str, Any] | None) -> str:
     if task_type != "pipeline":
@@ -34,7 +36,7 @@ def primary_operation(task_type: str, request_params: dict[str, Any] | None) -> 
 
     try:
         return pipeline_step_operation(step_name)
-    except Exception:
+    except KeyError:
         return task_type
 
 
@@ -74,7 +76,7 @@ def _media_ref(value: Any) -> MediaReference | None:
     if isinstance(value, dict):
         try:
             return MediaReference.model_validate(value)
-        except Exception:
+        except ValidationError:
             return None
     return None
 
@@ -102,11 +104,6 @@ def _append_ref_artifact(
 
 
 def _walk_request_refs(payload: Any, artifacts: list[TaskArtifact], seen: set[tuple[str, str, str]]) -> None:
-    if isinstance(payload, list):
-        for item in payload:
-            _walk_request_refs(item, artifacts, seen)
-        return
-
     if not isinstance(payload, dict):
         return
 
@@ -119,8 +116,15 @@ def _walk_request_refs(payload: Any, artifacts: list[TaskArtifact], seen: set[tu
                 value=value,
                 default_role=REF_KEY_ROLES[key],
             )
-        elif isinstance(value, (dict, list)):
+        elif isinstance(value, dict):
             _walk_request_refs(value, artifacts, seen)
+        elif key == "steps" and isinstance(value, list):
+            # Pipeline steps are the only request list that can contain media
+            # references. Subtitle/clip segment arrays are intentionally not
+            # traversed: they can contain tens of thousands of rows and never
+            # carry canonical media references.
+            for item in value:
+                _walk_request_refs(item, artifacts, seen)
 
 
 def _walk_result_refs(payload: Any, artifacts: list[TaskArtifact], seen: set[tuple[str, str, str]]) -> None:
@@ -133,7 +137,7 @@ def _walk_result_refs(payload: Any, artifacts: list[TaskArtifact], seen: set[tup
     for value in result_artifacts:
         try:
             artifact = TaskArtifact.model_validate(value)
-        except Exception:
+        except ValidationError:
             continue
         dedupe_key = (artifact.kind, artifact.role, artifact.ref.path)
         if dedupe_key in seen:

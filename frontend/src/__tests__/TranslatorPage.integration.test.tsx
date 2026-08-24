@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TranslatorPage } from "../pages/TranslatorPage";
 import { installElectronMock, type MockedElectronAPI } from "./testUtils/electronMock";
@@ -142,6 +142,7 @@ describe("TranslatorPage integration", () => {
     const selects = screen.getAllByRole("combobox");
     const modeSelect = selects[1] as HTMLSelectElement;
     expect(modeSelect.value).toBe("intelligent");
+    expect(within(modeSelect).queryByRole("option", { name: "校对" })).toBeNull();
 
     proofreadSubtitleMock.mockImplementation(() => {
       translatorState = {

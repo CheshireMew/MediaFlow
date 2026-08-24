@@ -21,10 +21,8 @@ describe("translatorStore persistence", () => {
       activeMode: null,
       resultMode: null,
       taskId: null,
-      taskStatus: "",
-      progress: 0,
-      taskError: null,
-      executionMode: null,
+      submissionPhase: "idle",
+      localError: null,
     });
   });
 
@@ -34,10 +32,8 @@ describe("translatorStore persistence", () => {
       targetSegments: [{ id: "1", start: 0, end: 1, text: "nihao" }],
       resultMode: "standard",
       taskId: "task-runtime",
-      taskStatus: "running",
-      progress: 42,
-      taskError: "boom",
-      executionMode: "task_submission",
+      submissionPhase: "submitting",
+      localError: "boom",
       activeMode: "intelligent",
     });
 
@@ -53,10 +49,8 @@ describe("translatorStore persistence", () => {
     });
     expect(persisted?.targetLang).toBeUndefined();
     expect(persisted?.taskId).toBeUndefined();
-    expect(persisted?.taskStatus).toBeUndefined();
-    expect(persisted?.progress).toBeUndefined();
-    expect(persisted?.taskError).toBeUndefined();
-    expect(persisted?.executionMode).toBeUndefined();
+    expect(persisted?.submissionPhase).toBeUndefined();
+    expect(persisted?.localError).toBeUndefined();
     expect(persisted?.activeMode).toBeUndefined();
     expect(persisted?.sourceFilePath).toBeUndefined();
   });

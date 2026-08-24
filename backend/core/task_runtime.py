@@ -8,10 +8,18 @@ from backend.models.task_message import TaskMessageParams, TaskProgressCallback
 class TaskRuntimeContext:
     """Task execution boundary with an explicitly supplied task manager."""
 
-    def __init__(self, task_id: str | None, *, task_manager, loop=None):
+    def __init__(
+        self,
+        task_id: str | None,
+        *,
+        task_manager,
+        loop=None,
+        progress_transform: Callable[[float], float] | None = None,
+    ):
         self.task_id = task_id
         self.task_manager = task_manager
         self.loop = loop or asyncio.get_running_loop()
+        self._progress_transform = progress_transform or float
 
     def checkpoint(self) -> None:
         if self.task_id:
@@ -71,9 +79,17 @@ class TaskRuntimeContext:
             message_code: str,
             message_params: TaskMessageParams | None = None,
         ) -> None:
-            self.submit_progress(transform(progress), message_code, message_params)
+            self.submit_progress(
+                self._progress_transform(transform(progress)),
+                message_code,
+                message_params,
+            )
 
         return _callback
 
     async def run_blocking(self, worker: Callable[[], Any]) -> Any:
         return await self.loop.run_in_executor(None, worker)
+
+    async def drain_progress(self) -> None:
+        if self.task_id:
+            await self.task_manager.drain_threadsafe_updates(self.task_id)

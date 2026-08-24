@@ -9,8 +9,9 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
 from backend.config import settings
-from backend.runtime.backend_bootstrap import backend_bootstrap
-from backend.core.container import container
+from backend.core.container import ServiceContainer, container
+from backend.runtime.backend_bootstrap import BackendBootstrap, backend_bootstrap
+from backend.services.storage_policy import recover_interrupted_storage_runs
 
 RENDERER_DEV_ORIGIN_ENV = "MEDIAFLOW_RENDERER_DEV_ORIGIN"
 
@@ -43,83 +44,98 @@ def _build_cors_origins() -> list[str]:
     return origins
 
 
-@contextlib.asynccontextmanager
-async def lifespan(app: Starlette):
-    # === Startup Logic ===
-    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    settings.init_dirs()
-    
-    # Configure File Logging
-    log_file = settings.USER_DATA_DIR / "logs" / "mediaflow.log"
-    try:
-        logger.add(
-            log_file,
-            rotation="10 MB",
-            retention="7 days",
-            level=settings.LOG_LEVEL,
-            encoding="utf-8",
-            enqueue=True,
-            backtrace=settings.DEBUG,
-            diagnose=settings.DEBUG,
+def create_app(
+    *,
+    runtime_container: ServiceContainer | None = None,
+    bootstrap: BackendBootstrap | None = None,
+) -> Starlette:
+    selected_container = runtime_container or ServiceContainer()
+    selected_bootstrap = bootstrap or BackendBootstrap()
+    selected_bootstrap.configure(selected_container)
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_app: Starlette):
+        logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+        settings.prepare_runtime_environment()
+        recover_interrupted_storage_runs()
+
+        log_file = settings.USER_DATA_DIR / "logs" / "mediaflow.log"
+        log_sink_id = None
+        try:
+            log_sink_id = logger.add(
+                log_file,
+                rotation="10 MB",
+                retention="7 days",
+                level=settings.LOG_LEVEL,
+                encoding="utf-8",
+                enqueue=True,
+                backtrace=settings.DEBUG,
+                diagnose=settings.DEBUG,
+            )
+        except PermissionError:
+            logger.warning(
+                "Falling back to non-queued file logging due to restricted environment."
+            )
+            log_sink_id = logger.add(
+                log_file,
+                rotation="10 MB",
+                retention="7 days",
+                level=settings.LOG_LEVEL,
+                encoding="utf-8",
+                enqueue=False,
+                backtrace=settings.DEBUG,
+                diagnose=settings.DEBUG,
+            )
+
+        logger.info(f"Runtime directories initialized at {settings.RUNTIME_DIR}")
+        logger.info(f"Log file configured at {log_file}")
+        selected_bootstrap.start_background()
+
+        try:
+            yield
+        finally:
+            logger.info("Shutting down...")
+            try:
+                await selected_bootstrap.stop()
+            finally:
+                if log_sink_id is not None:
+                    logger.remove(log_sink_id)
+
+    async def health_check(_request):
+        from backend.models.task_contracts import HealthResponse
+
+        status, error = selected_bootstrap.health_snapshot()
+        response = HealthResponse(
+            status=status,
+            service=settings.APP_NAME,
+            version=settings.APP_VERSION,
+            error=error,
         )
-    except PermissionError:
-        logger.warning("Falling back to non-queued file logging due to restricted environment.")
-        logger.add(
-            log_file,
-            rotation="10 MB",
-            retention="7 days",
-            level=settings.LOG_LEVEL,
-            encoding="utf-8",
-            enqueue=False,
-            backtrace=settings.DEBUG,
-            diagnose=settings.DEBUG,
+        return JSONResponse(
+            response.model_dump(mode="json"),
+            status_code=200 if status == "ready" else 503,
         )
-    
-    logger.info(f"Runtime directories initialized at {settings.RUNTIME_DIR}")
-    logger.info(f"Log file configured at {log_file}")
-    backend_bootstrap.configure(container)
-    backend_bootstrap.start_background()
 
-    yield
-    
-    # === Shutdown Logic ===
-    logger.info("Shutting down...")
-    await backend_bootstrap.stop()
-
-
-backend_bootstrap.configure(container)
-
-
-async def health_check(_request):
-    """Heartbeat endpoint to check if core is running."""
-    from backend.models.task_contracts import HealthResponse
-
-    response = HealthResponse(
-        status="online",
-        service=settings.APP_NAME,
-        version=settings.APP_VERSION,
+    application = Starlette(
+        routes=[
+            Route("/health", health_check, methods=["GET"]),
+            Mount("/", app=selected_bootstrap),
+        ],
+        lifespan=lifespan,
     )
-    return JSONResponse(
-        response.model_dump(mode="json")
+    application.state.service_container = selected_container
+    application.state.backend_bootstrap = selected_bootstrap
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=_build_cors_origins(),
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
     )
+    return application
 
 
-app = Starlette(
-    routes=[
-        Route("/health", health_check, methods=["GET"]),
-        Mount("/", app=backend_bootstrap),
-    ],
-    lifespan=lifespan,
-)
-
-# CORS (Restricted to local Electron and the active Vite dev server)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_build_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-)
+app = create_app(runtime_container=container, bootstrap=backend_bootstrap)
 
 if __name__ == "__main__":
     import uvicorn

@@ -118,6 +118,7 @@ def test_serialize_pipeline_primary_operation_comes_from_first_step():
         {
             "kind": "audio",
             "role": "input",
+            "producer_step": None,
             "ref": {
                 "path": "E:/media/input.wav",
                 "name": "input.wav",
@@ -130,6 +131,44 @@ def test_serialize_pipeline_primary_operation_comes_from_first_step():
             },
         }
     ]
+
+
+def test_summary_serialization_does_not_transport_large_segment_payloads():
+    task = Task(
+        id="large-result-task",
+        type="pipeline",
+        status="completed",
+        persistence_scope="history",
+        lifecycle=TASK_LIFECYCLE["history_only"],
+        progress=100.0,
+        message_code="completed",
+        message_params={},
+        primary_operation="transcribe",
+        summary_artifacts=[],
+        request_params=pipeline_request("transcribe"),
+        result={
+            "success": True,
+            "outputs": {
+                "transcription": {
+                    "segments": [
+                        {"id": str(index), "start": index, "end": index + 1, "text": "x"}
+                        for index in range(10_000)
+                    ]
+                }
+            },
+        },
+    )
+
+    payload = TaskQueueView().serialize_summary(
+        task,
+        running_ids=set(),
+        queued_ids=set(),
+        queued_order=[],
+    ).model_dump(mode="json")
+
+    assert "request_params" not in payload
+    assert "result" not in payload
+    assert len(str(payload)) < 2_000
 
 
 def test_serialize_video_output_ref_does_not_create_subtitle_artifact():

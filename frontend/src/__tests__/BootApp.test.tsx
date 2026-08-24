@@ -128,9 +128,9 @@ describe("BootApp", () => {
     await act(async () => {
       resolveRuntimeInfo({
         status: "pong",
-        contract_version: 4,
+        contract_version: 6,
         bridge_version: "test-bridge",
-        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "writeWorkspaceStateSync"],
+        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "onPrepareToClose"],
         backend: {
           status: "external",
           host: "127.0.0.1",
@@ -215,13 +215,54 @@ describe("BootApp", () => {
     expect(probeBackendHealthMock).toHaveBeenCalledTimes(2);
   });
 
+  it("does not retry inside the health loop after the backend reports a stable failure", async () => {
+    vi.useFakeTimers();
+    probeBackendHealthMock.mockResolvedValue({
+      ok: false,
+      state: "failed",
+      error: new Error("Application runtime initialization failed"),
+    });
+    getSettingsMock.mockResolvedValue({ language: "zh" });
+
+    render(<BootApp />);
+
+    await act(async () => {
+      await flushStartupMicrotasks();
+    });
+
+    expect(screen.getByTestId("app-ready").textContent).toBe("false");
+    expect(screen.getByTestId("startup-status").textContent).toBe("retryable-error");
+    expect(screen.getByTestId("startup-message").textContent).toContain(
+      "Application runtime initialization failed",
+    );
+    expect(probeBackendHealthMock).toHaveBeenCalledTimes(1);
+    expect(getSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("does not mark the app ready when persisted settings fail to load", async () => {
+    vi.useFakeTimers();
+    getSettingsMock.mockRejectedValue(new Error("Settings database unavailable"));
+
+    render(<BootApp />);
+
+    await act(async () => {
+      await flushStartupMicrotasks();
+    });
+
+    expect(screen.getByTestId("app-ready").textContent).toBe("false");
+    expect(screen.getByTestId("startup-status").textContent).toBe("retryable-error");
+    expect(screen.getByTestId("startup-message").textContent).toContain(
+      "Settings database unavailable",
+    );
+  });
+
   it("uses desktop backend health cache when it is already ready", async () => {
     vi.useFakeTimers();
     electronMock.getDesktopRuntimeInfo = vi.fn().mockResolvedValue({
       status: "pong",
-      contract_version: 4,
+      contract_version: 6,
       bridge_version: "test-bridge",
-      capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "writeWorkspaceStateSync"],
+      capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "onPrepareToClose"],
       backend: {
         status: "managed",
         host: "127.0.0.1",
@@ -275,7 +316,7 @@ describe("BootApp", () => {
     expect(screen.getByTestId("remote-backend-ready").textContent).toBe("false");
     expect(screen.getByTestId("startup-status").textContent).toBe("fatal-error");
     expect(screen.getByTestId("startup-message").textContent).toContain(
-      "Desktop bridge contract mismatch. Required >= 4, received 0.",
+      "Desktop bridge contract mismatch. Required >= 6, received 0.",
     );
     expect(screen.queryByRole("button", { name: "retry" })).toBeNull();
     expect(getSettingsMock).not.toHaveBeenCalled();
@@ -285,9 +326,9 @@ describe("BootApp", () => {
     vi.useFakeTimers();
     electronMock.getDesktopRuntimeInfo = vi.fn().mockResolvedValue({
       status: "pong",
-      contract_version: 4,
+      contract_version: 6,
       bridge_version: "incomplete-bridge",
-      capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState"],
+      capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "onPrepareToClose"],
       backend: {
         status: "managed",
         host: "127.0.0.1",
@@ -309,7 +350,7 @@ describe("BootApp", () => {
     expect(screen.getByTestId("app-ready").textContent).toBe("false");
     expect(screen.getByTestId("startup-status").textContent).toBe("fatal-error");
     expect(screen.getByTestId("startup-message").textContent).toContain(
-      "Desktop bridge capability mismatch. Missing: writeWorkspaceStateSync.",
+      "Desktop bridge capability mismatch. Missing: writeWorkspaceState.",
     );
     expect(screen.queryByRole("button", { name: "retry" })).toBeNull();
     expect(getSettingsMock).not.toHaveBeenCalled();
@@ -320,9 +361,9 @@ describe("BootApp", () => {
     electronMock.getDesktopRuntimeInfo = vi.fn()
       .mockResolvedValueOnce({
         status: "pong",
-        contract_version: 4,
+        contract_version: 6,
         bridge_version: "test-bridge",
-        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "writeWorkspaceStateSync"],
+        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "onPrepareToClose"],
         backend: {
           status: "failed",
           error: "Backend process exited",
@@ -335,9 +376,9 @@ describe("BootApp", () => {
       })
       .mockResolvedValueOnce({
         status: "pong",
-        contract_version: 4,
+        contract_version: 6,
         bridge_version: "test-bridge",
-        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "writeWorkspaceStateSync"],
+        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "onPrepareToClose"],
         backend: {
           status: "managed",
           host: "127.0.0.1",
@@ -377,9 +418,9 @@ describe("BootApp", () => {
       .mockRejectedValueOnce(new Error("IPC temporarily unavailable"))
       .mockResolvedValueOnce({
         status: "pong",
-        contract_version: 4,
+        contract_version: 6,
         bridge_version: "test-bridge",
-        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "writeWorkspaceStateSync"],
+        capabilities: ["getDesktopRuntimeInfo", "readWorkspaceState", "writeWorkspaceState", "onPrepareToClose"],
         backend: {
           status: "managed",
           host: "127.0.0.1",

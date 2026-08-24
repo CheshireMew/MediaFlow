@@ -3,6 +3,8 @@ from typing import Protocol
 from backend.models.media_contracts import TaskResult
 from backend.models.transcription_contracts import TranscribeRequest, TranscribeSegmentRequest, TranscriptionEngine
 from backend.models.task_message import TaskProgressCallback
+from backend.application.media_input import require_input_file
+from backend.models.application_errors import InvalidInputError
 
 
 class ASRServiceProtocol(Protocol):
@@ -102,6 +104,12 @@ class TranscriptionApplicationService:
         task_id: str | None = None,
         progress_callback: TaskProgressCallback | None = None,
     ) -> dict:
+        if request.end <= request.start:
+            raise InvalidInputError(
+                "Invalid duration",
+                code="invalid_transcription_duration",
+            )
+        require_input_file(request.audio_ref.path, label="audio_ref.path")
         return await _transcription_segment_immediate(
             request,
             asr_service=self._asr_service,

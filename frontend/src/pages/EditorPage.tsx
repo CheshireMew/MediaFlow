@@ -184,6 +184,8 @@ export function EditorPage() {
             isDetectingHighlights={clipWorkspace.isDetectingHighlights}
             canDetectHighlights={clipWorkspace.hasSubtitleContent}
             canExport={Boolean(currentFileRef)}
+            canSave={Boolean(currentFileRef)}
+            canTranslate={Boolean(currentFileRef) && regions.length > 0}
         />
 
         <div className="flex-1 flex min-h-0 bg-[#0a0a0a] gap-[1px]">
@@ -211,6 +213,7 @@ export function EditorPage() {
                             onAutoFix={(newSegments) => replaceRegionsWithUndo(newSegments)}
                             searchTerm={searchTerm}
                             matchCase={matchCase}
+                            onOpenSubtitle={openSubtitle}
                         />
                      ) : (
                         <ClipCandidateList
@@ -299,6 +302,7 @@ export function EditorPage() {
                     videoRef={videoRef}
                     regions={regions}
                     onLoadedMetadata={handleVideoMetadataReady}
+                    onOpenMedia={openFile}
                 />
              </div>
         </div>

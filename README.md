@@ -13,9 +13,8 @@
 - **🎬 视频合成**:
   - **真·分辨率适配**: 自动探测视频分辨率，确保字幕和水印在 4K/1080p/720p 下均完美显示。
   - **水印系统**: 支持位置预设、透明度调整和智能缩放。
-- **⚡ Architecture 2.0**:
-  - **高内聚低耦合**: 采用 Hook 拆分 (useTranslationTask, useGlossary) 和服务层隔离。
-  - **健壮性**: 统一的异常处理、中央导航服务 (NavigationService) 和 类型安全的 API 契约。
+- **可靠的桌面任务**: 后台任务支持持久化、暂停和断点恢复；桌面关闭会先确认工作区状态落盘，再停止后端进程。
+- **显式运行合同**: 后端健康状态、任务协议和 Electron 桥能力都由版本化合同约束，前端类型由后端模型生成。
 
 ## 🏗️ 项目结构
 
@@ -46,6 +45,9 @@ Mediaflow/
 │   ├── services/         # 服务层测试
 │   └── fixtures/         # 测试样本与夹具
 ├── docs/                 # 文档与问题记录
+├── contracts/            # 任务与桌面桥运行合同
+├── .project-steward/     # 受管运行产物与项目治理合同
+├── archive/              # 已退出运行、构建和测试边界的历史实现
 ├── workspace/            # 默认下载与处理输出目录（已忽略）
 ├── output/               # 本地验证输出目录（已忽略）
 ├── models/               # 模型权重目录（已忽略）
@@ -55,7 +57,7 @@ Mediaflow/
 ### 目录约定
 
 - `backend/`、`frontend/`、`tests/`、`scripts/` 是长期维护的源码目录。
-- `workspace/`、`output/`、`models/`、`user_data/` 是本地运行数据目录，不应提交到 Git。
+- 开发模式下，`workspace/`、`output/`、`models/`、`user_data/` 是仓库内的本地运行数据目录，不应提交到 Git。
 - Windows 桌面生产版优先把可变运行数据、模型和工具写入 `D:\Tools\MediaFlow\runtime`；可通过 `MEDIAFLOW_RUNTIME_DIR` 显式覆盖。仅在 D 盘不可用且未配置该变量时才回退到系统用户数据目录。
 - `scripts/debug/` 和 `scripts/verify/` 用于手工排查与验证，不属于 `pytest` 自动测试集合。
 
@@ -114,19 +116,25 @@ npm run test:frontend
 
 # 全量测试入口
 npm run test
+
+# 前端静态检查、类型检查和浏览器端到端测试
+npm --prefix frontend run lint
+npm --prefix frontend run typecheck
+npm --prefix frontend run test:e2e
 ```
 
 - `tests/` 只放自动化测试。
 - `scripts/verify/` 放手工验证和冒烟脚本。
 - `scripts/debug/` 放复现问题和临时排障脚本。
+- Windows CI 还会构建并启动真实 PyInstaller 后端，再把它装入未压缩 Electron 产物，验证桌面渲染进程看到的后端状态为 `ready`。
 
 ## 🛠️ 环境依赖
 
-- **Python**: 3.10+ (推荐使用 uv 管理依赖)
-- **Node.js**: 18+
+- **Python**: 3.10+（锁文件与 CI 使用 PDM 校验）
+- **Node.js**: 22
 - **项目依赖安装**: Windows 下运行 `npm run setup`；国内网络可运行 `npm run setup:cn`
-- **FFmpeg**: 需配置系统环境变量或放入 `bin/` 目录
-- **Faster-Whisper CLI**: 推荐使用 Purfview 的 Windows 独立 CLI 包；本机已解压到 `bin/Faster-Whisper-XXL/faster-whisper-xxl.exe`
+- **FFmpeg**: 正式 Windows 构建固定使用 Gyan FFmpeg 8.1 essentials。`npm run build` 会在缺失时从官方发布页下载到 D 盘构建缓存（可用 `MEDIAFLOW_BUILD_CACHE_DIR` 改写），然后按 `contracts/bundled-tools.json` 校验发布包、可执行文件哈希和版本；已有但不匹配的文件会直接阻止构建。开发环境仍可显式使用系统 PATH。
+- **Faster-Whisper CLI**: 可在设置页安装固定版本的 Purfview Windows 独立 CLI 包。安装前会检查空间预算，下载和解压先进入受管暂存区，成功后再切换正式目录；来源、版本和归档 SHA-256 会写入运行时来源记录。
   - 官方仓库: https://github.com/Purfview/whisper-standalone-win
   - Release 页面: https://github.com/Purfview/whisper-standalone-win/releases/tag/Faster-Whisper-XXL
   - Windows 下载直链: https://github.com/Purfview/whisper-standalone-win/releases/download/Faster-Whisper-XXL/Faster-Whisper-XXL_r245.4_windows.7z
@@ -139,23 +147,17 @@ Faster-Whisper-XXL 是独立 CLI 包，每次 CLI 转录都会启动一个新的
 
 应用会按当前 ASR 配置后台运行一次短音频预热，预热状态只在短时间内有效。超过有效期后再次进入转写相关页面会重新预热；如果正式转写启动时同一模型和设备的预热还在运行，后端会先等待预热完成，避免同时启动两个 XXL 进程争抢同一段冷启动成本。
 
-如果确认本机 XXL 包来源可信，可以用管理员 PowerShell 只对 XXL 目录加 Defender 排除：
+如果确认 XXL 包来源可信且确实被 Windows Defender 的实时扫描拖慢，可以用管理员 PowerShell 只对实际运行目录加排除。生产版默认路径如下；若设置了 `MEDIAFLOW_RUNTIME_DIR`，请替换为对应目录：
 
 ```powershell
-Add-MpPreference -ExclusionPath "D:\Code\MediaFlow\bin\Faster-Whisper-XXL"
-```
-
-如果同时保留外部工具目录，也可以单独排除该目录：
-
-```powershell
-Add-MpPreference -ExclusionPath "D:\Software\Video\Faster-Whisper-XXL"
+Add-MpPreference -ExclusionPath "D:\Tools\MediaFlow\runtime\tools\Faster-Whisper-XXL"
 ```
 
 查看或删除排除项：
 
 ```powershell
 (Get-MpPreference).ExclusionPath
-Remove-MpPreference -ExclusionPath "D:\Code\MediaFlow\bin\Faster-Whisper-XXL"
+Remove-MpPreference -ExclusionPath "D:\Tools\MediaFlow\runtime\tools\Faster-Whisper-XXL"
 ```
 
 不要排除整个磁盘，只排除实际使用的 XXL 目录。
@@ -199,11 +201,11 @@ where cudnn64_9.dll
 
 ### API Key 存储
 
-- API Key 保存在 `user_data/user_settings.json`
+- API Key 保存在运行时根目录下的 `user_data/user_settings.json`
 - 在 Windows 上，程序会优先使用 DPAPI 进行本机当前用户级加密
 - 如果 DPAPI 不可用，会回退为可读明文保存，以避免用户因加密失败无法继续使用
 - 配置文件会显式标记 `api_key_encrypted: true/false`
-- `user_data/` 和 `data/` 已被 `.gitignore` 忽略，默认不会被提交到 Git
+- 开发模式的 `user_data/` 和 `data/` 已被 `.gitignore` 忽略；生产版用户数据位于仓库之外
 
 ### 默认下载目录
 
@@ -215,18 +217,20 @@ where cudnn64_9.dll
 - 生产模式默认使用 `INFO` 级别，只记录 LLM 请求数量、角色、正文字符数和响应结构等摘要，不记录提示词、字幕或模型响应正文。
 - 临时排障时可设置 `ENABLE_DETAILED_LLM_LOGGING=true` 显式开启完整 LLM 请求/响应日志；排障结束后应立即关闭。
 - `LOG_LEVEL` 可设置为 `TRACE / DEBUG / INFO / SUCCESS / WARNING / ERROR / CRITICAL`。未显式设置时，普通模式使用 `INFO`，`DEBUG=true` 时使用 `DEBUG`。
+- 后端日志写入 `runtime/user_data/logs/mediaflow.log`，Electron 主进程日志写入同目录的 `mediaflow-desktop.log`；两者按 10 MB 轮转并保留 7 天。
 
 ### 任务历史
 
 - 默认保留最近 100 条已完成、失败或取消的任务记录；超出数量时后端会记录明确的裁剪日志。
 - 可通过 `TASK_HISTORY_LIMIT` 环境变量调整保留数量，最小值为 1。运行中和暂停中的可恢复任务不受历史数量限制。
 
-## 🔄 最近更新 (Architecture 2.0)
+## 📋 运行与维护真源
 
-- **UI/UX**: 修复了下载按钮样式、优化了合成对话框交互。
-- **Scaling**: 实现了 Subtitle/Watermark 的真·分辨率自适应缩放。
-- **Refactor**: 这里的代码库经历了深度重构，提升了可维护性和扩展性。
-- **Settings**: 新增 LLM 供应商预设、独立翻译目标语言、默认下载目录、测试连接与本地加密/明文回退标记。
+- 当前正式能力和明确排除项见 `FEATURE_INVENTORY.md`。
+- 任务与桌面桥版本见 `contracts/runtime-contract.json`；改动后必须重新生成并检查前端 API 类型。
+- 正式安装包内置工具的来源、版本、哈希和许可证文件见 `contracts/bundled-tools.json`、`THIRD_PARTY_NOTICES.md` 与 `third_party_licenses/`。
+- 模型和外部工具的空间预算、复用身份、来源证据与中断处理见 `.project-steward/storage-contract.json`。
+- `archive/` 仅保留历史参考，不参与运行、构建或测试；边界见 `archive/README.md`。
 
 ## ⭐ Star History
 
@@ -244,3 +248,17 @@ where cudnn64_9.dll
     src="https://raw.githubusercontent.com/CheshireMew/MediaFlow/star-history/star-history.svg"
   />
 </picture>
+
+## ⚖️ 许可证与第三方资源
+
+MediaFlow 的原创代码与项目文档采用 `AGPL-3.0-or-later`，版权所有 `Copyright (c) 2026 CheshireMew`。完整条款见 [`LICENSE`](LICENSE)，明确的版本选择与免责声明见 [`LICENSE-NOTICE.md`](LICENSE-NOTICE.md)，适用范围、排除项和历史说明见 [`LICENSING.md`](LICENSING.md)。
+
+Windows 安装包复用了下列未修改资源；它们仍由各自的上游许可证约束：
+
+| 资源 | 上游与许可证 | 本项目中的用途与修改 |
+| --- | --- | --- |
+| FFmpeg 8.1 essentials build（`ffmpeg.exe`、`ffprobe.exe`） | [Gyan Doshi FFmpeg Builds](https://www.gyan.dev/ffmpeg/builds/)，GPL-3.0-only | 用于探测、解码、编码和封装；原样随 Windows 包分发，没有源码或二进制修改。精确版本、源代码提交、归档与二进制哈希见 [`contracts/bundled-tools.json`](contracts/bundled-tools.json)。 |
+| LXGW WenKai Regular | [LXGW WenKai](https://github.com/lxgw/LxgwWenKai)，SIL Open Font License 1.1，Copyright 2021-2026 LXGW / Copyright 2020 The Klee Project Authors | 用作界面与字幕字体；原样随包分发，没有修改。 |
+| Electron、Chromium、Node.js 与包管理器依赖 | 各组件上游项目及各自许可证 | 构成桌面运行时或应用依赖；版本由锁文件固定，本项目没有改变其许可证。 |
+
+安装包会携带项目许可证、范围说明、[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 和 `third_party_licenses/` 中的对应文本。运行时按用户操作下载的工具、模型及媒体不被宣称为 MediaFlow 原创内容，其边界也记录在上述第三方通知和 [`LICENSING.md`](LICENSING.md) 中。

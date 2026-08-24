@@ -18,7 +18,7 @@ extraResources:
   - from: src/assets/fonts
     to: fonts
     filter:
-      - "**/*"
+      - "LXGWWenKai-Regular.ttf"
 
   - from: src/shared/fontCatalog.json
     to: fontCatalog.json
@@ -29,20 +29,25 @@ extraResources:
   - from: ../bin
     to: bin
     filter:
+      - "ffmpeg.exe"
+      - "ffprobe.exe"
+
+  - from: ../THIRD_PARTY_NOTICES.md
+    to: legal/THIRD_PARTY_NOTICES.md
+
+  - from: ../LICENSE
+    to: legal/LICENSE
+
+  - from: ../LICENSE-NOTICE.md
+    to: legal/LICENSE-NOTICE.md
+
+  - from: ../LICENSING.md
+    to: legal/LICENSING.md
+
+  - from: ../third_party_licenses
+    to: legal/third_party_licenses
+    filter:
       - "**/*"
-      - "!**/__pycache__/**"
-      - "!**/tests/**"
-      - "!**/test/**"
-      - "!**/testing/**"
-      - "!**/docs/**"
-      - "!**/doc/**"
-      - "!**/examples/**"
-      - "!**/example/**"
-      - "!**/*.md"
-      - "!**/*.rst"
-      - "!**/*.txt"
-      - "!downloads/**"
-      - "!Faster-Whisper-XXL/**"
 
   # ── dist-desktop-backend/ ─────────────────────────────────
   # PyInstaller-compiled Python backend runtime

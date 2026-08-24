@@ -2,7 +2,10 @@ import { useEffect, useRef } from "react";
 
 import type { Task } from "../../types/task";
 import type { SubtitleSegment } from "../../types/task";
-import type { TranslatorMode } from "../../stores/translatorStore";
+import type {
+  TranslatorExecutionMode,
+  TranslatorMode,
+} from "../../stores/translatorStore";
 import type { NullableExecutionMode } from "../../services/domain";
 import {
   findCompletedTranslationTask,
@@ -25,17 +28,15 @@ type UseTranslationTaskSyncParams = {
   taskId: string | null;
   currentTargetSegments: SubtitleSegment[];
   setTaskId: (id: string | null) => void;
-  setTaskStatus: (status: string) => void;
-  setProgress: (progress: number) => void;
-  setTaskError: (error: string | null) => void;
+  setLocalError: (error: string | null) => void;
   setExecutionMode: (mode: NullableExecutionMode) => void;
   setTargetSegments: (segments: SubtitleSegment[]) => void;
   setSourceFileRef: (reference: MediaReference | null) => void;
   setTargetSubtitleRef: (reference: MediaReference | null) => void;
-  setActiveMode: (mode: TranslatorMode | null) => void;
-  setResultMode: (mode: TranslatorMode | null) => void;
-  activeTaskModeRef: React.MutableRefObject<TranslatorMode>;
-  previousTranslateModeRef: React.MutableRefObject<"standard" | "intelligent">;
+  setActiveMode: (mode: TranslatorExecutionMode | null) => void;
+  setResultMode: (mode: TranslatorExecutionMode | null) => void;
+  activeTaskModeRef: React.MutableRefObject<TranslatorExecutionMode>;
+  previousTranslateModeRef: React.MutableRefObject<TranslatorMode>;
 };
 
 export function useTranslationTaskSync({
@@ -46,9 +47,7 @@ export function useTranslationTaskSync({
   taskId,
   currentTargetSegments,
   setTaskId,
-  setTaskStatus,
-  setProgress,
-  setTaskError,
+  setLocalError,
   setExecutionMode,
   setTargetSegments,
   setSourceFileRef,
@@ -68,7 +67,7 @@ export function useTranslationTaskSync({
 
     const taskMode = getTranslationTaskMode(runningTask);
     const taskMediaRefs = getTranslationTaskMediaRefs(runningTask);
-    if (taskMode === "proofread" && mode !== "proofread") {
+    if (taskMode === "proofread") {
       previousTranslateModeRef.current = mode;
     }
 
@@ -79,21 +78,17 @@ export function useTranslationTaskSync({
     setTargetSubtitleRef(taskMediaRefs.targetSubtitleRef);
     setActiveMode(taskMode ?? null);
     setTaskId(runningTask.id);
-    setTaskStatus(runningTask.status);
-    setProgress(runningTask.progress);
-    setTaskError(null);
+    setLocalError(null);
     setExecutionMode("task_submission");
   }, [
     activeTaskModeRef,
     mode,
     previousTranslateModeRef,
     setActiveMode,
-    setProgress,
-    setTaskError,
+    setLocalError,
     setExecutionMode,
     setSourceFileRef,
     setTaskId,
-    setTaskStatus,
     setTargetSubtitleRef,
     sourceFileRef,
     taskId,
@@ -116,9 +111,8 @@ export function useTranslationTaskSync({
 
     const translationOutput = getTranslationTaskOutput(completedTask);
     if (!translationOutput || translationOutput.segments.length === 0) {
-      setTaskStatus("failed");
-      setTaskError(MISSING_TRANSLATION_RESULT_ERROR);
-      setProgress(100);
+      setTaskId(completedTask.id);
+      setLocalError(MISSING_TRANSLATION_RESULT_ERROR);
       setExecutionMode("task_submission");
       return;
     }
@@ -133,9 +127,8 @@ export function useTranslationTaskSync({
     }
     setTargetSubtitleRef(taskMediaRefs.targetSubtitleRef);
     setResultMode(completedTaskMode);
-    setTaskStatus("completed");
-    setProgress(100);
-    setTaskError(null);
+    setTaskId(completedTask.id);
+    setLocalError(null);
     setExecutionMode("task_submission");
     setActiveMode(null);
   }, [
@@ -143,13 +136,12 @@ export function useTranslationTaskSync({
     currentTargetSegments.length,
     setActiveMode,
     setExecutionMode,
-    setProgress,
+    setLocalError,
     setResultMode,
     setSourceFileRef,
     setTargetSegments,
     setTargetSubtitleRef,
-    setTaskError,
-    setTaskStatus,
+    setTaskId,
     sourceFileRef,
     taskId,
     tasks,
@@ -165,6 +157,7 @@ export function useTranslationTaskSync({
         setActiveMode(null);
         setExecutionMode(null);
         setTaskId(null);
+        setLocalError(null);
       }
       return;
     }
@@ -175,19 +168,13 @@ export function useTranslationTaskSync({
       activeTaskModeRef.current = taskMode;
     }
 
-    if (task.progress !== undefined) {
-      setProgress(task.progress);
-    }
-
     if (task.status === "running" || task.status === "pending") {
-      setTaskStatus(task.status);
-      setTaskError(null);
+      setLocalError(null);
       setExecutionMode("task_submission");
       return;
     }
 
     if (task.status === "paused") {
-      setTaskStatus("paused");
       setExecutionMode("task_submission");
       return;
     }
@@ -195,12 +182,9 @@ export function useTranslationTaskSync({
     if (task.status === "completed") {
       const translationOutput = getTranslationTaskOutput(task);
       if (!translationOutput || translationOutput.segments.length === 0) {
-        setTaskStatus("failed");
-        setTaskError(MISSING_TRANSLATION_RESULT_ERROR);
-        setProgress(100);
+        setLocalError(MISSING_TRANSLATION_RESULT_ERROR);
         setExecutionMode("task_submission");
         setActiveMode(null);
-        setTaskId(null);
         return;
       }
       const segments = translationOutput.segments;
@@ -212,40 +196,28 @@ export function useTranslationTaskSync({
       }
       setTargetSubtitleRef(taskMediaRefs.targetSubtitleRef);
       setResultMode(completedTaskMode);
-      setTaskStatus("finalizing");
-      setProgress(100);
-      setTaskError(null);
+      setLocalError(null);
       setExecutionMode("task_submission");
       setActiveMode(null);
-
-      setTimeout(() => {
-        setTaskStatus("completed");
-      }, 600);
-
-      setTaskId(null);
       return;
     }
 
     if (task.status === "failed" || task.status === "cancelled") {
-      setTaskStatus(task.status);
-      setTaskError(task.error || null);
+      setLocalError(null);
       setActiveMode(null);
       setExecutionMode("task_submission");
-      setTaskId(null);
     }
   }, [
     activeTaskModeRef,
     tasksSettled,
     setActiveMode,
-    setProgress,
-    setTaskError,
+    setLocalError,
     setExecutionMode,
     setResultMode,
     setSourceFileRef,
     setTargetSegments,
     setTargetSubtitleRef,
     setTaskId,
-    setTaskStatus,
     taskId,
     tasks,
   ]);

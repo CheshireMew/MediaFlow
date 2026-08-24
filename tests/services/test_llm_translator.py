@@ -1,17 +1,26 @@
-import pytest
 import threading
 import time
 from types import SimpleNamespace
+
+import instructor
+import openai
+import pytest
+
 from backend.core.task_control import TaskCancelRequested
+from backend.models.subtitle_contracts import SubtitleSegment
 from backend.services.translator.llm_translator import LLMTranslator
-from backend.services.translator.translation_batch_runner import build_translation_batches
+from backend.services.translator.translation_batch_runner import (
+    build_translation_batches,
+)
+from backend.services.translator.translation_client import TranslationClientFactory
 from backend.services.translator.translation_models import (
     TranslationOutcome,
     TranslationResponse,
     TranslatorSegment,
 )
-from backend.services.translator.translation_validator import TranslationResponseValidator
-from backend.models.subtitle_contracts import SubtitleSegment
+from backend.services.translator.translation_validator import (
+    TranslationResponseValidator,
+)
 
 
 class FakeSettingsManager:
@@ -48,6 +57,45 @@ def test_llm_translator_init():
     # This might vary based on ENV, but we check if it handles config
     assert hasattr(llm_translator, "model")
     assert llm_translator.model == settings.LLM_MODEL
+
+
+def test_translation_client_factory_reuses_clients_and_closes_them(monkeypatch):
+    provider = SimpleNamespace(
+        id="provider-1",
+        base_url="https://llm.example/v1/",
+        api_key="secret-one",
+        model="model-one",
+    )
+    settings_manager = SimpleNamespace(get_active_llm_provider=lambda: provider)
+    created_clients = []
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.close_calls = 0
+            created_clients.append(self)
+
+        def close(self):
+            self.close_calls += 1
+
+    monkeypatch.setattr(openai, "OpenAI", FakeClient)
+    monkeypatch.setattr(instructor, "patch", lambda client: client)
+    factory = TranslationClientFactory(settings_manager)
+
+    first = factory.get_client()
+    for _ in range(100):
+        assert factory.get_client() == first
+
+    provider.model = "model-two"
+    second = factory.get_client()
+
+    assert len(created_clients) == 2
+    assert first[0] is created_clients[0]
+    assert second[0] is created_clients[1]
+    assert second[1] == "model-two"
+
+    factory.close()
+    assert [client.close_calls for client in created_clients] == [1, 1]
 
 
 def test_translate_segments_fails_immediately_when_batch_translation_cannot_fallback(monkeypatch):

@@ -8,26 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pydantic import BaseModel
-
-
-class RuntimeDependencyCheck(BaseModel):
-    key: str
-    label: str
-    status: str
-    detail: str
-    path: str | None = None
-    version: str | None = None
-
-
-class CudaReadinessResponse(BaseModel):
-    status: str
-    summary: str
-    gpu_name: str | None = None
-    driver_version: str | None = None
-    driver_cuda_capability: str | None = None
-    dependencies: list[RuntimeDependencyCheck]
-    install_guidance: list[str]
+from backend.models.settings_contracts import (
+    CudaReadinessResponse,
+    RuntimeDependencyCheck,
+)
 
 
 class RuntimeDiagnosticsService:

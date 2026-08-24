@@ -65,18 +65,24 @@ vi.mock('../context/TaskProvider', () => ({
 }))
 
 vi.mock('../context/taskContext', () => ({
-  useTaskContext: () => ({
-    tasks: [],
-    connected: false,
-    remoteTasksReady: false,
-    tasksSettled: false,
+  useTaskActions: () => ({
     pauseAllTasks: vi.fn(),
     pauseTask: vi.fn(),
     resumeTask: vi.fn(),
     deleteTask: vi.fn(),
     clearTasks: vi.fn(),
     addTask: vi.fn()
+  }),
+  useTaskStatus: () => ({
+    connected: false,
+    remoteTasksReady: false,
+    tasksSettled: false,
   })
+}))
+
+vi.mock('../context/taskStoreContext', () => ({
+  useTasks: () => [],
+  useTaskById: () => null,
 }))
 
 // Mock WaveSurfer and components that use it

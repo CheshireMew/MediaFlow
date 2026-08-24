@@ -8,13 +8,6 @@ from backend.config import settings
 from backend.services.cookie_manager import CookieManager
 
 
-YT_DLP_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/120.0.0.0 Safari/537.36"
-)
-
-
 class YtDlpRuntimeOptions:
     def __init__(self, *, cookie_manager: CookieManager):
         self._cookie_manager = cookie_manager
@@ -32,7 +25,6 @@ class YtDlpRuntimeOptions:
             "quiet": True,
             "no_warnings": True,
             "ffmpeg_location": self._resolve_ffmpeg_location(),
-            "user_agent": YT_DLP_USER_AGENT,
             "retries": 10,
             "fragment_retries": 10,
             "extractor_retries": 5,

@@ -23,6 +23,7 @@ class TaskArtifact(BaseModel):
     kind: Literal["video", "audio", "subtitle", "image", "file"]
     role: Literal["input", "output", "context"]
     ref: MediaReference
+    producer_step: str | None = None
 
 
 class TaskResult(BaseModel):

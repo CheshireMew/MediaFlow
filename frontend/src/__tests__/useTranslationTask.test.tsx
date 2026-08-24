@@ -42,8 +42,14 @@ function translationRequestParams(path: string, mode: "standard" | "intelligent"
 }
 
 vi.mock("../context/taskContext", () => ({
-  useTaskContext: () => taskContextMock,
   useTaskActions: () => taskContextMock,
+  useTaskStatus: () => taskContextMock,
+}));
+
+vi.mock("../context/taskStoreContext", () => ({
+  useTasks: () => taskContextMock.tasks,
+  useTaskById: (taskId: string | null) =>
+    taskContextMock.tasks.find((task) => task.id === taskId) ?? null,
 }));
 
 describe("useTranslationTask", () => {
@@ -81,14 +87,16 @@ describe("useTranslationTask", () => {
       activeMode: null,
       resultMode: null,
       taskId: null,
-      taskStatus: "",
-      progress: 0,
-      taskError: null,
+      submissionPhase: "idle",
+      localError: null,
     });
     apiClientMock.runPipeline.mockReset();
     apiClientMock.getSettings.mockReset();
     apiClientMock.getSettings.mockResolvedValue(createMockUserSettings());
     taskContextMock.addTask.mockReset();
+    taskContextMock.addTask.mockImplementation((task: Task) => {
+      taskContextMock.tasks = [...taskContextMock.tasks, task];
+    });
     taskContextMock.tasks = [];
     taskContextMock.connected = true;
     installElectronMock();
@@ -149,7 +157,7 @@ describe("useTranslationTask", () => {
     );
     expect(useTranslatorStore.getState().mode).toBe("intelligent");
     expect(useTranslatorStore.getState().resultMode).toBe("proofread");
-    expect(useTranslatorStore.getState().taskStatus).toBe("pending");
+    expect(result.current.taskStatus).toBe("pending");
 
     await act(async () => {
       taskContextMock.tasks = [
@@ -207,12 +215,12 @@ describe("useTranslationTask", () => {
       } as Task,
     ];
 
-    renderHook(() => useTranslationTask());
+    const { result } = renderHook(() => useTranslationTask());
 
     expect(useTranslatorStore.getState().taskId).toBe("task-recover");
-    expect(useTranslatorStore.getState().taskStatus).toBe("running");
+    expect(result.current.taskStatus).toBe("running");
     expect(useTranslatorStore.getState().activeMode).toBe("intelligent");
-    expect(useTranslatorStore.getState().progress).toBe(42);
+    expect(result.current.progress).toBe(42);
     expectTranslatorMediaState({
       sourceFileRef: {
         path: "E:/subs/demo.srt",
@@ -222,7 +230,7 @@ describe("useTranslationTask", () => {
     });
   });
 
-  test("recovers completed translation output from task context after reload without restoring taskId", () => {
+  test("recovers completed translation output and keeps its authoritative task id", () => {
     taskContextMock.tasks = [
       {
         ...BACKEND_TASK_CONTRACT_FIELDS,
@@ -251,10 +259,10 @@ describe("useTranslationTask", () => {
       } as Task,
     ];
 
-    renderHook(() => useTranslationTask());
+    const { result } = renderHook(() => useTranslationTask());
 
-    expect(useTranslatorStore.getState().taskId).toBeNull();
-    expect(useTranslatorStore.getState().taskStatus).toBe("completed");
+    expect(useTranslatorStore.getState().taskId).toBe("task-history");
+    expect(result.current.taskStatus).toBe("completed");
     expect(useTranslatorStore.getState().resultMode).toBe("intelligent");
     expect(useTranslatorStore.getState().targetSegments).toEqual([
       { id: "1", start: 0, end: 1, text: "你好" },
@@ -292,10 +300,10 @@ describe("useTranslationTask", () => {
       } as Task,
     ];
 
-    renderHook(() => useTranslationTask());
+    const { result } = renderHook(() => useTranslationTask());
 
     expect(useTranslatorStore.getState().taskId).toBe("task-recover-ref");
-    expect(useTranslatorStore.getState().taskStatus).toBe("running");
+    expect(result.current.taskStatus).toBe("running");
     expect(useTranslatorStore.getState().activeMode).toBe("intelligent");
     expectTranslatorMediaState({
       sourceFileRef: {
@@ -321,13 +329,13 @@ describe("useTranslationTask", () => {
       } as Task,
     ];
 
-    renderHook(() => useTranslationTask());
+    const { result } = renderHook(() => useTranslationTask());
 
-    expect(useTranslatorStore.getState().taskStatus).toBe("failed");
-    expect(useTranslatorStore.getState().taskError).toBe(
+    expect(result.current.taskStatus).toBe("failed");
+    expect(result.current.taskError).toBe(
       "Network unreachable while contacting LLM provider",
     );
-    expect(useTranslatorStore.getState().taskId).toBeNull();
+    expect(useTranslatorStore.getState().taskId).toBe("task-fail");
   });
 
   test("submits translation as a backend task in desktop runtime", async () => {
@@ -452,7 +460,6 @@ describe("useTranslationTask", () => {
   test("keeps recovered translation task id until task snapshots settle", () => {
     useTranslatorStore.setState({
       taskId: "task-pending-sync",
-      taskStatus: "running",
       activeMode: "standard",
     });
     taskContextMock.tasks = [];

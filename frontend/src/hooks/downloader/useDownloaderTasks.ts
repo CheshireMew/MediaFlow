@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useTaskContext } from "../../context/taskContext";
+import { useTasks } from "../../context/taskStoreContext";
 import { useDownloaderStore } from "../../stores/downloaderStore";
 import {
   buildDownloadTaskEntries,
@@ -8,7 +8,7 @@ import {
 } from "../tasks/taskSelectors";
 
 export function useDownloaderTasks() {
-  const { tasks } = useTaskContext();
+  const tasks = useTasks();
   const history = useDownloaderStore((state) => state.history);
 
   const entries = useMemo(

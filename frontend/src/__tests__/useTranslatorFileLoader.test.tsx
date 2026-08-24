@@ -7,8 +7,9 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 import { useTranslatorStore } from "../stores/translatorStore";
-import type { ElectronAPI } from "../types/electron-api";
+import type { ElectronAPI } from "../contracts/desktopBridgeContract";
 import { installElectronMock } from "./testUtils/electronMock";
+import { buildTranslatorOutputPath } from "../hooks/translator/translatorFileHelpers";
 
 describe("useTranslatorFileLoader", () => {
   beforeEach(() => {
@@ -22,8 +23,8 @@ describe("useTranslatorFileLoader", () => {
       activeMode: null,
       resultMode: null,
       taskId: null,
-      taskStatus: "",
-      progress: 0,
+      submissionPhase: "idle",
+      localError: null,
     });
 
     installElectronMock({
@@ -119,6 +120,33 @@ describe("useTranslatorFileLoader", () => {
     expect(useTranslatorStore.getState().targetSubtitleRef).toEqual({
       path: translatedPath,
       name: "demo_ZH-CN.srt",
+    });
+    expect(electronAPI.readFile).toHaveBeenCalledWith(translatedPath);
+  });
+
+  test("autoloads the canonical shortened path for a long source name", async () => {
+    const sourcePath = `C:/exports/${"a".repeat(250)}.srt`;
+    const sourceRef = { path: sourcePath, name: `${"a".repeat(250)}.srt` };
+    const translatedPath = buildTranslatorOutputPath(sourcePath, "_ZH-CN");
+    const electronAPI = (window as unknown as Window & { electronAPI: ElectronAPI }).electronAPI;
+
+    vi.mocked(electronAPI.readFile).mockImplementation(async (path: string) => {
+      if (path === sourcePath) {
+        return "1\n00:00:00,000 --> 00:00:01,000\nsame line\n";
+      }
+      if (path === translatedPath) {
+        return "1\n00:00:00,000 --> 00:00:01,000\nloaded translation\n";
+      }
+      return "";
+    });
+
+    const { result } = renderHook(() => useTranslatorFileLoader());
+    await act(async () => {
+      await result.current.handleFileUpload(sourceRef);
+    });
+
+    await waitFor(() => {
+      expect(useTranslatorStore.getState().targetSegments[0]?.text).toBe("loaded translation");
     });
     expect(electronAPI.readFile).toHaveBeenCalledWith(translatedPath);
   });

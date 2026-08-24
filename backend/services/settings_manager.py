@@ -1,60 +1,19 @@
 import json
 import os
 import threading
-from typing import Any, List, Optional
+from typing import Any
 
 from loguru import logger
-from pydantic import BaseModel, Field
 
 from backend.config import settings
 from backend.contracts import ASR_EXECUTION_PREFERENCES
-
-
-class LLMProvider(BaseModel):
-    id: str = Field(..., description="Unique Identifier")
-    name: str = Field(..., description="Display Name")
-    base_url: str
-    api_key: str
-    model: str
-    is_active: bool = False
-
-
-SMART_SPLIT_TEXT_LIMIT_DEFAULT = 24
-
-
-class UserSettings(BaseModel):
-    llm_providers: List[LLMProvider] = Field(default_factory=list)
-    default_download_path: Optional[str] = None
-    faster_whisper_cli_path: Optional[str] = None
-    language: str = "zh"
-    auto_execute_flow: bool = False
-    auto_trim_silence: bool = False
-    smart_split_text_limit: int = Field(
-        default=SMART_SPLIT_TEXT_LIMIT_DEFAULT,
-        ge=1,
-    )
-    ui_state: dict[str, Any] = Field(default_factory=dict)
-
-
-class UserPreferencesPatch(BaseModel):
-    llm_providers: Optional[List[LLMProvider]] = None
-    default_download_path: Optional[str] = None
-    faster_whisper_cli_path: Optional[str] = None
-    language: Optional[str] = None
-    auto_execute_flow: Optional[bool] = None
-    auto_trim_silence: Optional[bool] = None
-    smart_split_text_limit: Optional[int] = Field(default=None, ge=1)
-
-
-class UiStatePatch(BaseModel):
-    updates: dict[str, Any] = Field(default_factory=dict)
-    remove: list[str] = Field(default_factory=list)
-
-
-class AsrExecutionPreferences(BaseModel):
-    engine: str = ASR_EXECUTION_PREFERENCES["defaults"]["engine"]
-    model: str = ASR_EXECUTION_PREFERENCES["defaults"]["model"]
-    device: str = ASR_EXECUTION_PREFERENCES["defaults"]["device"]
+from backend.models.settings_contracts import (
+    AsrExecutionPreferences,
+    LLMProvider,
+    UiStatePatch,
+    UserPreferencesPatch,
+    UserSettings,
+)
 
 
 class SettingsManager:
@@ -260,7 +219,7 @@ class SettingsManager:
         )
         return normalized_settings
 
-    def get_active_llm_provider(self) -> Optional[LLMProvider]:
+    def get_active_llm_provider(self) -> LLMProvider | None:
         for provider in self.get_settings().llm_providers:
             if provider.is_active:
                 return provider

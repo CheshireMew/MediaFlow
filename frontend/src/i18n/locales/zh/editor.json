@@ -8,6 +8,7 @@
     "openSubtitleButton": "打开字幕",
     "autoScrollLabel": "自动滚动",
     "translateTooltip": "发送到 AI 翻译",
+    "translateRequiresSubtitlesTooltip": "请先打开媒体并加载字幕",
     "translateButton": "翻译",
     "subtitleMode": "字幕",
     "subtitleModeTooltip": "切换到字幕编辑",
@@ -21,6 +22,7 @@
     "exportRequiresVideoTooltip": "请先打开一个视频",
     "exportButton": "导出",
     "saveButton": "保存",
+    "saveRequiresVideoTooltip": "请先打开媒体，再保存字幕",
     "saveAsTooltip": "另存为..."
   },
   "document": {
@@ -60,6 +62,8 @@
     "deleteTooltip": "删除段落",
     "emptySegmentLabel": "空段落",
     "emptyState": "暂无字幕",
+    "openSubtitleButton": "打开字幕",
+    "dropHint": "也可以把字幕文件拖到这里",
     "validationOverlap": "与以下项重叠"
   },
   "clips": {
@@ -127,7 +131,10 @@
     "fullscreen": "进入全屏",
     "exitFullscreen": "退出全屏",
     "mediaFailed": "媒体加载失败",
-    "noMedia": "尚未加载媒体"
+    "noMedia": "尚未加载媒体",
+    "openMedia": "打开媒体",
+    "replaceMedia": "重新选择媒体",
+    "dropHint": "也可以把媒体文件拖到这里"
   },
   "contextMenu": {
     "noSpeechFallback": "[无语音]",

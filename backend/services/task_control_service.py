@@ -1,4 +1,3 @@
-from typing import Optional
 
 from backend.models.task_message import TaskMessageParams
 
@@ -9,7 +8,7 @@ class TaskControlService:
         return task_id in stop_requests
 
     @staticmethod
-    def get_stop_request(stop_requests: dict[str, str], task_id: str) -> Optional[str]:
+    def get_stop_request(stop_requests: dict[str, str], task_id: str) -> str | None:
         return stop_requests.get(task_id)
 
     @staticmethod
@@ -21,8 +20,8 @@ class TaskControlService:
         task_manager,
         stop_requests: dict[str, str],
         task_id: str,
-        request: Optional[str],
-        message_code: Optional[str] = None,
+        request: str | None,
+        message_code: str | None = None,
         message_params: TaskMessageParams | None = None,
     ) -> None:
         if request == "pause":
@@ -59,7 +58,7 @@ class TaskControlService:
 
         if task.status == "pending":
             task_manager.set_stop_request(task_id, "pause")
-            task_manager.unqueue_task(task_id)
+            await task_manager.unqueue_task(task_id)
             await task_manager.update_task(
                 task_id,
                 status="paused",
@@ -87,7 +86,7 @@ class TaskControlService:
 
         if task.status == "pending":
             task_manager.set_stop_request(task_id, "cancel")
-            task_manager.unqueue_task(task_id)
+            await task_manager.unqueue_task(task_id)
             await task_manager.update_task(
                 task_id,
                 status="cancelled",

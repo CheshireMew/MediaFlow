@@ -1,4 +1,6 @@
 import subprocess
+import threading
+import time
 from pathlib import Path
 
 import ffmpeg
@@ -131,6 +133,77 @@ def test_export_clips_source_uses_exact_render_without_subtitles_or_watermark(mo
     assert call["options"]["preserve_frame_rate"] is True
     assert call["options"]["trim_start"] == 1.0
     assert call["options"]["trim_end"] == 2.5
+
+
+def test_source_export_uses_stream_copy_without_starting_encoder(monkeypatch, tmp_path):
+    video_path = tmp_path / "demo.mp4"
+    video_path.write_bytes(b"video")
+    synthesis = _FakeSynthesis()
+    _mock_source_probe(monkeypatch, 10.0)
+
+    def stream_copy(_source_path, output_path, _segment):
+        Path(output_path).write_bytes(b"copied")
+        return True
+
+    monkeypatch.setattr(clip_export_service, "_try_stream_copy", stream_copy)
+    monkeypatch.setattr(clip_export_service.MediaProber, "get_duration", lambda _path: 1.0)
+
+    files = clip_export_service.export_clips(
+        video_synthesis=synthesis,
+        video_ref=_media_ref(video_path),
+        segments=[ClipExportSegment(id="clip-1", start=2.0, end=3.0)],
+        render_mode="source",
+        srt_ref=None,
+        watermark_ref=None,
+        options=None,
+        output_dir=str(tmp_path / "clips"),
+    )
+
+    assert Path(files[0].path).read_bytes() == b"copied"
+    assert synthesis.calls == []
+
+
+def test_source_stream_copy_runs_in_parallel_and_preserves_requested_order(monkeypatch, tmp_path):
+    video_path = tmp_path / "demo.mp4"
+    video_path.write_bytes(b"video")
+    _mock_source_probe(monkeypatch, 10.0)
+    lock = threading.Lock()
+    active = 0
+    peak_active = 0
+
+    def stream_copy(_source_path, output_path, segment):
+        nonlocal active, peak_active
+        with lock:
+            active += 1
+            peak_active = max(peak_active, active)
+        time.sleep(0.03 * (5 - int(segment.id.rsplit("-", 1)[1])))
+        Path(output_path).write_bytes(segment.id.encode("utf-8"))
+        with lock:
+            active -= 1
+        return True
+
+    monkeypatch.setattr(clip_export_service, "_try_stream_copy", stream_copy)
+    monkeypatch.setattr(clip_export_service.MediaProber, "get_duration", lambda _path: 1.0)
+    segments = [
+        ClipExportSegment(id=f"clip-{index}", start=float(index), end=float(index + 1))
+        for index in range(1, 5)
+    ]
+
+    files = clip_export_service.export_clips(
+        video_synthesis=_FakeSynthesis(),
+        video_ref=_media_ref(video_path),
+        segments=segments,
+        render_mode="source",
+        srt_ref=None,
+        watermark_ref=None,
+        options=None,
+        output_dir=str(tmp_path / "clips"),
+    )
+
+    assert peak_active >= 2
+    assert [Path(file.path).read_bytes().decode("utf-8") for file in files] == [
+        segment.id for segment in segments
+    ]
 
 
 @pytest.mark.parametrize(

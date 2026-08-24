@@ -1,81 +1,95 @@
-"""
-User-Agent管理模块
-提供随机User-Agent用于反爬虫检测
-"""
-import random
+from __future__ import annotations
 
-# User-Agent池 - 模拟不同浏览器和操作系统（2025年1月最新版本）
-USER_AGENTS = [
-    # Chrome on Windows (多版本)
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    
-    # Chrome on macOS (多版本)
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    
-    # Chrome on Linux
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-    
-    # Firefox on Windows (多版本)
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0",
-    
-    # Firefox on macOS
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.1; rv:133.0) Gecko/20100101 Firefox/133.0",
-    
-    # Firefox on Linux
-    "Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0",
-    
-    # Safari on macOS (多版本)
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
-    
-    # Edge on Windows (多版本)
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.2903.86",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.2849.68",
-    
-    # Edge on macOS
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.2903.86",
-    
-    # Safari on iOS (iPhone, 多版本)
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.7 Mobile/15E148 Safari/604.1",
-    
-    # Safari on iPad
-    "Mozilla/5.0 (iPad; CPU OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1",
-    
-    # Chrome on Android
-    "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
-    
-    # Firefox on Android
-    "Mozilla/5.0 (Android 14; Mobile; rv:133.0) Gecko/133.0 Firefox/133.0",
-    
-    # Opera on Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 OPR/106.0.0.0",
-    
-    # Brave on Windows (基于 Chromium)
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    
-    # Vivaldi on macOS
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Vivaldi/6.5.3206.63",
-]
+import re
+from dataclasses import dataclass
 
 
-def get_random_user_agent() -> str:
-    """
-    获取随机User-Agent
-    
-    Returns:
-        str: 随机选择的User-Agent字符串
-    """
-    return random.choice(USER_AGENTS)
+_CHROMIUM_VERSION = re.compile(r"(?:Chrome/)?(\d+)(?:\.\d+){0,3}")
+
+
+@dataclass(frozen=True)
+class ChromiumIdentity:
+    user_agent: str
+    chromium_major: int | None
+    viewport: dict[str, int]
+    device_scale_factor: float
+    has_touch: bool
+    is_mobile: bool
+    platform: str
+
+    def context_options(self) -> dict:
+        return {
+            "user_agent": self.user_agent,
+            "viewport": self.viewport,
+            "device_scale_factor": self.device_scale_factor,
+            "has_touch": self.has_touch,
+            "is_mobile": self.is_mobile,
+        }
+
+    def extra_http_headers(self) -> dict[str, str]:
+        if self.chromium_major is None:
+            return {"Upgrade-Insecure-Requests": "1"}
+        major = str(self.chromium_major)
+        return {
+            "sec-ch-ua": (
+                f'"Chromium";v="{major}", "Google Chrome";v="{major}", '
+                '"Not_A Brand";v="99"'
+            ),
+            "sec-ch-ua-mobile": "?1" if self.is_mobile else "?0",
+            "sec-ch-ua-platform": f'"{self.platform}"',
+            "Upgrade-Insecure-Requests": "1",
+        }
+
+
+def _chromium_version(value: str) -> tuple[str, int]:
+    match = _CHROMIUM_VERSION.search(value)
+    if not match:
+        raise ValueError(f"Could not determine Chromium version from: {value}")
+    version = match.group(0).removeprefix("Chrome/")
+    return version, int(match.group(1))
+
+
+def _custom_identity(user_agent: str) -> ChromiumIdentity:
+    chromium_match = re.search(r"Chrome/(\d+)(?:\.\d+){0,3}", user_agent)
+    mobile = "Mobile" in user_agent or "Android" in user_agent
+    if "Android" in user_agent:
+        platform = "Android"
+    elif "Macintosh" in user_agent:
+        platform = "macOS"
+    elif "Linux" in user_agent and "Windows" not in user_agent:
+        platform = "Linux"
+    else:
+        platform = "Windows"
+    return ChromiumIdentity(
+        user_agent=user_agent,
+        chromium_major=int(chromium_match.group(1)) if chromium_match else None,
+        viewport={"width": 412, "height": 915}
+        if mobile
+        else {"width": 1440, "height": 900},
+        device_scale_factor=2 if mobile else 1,
+        has_touch=mobile,
+        is_mobile=mobile,
+        platform=platform,
+    )
+
+
+def build_chromium_identity(
+    browser_version: str,
+    user_agent: str | None = None,
+) -> ChromiumIdentity:
+    if user_agent:
+        return _custom_identity(user_agent)
+    version, major = _chromium_version(browser_version)
+    return ChromiumIdentity(
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            f"Chrome/{version} Safari/537.36"
+        ),
+        chromium_major=major,
+        viewport={"width": 1440, "height": 900},
+        device_scale_factor=1,
+        has_touch=False,
+        is_mobile=False,
+        platform="Windows",
+    )

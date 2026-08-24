@@ -3,10 +3,13 @@ from __future__ import annotations
 from hashlib import sha1
 from pathlib import Path
 
+from backend.contracts import load_contract
 
-WINDOWS_LEGACY_MAX_PATH = 260
-GENERATED_OUTPUT_MAX_PATH = 240
-GENERATED_OUTPUT_MAX_FILENAME = 240
+
+_OUTPUT_PATH_CONTRACT = load_contract("generated-output-path-contract.json")
+GENERATED_OUTPUT_MAX_PATH = int(_OUTPUT_PATH_CONTRACT["max_path_length"])
+GENERATED_OUTPUT_MAX_FILENAME = int(_OUTPUT_PATH_CONTRACT["max_filename_length"])
+GENERATED_OUTPUT_HASH_HEX_LENGTH = int(_OUTPUT_PATH_CONTRACT["hash_hex_length"])
 
 
 def build_suffixed_output_path(
@@ -28,7 +31,9 @@ def build_suffixed_output_path(
     ):
         return candidate
 
-    digest = sha1(filename.encode("utf-8")).hexdigest()[:8]
+    digest = sha1(filename.encode("utf-8")).hexdigest()[
+        :GENERATED_OUTPUT_HASH_HEX_LENGTH
+    ]
     marker = f"-{digest}{suffix}{normalized_extension}"
     parent_text = "" if str(source.parent) == "." else str(source.parent)
     separator_length = 1 if parent_text else 0

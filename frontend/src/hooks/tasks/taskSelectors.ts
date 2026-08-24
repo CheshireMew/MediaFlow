@@ -2,7 +2,7 @@ import type { PipelineRequest } from "../../types/api";
 import type { TranslationOutput } from "../../types/generatedApi";
 import type { SubtitleSegment, Task } from "../../types/task";
 import type { TranscribeResult } from "../../types/transcriber";
-import type { TranslatorMode } from "../../stores/translatorStore";
+import type { TranslatorExecutionMode } from "../../stores/translatorStore";
 import type { DownloadHistoryItem } from "../../stores/downloaderStore";
 import { getTaskMediaRefs } from "../../services/ui/taskMedia";
 import {
@@ -18,10 +18,10 @@ import {
   isTaskActive,
 } from "../../services/tasks/taskRuntimeState";
 
-export const isTranslatorMode = (value: unknown): value is TranslatorMode =>
+export const isTranslatorMode = (value: unknown): value is TranslatorExecutionMode =>
   value === "standard" || value === "intelligent" || value === "proofread";
 
-export const getTranslationTaskMode = (task: Task): TranslatorMode | null => {
+export const getTranslationTaskMode = (task: Task): TranslatorExecutionMode | null => {
   const steps = (task.request_params as PipelineRequest | undefined)?.steps;
   const rawMode = steps?.find((step) => step.step_name === "translate")?.params
     ? (steps.find((step) => step.step_name === "translate")?.params as { mode?: unknown }).mode

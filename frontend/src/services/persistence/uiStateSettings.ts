@@ -6,8 +6,9 @@ import {
   clearPersistenceFailure,
   reportPersistenceFailure,
 } from "./persistenceHealth";
+import type { JsonValue } from "../../types/generatedApi";
 
-type UiState = Record<string, unknown>;
+type UiState = Record<string, JsonValue>;
 
 let initialized = false;
 let cachedSettings: ResolvedUserSettings | null = null;
@@ -19,12 +20,32 @@ let pendingRemovals = new Set<string>();
 const initializedListeners = new Set<() => void>();
 const WRITE_DEBOUNCE_MS = 250;
 
-function isRecord(value: unknown): value is UiState {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function isJsonValue(value: unknown): value is JsonValue {
+  if (
+    value === null
+    || typeof value === "string"
+    || typeof value === "boolean"
+    || (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.every(isJsonValue);
+  }
+  return isRecord(value) && Object.values(value).every(isJsonValue);
+}
+
 function normalizeUiState(value: unknown): UiState {
-  return isRecord(value) ? { ...value } : {};
+  if (!isRecord(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => isJsonValue(item)),
+  ) as UiState;
 }
 
 function normalizeSettings(settings: ResolvedUserSettings): ResolvedUserSettings {
@@ -79,6 +100,9 @@ export function writeUiStateValue<T>(key: string, value: T | null) {
     cachedUiState = nextUiState;
     pendingRemovals.add(key);
   } else {
+    if (!isJsonValue(value)) {
+      throw new TypeError(`UI state value for ${key} is not JSON serializable`);
+    }
     cachedUiState = {
       ...cachedUiState,
       [key]: value,

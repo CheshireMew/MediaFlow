@@ -2,7 +2,6 @@ import { create } from "zustand";
 import type { SubtitleSegment } from "../types/task";
 import type {
   GlossaryTerm,
-  NullableExecutionMode,
   TranslationTargetLanguage,
 } from "../services/domain";
 import {
@@ -13,6 +12,7 @@ import {
   persistStoredTranslationPreferences,
   restoreStoredTranslationPreferences,
   type TranslationExecutionMode,
+  type TranslationPreferenceMode,
 } from "../services/persistence/translationPreferences";
 import {
   subscribeUiStateSettingsInitialized,
@@ -23,9 +23,10 @@ import {
   writeWorkspaceStateValue,
 } from "../services/persistence/workspaceState";
 
-export type TranslatorMode = TranslationExecutionMode;
-export type TranslatorResultMode = TranslatorMode | null;
-export type TranslatorExecutionMode = NullableExecutionMode;
+export type TranslatorMode = TranslationPreferenceMode;
+export type TranslatorExecutionMode = TranslationExecutionMode;
+export type TranslatorResultMode = TranslatorExecutionMode | null;
+export type TranslatorSubmissionPhase = "idle" | "submitting";
 
 export interface TranslatorState {
   // Data
@@ -38,16 +39,11 @@ export interface TranslatorState {
   // UI State
   targetLang: TranslationTargetLanguage;
   mode: TranslatorMode;
-  activeMode: TranslatorMode | null;
+  activeMode: TranslatorExecutionMode | null;
   resultMode: TranslatorResultMode;
   taskId: string | null;
-  taskStatus: string;
-  progress: number;
-  taskError: string | null;
-  executionMode: TranslatorExecutionMode;
-
-  // Computed
-  isTranslating: () => boolean;
+  submissionPhase: TranslatorSubmissionPhase;
+  localError: string | null;
 
   // Actions
   setSourceSegments: (segments: SubtitleSegment[]) => void;
@@ -58,13 +54,11 @@ export interface TranslatorState {
   setTargetSubtitleRef: (reference: MediaReference | null) => void;
   setTargetLang: (lang: TranslationTargetLanguage) => void;
   setMode: (mode: TranslatorMode) => void;
-  setActiveMode: (mode: TranslatorMode | null) => void;
+  setActiveMode: (mode: TranslatorExecutionMode | null) => void;
   setResultMode: (mode: TranslatorResultMode) => void;
   setTaskId: (id: string | null) => void;
-  setTaskStatus: (status: string) => void;
-  setProgress: (progress: number) => void;
-  setTaskError: (error: string | null) => void;
-  setExecutionMode: (mode: TranslatorExecutionMode) => void;
+  setSubmissionPhase: (phase: TranslatorSubmissionPhase) => void;
+  setLocalError: (error: string | null) => void;
   resetTask: () => void;
 }
 
@@ -144,7 +138,7 @@ const initialTranslationPreferences = restoreStoredTranslationPreferences();
 const initialTranslatorSnapshot = readTranslatorSnapshot();
 let lastPersistedTranslatorState = initialTranslatorSnapshot;
 
-export const useTranslatorStore = create<TranslatorState>()((set, get) => ({
+export const useTranslatorStore = create<TranslatorState>()((set) => ({
       // Initial State
       sourceSegments: initialTranslatorSnapshot.sourceSegments,
       targetSegments: initialTranslatorSnapshot.targetSegments,
@@ -156,16 +150,8 @@ export const useTranslatorStore = create<TranslatorState>()((set, get) => ({
       activeMode: null,
       resultMode: initialTranslatorSnapshot.resultMode,
       taskId: null,
-      taskStatus: "",
-      progress: 0,
-      taskError: null,
-      executionMode: null,
-
-      // Computed
-      isTranslating: () => {
-        const status = get().taskStatus;
-        return status === "translating" || status === "starting";
-      },
+      submissionPhase: "idle",
+      localError: null,
 
       // Actions
       setSourceSegments: (segments) => set({ sourceSegments: segments }),
@@ -213,18 +199,14 @@ export const useTranslatorStore = create<TranslatorState>()((set, get) => ({
       setActiveMode: (activeMode) => set({ activeMode }),
       setResultMode: (resultMode) => set({ resultMode }),
       setTaskId: (id) => set({ taskId: id }),
-      setTaskStatus: (status) => set({ taskStatus: status }),
-      setProgress: (progress) => set({ progress }),
-      setTaskError: (taskError) => set({ taskError }),
-      setExecutionMode: (executionMode) => set({ executionMode }),
+      setSubmissionPhase: (submissionPhase) => set({ submissionPhase }),
+      setLocalError: (localError) => set({ localError }),
 
       resetTask: () =>
         set({
           taskId: null,
-          taskStatus: "",
-          progress: 0,
-          taskError: null,
-          executionMode: null,
+          submissionPhase: "idle",
+          localError: null,
           activeMode: null,
           resultMode: null,
           targetSubtitleRef: null,

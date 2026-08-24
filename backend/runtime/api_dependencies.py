@@ -4,9 +4,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from backend.application.audio_service import AudioApplicationService
     from backend.application.download_service import DownloadApplicationService
+    from backend.application.editor_service import EditorApplicationService
     from backend.application.glossary_service import GlossaryApplicationService
-    from backend.application.highlight_service import HighlightApplicationService
     from backend.application.settings_service import SettingsApplicationService
     from backend.application.transcription_service import TranscriptionApplicationService
     from backend.application.translation_service import TranslationApplicationService
@@ -18,7 +19,9 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class ApiDependencies:
+    audio: AudioApplicationService
     download: DownloadApplicationService
+    editor: EditorApplicationService
     transcription: TranscriptionApplicationService
     translation: TranslationApplicationService
     task_manager: TaskManager
@@ -26,5 +29,4 @@ class ApiDependencies:
     websocket_notifier: WebSocketNotifier
     settings: SettingsApplicationService
     glossary: GlossaryApplicationService
-    highlight: HighlightApplicationService
     asr_service: ASRService

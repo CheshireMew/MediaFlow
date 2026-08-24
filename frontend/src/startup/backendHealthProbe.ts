@@ -3,7 +3,12 @@ import type { HealthResponse } from "../types/api";
 
 type BackendHealthProbeResult =
   | { ok: true; health: HealthResponse }
-  | { ok: false; error: unknown };
+  | {
+      ok: false;
+      state: "starting" | "failed" | "unreachable";
+      error: unknown;
+      health?: HealthResponse;
+    };
 
 const STARTUP_HEALTH_TIMEOUT_MS = 500;
 
@@ -22,17 +27,23 @@ export async function probeBackendHealth(
       cache: "no-store",
       signal: controller.signal,
     });
+    const health = (await response.json()) as HealthResponse;
 
-    if (!response.ok) {
-      throw new Error(`Backend health check failed: ${response.status} ${response.statusText}`);
+    if (response.ok && health.status === "ready") {
+      return { ok: true, health };
     }
 
     return {
-      ok: true,
-      health: (await response.json()) as HealthResponse,
+      ok: false,
+      state: health.status === "failed" ? "failed" : "starting",
+      error: new Error(
+        health.error ||
+          `Backend health check reported ${health.status} (${response.status} ${response.statusText}).`,
+      ),
+      health,
     };
   } catch (error) {
-    return { ok: false, error };
+    return { ok: false, state: "unreachable", error };
   } finally {
     window.clearTimeout(timeout);
   }

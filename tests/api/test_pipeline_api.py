@@ -77,7 +77,7 @@ def test_prepare_pipeline_request_preserves_explicit_download_output_dir():
     assert payload["steps"][0]["params"]["output_dir"] == "D:/Explicit"
 
 
-def test_prepare_pipeline_request_does_not_inject_ui_export_timeline_settings():
+def test_prepare_pipeline_request_uses_contract_defaults_without_user_settings():
     payload = prepare(
         {
             "steps": [
@@ -92,6 +92,7 @@ def test_prepare_pipeline_request_does_not_inject_ui_export_timeline_settings():
         },
     )
 
-    assert payload["steps"][0]["params"]["options"] == {
-        "skip_subtitles": True,
-    }
+    options = payload["steps"][0]["params"]["options"]
+    assert options["skip_subtitles"] is True
+    assert options["trim_start"] == 0
+    assert options["trim_end"] == 0

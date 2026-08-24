@@ -9,11 +9,11 @@ import {
     overviewCardClassName,
     overviewInnerPanelClassName,
 } from '../components/task-monitor/overviewCardPrimitives';
-import { useTaskContext } from '../context/taskContext';
+import { useTaskStatus } from '../context/taskContext';
 
 export const DashboardPage = () => {
     const { t } = useTranslation('dashboard');
-    const { connected, remoteTasksReady } = useTaskContext();
+    const { connected, remoteTasksReady } = useTaskStatus();
     const connectionState = connected
         ? 'online'
         : remoteTasksReady

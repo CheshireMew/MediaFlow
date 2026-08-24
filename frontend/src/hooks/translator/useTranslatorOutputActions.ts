@@ -22,6 +22,7 @@ import {
   formatRelatedVideoCandidateSummary,
 } from "../../services/ui/relatedMedia";
 import { toast } from "../../utils/toast";
+import { useShallow } from "zustand/react/shallow";
 
 export function createTranslatorEditorNavigationPayload(params: {
   video: MediaReference;
@@ -42,7 +43,14 @@ export function useTranslatorOutputActions() {
     mode,
     targetSegments,
     setTargetSubtitleRef,
-  } = useTranslatorStore();
+  } = useTranslatorStore(useShallow((state) => ({
+    sourceFileRef: state.sourceFileRef,
+    targetSubtitleRef: state.targetSubtitleRef,
+    targetLang: state.targetLang,
+    mode: state.mode,
+    targetSegments: state.targetSegments,
+    setTargetSubtitleRef: state.setTargetSubtitleRef,
+  })));
   const sourceFilePath = sourceFileRef?.path ?? null;
 
   const exportSRT = useCallback(async () => {

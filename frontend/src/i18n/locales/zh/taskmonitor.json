@@ -61,6 +61,11 @@
     "retryFailed": "重试任务失败",
     "clearAllFailed": "清空任务失败",
     "deleteFailed": "删除任务失败",
+    "mediaMissing": "任务记录中的文件已被移动或删除",
+    "mediaMissingOpenManually": "任务文件已被移动或删除，请在目标页面重新选择文件",
+    "mediaResolveFailed": "无法检查任务文件，请稍后重试",
+    "showFolderFailed": "无法在文件夹中显示任务文件",
+    "outputMissingUsingSource": "输出文件已丢失，已改用仍然存在的源文件",
     "initializing": "初始化中...",
     "downloading": "下载中"
   },

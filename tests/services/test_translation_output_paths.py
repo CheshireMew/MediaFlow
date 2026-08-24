@@ -1,4 +1,17 @@
+from backend.contracts import load_contract
 from backend.services.generated_output_paths import build_suffixed_output_path
+
+
+def test_generated_output_path_contract_cases_match_backend_producer():
+    contract = load_contract("generated-output-path-contract.json")
+    assert contract["hash_algorithm"] == "sha1-utf8"
+    for case in contract["cases"]:
+        actual = build_suffixed_output_path(
+            case["source_path"],
+            case["suffix"],
+            extension=case["extension"],
+        )
+        assert actual.as_posix() == case["expected_path"], case["id"]
 
 
 def test_translation_output_path_preserves_normal_names():

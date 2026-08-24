@@ -1,7 +1,11 @@
 import type { ElectronFile } from "../../types/electron";
 import type { MediaReference as GeneratedMediaReference } from "../../types/generatedApi";
+import { getMediaExtensionsWithDot } from "../../contracts/openFileContract";
 
 export type MediaReference = GeneratedMediaReference;
+
+const VIDEO_EXTENSIONS = new Set(getMediaExtensionsWithDot("video"));
+const AUDIO_EXTENSIONS = new Set(getMediaExtensionsWithDot("audio"));
 
 type MediaReferenceDefaults = {
   name?: string | null;
@@ -46,16 +50,17 @@ function createMediaReference(params: {
   origin?: string | null;
 }): MediaReference {
   const { path, name, size, type, media_id, media_kind, role, origin } = params;
-  return {
+  const reference: MediaReference = {
     path,
     name: name?.trim() || getBasenameFromPath(path, "media"),
-    size,
-    type,
-    media_id,
-    media_kind,
-    role,
-    origin,
   };
+  if (size !== undefined) reference.size = size;
+  if (type !== undefined) reference.type = type;
+  if (media_id !== undefined) reference.media_id = media_id;
+  if (media_kind !== undefined) reference.media_kind = media_kind;
+  if (role !== undefined) reference.role = role;
+  if (origin !== undefined) reference.origin = origin;
+  return reference;
 }
 
 export function normalizeMediaReference(
@@ -123,4 +128,34 @@ export function resolveMediaReferencePath(
   reference?: Pick<MediaReference, "path"> | null,
 ) {
   return reference?.path ?? null;
+}
+
+export function resolveMediaReferenceKind(
+  reference?: Pick<MediaReference, "media_kind" | "type" | "path"> | null,
+): "video" | "audio" | null {
+  if (!reference) return null;
+
+  const explicitKind = reference.media_kind?.trim().toLowerCase();
+  if (explicitKind === "video" || explicitKind === "audio") {
+    return explicitKind;
+  }
+
+  const mimeType = reference.type?.trim().toLowerCase();
+  if (mimeType?.startsWith("video/")) return "video";
+  if (mimeType?.startsWith("audio/")) return "audio";
+
+  const lowerPath = reference.path.toLowerCase();
+  if ([...VIDEO_EXTENSIONS].some((extension) => lowerPath.endsWith(extension))) {
+    return "video";
+  }
+  if ([...AUDIO_EXTENSIONS].some((extension) => lowerPath.endsWith(extension))) {
+    return "audio";
+  }
+  return null;
+}
+
+export function isVideoMediaReference(
+  reference?: Pick<MediaReference, "media_kind" | "type" | "path"> | null,
+) {
+  return resolveMediaReferenceKind(reference) === "video";
 }

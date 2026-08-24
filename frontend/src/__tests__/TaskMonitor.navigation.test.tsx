@@ -15,7 +15,14 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("../context/taskContext", () => ({
-  useTaskContext: () => useTaskContextMock(),
+  useTaskActions: () => useTaskContextMock(),
+  useTaskStatus: () => useTaskContextMock(),
+}));
+
+vi.mock("../context/taskStoreContext", () => ({
+  useTasks: () => useTaskContextMock().tasks,
+  useTaskById: (taskId: string | null) =>
+    useTaskContextMock().tasks.find((task: { id: string }) => task.id === taskId) ?? null,
 }));
 
 vi.mock("../components/ui/confirmationContext", () => ({
@@ -348,6 +355,17 @@ describe("TaskMonitor navigation actions", () => {
   });
 
   it("navigates with the published video and subtitle artifacts", async () => {
+    installElectronMock({
+      getFileSize: vi.fn(async (targetPath: string) => {
+        if (
+          targetPath === "E:/canonical/sample.mp4"
+          || targetPath === "E:/canonical/sample_ZH-CN.srt"
+        ) {
+          return 1024;
+        }
+        throw new Error(`Missing file: ${targetPath}`);
+      }),
+    });
     useTaskContextMock.mockReturnValue({
       tasks: [
         {
@@ -406,6 +424,106 @@ describe("TaskMonitor navigation actions", () => {
           },
         },
       );
+    });
+  });
+
+  it("falls back to an existing input when the recorded output was deleted", async () => {
+    installElectronMock({
+      getFileSize: vi.fn(async (targetPath: string) => {
+        if (targetPath === "E:/source/source.mp4") return 1024;
+        throw new Error(`Missing file: ${targetPath}`);
+      }),
+    });
+    useTaskContextMock.mockReturnValue({
+      tasks: [{
+        ...BACKEND_TASK_CONTRACT_FIELDS,
+        id: "task-missing-output",
+        type: "pipeline",
+        primary_operation: "synthesis",
+        status: "completed",
+        progress: 100,
+        name: "Synthesize source.mp4",
+        message_code: "pipeline_completed",
+        message_params: {},
+        created_at: Date.now(),
+        request_params: { steps: [] },
+        result: { success: true, artifacts: [], outputs: {} },
+        artifacts: [
+          artifact("video", "output", "E:/renders/missing.mp4", "missing.mp4"),
+          artifact("video", "input", "E:/source/source.mp4", "source.mp4"),
+        ],
+      }],
+      connected: true,
+      remoteTasksReady: true,
+      tasksSettled: true,
+      pauseAllTasks: vi.fn(),
+      pauseTask: vi.fn(),
+      resumeTask: vi.fn(),
+      addTask: vi.fn(),
+      deleteTask: vi.fn(),
+      clearTasks: vi.fn(),
+    });
+
+    render(<TaskMonitor />);
+    fireEvent.click(screen.getByTitle("actions.edit.tooltip"));
+
+    await waitFor(() => {
+      expectNavigationPayload(
+        JSON.parse(sessionStorage.getItem("mediaflow:pending_file") || "null"),
+        {
+          target: "editor",
+          videoRef: { path: "E:/source/source.mp4", name: "source.mp4" },
+          subtitleRef: null,
+        },
+      );
+    });
+  });
+
+  it("opens an empty recovery page when every recorded file is missing", async () => {
+    installElectronMock({
+      getFileSize: vi.fn(async () => {
+        throw new Error("Missing file");
+      }),
+    });
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    useTaskContextMock.mockReturnValue({
+      tasks: [{
+        ...BACKEND_TASK_CONTRACT_FIELDS,
+        id: "task-all-files-missing",
+        type: "pipeline",
+        primary_operation: "download",
+        status: "completed",
+        progress: 100,
+        name: "Download missing.mp4",
+        message_code: "pipeline_completed",
+        message_params: {},
+        created_at: Date.now(),
+        request_params: { steps: [] },
+        result: { success: true, artifacts: [], outputs: {} },
+        artifacts: [artifact("video", "output", "E:/missing.mp4", "missing.mp4")],
+      }],
+      connected: true,
+      remoteTasksReady: true,
+      tasksSettled: true,
+      pauseAllTasks: vi.fn(),
+      pauseTask: vi.fn(),
+      resumeTask: vi.fn(),
+      addTask: vi.fn(),
+      deleteTask: vi.fn(),
+      clearTasks: vi.fn(),
+    });
+
+    render(<TaskMonitor />);
+    fireEvent.click(screen.getByTitle("actions.edit.tooltip"));
+
+    await waitFor(() => {
+      const navigationEvent = dispatchSpy.mock.calls
+        .map(([event]) => event as CustomEvent)
+        .find((event) => event.type === "mediaflow:navigate");
+      expect(navigationEvent?.detail).toMatchObject({
+        destination: "editor",
+        payload: { video_ref: null, subtitle_ref: null },
+      });
     });
   });
 

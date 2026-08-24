@@ -42,7 +42,7 @@ export function SmartSplitLimitSetting({ controller, t }: SmartSplitLimitSetting
               });
             }}
           >
-            {t("general.savePath")}
+            {t("general.saveSmartSplitLimit")}
           </SettingsActionButton>
           <SettingsActionButton
             variant="quiet"

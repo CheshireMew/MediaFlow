@@ -4,6 +4,8 @@ type ApiErrorOptions = {
   endpoint: string;
   kind: ApiErrorKind;
   status?: number;
+  code?: string;
+  details?: Record<string, unknown>;
   cause?: unknown;
 };
 
@@ -11,6 +13,8 @@ export class ApiError extends Error {
   readonly endpoint: string;
   readonly kind: ApiErrorKind;
   readonly status?: number;
+  readonly code?: string;
+  readonly details: Record<string, unknown>;
 
   constructor(message: string, options: ApiErrorOptions) {
     super(message, { cause: options.cause });
@@ -18,6 +22,8 @@ export class ApiError extends Error {
     this.endpoint = options.endpoint;
     this.kind = options.kind;
     this.status = options.status;
+    this.code = options.code;
+    this.details = options.details ?? {};
   }
 }
 
