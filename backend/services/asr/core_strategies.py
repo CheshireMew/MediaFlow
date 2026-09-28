@@ -1,135 +1,83 @@
-from typing import List, Any
+from typing import Any
+
 from loguru import logger
+
+from backend.core.asr_execution import is_out_of_memory
 from backend.models.subtitle_contracts import SubtitleSegment
-from backend.utils.audio_processor import AudioProcessor
 from backend.utils.segment_refiner import SegmentRefiner
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 class CoreStrategies:
-    def __init__(self, executor: ThreadPoolExecutor):
-        self.executor = executor
-
     def transcribe_direct(
-        self,
-        audio_path: str,
-        duration: float,
-        model: Any,
-        language: str | None,
-        initial_prompt: str | None,
-        vad_filter: bool,
-        progress_callback,
-    ) -> List[SubtitleSegment]:
-        """Handle short audio files directly."""
-        logger.info(f"Short audio ({duration:.2f}s). Direct transcription.")
+        self, audio_path: str, duration: float, model: Any,
+        language: str | None, initial_prompt: str | None,
+        vad_filter: bool, progress_callback,
+    ) -> list[SubtitleSegment]:
+        logger.info("Sequential ASR: duration={:.2f}s vad={}", duration, vad_filter)
         if progress_callback:
             progress_callback(20, "transcription_starting", {})
-        
-        segments_gen, info = model.transcribe(
-            audio_path, 
-            beam_size=5, 
-            language=language,
+        segments, _ = model.transcribe(
+            audio_path,
+            beam_size=5,
+            language=language if language != "auto" else None,
             vad_filter=vad_filter,
             initial_prompt=initial_prompt,
             word_timestamps=True,
-            condition_on_previous_text=False
+            condition_on_previous_text=False,
         )
-        
-        segments_list = list(segments_gen)
-        return SegmentRefiner.refine_segments(segments_list)
+        return self._collect(segments, duration, progress_callback)
 
     def transcribe_smart_split(
-        self,
-        audio_path: str,
-        duration: float,
-        model: Any,
-        language: str | None,
-        initial_prompt: str | None,
-        vad_filter: bool,
-        progress_callback,
-    ) -> List[SubtitleSegment]:
-        """Handle long audio files by splitting them based on silence."""
-        logger.info("Long audio detected. Using VAD Smart Splitting strategy.")
-        if progress_callback:
-            progress_callback(10, "asr_audio_splitting", {})
-
-        silence_intervals = AudioProcessor.detect_silence(audio_path)
-        split_points = AudioProcessor.calculate_split_points(duration, silence_intervals)
-        logger.info(f"Calculated {len(split_points)} split points: {[f'{p:.1f}s' for p in split_points]}")
-        
-        chunks = AudioProcessor.build_audio_chunk_ranges(duration, split_points)
-        logger.info(f"Prepared {len(chunks)} streaming chunk ranges.")
-        
-        if progress_callback:
-            progress_callback(
-                20,
-                "asr_chunks_progress",
-                {"completed": 0, "total": len(chunks)},
+        self, audio_path: str, duration: float, model: Any,
+        language: str | None, initial_prompt: str | None,
+        vad_filter: bool, progress_callback, *, batch_size: int = 4,
+    ) -> list[SubtitleSegment]:
+        # Use the engine's speech segmentation and timestamp restoration. This
+        # avoids arbitrary ten-minute cuts and out-of-order thread completion.
+        # A batch executes multiple speech chunks with a single model allocation.
+        if not vad_filter:
+            logger.info("ASR batching disabled because speech segmentation was explicitly disabled")
+            return self.transcribe_direct(
+                audio_path, duration, model, language, initial_prompt,
+                vad_filter, progress_callback,
             )
+        from faster_whisper import BatchedInferencePipeline
 
-        all_segments = []
-        total_chunks = len(chunks)
-        completed_chunks = 0
-        
-        try:
-            futures = {}
-            for chunk in chunks:
-                future = self.executor.submit(
-                    self._process_chunk,
-                    audio_path, chunk, model, language, initial_prompt, vad_filter
+        while True:
+            logger.info("Long audio ASR: speech chunks <=30s, batch_size={}", batch_size)
+            if progress_callback:
+                progress_callback(10, "asr_audio_splitting", {})
+            try:
+                pipeline = BatchedInferencePipeline(model=model)
+                segments, _ = pipeline.transcribe(
+                    audio_path,
+                    batch_size=batch_size,
+                    beam_size=5,
+                    language=language if language != "auto" else None,
+                    vad_filter=True,
+                    initial_prompt=initial_prompt,
+                    word_timestamps=True,
+                    chunk_length=30,
                 )
-                futures[future] = chunk
-            
-            for future in as_completed(futures):
-                res = future.result()
-                all_segments.extend(res)
-                completed_chunks += 1
-                
+                return self._collect(segments, duration, progress_callback)
+            except RuntimeError as error:
+                if not is_out_of_memory(error) or batch_size <= 1:
+                    raise
+                batch_size = max(1, batch_size // 2)
+                logger.warning("ASR memory exhausted; retrying batch_size={} with unchanged precision", batch_size)
+
+    @staticmethod
+    def _collect(segments, duration, progress_callback) -> list[SubtitleSegment]:
+        collected = []
+        try:
+            for segment in segments:
                 if progress_callback:
-                    progress = 20 + int((completed_chunks / total_chunks) * 70)
-                    progress_callback(
-                        progress,
-                        "asr_chunks_progress",
-                        {"completed": completed_chunks, "total": total_chunks},
-                    )
-
-        except Exception as e:
-            logger.error(f"Chunk transcription failed: {e}")
-            raise e
-        return all_segments
-
-    def _process_chunk(
-        self,
-        audio_path: str,
-        chunk_range,
-        model: Any,
-        language: str | None,
-        initial_prompt: str | None,
-        vad_filter: bool,
-    ) -> List[SubtitleSegment]:
-        """Process a single audio chunk."""
-        c_offset, c_end = chunk_range
-        logger.info(f"Transcribing chunk starting at {c_offset:.1f}s...")
-        audio = AudioProcessor.decode_audio_range(audio_path, c_offset, c_end)
-        segs, _ = model.transcribe(
-            audio,
-            beam_size=5, 
-            language=language, 
-            vad_filter=vad_filter,
-            initial_prompt=initial_prompt,
-            word_timestamps=True 
-        )
-        
-        # Convert generator to list
-        segs_list = list(segs)
-        
-        # Refine relative to chunk
-        refined_local = SegmentRefiner.refine_segments(segs_list)
-        
-        # Apply Offset
-        chunk_segments = []
-        for s in refined_local:
-            s.start += c_offset
-            s.end += c_offset
-            chunk_segments.append(s)
-            
-        return chunk_segments
+                    percent = min(100, int(segment.end / duration * 100)) if duration > 0 else 0
+                    progress_callback(20 + percent * 0.7, "transcription_progress", {"percent": percent})
+                collected.append(segment)
+        finally:
+            close = getattr(segments, "close", None)
+            if close:
+                close()
+        collected.sort(key=lambda segment: (segment.start, segment.end))
+        return SegmentRefiner.refine_segments(collected)

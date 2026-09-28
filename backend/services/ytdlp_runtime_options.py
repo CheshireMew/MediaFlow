@@ -6,11 +6,14 @@ from loguru import logger
 
 from backend.config import settings
 from backend.services.cookie_manager import CookieManager
+from backend.services.download_errors import YtDlpErrorCapture
+from backend.services.youtube_runtime import activate_youtube_packages, is_youtube_url, youtube_options
 
 
 class YtDlpRuntimeOptions:
     def __init__(self, *, cookie_manager: CookieManager):
         self._cookie_manager = cookie_manager
+        activate_youtube_packages()
 
     def build_base(
         self,
@@ -23,13 +26,16 @@ class YtDlpRuntimeOptions:
     ) -> dict[str, Any]:
         opts: dict[str, Any] = {
             "quiet": True,
-            "no_warnings": True,
+            "no_warnings": False,
             "ffmpeg_location": self._resolve_ffmpeg_location(),
             "retries": 10,
             "fragment_retries": 10,
             "extractor_retries": 5,
             "file_access_retries": 3,
         }
+
+        if is_youtube_url(url):
+            opts.update(youtube_options())
 
         resolved_proxy = proxy or settings.DOWNLOADER_PROXY
         if resolved_proxy:
@@ -39,8 +45,7 @@ class YtDlpRuntimeOptions:
         if resolved_cookie_file:
             opts["cookiefile"] = resolved_cookie_file
 
-        if logger_sink:
-            opts["logger"] = logger_sink
+        opts["logger"] = logger_sink if logger_sink is not None else YtDlpErrorCapture()
 
         if include_referer and "douyin" in url:
             opts["referer"] = "https://www.douyin.com/"
@@ -56,7 +61,9 @@ class YtDlpRuntimeOptions:
             return cookie_file
 
         try:
-            domain = urlparse(url).netloc
+            domain = urlparse(url).hostname or ""
+            if is_youtube_url(url):
+                domain = "youtube.com"
             detected_cookie: Optional[Path] = None
             if "x.com" in domain or "twitter.com" in domain:
                 if self._cookie_manager.has_valid_cookies("x.com"):

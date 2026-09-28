@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import math
 import os
 import shutil
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 
 from loguru import logger
 
 from backend.config import settings
-from backend.core.adapters.faster_whisper import FasterWhisperAdapter, FasterWhisperConfig
+from backend.core.adapters.faster_whisper import (
+    FasterWhisperAdapter,
+    FasterWhisperConfig,
+)
+from backend.core.asr_execution import batch_size_for, serialized_inference
 from backend.core.task_control import TaskControlRequested
 from backend.models.media_contracts import TaskArtifact, TaskResult
 from backend.models.task_result_contracts import PipelineOutputs, TranscriptionOutput
@@ -41,9 +45,7 @@ class ASRService:
         model_manager = model_manager or ModelManager()
         adapter = adapter or FasterWhisperAdapter()
         if core_strategies is None:
-            core_strategies = CoreStrategies(
-                ThreadPoolExecutor(max_workers=settings.ASR_MAX_WORKERS)
-            )
+            core_strategies = CoreStrategies()
         self._model_manager = model_manager
         self._prewarm = prewarm_manager or CliPrewarmManager(
             model_manager=model_manager,
@@ -58,6 +60,7 @@ class ASRService:
     def start_cli_prewarm(self, model_name: str = "base", device: str = "cpu") -> bool:
         return self._prewarm.start(model_name=model_name, device=device)
 
+    @serialized_inference
     def transcribe(
         self,
         *,
@@ -98,6 +101,7 @@ class ASRService:
             if use_cli:
                 segments = self._transcribe_cli(
                     audio_path=prepared_audio_path,
+                    duration=duration,
                     work_dir=work_dir,
                     model_name=model_name,
                     device=device,
@@ -139,6 +143,7 @@ class ASRService:
         self,
         *,
         audio_path,
+        duration,
         work_dir,
         model_name,
         device,
@@ -147,6 +152,9 @@ class ASRService:
         vad_filter,
         progress_callback,
     ):
+        # A cached built-in model must not keep its GPU allocation while the
+        # standalone executable loads another copy.
+        self._model_manager.clear_loaded_model()
         self._model_manager.ensure_model_downloaded(model_name, progress_callback)
         self._prewarm.join_running(
             model_name=model_name,
@@ -163,6 +171,7 @@ class ASRService:
             initial_prompt=initial_prompt,
             vad_filter=vad_filter,
             device=device,
+            batch_size=batch_size_for(duration, device, vad_filter),
         )
         return self._engines.execute_cli_with_device_fallback(config, progress_callback)
 
@@ -199,10 +208,27 @@ class ASRService:
         task_id,
         progress_callback,
     ) -> TaskResult:
+        segments = sorted(segments, key=lambda segment: (segment.start, segment.end))
         normalized = SegmentRefiner.normalize_segments(segments, rebalance=False) if segments else []
+        # Word alignment can extend the last word a few frames beyond the media.
+        # Never publish negative, non-finite, or out-of-range subtitle times.
+        bounded = []
+        for segment in normalized:
+            if not math.isfinite(segment.start) or not math.isfinite(segment.end):
+                raise ValueError("Transcription contains non-finite timestamps")
+            start = max(0.0, segment.start)
+            end = max(0.0, segment.end)
+            if duration > 0:
+                start = min(start, duration)
+                end = min(end, duration)
+            if end > start and segment.text.strip():
+                bounded.append(segment.model_copy(update={
+                    "id": str(len(bounded) + 1), "start": start, "end": end,
+                }))
+        normalized = bounded
         full_text = "\n".join(segment.text for segment in normalized)
         if progress_callback:
-            progress_callback(100, "transcription_completed", {})
+            progress_callback(95, "transcription_progress", {"percent": 100})
 
         srt_path = SubtitleWriter.save_srt(normalized, audio_path)
         subtitle_ref = create_media_ref(
@@ -210,8 +236,11 @@ class ASRService:
             "application/x-subrip",
             role="output",
         )
-        if subtitle_ref is None:
+        if not srt_path or subtitle_ref is None:
             return TaskResult(success=False, error="Transcription output could not be referenced")
+
+        if progress_callback:
+            progress_callback(100, "transcription_completed", {})
 
         logger.success("Transcription complete. Total segments: {}", len(normalized))
         return TaskResult(

@@ -40,6 +40,7 @@ temp/
 .tmp/
 .benchmarks/
 .pytest_cache/
+.cache/
 models/
 !backend/models/
 backend/models/**

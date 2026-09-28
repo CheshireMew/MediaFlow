@@ -19,6 +19,7 @@
   },
   "actions": {
     "smartSplit": "Smart Split",
+    "smartSplitHint": "Split long text with estimated internal times. Transcribe again for precise alignment.",
     "smartSplitting": "Splitting...",
     "translate": "Translate",
     "openEditor": "Open Editor"

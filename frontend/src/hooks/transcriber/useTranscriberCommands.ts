@@ -211,26 +211,25 @@ export function useTranscriberCommands({
       return;
     }
 
-    const textLimit = await settingsService.getSmartSplitTextLimit();
-    const { segments, splitCount } = smartSplitSubtitleSegments(result.segments, {
-      textLimit,
-    });
-
-    if (splitCount === 0) {
-      toast.info(t("results.smartSplitNoChanges"));
-      return;
-    }
-
-    const nextResult = {
-      ...result,
-      segments,
-      text: segments.map((segment) => segment.text).join(" ").trim(),
-    };
-
-    const targetPath = nextResult.subtitle_ref?.path ?? null;
-
+    setIsSmartSplitting(true);
     try {
-      setIsSmartSplitting(true);
+      const textLimit = await settingsService.getSmartSplitTextLimit();
+      const { segments, splitCount } = smartSplitSubtitleSegments(result.segments, {
+        textLimit,
+        recursive: true,
+      });
+
+      if (splitCount === 0) {
+        toast.info(t("results.smartSplitNoChanges"));
+        return;
+      }
+
+      const nextResult = {
+        ...result,
+        segments,
+        text: segments.map((segment) => segment.text).join(" ").trim(),
+      };
+      const targetPath = nextResult.subtitle_ref?.path ?? null;
 
       if (targetPath && isDesktopRuntime()) {
         await fileService.writeFile(targetPath, toSRT(nextResult.segments));

@@ -3,7 +3,6 @@ import time
 import uuid
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
 
 import yt_dlp
 from loguru import logger
@@ -13,7 +12,9 @@ from backend.models.media_contracts import TaskResult
 from backend.models.task_result_contracts import DownloadOutput, PipelineOutputs
 from backend.models.task_message import TaskProgressCallback
 from backend.services.cookie_manager import CookieManager
-from backend.services.download_errors import classify_download_error
+from backend.services.download_errors import (
+    DownloadExtractionError, YtDlpErrorCapture, classify_download_error,
+)
 from backend.services.media_url import normalize_media_url
 from backend.services.platforms.factory import PlatformFactory
 from backend.services.ytdlp_runtime_options import YtDlpRuntimeOptions
@@ -314,12 +315,17 @@ class DownloaderService:
         ydl_opts: dict,
         require_prepared_path: bool,
     ) -> tuple[dict, Optional[str]]:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if not info:
-                raise RuntimeError("No info returned")
-            prepared_path = ydl.prepare_filename(info) if require_prepared_path else None
-        return info, prepared_path
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if not info:
+                    raise RuntimeError("No info returned")
+                prepared_path = ydl.prepare_filename(info) if require_prepared_path else None
+            return info, prepared_path
+        except Exception as exc:
+            capture = ydl_opts.get("logger")
+            detail = f"{capture.text}\n{exc}" if isinstance(capture, YtDlpErrorCapture) else str(exc)
+            raise DownloadExtractionError(classify_download_error(detail, url=url)) from exc
 
     def _execute_yt_dlp_download_with_retry(
         self,
@@ -333,6 +339,9 @@ class DownloaderService:
         max_attempts = 3
         last_error: Exception | None = None
         for attempt in range(1, max_attempts + 1):
+            capture = ydl_opts.get("logger")
+            if isinstance(capture, YtDlpErrorCapture):
+                capture.clear()
             try:
                 return self._execute_yt_dlp_download(
                     url=url,
@@ -351,83 +360,9 @@ class DownloaderService:
                 )
                 time.sleep(delay)
 
-        if last_error and self._should_retry_with_browser_cookies(
-            last_error,
-            classify_url=classify_url,
-            ydl_opts=ydl_opts,
-        ):
-            cookie_opts = self._with_browser_cookies(ydl_opts, browser="chrome")
-            logger.info(
-                "Retrying YouTube {} with browser cookies from Chrome after yt-dlp error: {}",
-                operation_name,
-                last_error,
-            )
-            try:
-                return self._execute_yt_dlp_download(
-                    url=url,
-                    ydl_opts=cookie_opts,
-                    require_prepared_path=require_prepared_path,
-                )
-            except Exception as chrome_error:
-                edge_opts = self._with_browser_cookies(ydl_opts, browser="edge")
-                logger.info(
-                    "Retrying YouTube {} with browser cookies from Edge after Chrome cookie retry failed: {}",
-                    operation_name,
-                    chrome_error,
-                )
-                return self._execute_yt_dlp_download(
-                    url=url,
-                    ydl_opts=edge_opts,
-                    require_prepared_path=require_prepared_path,
-                )
-
         if last_error:
             raise last_error
         raise RuntimeError("yt-dlp download failed without an error")
-
-    @classmethod
-    def _should_retry_with_browser_cookies(
-        cls,
-        error: Exception,
-        *,
-        classify_url: str,
-        ydl_opts: dict,
-    ) -> bool:
-        if ydl_opts.get("cookiefile") or ydl_opts.get("cookiesfrombrowser"):
-            return False
-        if not cls._is_youtube_url(classify_url):
-            return False
-
-        classified = classify_download_error(error, url=classify_url)
-        if classified.code in {"auth_required", "rate_limited"}:
-            return True
-
-        error_text = str(error).lower()
-        return any(
-            marker in error_text
-            for marker in (
-                "sabr",
-                "po token",
-                "potoken",
-                "visitor data",
-                "http error 403",
-                "forbidden",
-            )
-        )
-
-    @staticmethod
-    def _with_browser_cookies(ydl_opts: dict, *, browser: str) -> dict:
-        next_opts = dict(ydl_opts)
-        next_opts["cookiesfrombrowser"] = (browser, None, None, None)
-        return next_opts
-
-    @staticmethod
-    def _is_youtube_url(url: str) -> bool:
-        try:
-            domain = urlparse(url).netloc.lower()
-        except Exception:
-            return False
-        return domain == "youtu.be" or domain.endswith(".youtube.com") or domain == "youtube.com"
 
     def _build_phase_progress_callback(
         self,

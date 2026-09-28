@@ -74,6 +74,56 @@ def test_yt_dlp_install_restores_previous_package_when_commit_fails(tmp_path, mo
     assert not (package_root / "yt_dlp-2026.08.23.dist-info").exists()
 
 
+@pytest.mark.parametrize("fail_commit", [False, True])
+def test_yt_dlp_and_ejs_commit_or_roll_back_together(tmp_path, monkeypatch, fail_commit):
+    _configure_tool_runtime(monkeypatch, tmp_path)
+    target = settings.PYTHON_TOOL_PACKAGES_DIR
+    for name in ("yt_dlp", "yt_dlp_ejs"):
+        (target / name).mkdir(parents=True)
+        (target / name / "__init__.py").write_text("old")
+        (target / f"{name}-previous.dist-info").mkdir()
+    wheel_path, ejs_path = tmp_path / "yt.whl", tmp_path / "ejs.whl"
+    _write_yt_dlp_wheel(wheel_path, "2026.8.19")
+    with zipfile.ZipFile(ejs_path, "w") as wheel:
+        wheel.writestr("yt_dlp_ejs/__init__.py", "new")
+        wheel.writestr("yt_dlp_ejs/yt/solver/core.min.js", "// solver")
+        wheel.writestr("yt_dlp_ejs-0.8.0.dist-info/METADATA", "Version: 0.8.0\n")
+    if fail_commit:
+        monkeypatch.setattr(RuntimeToolInstaller, "_record_tool_provenance",
+                            lambda **_: (_ for _ in ()).throw(RuntimeError("commit failed")))
+    kwargs = dict(version="2026.8.19", source_url="https://example.com/yt.whl",
+                  sha256="a" * 64, ejs_wheel_path=ejs_path)
+    if fail_commit:
+        with pytest.raises(RuntimeError, match="commit failed"):
+            RuntimeToolInstaller._install_yt_dlp_wheel(wheel_path, **kwargs)
+        for name in ("yt_dlp", "yt_dlp_ejs"):
+            assert (target / name / "__init__.py").read_text() == "old"
+            assert (target / f"{name}-previous.dist-info").exists()
+    else:
+        RuntimeToolInstaller._install_yt_dlp_wheel(wheel_path, **kwargs)
+        assert (target / "yt_dlp_ejs" / "yt" / "solver" / "core.min.js").read_text() == "// solver"
+        assert (target / "yt_dlp_ejs-0.8.0.dist-info").is_dir()
+        assert (target / "yt_dlp-2026.8.19.dist-info").is_dir()
+
+
+def test_updater_fetches_ejs_version_required_by_downloaded_wheel(tmp_path, monkeypatch):
+    _configure_tool_runtime(monkeypatch, tmp_path)
+    wheel_path = tmp_path / "yt.whl"
+    with zipfile.ZipFile(wheel_path, "w") as wheel:
+        wheel.writestr("yt_dlp-2026.8.19.dist-info/METADATA",
+                       'Requires-Dist: yt-dlp-ejs==0.8.0; extra == "default"\n')
+    fetched, downloads = [], []
+    def fetch(url):
+        fetched.append(url)
+        return {"filename": "ejs.whl", "url": "https://example.com/ejs.whl", "size": 100, "sha256": "a" * 64}
+    monkeypatch.setattr(RuntimeToolInstaller, "_fetch_pypi_wheel", staticmethod(fetch))
+    monkeypatch.setattr(RuntimeToolInstaller, "_download_with_resume", staticmethod(lambda *args, **kw: downloads.append((args, kw))))
+    result = RuntimeToolInstaller(None)._download_matching_ejs(wheel_path)
+    assert fetched == ["https://pypi.org/pypi/yt-dlp-ejs/0.8.0/json"]
+    assert result == settings.TOOL_DOWNLOAD_DIR / "ejs.whl"
+    assert downloads[0][1]["expected_sha256"] == "a" * 64
+
+
 def test_faster_whisper_install_restores_previous_directory_when_commit_fails(
     tmp_path,
     monkeypatch,

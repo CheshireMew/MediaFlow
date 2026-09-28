@@ -69,7 +69,9 @@ class AnalyzerService:
                     download=False,
                 )
             except Exception as e:
-                classified_error = classify_download_error(e, url=url)
+                classified_error = classify_download_error(
+                    f"{error_capture.text}\n{e}", url=url,
+                )
                 logger.error(
                     f"yt-dlp extraction failed [{classified_error.code}]: {e}"
                 )
@@ -82,7 +84,7 @@ class AnalyzerService:
                     fallback_code="no_info",
                 )
                 logger.error(
-                    f"yt-dlp extraction returned no info [{classified_error.code}]"
+                    f"yt-dlp extraction returned no info [{classified_error.code}]: {classified_error.original}"
                 )
                 raise DownloadExtractionError(classified_error)
 

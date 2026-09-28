@@ -48,6 +48,7 @@ export function TranscriptionResults({
           <div className="flex items-center gap-3">
             <button
               onClick={onSmartSplit}
+              title={t("actions.smartSplitHint")}
               disabled={isSmartSplitting}
               className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 disabled:bg-white/5 text-amber-300 disabled:text-slate-400 border border-amber-500/20 disabled:border-white/5 text-sm font-medium transition-colors"
             >

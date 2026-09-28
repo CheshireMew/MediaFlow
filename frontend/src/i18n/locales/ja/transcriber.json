@@ -19,6 +19,7 @@
   },
   "actions": {
     "smartSplit": "スマート分割",
+    "smartSplitHint": "長い文章を分割し、内部の時刻を推定します。正確な同期には再度文字起こししてください。",
     "smartSplitting": "分割中...",
     "translate": "翻訳",
     "openEditor": "エディターを開く"

@@ -1,5 +1,10 @@
 from loguru import logger
 
+from backend.core.asr_execution import (
+    LONG_AUDIO_SECONDS,
+    batch_size_for,
+    is_out_of_memory,
+)
 from backend.models.subtitle_contracts import SubtitleSegment
 from backend.services.runtime_diagnostics import RuntimeDiagnosticsService
 
@@ -16,10 +21,22 @@ class ASREngineExecutor:
         progress_callback=None,
     ) -> list[SubtitleSegment]:
         active_config = config
+        attempt = 0
         while True:
             try:
                 return self._adapter.execute(active_config, progress_callback)
             except RuntimeError as cli_error:
+                if is_out_of_memory(cli_error):
+                    if active_config.batch_size <= 1:
+                        raise
+                    attempt += 1
+                    batch_size = max(1, active_config.batch_size // 2)
+                    logger.warning("ASR memory exhausted; retrying batch_size={} with unchanged precision", batch_size)
+                    active_config = active_config.model_copy(update={
+                        "batch_size": batch_size,
+                        "output_dir": config.output_dir / f"retry-{attempt}",
+                    })
+                    continue
                 if (
                     active_config.device == "cuda"
                     and self.is_cuda_unavailable_error(cli_error)
@@ -27,7 +44,11 @@ class ASREngineExecutor:
                     logger.warning("CLI CUDA unavailable, retrying on CPU: {}", cli_error)
                     if progress_callback:
                         progress_callback(0, "asr_cuda_cpu_fallback", {"device": "cpu"})
-                    active_config = active_config.model_copy(update={"device": "cpu"})
+                    attempt += 1
+                    active_config = active_config.model_copy(update={
+                        "device": "cpu", "batch_size": 1,
+                        "output_dir": config.output_dir / f"retry-{attempt}",
+                    })
                     continue
                 raise
 
@@ -44,7 +65,7 @@ class ASREngineExecutor:
         progress_callback=None,
     ) -> list[SubtitleSegment]:
         model = self._model_manager.load_model(model_name, device, progress_callback)
-        if duration > 900:
+        if duration > LONG_AUDIO_SECONDS:
             return self._core_strategies.transcribe_smart_split(
                 audio_path,
                 duration,
@@ -53,6 +74,7 @@ class ASREngineExecutor:
                 initial_prompt,
                 vad_filter,
                 progress_callback,
+                batch_size=batch_size_for(duration, device, vad_filter),
             )
         return self._core_strategies.transcribe_direct(
             audio_path,
@@ -66,4 +88,4 @@ class ASREngineExecutor:
 
     @staticmethod
     def is_cuda_unavailable_error(error: Exception) -> bool:
-        return RuntimeDiagnosticsService.is_cuda_runtime_unavailable_error(error)
+        return not is_out_of_memory(error) and RuntimeDiagnosticsService.is_cuda_runtime_unavailable_error(error)

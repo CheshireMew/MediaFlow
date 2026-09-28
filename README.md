@@ -141,6 +141,18 @@ npm --prefix frontend run test:e2e
 - **GPU / CUDA**: 推荐 NVIDIA 显卡以获得最佳转录速度。内置 `faster-whisper` GPU 转录需要 CUDA 12 运行库、cuBLAS for CUDA 12、cuDNN 9 for CUDA 12。
 - **安装依赖**: Python 依赖见 `pyproject.toml`，前端依赖见 `frontend/package.json`
 
+### YouTube 下载
+
+公开内容默认匿名下载，不自动读取 Chrome 或 Edge 的账号 Cookie。YouTube 解析使用 Node.js 22+、与 yt-dlp 匹配的 EJS，以及 BgUtils 播放凭证组件；临时播放凭证不等于账号登录信息。Windows 安装脚本会安装这些组件，已有环境可以单独运行：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/setup/setup_youtube.py
+```
+
+安装需要 Git、Node.js 和 npm。组件默认保存在 `D:\Tools\MediaFlow\youtube`，可通过 `MEDIAFLOW_YOUTUBE_TOOLS_DIR` 指定其它目录（安装和运行须使用同一设置）。安装保留固定版本的上游源码与锁文件，按需运行，不启动常驻服务。完成安装后重启已打开的应用。设置页更新 yt-dlp 时会同步更新其要求的 EJS；更新失败时保留原来的解析器和 EJS。
+
+平台限流、机器人验证、403 拒绝访问、播放凭证失败和 Cookie 读取失败会分别显示。匿名下载仍受平台和网络出口限制，私有或会员内容需要用户自己的访问权限。
+
 ### Faster-Whisper-XXL 冷启动
 
 Faster-Whisper-XXL 是独立 CLI 包，每次 CLI 转录都会启动一个新的 `faster-whisper-xxl.exe` 进程。该包目录包含大量 Torch/CUDA/ONNX DLL，冷启动时 Windows 需要加载这些依赖，可能在进程第一行输出前出现几十秒等待。Windows Defender 实时防护可能放大这个等待，但排除 Defender 后仍可能受冷文件缓存、DLL 动态加载、CUDA/Torch 初始化影响。这个等待不属于 MediaFlow 的 CUDA 就绪检查；CLI 自带 CUDA 运行库，内置 `faster-whisper` 的 CUDA DLL 检查不适用于它。

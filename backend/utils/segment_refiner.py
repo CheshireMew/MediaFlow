@@ -4,7 +4,9 @@ Segment Refiner — Whisper output optimization and fragment merging.
 Whisper segment normalization and timing helpers.
 """
 from typing import List
+
 from loguru import logger
+
 from backend.models.subtitle_contracts import SubtitleSegment
 from backend.utils.subtitle_text_splitter import (
     MAX_WORD_COUNT_CJK,
@@ -18,7 +20,6 @@ from backend.utils.subtitle_text_splitter import (
     join_subtitle_text,
     rebalance_long_subtitle_segment,
 )
-
 
 SENTENCE_END = ".?!。？！…"
 SOFT_BREAK = ",;:，；：、"
@@ -74,7 +75,9 @@ class SegmentRefiner:
         for segment in segments:
             if segment.end <= segment.start or not segment.text.strip():
                 continue
-            if cleaned and segment.text == cleaned[-1].text:
+            if (cleaned and segment.text == cleaned[-1].text
+                    and segment.start == cleaned[-1].start
+                    and segment.end == cleaned[-1].end):
                 cleaned[-1].end = max(cleaned[-1].end, segment.end)
                 continue
             cleaned.append(segment)
@@ -109,23 +112,24 @@ class SegmentRefiner:
         pause_ms: int = 500,
         max_chars: int = 80,
     ) -> List[SubtitleSegment]:
+        if not any(getattr(segment, "words", None) for segment in segments):
+            return []
         flat_words = []
-        has_real_words = False
         for segment in segments:
             words = list(getattr(segment, "words", None) or [])
             if words:
-                has_real_words = True
                 flat_words.extend(words)
             else:
-                flat_words.append(
-                    _PseudoWord(
-                        float(segment.start),
-                        float(segment.end),
-                        str(getattr(segment, "text", "")),
-                    )
-                )
+                # Missing alignment must not turn a whole paragraph into one
+                # indivisible pseudo-word when other segments do have words.
+                parts = SegmentRefiner._split_without_word_timing(segment)
+                for part in parts:
+                    text = part.text
+                    if flat_words and not is_mainly_cjk(text):
+                        text = " " + text
+                    flat_words.append(_PseudoWord(part.start, part.end, text))
 
-        if not has_real_words or not flat_words:
+        if not flat_words:
             return []
 
         result: List[SubtitleSegment] = []
@@ -181,14 +185,24 @@ class SegmentRefiner:
         return SegmentRefiner._postprocess_word_segments(result)
 
     @staticmethod
+    def _split_without_word_timing(segment) -> List[SubtitleSegment]:
+        cue = SubtitleSegment(
+            id="0", start=float(segment.start), end=float(segment.end),
+            text=str(getattr(segment, "text", "")).strip(),
+        )
+        parts = rebalance_long_subtitle_segment(cue)
+        if len(parts) > 1:
+            logger.warning(
+                "ASR cue has no word timestamps: split {:.2f}-{:.2f}s into {} parts; internal times are estimated",
+                cue.start, cue.end, len(parts),
+            )
+        return parts
+
+    @staticmethod
     def refine_segments(segments) -> List[SubtitleSegment]:
         """
-        优化 Whisper 输出的字幕分段。
-        
-        新策略：信任 Whisper 的自然断句！
-        1. 保留 Whisper 的 segment 边界（它有语义理解能力）
-        2. 只拆分超长的 segment（使用 word 时间戳精确分割）
-        3. 合并过短的 orphan segment
+        Prefer word times and pauses for readable ASR cues. When word alignment
+        is absent, split overlong text with estimated internal timestamps.
         """
         if not segments:
             return []
@@ -221,10 +235,9 @@ class SegmentRefiner:
             
             # Case 2: segment 太长，需要用 word 时间戳拆分
             if not getattr(seg, 'words', None):
-                # 没有 word 时间戳，直接保留（备用方案）
-                refined.append(SubtitleSegment(
-                    id="0", start=seg.start, end=seg.end, text=text
-                ))
+                # Keep text intact, but do not publish minute-long paragraphs.
+                # These internal boundaries are estimates, not word alignment.
+                refined.extend(SegmentRefiner._split_without_word_timing(seg))
                 continue
             
             # 使用 word 时间戳，在标点/连接词处智能拆分超长 segment

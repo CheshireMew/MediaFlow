@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
+from loguru import logger
+
 
 @dataclass(frozen=True)
 class ClassifiedDownloadError:
@@ -28,19 +30,26 @@ class DownloadExtractionError(ValueError):
 class YtDlpErrorCapture:
     def __init__(self):
         self._errors: list[str] = []
+        self._warnings: list[str] = []
 
     def debug(self, message: str) -> None:
-        pass
+        logger.debug("yt-dlp: {}", message)
 
     def warning(self, message: str) -> None:
-        pass
+        self._warnings.append(str(message))
+        logger.warning("yt-dlp: {}", message)
 
     def error(self, message: str) -> None:
         self._errors.append(str(message))
+        logger.error("yt-dlp: {}", message)
+
+    def clear(self) -> None:
+        self._warnings.clear()
+        self._errors.clear()
 
     @property
     def text(self) -> str:
-        return "\n".join(self._errors)
+        return "\n".join([*self._warnings, *self._errors])
 
 
 def classify_download_error(
@@ -49,9 +58,96 @@ def classify_download_error(
     url: str | None = None,
     fallback_code: str = "unknown",
 ) -> ClassifiedDownloadError:
+    if isinstance(error, DownloadExtractionError):
+        return error.error
     original = _error_text(error)
     normalized = original.lower()
     domain = _domain_from_url(url)
+
+    # Specific transport/runtime failures must precede the generic login phrases
+    # in yt-dlp's advice (which often mentions cookies even for public videos).
+    if _contains_any(
+        normalized,
+        (
+            "could not copy chrome cookie database",
+            "failed to decrypt with dpapi",
+            "failed to load cookies",
+            "does not look like a netscape format cookies file",
+        ),
+    ):
+        return ClassifiedDownloadError(
+            code="cookie_read_failed",
+            title="无法读取登录信息",
+            cause="Cookie 文件无法读取，或浏览器的 Cookie 数据库被占用、无法解密。",
+            action="检查所提供的 Cookie 文件；浏览器读取失败并不代表视频必须登录。",
+            original=original,
+        )
+
+    if _contains_any(
+        normalized,
+        ("http error 429", "too many requests", "rate limit", "temporarily blocked"),
+    ):
+        return ClassifiedDownloadError(
+            code="rate_limited",
+            title="平台暂时限制访问",
+            cause="平台限制了当前网络出口或会话的请求。",
+            action="暂停重试，稍后再试；也可检查代理并换用可正常播放该视频的网络出口。",
+            original=original,
+        )
+
+    if _contains_any(
+        normalized,
+        (
+            "confirm you’re not a bot",
+            "confirm you're not a bot",
+            "confirm you are not a bot",
+        ),
+    ):
+        return ClassifiedDownloadError(
+            code="bot_check",
+            title="平台要求机器人验证",
+            cause="当前请求没有通过平台验证，这不代表视频需要账号权限。",
+            action="检查网络或代理出口，稍后再试；若浏览器也要求验证，请先在浏览器完成验证。",
+            original=original,
+        )
+
+    if _contains_any(
+        normalized,
+        (
+            "no supported javascript runtime",
+            "javascript runtime is not available",
+            "challenge solving failed",
+            "n challenge solving failed",
+            "ejs scripts",
+            "yt-dlp-ejs",
+        ),
+    ):
+        return ClassifiedDownloadError(
+            code="youtube_runtime",
+            title="YouTube 解析组件不可用",
+            cause="JavaScript 运行环境或 EJS 解析组件缺失、版本不匹配或执行失败。",
+            action="修复 YouTube 下载组件并更新 yt-dlp 后重试。",
+            original=original,
+        )
+
+    if _contains_any(normalized, ("sabr", "po token", "potoken")):
+        return ClassifiedDownloadError(
+            code="youtube_playback",
+            title="YouTube 播放验证失败",
+            cause="没有取得可用的播放凭证或音视频地址。",
+            action="检查 YouTube 下载组件和代理；更新 yt-dlp 后重试。",
+            original=original,
+        )
+
+    if _contains_any(normalized, ("proxy", "socks", "407 proxy authentication")):
+        return ClassifiedDownloadError(
+            code="proxy",
+            title="代理连接失败",
+            cause="当前代理不可用，或代理需要认证。",
+            action="检查下载代理配置后重试。",
+            retryable=True,
+            original=original,
+        )
 
     if "bad guest token" in normalized and _is_twitter_domain(domain):
         return ClassifiedDownloadError(
@@ -66,15 +162,11 @@ def classify_download_error(
     if _contains_any(
         normalized,
         (
-            "cookies",
-            "cookie",
             "login",
             "log in",
             "sign in",
             "authentication",
             "authenticated",
-            "http error 403",
-            "forbidden",
             "private",
             "members-only",
             "age-restricted",
@@ -86,6 +178,15 @@ def classify_download_error(
             cause="目标内容需要登录、Cookie 或额外权限才能读取。",
             action=f"请先在浏览器登录 {domain or '对应网站'}，再重新解析或下载。",
             cookie_domain=domain,
+            original=original,
+        )
+
+    if _contains_any(normalized, ("http error 403", "forbidden")):
+        return ClassifiedDownloadError(
+            code="access_denied",
+            title="平台拒绝下载请求",
+            cause="服务器返回 403，可能与播放凭证、下载地址或网络出口有关。",
+            action="更新下载组件并检查代理后重试；403 本身不能证明需要登录。",
             original=original,
         )
 
@@ -111,35 +212,6 @@ def classify_download_error(
             cause="连接目标网站时超时、被中断，或证书/DNS 解析失败。",
             action="检查网络和代理设置后重试。",
             retryable=True,
-            original=original,
-        )
-
-    if _contains_any(normalized, ("proxy", "socks", "407 proxy authentication")):
-        return ClassifiedDownloadError(
-            code="proxy",
-            title="代理连接失败",
-            cause="当前代理不可用，或代理需要认证。",
-            action="检查下载代理配置后重试。",
-            retryable=True,
-            original=original,
-        )
-
-    if _contains_any(
-        normalized,
-        (
-            "too many requests",
-            "http error 429",
-            "rate limit",
-            "temporarily blocked",
-        ),
-    ):
-        return ClassifiedDownloadError(
-            code="rate_limited",
-            title="访问过于频繁",
-            cause="平台临时限制了当前访问。",
-            action="等待一段时间后重试，必要时切换网络或登录后再试。",
-            retryable=True,
-            cookie_domain=domain,
             original=original,
         )
 
@@ -263,7 +335,9 @@ def _domain_from_url(url: str | None) -> str | None:
     except Exception:
         return None
     if domain.startswith("www."):
-        return domain[4:]
+        domain = domain[4:]
+    if domain == "youtu.be" or domain.endswith(".youtube.com"):
+        return "youtube.com"
     return domain or None
 
 

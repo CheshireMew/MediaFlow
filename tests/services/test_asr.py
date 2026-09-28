@@ -3,18 +3,20 @@ import struct
 import subprocess
 import time
 import wave
-from concurrent.futures import ThreadPoolExecutor
-from types import SimpleNamespace
-import pytest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
-from backend.services.asr import ASRService
+
+import pytest
+
 from backend.core.adapters.faster_whisper import FasterWhisperAdapter
+from backend.core.task_control import TaskPauseRequested
+from backend.models.subtitle_contracts import SubtitleSegment
+from backend.services.asr import ASRService
 from backend.services.asr.cli_prewarm import CliPrewarmManager
 from backend.services.asr.core_strategies import CoreStrategies
 from backend.services.asr.engine_executor import ASREngineExecutor
 from backend.services.asr.model_manager import ModelManager
-from backend.utils.subtitle_writer import SubtitleWriter
 from backend.utils.audio_processor import AudioProcessor
 from backend.utils.segment_refiner import SegmentRefiner
 from backend.utils.subtitle_text_splitter import (
@@ -22,8 +24,8 @@ from backend.utils.subtitle_text_splitter import (
     count_text_units,
     find_text_split_index,
 )
-from backend.models.subtitle_contracts import SubtitleSegment
-from backend.core.task_control import TaskPauseRequested
+from backend.utils.subtitle_writer import SubtitleWriter
+
 
 @pytest.fixture
 def asr_dependencies(monkeypatch):
@@ -39,7 +41,7 @@ def asr_dependencies(monkeypatch):
     )
     model_manager = ModelManager()
     adapter = FasterWhisperAdapter()
-    core_strategies = CoreStrategies(ThreadPoolExecutor(max_workers=1))
+    core_strategies = CoreStrategies()
     prewarm = CliPrewarmManager(model_manager=model_manager, adapter=adapter)
     engines = ASREngineExecutor(
         model_manager=model_manager,
@@ -203,7 +205,7 @@ def test_cli_transcribe_waits_for_running_prewarm_for_same_profile(
     cli_path.write_bytes(b"fake")
     resolved_key = (str(cli_path.resolve()), "base", "cuda")
     prewarm_thread = MagicMock()
-    prewarm_thread.is_alive.side_effect = [True, False]
+    prewarm_thread.is_alive.side_effect = [True, True, False, False]
     prewarm_thread.join = MagicMock()
     prewarm_process = MagicMock()
     prewarm_process.poll.return_value = None
@@ -240,7 +242,7 @@ def test_cli_transcribe_waits_for_running_prewarm_for_same_profile(
     assert result.success is True
     prewarm_process.terminate.assert_not_called()
     prewarm_process.wait.assert_not_called()
-    prewarm_thread.join.assert_called_once_with(timeout=CliPrewarmManager.JOIN_TIMEOUT_SECONDS)
+    prewarm_thread.join.assert_called_once_with(timeout=0.5)
 
 
 def test_cli_prewarm_expires_completed_profile(asr_service, monkeypatch, tmp_path):
@@ -558,72 +560,16 @@ def test_decode_audio_range_streams_only_requested_interval(monkeypatch, tmp_pat
     assert kwargs["check"] is True
 
 
-def test_smart_split_streams_ranges_without_chunk_files(asr_dependencies, monkeypatch, tmp_path):
-    long_name = (
-        "X 上的 CopyRebeldia Hoy una industria entera dejo de tener sentido "
-        "un tio publico en GitHub un repo que convierte cualquier foto en un mundo 3D"
-    )
-    audio_path = tmp_path / f"{long_name}.mp4"
-    audio_path.write_bytes(b"fake")
-    monkeypatch.setattr(
-        "backend.services.asr.core_strategies.AudioProcessor.detect_silence",
-        lambda path: [],
-    )
-    monkeypatch.setattr(
-        "backend.services.asr.core_strategies.AudioProcessor.calculate_split_points",
-        lambda duration, intervals: [600.0],
-    )
-
-    decoded_ranges: list[tuple[str, float, float]] = []
-
-    def fake_decode(path, start, end):
-        decoded_ranges.append((path, start, end))
-        return [0.0]
-
-    transcribe_kwargs = []
-
-    class FakeModel:
-        def transcribe(self, *_args, **_kwargs):
-            transcribe_kwargs.append(_kwargs)
-            return iter([]), None
-
-    monkeypatch.setattr(
-        "backend.services.asr.core_strategies.AudioProcessor.decode_audio_range",
-        fake_decode,
-    )
-
+def test_long_audio_honors_explicitly_disabled_vad(asr_dependencies):
+    model = MagicMock()
+    model.transcribe.return_value = (iter([]), None)
     segments = asr_dependencies.core_strategies.transcribe_smart_split(
-        str(audio_path),
-        1200.0,
-        FakeModel(),
-        "en",
-        None,
-        False,
-        None,
+        "audio.flac", 1200.0, model, "en", None, False, None,
     )
-
     assert segments == []
-    assert transcribe_kwargs == [
-        {
-            "beam_size": 5,
-            "language": "en",
-            "vad_filter": False,
-            "initial_prompt": None,
-            "word_timestamps": True,
-        },
-        {
-            "beam_size": 5,
-            "language": "en",
-            "vad_filter": False,
-            "initial_prompt": None,
-            "word_timestamps": True,
-        },
-    ]
-    assert decoded_ranges == [
-        (str(audio_path), 0.0, 600.0),
-        (str(audio_path), 600.0, 1200.0),
-    ]
-    assert list(tmp_path.glob("**/chunk_*.wav")) == []
+    model.transcribe.assert_called_once()
+    assert model.transcribe.call_args.args == ("audio.flac",)
+    assert model.transcribe.call_args.kwargs["vad_filter"] is False
 
 
 def test_extract_segment_uses_precise_wav_trim(monkeypatch, tmp_path):

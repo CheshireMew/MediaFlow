@@ -27,30 +27,30 @@ def test_downloader_init():
     assert service.output_dir == settings.WORKSPACE_DIR
 
 
-def test_youtube_auth_error_retries_with_browser_cookies(monkeypatch):
+@pytest.mark.parametrize("message", [
+    "HTTP Error 403: Forbidden",
+    "Sign in to confirm you're not a bot. Use --cookies for authentication.",
+    "HTTP Error 429: Too Many Requests",
+])
+def test_youtube_rejection_does_not_probe_browser_profiles(monkeypatch, message):
     service = make_downloader()
     calls = []
 
     def fake_execute(*, url, ydl_opts, require_prepared_path):
         calls.append(dict(ydl_opts))
-        if len(calls) == 1:
-            raise RuntimeError("HTTP Error 403: Forbidden")
-        return {"title": "ok"}, "video.mp4"
+        raise RuntimeError(message)
 
     monkeypatch.setattr(service, "_execute_yt_dlp_download", fake_execute)
 
-    info, path = service._execute_yt_dlp_download_with_retry(
-        url="https://www.youtube.com/watch?v=abc",
-        ydl_opts={},
-        require_prepared_path=True,
-        classify_url="https://www.youtube.com/watch?v=abc",
-        operation_name="media download",
-    )
-
-    assert info["title"] == "ok"
-    assert path == "video.mp4"
-    assert calls[0].get("cookiesfrombrowser") is None
-    assert calls[1]["cookiesfrombrowser"] == ("chrome", None, None, None)
+    with pytest.raises(RuntimeError, match=message):
+        service._execute_yt_dlp_download_with_retry(
+            url="https://www.youtube.com/watch?v=abc",
+            ydl_opts={},
+            require_prepared_path=True,
+            classify_url="https://www.youtube.com/watch?v=abc",
+            operation_name="media download",
+        )
+    assert calls == [{}]
 
 
 def test_youtube_auth_error_does_not_read_browser_cookies_when_cookiefile_is_set(monkeypatch):

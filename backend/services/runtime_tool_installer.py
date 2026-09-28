@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -52,11 +53,13 @@ class RuntimeToolInstaller:
                 expected_size=int(release["size"]),
                 expected_sha256=str(release["sha256"]),
             )
+            ejs_wheel = self._download_matching_ejs(wheel_path)
             self._install_yt_dlp_wheel(
                 wheel_path,
                 version=str(release["version"]),
                 source_url=str(release["url"]),
                 sha256=str(release["sha256"]),
+                ejs_wheel_path=ejs_wheel,
             )
 
         return {
@@ -129,7 +132,11 @@ class RuntimeToolInstaller:
 
     @staticmethod
     def _fetch_latest_yt_dlp_wheel() -> dict[str, str | int]:
-        request = Request(PYPI_YT_DLP_JSON_URL, headers={"User-Agent": "MediaFlow setup"})
+        return RuntimeToolInstaller._fetch_pypi_wheel(PYPI_YT_DLP_JSON_URL)
+
+    @staticmethod
+    def _fetch_pypi_wheel(url: str) -> dict[str, str | int]:
+        request = Request(url, headers={"User-Agent": "MediaFlow setup"})
         try:
             with urlopen(request, timeout=60) as response:
                 payload = json.loads(response.read().decode("utf-8"))
@@ -153,6 +160,20 @@ class RuntimeToolInstaller:
                 }
         raise RuntimeError("No yt-dlp wheel found in PyPI release metadata")
 
+    def _download_matching_ejs(self, wheel_path: Path) -> Path:
+        with zipfile.ZipFile(wheel_path) as wheel:
+            metadata_path = next(name for name in wheel.namelist() if name.endswith(".dist-info/METADATA"))
+            metadata = wheel.read(metadata_path).decode("utf-8")
+        match = re.search(r"(?im)^Requires-Dist:\s*yt-dlp-ejs\s*==\s*([\w.]+)", metadata)
+        if not match:
+            raise RuntimeError("yt-dlp wheel does not specify a supported EJS version; previous installation was kept")
+        release = self._fetch_pypi_wheel(f"https://pypi.org/pypi/yt-dlp-ejs/{match[1]}/json")
+        ejs_path = settings.TOOL_DOWNLOAD_DIR / str(release["filename"])
+        self._download_with_resume(str(release["url"]), ejs_path,
+                                   expected_size=int(release["size"]),
+                                   expected_sha256=str(release["sha256"]))
+        return ejs_path
+
     @staticmethod
     def _install_yt_dlp_wheel(
         wheel_path: Path,
@@ -160,6 +181,7 @@ class RuntimeToolInstaller:
         version: str,
         source_url: str,
         sha256: str,
+        ejs_wheel_path: Path | None = None,
     ) -> None:
         target = settings.PYTHON_TOOL_PACKAGES_DIR
         target.mkdir(parents=True, exist_ok=True)
@@ -172,37 +194,43 @@ class RuntimeToolInstaller:
         installed_entries: list[Path] = []
         previous_entries: list[tuple[Path, Path]] = []
         try:
-            with zipfile.ZipFile(wheel_path) as wheel:
-                for member in wheel.infolist():
-                    relative = PurePosixPath(member.filename)
-                    if relative.is_absolute() or ".." in relative.parts or not relative.parts:
-                        raise RuntimeError(f"Unsafe yt-dlp wheel member: {member.filename}")
-                    top_level = relative.parts[0]
-                    is_managed_member = top_level == "yt_dlp" or (
-                        top_level.startswith("yt_dlp-") and top_level.endswith(".dist-info")
-                    )
-                    if not is_managed_member:
-                        continue
-                    destination = staged_root.joinpath(*relative.parts)
-                    if member.is_dir():
-                        destination.mkdir(parents=True, exist_ok=True)
-                        continue
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    with wheel.open(member) as source, destination.open("wb") as output:
-                        shutil.copyfileobj(source, output)
+            wheel_packages = [(wheel_path, "yt_dlp")]
+            if ejs_wheel_path is not None:
+                wheel_packages.append((ejs_wheel_path, "yt_dlp_ejs"))
+            staged_entries = []
+            for source_wheel, package_name in wheel_packages:
+                with zipfile.ZipFile(source_wheel) as wheel:
+                    for member in wheel.infolist():
+                        relative = PurePosixPath(member.filename)
+                        if relative.is_absolute() or ".." in relative.parts or not relative.parts:
+                            raise RuntimeError(f"Unsafe wheel member: {member.filename}")
+                        top_level = relative.parts[0]
+                        if not (top_level == package_name or (
+                            top_level.startswith(f"{package_name}-") and top_level.endswith(".dist-info")
+                        )):
+                            continue
+                        destination = staged_root.joinpath(*relative.parts)
+                        if member.is_dir():
+                            destination.mkdir(parents=True, exist_ok=True)
+                            continue
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        with wheel.open(member) as source, destination.open("wb") as output:
+                            shutil.copyfileobj(source, output)
+                package_dir = staged_root / package_name
+                metadata_dirs = list(staged_root.glob(f"{package_name}-*.dist-info"))
+                if not (package_dir / "__init__.py").is_file() or len(metadata_dirs) != 1:
+                    raise RuntimeError(f"The {package_name} wheel is incomplete")
+                staged_entries.extend([package_dir, *metadata_dirs])
 
-            package_dir = staged_root / "yt_dlp"
-            metadata_dirs = list(staged_root.glob("yt_dlp-*.dist-info"))
-            if not (package_dir / "__init__.py").is_file() or len(metadata_dirs) != 1:
-                raise RuntimeError("The yt-dlp wheel did not contain one complete package and metadata directory")
-
-            stale_entries = [*target.glob("yt_dlp"), *target.glob("yt_dlp-*.dist-info")]
+            stale_entries = []
+            for _, package_name in wheel_packages:
+                stale_entries.extend([*target.glob(package_name), *target.glob(f"{package_name}-*.dist-info")])
             for stale in stale_entries:
                 backup = previous_root / stale.name
                 stale.replace(backup)
                 previous_entries.append((stale, backup))
 
-            for staged in [package_dir, *metadata_dirs]:
+            for staged in staged_entries:
                 destination = target / staged.name
                 staged.replace(destination)
                 installed_entries.append(destination)

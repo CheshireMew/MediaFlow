@@ -43,6 +43,9 @@ class ModelManager:
             from faster_whisper import WhisperModel
 
             try:
+                # Inference admission guarantees that the old model is idle.
+                # Release it before loading another large model on the same GPU.
+                self.clear_loaded_model()
                 compute_type = "float16" if device == "cuda" else "int8"
                 local_model_path = self.ensure_model_downloaded(model_name, progress_callback)
 

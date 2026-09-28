@@ -117,6 +117,7 @@ export function smartSplitSubtitleSegments<T extends SubtitleSegmentLike>(
   segments: T[],
   options?: {
     textLimit?: number | null;
+    recursive?: boolean;
   },
 ): {
   segments: T[];
@@ -132,7 +133,28 @@ export function smartSplitSubtitleSegments<T extends SubtitleSegmentLike>(
     }
 
     splitCount += 1;
-    return split;
+    if (!options?.recursive) {
+      return split;
+    }
+
+    // A historical ASR cue can contain an entire unpunctuated paragraph.
+    // Continue splitting long children, while keeping timing and word guards.
+    const pending = [...split].reverse();
+    const completed: T[] = [];
+    while (pending.length > 0) {
+      const part = pending.pop()!;
+      const children = isLongSmartSplitSegment(
+        part.text,
+        part.end - part.start,
+        textLimit,
+      ) ? getLengthTriggeredSmartSplit(part) : null;
+      if (children) {
+        pending.push(children[1], children[0]);
+      } else {
+        completed.push(part);
+      }
+    }
+    return completed;
   });
 
   return {

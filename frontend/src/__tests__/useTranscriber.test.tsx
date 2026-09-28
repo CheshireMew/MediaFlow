@@ -666,5 +666,6 @@ describe("useTranscriber", () => {
       "E:/canonical/sample.srt",
       expect.any(String),
     );
+    expect(result.current.state.result?.segments.length).toBeGreaterThan(2);
   });
 });

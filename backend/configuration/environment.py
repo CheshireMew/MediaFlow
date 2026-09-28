@@ -74,7 +74,6 @@ class SettingsValues:
     FFPROBE_PATH: str = "ffprobe"
     FASTER_WHISPER_CLI_PATH: str = ""
     ENABLE_FASTER_WHISPER_CLI: bool = False
-    ASR_MAX_WORKERS: int = 2
     LLM_TRANSLATION_MAX_CONCURRENCY: int = 3
     LLM_MODEL: str = "gpt-4o-mini"
     ASR_MODELS: dict = field(default_factory=lambda: DEFAULT_ASR_MODELS.copy())
@@ -127,7 +126,6 @@ def load_settings_values(
         ENABLE_FASTER_WHISPER_CLI=_parse_bool(
             env.get("ENABLE_FASTER_WHISPER_CLI"), defaults.ENABLE_FASTER_WHISPER_CLI
         ),
-        ASR_MAX_WORKERS=_parse_int(env.get("ASR_MAX_WORKERS"), defaults.ASR_MAX_WORKERS),
         LLM_TRANSLATION_MAX_CONCURRENCY=_parse_int(
             env.get("LLM_TRANSLATION_MAX_CONCURRENCY"),
             defaults.LLM_TRANSLATION_MAX_CONCURRENCY,

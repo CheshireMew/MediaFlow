@@ -19,6 +19,7 @@
   },
   "actions": {
     "smartSplit": "智能分割",
+    "smartSplitHint": "按文字拆分长段落，并估算内部时间点；精确对齐需重新转录。",
     "smartSplitting": "分割中...",
     "translate": "翻译",
     "openEditor": "打开编辑器"

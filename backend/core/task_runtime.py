@@ -85,6 +85,9 @@ class TaskRuntimeContext:
                 message_params,
             )
 
+        # Workers can poll control while the engine is silent without publishing
+        # identical progress events or repeatedly checkpointing SQLite.
+        _callback.checkpoint = self.checkpoint
         return _callback
 
     async def run_blocking(self, worker: Callable[[], Any]) -> Any:

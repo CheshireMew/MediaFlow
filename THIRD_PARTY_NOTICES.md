@@ -17,6 +17,8 @@ The JavaScript and Python package-manager dependencies retain their own licenses
 | Component | Distribution boundary |
 | --- | --- |
 | yt-dlp | MediaFlow downloads the official PyPI wheel, verifies the release SHA-256, retains its `.dist-info` metadata and license files, and records source, version, and digest. The upstream project is released under the Unlicense. |
+| yt-dlp-ejs | YouTube JavaScript challenge scripts, installed with yt-dlp and updated to its required version. Upstream: <https://github.com/yt-dlp/ejs>; Unlicense, MIT and ISC. Wheel metadata and bundled license files are retained. |
+| BgUtils POT Provider 2.0.0 | Anonymous YouTube playback attestation. The setup script installs the unmodified GPL-3.0-only provider/plugin from <https://github.com/Brainicism/bgutil-ytdlp-pot-provider>, retaining the versioned source, license and npm lockfile under the YouTube tools directory. Its dependencies retain their respective licenses. |
 | Faster-Whisper-XXL command-line package | MediaFlow downloads the pinned Purfview release archive into writable runtime storage and retains the complete archive contents, including any notices supplied by that distribution. The upstream repository does not declare one repository-wide license; the archive contains separately licensed components. Review those included notices before redistribution. |
 | faster-whisper, CTranslate2, and speech-recognition model weights | Python engines and model weights are resolved or downloaded separately. Engine code and each model card/license govern their respective files. Model provenance records the repository and immutable revision. |
 

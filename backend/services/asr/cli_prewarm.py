@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import wave
@@ -12,6 +12,7 @@ from loguru import logger
 
 from backend.config import settings
 from backend.core.adapters.faster_whisper import FasterWhisperConfig
+from backend.core.asr_execution import INFERENCE_LOCK, check_control
 
 
 class CliPrewarmManager:
@@ -94,7 +95,11 @@ class CliPrewarmManager:
         if progress_callback:
             progress_callback(0, "asr_cli_warmup_waiting", {})
 
-        thread.join(timeout=self.JOIN_TIMEOUT_SECONDS)
+        deadline = time.monotonic() + self.JOIN_TIMEOUT_SECONDS
+        while thread.is_alive() and time.monotonic() < deadline:
+            thread.join(timeout=0.5)
+            if progress_callback:
+                check_control(progress_callback, (0, "asr_cli_warmup_waiting", {}))
         if not thread.is_alive():
             logger.info("Faster-Whisper CLI prewarm finished before transcription for {}", profile_key)
             return
@@ -133,6 +138,8 @@ class CliPrewarmManager:
     def _run(self, cli_path: str, model_name: str, device: str) -> None:
         profile_key = (cli_path, model_name, device)
         started_at = time.perf_counter()
+        acquired = INFERENCE_LOCK.acquire(blocking=False)
+        process = None
         logger.info(
             "Faster-Whisper CLI prewarm started: model={} device={} cli={}",
             model_name,
@@ -141,6 +148,10 @@ class CliPrewarmManager:
         )
 
         try:
+            if not acquired:
+                logger.info("Faster-Whisper CLI prewarm skipped while transcription is active")
+                return
+            self._model_manager.clear_loaded_model()
             cached_model_path = self._model_manager.get_cached_model_path(model_name)
             if not cached_model_path.exists() or not any(cached_model_path.iterdir()):
                 logger.info(
@@ -155,8 +166,8 @@ class CliPrewarmManager:
                 / "faster-whisper-cli-prewarm"
                 / self._profile_dir_name(model_name, device)
             )
-            if output_dir.exists():
-                shutil.rmtree(output_dir, ignore_errors=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_dir = Path(tempfile.mkdtemp(prefix="run-", dir=output_dir))
 
             config = FasterWhisperConfig(
                 audio_path=audio_path,
@@ -205,10 +216,21 @@ class CliPrewarmManager:
         except Exception as exc:
             logger.warning("Faster-Whisper CLI prewarm failed: {}", exc)
         finally:
-            with self._lock:
-                self._threads.pop(profile_key, None)
-                self._processes.pop(profile_key, None)
-                self._cancelled_profiles.discard(profile_key)
+            try:
+                if process is not None and process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+            finally:
+                if acquired:
+                    INFERENCE_LOCK.release()
+                with self._lock:
+                    self._threads.pop(profile_key, None)
+                    self._processes.pop(profile_key, None)
+                    self._cancelled_profiles.discard(profile_key)
 
     @staticmethod
     def _ensure_audio() -> Path:

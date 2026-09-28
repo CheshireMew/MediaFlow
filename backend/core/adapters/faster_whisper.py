@@ -1,19 +1,26 @@
+import json
 import os
-import subprocess
+import queue
 import re
+import subprocess
+import threading
 import time
+from collections import deque
 from pathlib import Path
-from typing import Optional, List
-from pydantic import BaseModel, Field, field_validator
+from types import SimpleNamespace
+from typing import List, Optional
 
 from loguru import logger
-from backend.core.adapters.base import BaseAdapter
+from pydantic import BaseModel, Field, field_validator
+
 from backend.config import settings
-from backend.utils.subtitle_parser import SubtitleParser
-from backend.models.transcription_contracts import DEFAULT_ASR_VAD_FILTER
+from backend.core.adapters.base import BaseAdapter
+from backend.core.asr_execution import check_control
 from backend.models.subtitle_contracts import SubtitleSegment
 from backend.models.task_message import TaskProgressCallback
-
+from backend.models.transcription_contracts import DEFAULT_ASR_VAD_FILTER
+from backend.utils.segment_refiner import SegmentRefiner
+from backend.utils.subtitle_parser import SubtitleParser
 
 WINDOWS_SHUTDOWN_CRASH_EXIT_CODES = frozenset(
     {
@@ -39,6 +46,7 @@ class FasterWhisperConfig(BaseModel):
     max_line_width: Optional[int] = Field(default=None, ge=10, le=200)
     max_line_count: Optional[int] = 1
     device: str = "cpu"
+    batch_size: int = Field(default=1, ge=1, le=4)
     # Sentence segmentation (faster-whisper-xxl)
     sentence: bool = True
     max_comma: int = 20
@@ -93,11 +101,16 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
             "--model", self._resolve_model_name(config),
             "--model_dir", str(config.model_dir),
             "-o", str(config.output_dir),
-            "--output_format", "srt",
+            "--output_format", "json", "srt",
             "--print_progress",
             "--vad_filter", "True" if config.vad_filter else "False",
-            "--device", config.device
+            "--device", config.device,
+            "--compute_type", "float16" if config.device.startswith("cuda") else "int8",
+            "--word_timestamps", "True",
+            "--beep_off",
         ]
+        if config.batch_size > 1 and config.vad_filter:
+            cmd.extend(["--batched", "--batch_size", str(config.batch_size), "--chunk_length", "30"])
 
         # Keep line layout controls opt-in. The default cue shaping should come
         # from sentence segmentation rather than forced in-cue line wrapping.
@@ -170,50 +183,88 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
             process.pid,
             time.perf_counter() - started_at,
         )
-        notable_output: list[str] = []
+        notable_output = deque(maxlen=80)
+        output_queue = queue.Queue()
+
+        def read_output():
+            try:
+                for line in iter(process.stdout.readline, ""):
+                    output_queue.put(line)
+            finally:
+                output_queue.put(None)
+
+        reader = threading.Thread(target=read_output, name="asr-cli-output", daemon=True)
+        reader.start()
+        progress_state = (0, "transcription_starting", {})
+        last_callback_at = time.monotonic()
         
-        while True:
-            line = process.stdout.readline()
-            if not line and process.poll() is not None:
-                break
-            if line:
-                line = line.strip()
-                now = time.perf_counter()
-                if first_output_at is None:
-                    first_output_at = now
-                    logger.info(
-                        "Faster-Whisper CLI first output after {:.3f}s: {!r}",
-                        first_output_at - started_at,
-                        line,
-                    )
-                if cuda_ready_at is None and "running on:" in line:
-                    cuda_ready_at = now
-                    logger.info("Faster-Whisper CLI runtime ready after {:.3f}s", now - started_at)
-                if process_start_at is None and line.startswith("Starting to process:"):
-                    process_start_at = now
-                    logger.info("Faster-Whisper CLI media processing started after {:.3f}s", now - started_at)
-                if language_detect_at is None and "Detecting language" in line:
-                    language_detect_at = now
-                    logger.info("Faster-Whisper CLI language detection started after {:.3f}s", now - started_at)
-                # Progress parsing
-                if match := re.search(r"(\d+)%", line):
-                    if first_progress_at is None:
-                        first_progress_at = now
-                        logger.info("Faster-Whisper CLI first progress after {:.3f}s", now - started_at)
-                    p = max(0, min(100, int(match.group(1))))
-                    if "MB" not in line and "kB" not in line and progress_callback: 
-                        progress_callback(
-                            10 + int(p * 0.8),
-                            "transcription_progress",
-                            {"percent": p},
+        try:
+            while True:
+                try:
+                    line = output_queue.get(timeout=0.25)
+                except queue.Empty:
+                    line = ""
+                if progress_callback and time.monotonic() - last_callback_at >= 0.5:
+                    # Also checks pause/cancel during model loading and silent output.
+                    check_control(progress_callback, progress_state)
+                    last_callback_at = time.monotonic()
+                if line is None:
+                    if process.poll() is not None:
+                        break
+                    continue
+                if not line and not reader.is_alive() and process.poll() is not None:
+                    break
+                if line:
+                    line = line.strip()
+                    now = time.perf_counter()
+                    if first_output_at is None:
+                        first_output_at = now
+                        logger.info(
+                            "Faster-Whisper CLI first output after {:.3f}s: {!r}",
+                            first_output_at - started_at,
+                            line,
                         )
-                
-                if not any(x in line for x in ["items/s", "it/s", "MB/s", ".bin", ".json"]) and line.strip():
-                     logger.debug(f"CLI: {line}")
-                     notable_output.append(line)
-        
-        # Wait for process to really finish
-        process.wait()
+                    if cuda_ready_at is None and "running on:" in line:
+                        cuda_ready_at = now
+                        logger.info("Faster-Whisper CLI runtime ready after {:.3f}s", now - started_at)
+                    if process_start_at is None and line.startswith("Starting to process:"):
+                        process_start_at = now
+                        logger.info("Faster-Whisper CLI media processing started after {:.3f}s", now - started_at)
+                    if language_detect_at is None and "Detecting language" in line:
+                        language_detect_at = now
+                        logger.info("Faster-Whisper CLI language detection started after {:.3f}s", now - started_at)
+                    # Progress parsing
+                    if match := re.search(r"^\s*(\d+)%\s*\|", line):
+                        if first_progress_at is None:
+                            first_progress_at = now
+                            logger.info("Faster-Whisper CLI first progress after {:.3f}s", now - started_at)
+                        p = max(0, min(100, int(match.group(1))))
+                        if "MB" not in line and "kB" not in line and progress_callback:
+                            progress_state = (
+                                10 + int(p * 0.8),
+                                "transcription_progress",
+                                {"percent": p},
+                            )
+                            progress_callback(*progress_state)
+                            last_callback_at = time.monotonic()
+
+                    if not any(x in line for x in ["items/s", "it/s", "MB/s", ".bin", ".json"]) and line.strip():
+                        logger.debug(f"CLI: {line}")
+                        notable_output.append(line)
+
+            process.wait()
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+            reader.join(timeout=2)
+            close = getattr(process.stdout, "close", None)
+            if close:
+                close()
         logger.info(
             "Faster-Whisper CLI process exited: returncode={} total_elapsed={:.3f}s",
             process.returncode,
@@ -221,9 +272,10 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         )
 
         # Post-process: Find SRT first to see if work was actually done
-        srt_files = sorted(config.output_dir.glob("*.srt"))
-        srt_path = next((path for path in srt_files if path.stat().st_size > 0), None)
-        has_output = srt_path is not None
+        srt_path = config.output_dir / f"{config.audio_path.stem}.srt"
+        srt_path = srt_path if srt_path.exists() and srt_path.stat().st_size else None
+        json_path = config.output_dir / f"{config.audio_path.stem}.json"
+        has_output = srt_path is not None or json_path.is_file()
 
         if process.returncode != 0:
             if (
@@ -250,6 +302,17 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
         if unknown_model_line:
             raise RuntimeError(unknown_model_line)
 
+        if json_path.is_file():
+            # JSON preserves word times, unlike the CLI sentence writer which
+            # can merge minutes of unpunctuated Chinese into a single cue.
+            data = json.loads(json_path.read_text(encoding="utf-8-sig"))
+            segments = []
+            for item in data["segments"]:
+                words = [SimpleNamespace(**word) for word in item.get("words", [])]
+                segments.append(SimpleNamespace(**{**item, "words": words}))
+            segments.sort(key=lambda segment: (segment.start, segment.end))
+            return SegmentRefiner.refine_segments(segments)
+
         if srt_path is None:
             logger.info(
                 "Faster-Whisper CLI completed without speech segments: vad_filter={}",
@@ -257,18 +320,19 @@ class FasterWhisperAdapter(BaseAdapter[FasterWhisperConfig, List[SubtitleSegment
             )
             return []
 
-        content = srt_path.read_text(encoding='utf-8')
+        content = srt_path.read_text(encoding='utf-8-sig')
         
-        return SubtitleParser.parse_srt(content)
+        return SegmentRefiner.refine_segments(SubtitleParser.parse_srt(content))
 
     @staticmethod
     def _summarize_cli_failure(notable_output: List[str]) -> str:
         if not notable_output:
             return "No CLI details captured."
+        notable_output = list(notable_output)
 
         combined_output = "\n".join(notable_output)
         cuda_match = re.search(r"(CUDA failed with error .+)", combined_output)
-        if cuda_match:
+        if cuda_match and "driver version is insufficient" in cuda_match.group(1).lower():
             return (
                 f"{cuda_match.group(1)}. CUDA 不可用：NVIDIA 驱动版本低于当前 CLI 的 CUDA 运行时要求。"
                 "请切换到 CPU，或更新 NVIDIA 驱动后再使用 GPU/CUDA。"

@@ -75,10 +75,15 @@ Invoke-Step "Checking Node.js and npm" {
     $node = Get-Command node -ErrorAction SilentlyContinue
     $npm = Get-Command npm -ErrorAction SilentlyContinue
     if (-not $node -or -not $npm) {
-        throw "Node.js/npm was not found. Install Node.js 18+ first, then rerun setup.bat."
+        throw "Node.js/npm was not found. Install Node.js 22+ first, then rerun setup.bat."
     }
     node --version
     npm --version
+}
+
+Invoke-Step "Installing YouTube playback components" {
+    & $venvPython scripts/setup/setup_youtube.py
+    if ($LASTEXITCODE -ne 0) { throw "YouTube playback component setup failed." }
 }
 
 Invoke-Step "Installing frontend dependencies" {
