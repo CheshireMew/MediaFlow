@@ -16,7 +16,8 @@
   "setActive": "有効にする",
   "setup": {
     "aiRequired": "先に設定で AI プロバイダーを追加して有効にしてください",
-    "cliRequired": "先に設定で faster-whisper CLI のパスを指定してください"
+    "cliRequired": "先に設定で faster-whisper CLI のパスを指定してください",
+    "cliInvalid": "CLI 実行ファイルが見つからないか無効です。設定で選択し直してください：{{path}}"
   },
   "windowControls": {
     "minimize": "ウィンドウを最小化",

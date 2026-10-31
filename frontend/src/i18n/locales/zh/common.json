@@ -16,7 +16,8 @@
   "setActive": "设为激活",
   "setup": {
     "aiRequired": "请先在设置中添加并启用 AI 供应商",
-    "cliRequired": "请先在设置中填写 faster-whisper CLI 路径"
+    "cliRequired": "请先在设置中填写 faster-whisper CLI 路径",
+    "cliInvalid": "找不到 CLI 引擎文件，请在设置中重新选择：{{path}}"
   },
   "windowControls": {
     "minimize": "最小化窗口",

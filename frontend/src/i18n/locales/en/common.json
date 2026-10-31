@@ -16,7 +16,8 @@
   "setActive": "Set Active",
   "setup": {
     "aiRequired": "Add and activate an AI provider in Settings first",
-    "cliRequired": "Set the faster-whisper CLI path in Settings first"
+    "cliRequired": "Set the faster-whisper CLI path in Settings first",
+    "cliInvalid": "The CLI executable is missing or invalid. Select it again in Settings: {{path}}"
   },
   "windowControls": {
     "minimize": "Minimize window",

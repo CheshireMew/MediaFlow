@@ -11,6 +11,7 @@ from pathlib import Path
 from loguru import logger
 
 from backend.config import settings
+from backend.configuration.cli_path import resolve_cli_path
 from backend.core.adapters.faster_whisper import FasterWhisperConfig
 from backend.core.asr_execution import INFERENCE_LOCK, check_control
 
@@ -31,11 +32,12 @@ class CliPrewarmManager:
 
     @staticmethod
     def available_cli_path() -> Path | None:
-        configured_path = settings.FASTER_WHISPER_CLI_PATH or ""
-        if not configured_path:
-            return None
-        cli_path = Path(configured_path)
-        return cli_path.resolve() if cli_path.exists() else None
+        cli_path = resolve_cli_path(
+            settings.FASTER_WHISPER_CLI_PATH,
+            settings.tool_file_candidates("Faster-Whisper-XXL", "faster-whisper-xxl.exe"),
+        )
+        settings.FASTER_WHISPER_CLI_PATH = str(cli_path) if cli_path else ""
+        return cli_path
 
     @classmethod
     def profile_key(

@@ -19,8 +19,8 @@ export class AiTranslationSetupRequiredError extends Error {
 export class CliTranscriptionSetupRequiredError extends Error {
   code = CLI_TRANSCRIPTION_SETUP_REQUIRED;
 
-  constructor() {
-    super(i18n.t("setup.cliRequired", { ns: "common" }));
+  constructor(message = i18n.t("setup.cliRequired", { ns: "common" })) {
+    super(message);
     this.name = "CliTranscriptionSetupRequiredError";
   }
 }
@@ -71,11 +71,15 @@ export async function ensureCliTranscriptionConfigured(
   const settings = await settingsService.getSettings();
   const cliPath = settings.faster_whisper_cli_path?.trim();
 
-  if (cliPath) {
+  if (cliPath && settings.faster_whisper_cli_available) {
     return;
   }
 
-  toast.warning(i18n.t("setup.cliRequired", { ns: "common" }), 3500);
+  const message = i18n.t(cliPath ? "setup.cliInvalid" : "setup.cliRequired", {
+    ns: "common",
+    path: cliPath,
+  });
+  toast.warning(message, 5000);
   NavigationService.navigate("settings", { settings_tab: "general" });
-  throw new CliTranscriptionSetupRequiredError();
+  throw new CliTranscriptionSetupRequiredError(message);
 }

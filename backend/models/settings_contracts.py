@@ -20,6 +20,7 @@ class UserSettings(BaseModel):
     llm_providers: list[LLMProvider] = Field(default_factory=list)
     default_download_path: str | None = None
     faster_whisper_cli_path: str | None = None
+    faster_whisper_cli_available: bool = False
     language: str = "zh"
     auto_execute_flow: bool = False
     auto_trim_silence: bool = False

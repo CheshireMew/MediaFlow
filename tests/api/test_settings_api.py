@@ -113,3 +113,30 @@ def test_settings_writes_use_explicit_patch_endpoints(isolated_api_client):
         json={"language": "zh"},
     )
     assert full_replace_response.status_code == 405
+
+
+def test_cli_preferences_reject_missing_file_and_report_live_availability(
+    isolated_api_client, tmp_path, monkeypatch
+):
+    from backend.config import settings
+
+    monkeypatch.setattr(settings, "TOOL_DIR", tmp_path / "tools")
+    monkeypatch.setattr(settings, "BIN_DIR", tmp_path / "bin")
+    cli = tmp_path / "faster-whisper-xxl.exe"
+    invalid = isolated_api_client.patch(
+        "/api/v1/settings/preferences", json={"faster_whisper_cli_path": str(cli)}
+    )
+    assert invalid.status_code == 400
+    assert "executable is missing or invalid" in invalid.json()["message"]
+
+    cli.write_bytes(b"test executable")
+    saved = isolated_api_client.patch(
+        "/api/v1/settings/preferences", json={"faster_whisper_cli_path": str(cli)}
+    )
+    assert saved.status_code == 200
+    assert saved.json()["faster_whisper_cli_available"] is True
+
+    cli.rename(tmp_path / "moved.exe")
+    loaded = isolated_api_client.get("/api/v1/settings/")
+    assert loaded.status_code == 200
+    assert loaded.json()["faster_whisper_cli_available"] is False

@@ -69,6 +69,7 @@
     "saveSmartSplitLimit": "Save Smart Split Length",
     "cliPath": "Faster-Whisper CLI Path",
     "cliPathDesc": "Set the local faster-whisper CLI executable path. This path is used when the CLI transcription engine is selected.",
+    "cliPathInvalid": "Could not save: select an existing CLI executable file, not a folder.",
     "cliPathPlaceholder": "Example: D:\\Tools\\faster-whisper-xxl.exe",
     "cliInstall": "Download CLI",
     "cliInstalling": "Downloading...",

@@ -243,6 +243,32 @@ describe("useTranscriber", () => {
     );
   });
 
+  it("blocks a stale CLI path before creating a transcription task", async () => {
+    vi.mocked(apiClient.getSettings).mockResolvedValue({
+      faster_whisper_cli_path: "D:/old-location/faster-whisper-xxl.exe",
+      faster_whisper_cli_available: false,
+    });
+    vi.mocked(apiClient.prewarmFasterWhisperCli).mockResolvedValue({
+      status: "skipped", message: "unavailable",
+    });
+    const { result } = renderHook(() => useTranscriber());
+    act(() => {
+      result.current.actions.setEngine("cli");
+      result.current.actions.setFile(Object.assign(
+        new File(["audio"], "sample.wav", { type: "audio/wav" }),
+        { path: "E:/sample.wav" },
+      ));
+    });
+
+    await act(async () => {
+      await result.current.actions.startTranscription();
+    });
+
+    expect(apiClient.runPipeline).not.toHaveBeenCalled();
+    expect(addTaskMock).not.toHaveBeenCalled();
+    expect(result.current.state.isUploading).toBe(false);
+  });
+
   it("submits transcription as a backend task in desktop runtime", async () => {
     vi.mocked(apiClient.runPipeline).mockResolvedValue({
       task_id: "backend-transcribe-task",

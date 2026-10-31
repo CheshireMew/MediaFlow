@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, MutableMapping
 
+from backend.configuration.cli_path import resolve_cli_path
 from backend.configuration.defaults import RUNTIME_DIR_ENV
 
 
@@ -91,10 +92,11 @@ def detect_binary_paths(
     local_ffprobe = paths.BIN_DIR / "ffprobe.exe"
     if local_ffprobe.exists():
         ffprobe_path = str(local_ffprobe)
-    for candidate in paths.tool_file_candidates("Faster-Whisper-XXL", "faster-whisper-xxl.exe"):
-        if not faster_whisper_cli_path and candidate.exists():
-            faster_whisper_cli_path = str(candidate)
-            break
+    cli_path = resolve_cli_path(
+        faster_whisper_cli_path,
+        paths.tool_file_candidates("Faster-Whisper-XXL", "faster-whisper-xxl.exe"),
+    )
+    faster_whisper_cli_path = str(cli_path) if cli_path else ""
     for candidate in paths.tool_file_candidates("Faster-Whisper-XXL", "ffmpeg.exe"):
         if ffmpeg_path == "ffmpeg" and candidate.exists():
             ffmpeg_path = str(candidate)

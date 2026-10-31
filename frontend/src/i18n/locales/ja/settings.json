@@ -69,6 +69,7 @@
     "saveSmartSplitLimit": "スマート分割の文字数を保存",
     "cliPath": "Faster-Whisper CLI パス",
     "cliPathDesc": "ローカルの faster-whisper CLI 実行ファイルパスを設定します。CLI 転写エンジン選択時にこのパスを使用します。",
+    "cliPathInvalid": "保存できません。フォルダーではなく、存在する CLI 実行ファイルを選択してください。",
     "cliPathPlaceholder": "例: D:\\Tools\\faster-whisper-xxl.exe",
     "cliInstall": "CLI をダウンロード",
     "cliInstalling": "ダウンロード中...",

@@ -69,6 +69,7 @@
     "saveSmartSplitLimit": "保存智能分割长度",
     "cliPath": "Faster-Whisper CLI 路径",
     "cliPathDesc": "设置本机 faster-whisper CLI 可执行文件路径。选择 CLI 转写引擎时会使用这里的路径。",
+    "cliPathInvalid": "保存失败：路径必须指向存在的 CLI 可执行文件，请勿选择文件夹。",
     "cliPathPlaceholder": "例如：D:\\Tools\\faster-whisper-xxl.exe",
     "cliInstall": "下载 CLI",
     "cliInstalling": "下载中...",

@@ -518,6 +518,7 @@ export interface UserSettings {
   llm_providers?: LLMProvider[];
   default_download_path?: string | null;
   faster_whisper_cli_path?: string | null;
+  faster_whisper_cli_available?: boolean;
   language?: string;
   auto_execute_flow?: boolean;
   auto_trim_silence?: boolean;

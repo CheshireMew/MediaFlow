@@ -6,6 +6,7 @@ from typing import Any
 from loguru import logger
 
 from backend.config import settings
+from backend.configuration.cli_path import existing_cli_path, resolve_cli_path
 from backend.contracts import ASR_EXECUTION_PREFERENCES
 from backend.models.settings_contracts import (
     AsrExecutionPreferences,
@@ -25,8 +26,14 @@ class SettingsManager:
 
     @staticmethod
     def _apply_runtime_settings(user_settings: UserSettings) -> None:
-        if user_settings.faster_whisper_cli_path:
-            settings.FASTER_WHISPER_CLI_PATH = user_settings.faster_whisper_cli_path
+        cli_path = resolve_cli_path(
+            user_settings.faster_whisper_cli_path,
+            settings.tool_file_candidates("Faster-Whisper-XXL", "faster-whisper-xxl.exe"),
+        )
+        user_settings.faster_whisper_cli_available = cli_path is not None
+        settings.FASTER_WHISPER_CLI_PATH = str(cli_path) if cli_path else ""
+        if cli_path is not None:
+            user_settings.faster_whisper_cli_path = str(cli_path)
 
     @staticmethod
     def _normalize_settings(user_settings: UserSettings) -> UserSettings:
@@ -68,7 +75,19 @@ class SettingsManager:
                     )
 
                     loaded_settings = self._normalize_settings(UserSettings(**data))
-                    self._apply_runtime_settings(loaded_settings)
+                previous_cli_path = loaded_settings.faster_whisper_cli_path
+                self._apply_runtime_settings(loaded_settings)
+                if (
+                    previous_cli_path
+                    and loaded_settings.faster_whisper_cli_available
+                    and previous_cli_path != loaded_settings.faster_whisper_cli_path
+                ):
+                    self._write_atomic(loaded_settings)
+                    logger.info(
+                        "Updated CLI executable path: {} -> {}",
+                        previous_cli_path,
+                        loaded_settings.faster_whisper_cli_path,
+                    )
                 logger.info(f"Loaded settings from {self._file_path}")
                 return loaded_settings
             except Exception as e:
@@ -104,7 +123,10 @@ class SettingsManager:
     def _serialize_settings_data(self, user_settings: UserSettings) -> dict:
         from backend.utils.security import SecurityManager
 
-        data = user_settings.model_dump(mode="json")
+        # Availability is a live filesystem result, never a persisted promise.
+        data = user_settings.model_dump(
+            mode="json", exclude={"faster_whisper_cli_available"}
+        )
 
         for provider in data.get("llm_providers", []):
             api_key = provider.get("api_key")
@@ -183,6 +205,17 @@ class SettingsManager:
     ) -> UserSettings:
         typed_patch = UserPreferencesPatch.model_validate(patch)
         updates = typed_patch.model_dump(exclude_unset=True)
+        if "faster_whisper_cli_path" in updates:
+            value = updates["faster_whisper_cli_path"]
+            if value and value.strip():
+                cli_path = existing_cli_path(value)
+                if cli_path is None:
+                    raise ValueError(
+                        f"Faster-Whisper CLI executable is missing or invalid: {value}"
+                    )
+                updates["faster_whisper_cli_path"] = str(cli_path)
+            else:
+                updates["faster_whisper_cli_path"] = None
         with self._io_lock:
             current = self._load()
             data = current.model_dump()

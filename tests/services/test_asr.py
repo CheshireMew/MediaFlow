@@ -95,6 +95,25 @@ def test_asr_service_uses_injected_prewarm_manager(asr_dependencies, monkeypatch
     start.assert_called_once_with(model_name="base", device="cpu")
 
 
+def test_missing_cli_is_reported_before_audio_processing(asr_service, monkeypatch, tmp_path):
+    audio = tmp_path / "sample.wav"
+    audio.write_bytes(b"audio")
+    from backend.config import settings
+
+    monkeypatch.setattr(settings, "FASTER_WHISPER_CLI_PATH", str(tmp_path / "missing.exe"))
+    monkeypatch.setattr(settings, "TOOL_DIR", tmp_path / "tools")
+    monkeypatch.setattr(settings, "BIN_DIR", tmp_path / "bin")
+    duration = MagicMock(side_effect=AssertionError("Audio processing must not start"))
+    monkeypatch.setattr(AudioProcessor, "get_audio_duration", duration)
+
+    result = asr_service.transcribe(audio_path=str(audio), engine="cli")
+
+    assert result.success is False
+    assert "executable is missing or invalid" in result.error
+    assert "Settings" in result.error
+    duration.assert_not_called()
+
+
 def test_builtin_direct_strategy_forwards_vad_filter(asr_dependencies):
     model = MagicMock()
     model.transcribe.return_value = (iter([]), None)

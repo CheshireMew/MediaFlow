@@ -78,11 +78,18 @@ class ASRService:
             logger.error("Audio file not found: {}", audio_path)
             return TaskResult(success=False, error=f"File not found: {audio_path}")
 
-        duration = self._audio_duration(audio_path)
         use_cli = engine == "cli"
         if use_cli and self._prewarm.available_cli_path() is None:
-            return TaskResult(success=False, error="CLI transcription engine is unavailable")
+            return TaskResult(
+                success=False,
+                error=(
+                    "CLI transcription engine is unavailable: the executable is missing "
+                    "or invalid. Select an existing faster-whisper-xxl executable "
+                    "in Settings, then retry."
+                ),
+            )
 
+        duration = self._audio_duration(audio_path)
         work_dir = create_transcription_work_dir(task_id)
         try:
             prepared_audio_path = AudioProcessor.prepare_for_transcription(

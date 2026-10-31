@@ -22,6 +22,7 @@ export interface ResolvedUserSettings {
   llm_providers: ResolvedLLMProvider[];
   default_download_path: string | null;
   faster_whisper_cli_path: string | null;
+  faster_whisper_cli_available: boolean;
   language: string;
   auto_execute_flow: boolean;
   auto_trim_silence: boolean;
@@ -41,6 +42,7 @@ export function resolveUserSettings(settings: WireUserSettings): ResolvedUserSet
     })),
     default_download_path: settings.default_download_path ?? null,
     faster_whisper_cli_path: settings.faster_whisper_cli_path ?? null,
+    faster_whisper_cli_available: settings.faster_whisper_cli_available ?? false,
     language: settings.language ?? "zh",
     auto_execute_flow: settings.auto_execute_flow ?? false,
     auto_trim_silence: settings.auto_trim_silence ?? false,

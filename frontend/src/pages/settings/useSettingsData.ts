@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { TFunction } from "i18next";
 import type { UserPreferencesPatch } from "../../types/api";
+import { isApiError } from "../../api/client";
 import {
   settingsService,
   type ResolvedUserSettings,
@@ -45,8 +46,13 @@ export function useSettingsData(search: string, t: TFunction<"settings">) {
       setSettings(res);
       showNotification(successMessage || t("general.updateSuccess"));
       return res;
-    } catch {
-      showNotification(t("general.updateFailed"), "error");
+    } catch (error) {
+      const invalidCliPath = "faster_whisper_cli_path" in patch &&
+        isApiError(error) && error.status === 400;
+      showNotification(
+        t(invalidCliPath ? "general.cliPathInvalid" : "general.updateFailed"),
+        "error",
+      );
       return null;
     }
   };
