@@ -1,6 +1,6 @@
 import { Book, X, Plus, Trash2 } from 'lucide-react';
 import type { GlossaryTerm } from '../../services/domain';
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
@@ -14,20 +14,58 @@ interface SidebarProps {
 export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: SidebarProps) => {
     const { t } = useTranslation('translator');
     const titleId = useId();
+    const panelRef = useRef<HTMLElement>(null);
     const [newTermSource, setNewTermSource] = useState("");
     const [newTermTarget, setNewTermTarget] = useState("");
+    const [pending, setPending] = useState(false);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const previousFocus = document.activeElement as HTMLElement | null;
+        panelRef.current?.querySelector('input')?.focus();
+        return () => {
+            if (previousFocus?.isConnected) previousFocus.focus();
+        };
+    }, [isOpen]);
 
     const handleAdd = async () => {
-        if (!newTermSource || !newTermTarget) return;
-        await onAddTerm(newTermSource, newTermTarget);
-        setNewTermSource("");
-        setNewTermTarget("");
+        if (pending || !newTermSource.trim() || !newTermTarget.trim()) return;
+        setPending(true);
+        setError("");
+        try {
+            await onAddTerm(newTermSource.trim(), newTermTarget.trim());
+            setNewTermSource("");
+            setNewTermTarget("");
+        } catch {
+            setError(t('glossary.saveFailed'));
+        } finally {
+            setPending(false);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (pending) return;
+        setPending(true);
+        setError("");
+        try {
+            await onDeleteTerm(id);
+        } catch {
+            setError(t('glossary.deleteFailed'));
+        } finally {
+            setPending(false);
+        }
     };
 
     if (!isOpen) return null;
 
     return (
-        <aside aria-labelledby={titleId} className="absolute right-0 top-0 bottom-0 w-80 bg-[#1a1a1a] border-l border-white/10 shadow-2xl flex flex-col z-50 animate-in slide-in-from-right duration-200">
+        <aside ref={panelRef} id="translator-glossary" aria-labelledby={titleId} onKeyDown={(event) => {
+            if (event.key === 'Escape' && !event.nativeEvent.isComposing) {
+                event.stopPropagation();
+                onClose();
+            }
+        }} className="absolute right-0 top-0 bottom-0 w-80 max-w-full bg-[var(--surface-panel)] border-l border-[var(--border-subtle)] shadow-2xl flex flex-col z-50">
             <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                 <h2 id={titleId} className="font-bold flex items-center gap-2 text-white">
                     <Book size={16} className="text-indigo-400"/> 
@@ -39,13 +77,14 @@ export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: 
                 </button>
             </div>
             
-            <div className="p-4 bg-white/[0.01] border-b border-white/5 space-y-3">
+            <form onSubmit={(event) => { event.preventDefault(); void handleAdd(); }} className="p-4 border-b border-white/5 space-y-3" aria-busy={pending}>
                 <div className="flex gap-2">
                     <input 
                         aria-label={t('glossary.sourcePlaceholder')}
                         className="w-1/2 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all font-medium"
                         placeholder={t('glossary.sourcePlaceholder')}
                         value={newTermSource}
+                        disabled={pending}
                         onChange={e => setNewTermSource(e.target.value)}
                     />
                     <div className="flex items-center text-slate-400">→</div>
@@ -54,17 +93,19 @@ export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: 
                         className="w-1/2 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all font-medium"
                         placeholder={t('glossary.targetPlaceholder')}
                         value={newTermTarget}
+                        disabled={pending}
                         onChange={e => setNewTermTarget(e.target.value)}
                     />
                 </div>
                 <button 
-                    type="button"
-                    onClick={handleAdd}
-                    className="w-full flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-xs font-bold text-white transition-colors shadow-lg shadow-indigo-900/20"
+                    type="submit"
+                    disabled={pending || !newTermSource.trim() || !newTermTarget.trim()}
+                    className="w-full flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-xs font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <Plus size={12} /> {t('glossary.addTerm')}
                 </button>
-            </div>
+                {error && <p role="alert" className="text-xs leading-relaxed text-rose-300">{error}</p>}
+            </form>
             
             <div className="flex-1 overflow-y-auto p-2 scroll-smooth custom-scrollbar">
                 {glossary.length === 0 ? (
@@ -76,7 +117,7 @@ export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: 
                     <div className="space-y-2">
                         {glossary.map(term => (
                             <div key={term.id} className="group flex justify-between items-start bg-white/[0.02] p-3 rounded-lg border border-white/5 hover:border-white/10 transition-colors">
-                                <div className="flex flex-col gap-1">
+                                <div className="min-w-0 flex-1 break-words flex flex-col gap-1">
                                     <div className="text-xs font-bold text-indigo-300">{term.source}</div>
                                     <div className="text-xs text-slate-400 font-mono">→ {term.target}</div>
                                 </div>
@@ -84,8 +125,9 @@ export const Sidebar = ({ isOpen, onClose, glossary, onAddTerm, onDeleteTerm }: 
                                     type="button"
                                     aria-label={t('glossary.deleteTerm', { term: term.source })}
                                     title={t('glossary.deleteTerm', { term: term.source })}
-                                    onClick={() => onDeleteTerm(term.id)}
-                                    className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 opacity-100 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                                    onClick={() => void handleDelete(term.id)}
+                                    disabled={pending}
+                                    className="w-8 h-8 shrink-0 rounded flex items-center justify-center text-slate-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors disabled:opacity-50"
                                 >
                                     <Trash2 size={12} />
                                 </button>

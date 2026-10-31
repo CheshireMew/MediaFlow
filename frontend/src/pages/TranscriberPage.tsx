@@ -104,9 +104,9 @@ export const TranscriberPage = () => {
                 />
 
                 {/* Progress Card (Persistent) */}
-                <div className={`border rounded-xl p-4 transition-all duration-500 ${
+                <div className={`border rounded-lg p-4 ${
                   progressState.active 
-                    ? "bg-purple-500/10 border-purple-500/20 shadow-[0_0_20px_-5px_rgba(168,85,247,0.15)]" 
+                    ? "bg-purple-500/10 border-purple-500/20"
                     : "bg-white/[0.02] border-white/5"
                 }`}>
                    <div className="flex justify-between items-center mb-3">
@@ -124,16 +124,16 @@ export const TranscriberPage = () => {
                         {progressPercent}%
                      </span>
                    </div>
-                   <div className={`h-1.5 rounded-full overflow-hidden mb-3 transition-colors duration-300 ${progressState.active ? "bg-purple-900/40" : "bg-white/5"}`}>
+                   <div role="progressbar" aria-label={progressState.status} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent} className={`h-1.5 rounded-full overflow-hidden mb-3 ${progressState.active ? "bg-purple-900/40" : "bg-white/5"}`}>
                      <div 
                        className={`h-full transition-all duration-300 ease-out ${
-                           progressState.active ? "bg-gradient-to-r from-purple-500 to-pink-500" : "bg-slate-700 w-0"
+                           progressState.active ? "bg-purple-400" : "bg-slate-700 w-0"
                        }`}
                        style={{ width: `${progressState.progress}%` }}
                      />
                    </div>
-                   <div className={`text-xs truncate flex items-center gap-2 transition-colors duration-300 ${progressState.active ? "text-purple-300/80" : "text-slate-400"}`}>
-                     <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${progressState.active ? "bg-purple-500 animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.6)]" : "bg-slate-700"}`} />
+                   <div className={`text-xs break-words leading-relaxed flex items-start gap-2 ${progressState.active ? "text-purple-200" : "text-slate-400"}`}>
+                     <span className={`mt-1.5 w-1.5 h-1.5 shrink-0 rounded-full ${progressState.active ? "bg-purple-400" : "bg-slate-700"}`} />
                      {progressState.message}
                    </div>
                 </div>

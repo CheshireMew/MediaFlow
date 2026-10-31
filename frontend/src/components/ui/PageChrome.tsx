@@ -4,32 +4,12 @@ type IconComponent = ComponentType<{ className?: string; size?: number }>;
 
 type Accent = "indigo" | "purple" | "emerald" | "amber" | "slate";
 
-const accentClasses: Record<Accent, { iconBox: string; icon: string; dot: string }> = {
-  indigo: {
-    iconBox: "bg-indigo-500/10 border-indigo-500/20 shadow-indigo-500/10",
-    icon: "text-indigo-400",
-    dot: "bg-indigo-500",
-  },
-  purple: {
-    iconBox: "bg-purple-500/10 border-purple-500/20 shadow-purple-500/10",
-    icon: "text-purple-400",
-    dot: "bg-purple-500",
-  },
-  emerald: {
-    iconBox: "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/10",
-    icon: "text-emerald-400",
-    dot: "bg-emerald-500",
-  },
-  amber: {
-    iconBox: "bg-amber-500/10 border-amber-500/20 shadow-amber-500/10",
-    icon: "text-amber-400",
-    dot: "bg-amber-500",
-  },
-  slate: {
-    iconBox: "bg-white/5 border-white/10 shadow-black/20",
-    icon: "text-slate-300",
-    dot: "bg-slate-500",
-  },
+const accentClasses: Record<Accent, string> = {
+  indigo: "text-indigo-400",
+  purple: "text-purple-400",
+  emerald: "text-emerald-400",
+  amber: "text-amber-400",
+  slate: "text-slate-300",
 };
 
 export function PageShell({
@@ -46,7 +26,7 @@ export function PageShell({
   return (
     <div
       className={[
-        "w-full h-full bg-[#0a0a0a] text-slate-200",
+        "w-full h-full min-w-0 min-h-0 bg-[var(--surface-canvas)] text-slate-200",
         padded ? "px-6 pb-6 pt-5" : "",
         scroll ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden",
         className,
@@ -69,7 +49,7 @@ export function PageContent({
   return (
     <div
       className={[
-        "flex-1 min-h-0 p-4",
+        "flex-1 min-h-0 min-w-0 p-4",
         scroll ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden",
         className,
       ].join(" ")}
@@ -103,34 +83,30 @@ export function PageHeader({
   return (
     <header
       className={[
-        "drag-region flex h-[76px] flex-none items-center justify-between gap-4 border-b border-white/5 bg-[#1a1a1a] px-6 pr-36",
+        "page-header drag-region flex-none items-center gap-4 border-b border-[var(--border-subtle)] bg-[var(--surface-panel)]",
+        actions ? "page-header--with-actions" : "",
         className,
       ].join(" ")}
     >
-      <div className="flex min-w-0 items-center gap-4 no-drag">
-        <div
-          className={[
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border shadow-lg",
-            accentClass.iconBox,
-          ].join(" ")}
-        >
-          {iconNode ?? (Icon ? <Icon className={accentClass.icon} size={24} /> : null)}
+      <div className="page-header-heading flex min-w-0 items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5">
+          {iconNode ?? (Icon ? <Icon className={accentClass} size={21} /> : null)}
         </div>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-3">
-            <h1 className="truncate text-[26px] font-bold leading-tight tracking-tight text-white">
+            <h1 className="truncate text-xl font-semibold leading-tight tracking-tight text-white">
               {title}
             </h1>
             {titleMeta}
           </div>
           {subtitle && (
-            <p className="truncate text-[15px] font-medium leading-snug text-slate-400">
+            <p className="mt-1 truncate text-xs leading-snug text-slate-400">
               {subtitle}
             </p>
           )}
         </div>
       </div>
-      {actions && <div className="no-drag flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="page-header-actions no-drag">{actions}</div>}
     </header>
   );
 }
@@ -145,7 +121,7 @@ export function WorkPanel({
   return (
     <section
       className={[
-        "bg-[#1a1a1a] border border-white/5 rounded-lg shadow-2xl overflow-hidden",
+        "min-w-0 bg-[var(--surface-panel)] border border-[var(--border-subtle)] rounded-lg overflow-hidden",
         className,
       ].join(" ")}
     >
@@ -172,22 +148,15 @@ export function PanelHeader({
   return (
     <div
       className={[
-        "flex flex-none items-center justify-between border-b border-white/5 bg-white/[0.02] p-4",
+        "flex flex-none flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] px-4 py-3.5",
         className,
       ].join(" ")}
     >
       <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold text-white">
-        {Icon ? (
-          <span
-            className={[
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
-              accentClass.iconBox,
-            ].join(" ")}
-          >
-            <Icon className={accentClass.icon} size={16} />
+        {Icon && (
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+            <Icon className={accentClass} size={16} />
           </span>
-        ) : (
-          <span className={`h-2 w-2 shrink-0 rounded-full ${accentClass.dot}`} />
         )}
         <span className="truncate">{title}</span>
       </h2>
@@ -198,17 +167,17 @@ export function PanelHeader({
 
 const buttonVariantClasses = {
   primary:
-    "bg-indigo-600 hover:bg-indigo-500 border-indigo-500/30 text-white shadow-indigo-500/20",
+    "bg-indigo-600 hover:bg-indigo-500 border-indigo-500/30 text-white",
   subtle:
-    "bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white shadow-black/10",
+    "bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white",
   accent:
-    "bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/20 text-indigo-300 hover:text-indigo-200 shadow-indigo-500/10",
+    "bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/20 text-indigo-300 hover:text-indigo-200",
   success:
-    "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 text-emerald-300 hover:text-emerald-200 shadow-emerald-500/10",
+    "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 text-emerald-300 hover:text-emerald-200",
   warning:
-    "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20 text-amber-300 hover:text-amber-200 shadow-amber-500/10",
+    "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20 text-amber-300 hover:text-amber-200",
   danger:
-    "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/20 text-rose-400 hover:text-rose-300 shadow-rose-500/10",
+    "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/20 text-rose-300 hover:text-rose-200",
 };
 
 export function ToolbarButton({
@@ -226,8 +195,9 @@ export function ToolbarButton({
     <button
       type={type}
       {...props}
+      aria-label={props['aria-label'] ?? props.title}
       className={[
-        "no-drag inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium shadow-lg transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
+        "no-drag inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50",
         buttonVariantClasses[variant],
         className,
       ].join(" ")}
@@ -252,8 +222,9 @@ export function IconButton({
     <button
       type={type}
       {...props}
+      aria-label={props['aria-label'] ?? props.title}
       className={[
-        "no-drag inline-flex h-10 w-10 items-center justify-center rounded-lg border shadow-lg transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
+        "no-drag inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50",
         buttonVariantClasses[variant],
         className,
       ].join(" ")}

@@ -31,7 +31,8 @@
   },
   "input": {
     "placeholder": "Paste a video or podcast URL (e.g. YouTube, Bilibili, Xiaoyuzhou...)",
-    "pasteTooltip": "Paste from clipboard"
+    "pasteTooltip": "Paste from clipboard",
+    "pasteFailed": "Could not read the clipboard. Paste the URL with Ctrl+V."
   },
   "options": {
     "quality": "Quality",

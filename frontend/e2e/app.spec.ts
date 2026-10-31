@@ -7,6 +7,7 @@ type BackendMockOptions = {
   analyzeFailure?: boolean;
   translationWorkflow?: boolean;
   language?: "en" | "zh";
+  longProvider?: boolean;
 };
 
 const userSettings = {
@@ -46,7 +47,16 @@ async function installBackendMock(
 
     if (request.method() === "GET" && pathname === "/api/v1/settings/") {
       await route.fulfill({
-        json: { ...userSettings, language: options.language ?? userSettings.language },
+        json: {
+          ...userSettings,
+          language: options.language ?? userSettings.language,
+          llm_providers: options.longProvider ? [{
+            ...userSettings.llm_providers[0],
+            name: "Provider".repeat(18),
+            model: "long-model-name-".repeat(10),
+            base_url: `https://example.test/${"endpoint/".repeat(20)}v1`,
+          }] : userSettings.llm_providers,
+        },
       });
       return;
     }
@@ -306,7 +316,7 @@ test("starts in a ready downloader workspace without horizontal overflow", async
   }
 });
 
-test("navigates from downloader to the live dashboard", async ({ page }, testInfo) => {
+test("navigates from downloader to the live dashboard", async ({ page }) => {
   await openReadyDownloader(page);
 
   const sidebar = page.getByRole("navigation", { name: "MediaFlow" });
@@ -322,9 +332,7 @@ test("navigates from downloader to the live dashboard", async ({ page }, testInf
   );
   await expectNoHorizontalPageOverflow(page);
 
-  if (testInfo.project.name === "desktop") {
-    await expect(page).toHaveScreenshot("dashboard-ready.png");
-  }
+  await expect(page).toHaveScreenshot("dashboard-ready.png");
 });
 
 const workspaceRoutes = [
@@ -395,12 +403,7 @@ for (const workspace of workspaceRoutes) {
       );
     }
 
-    if (
-      testInfo.project.name === "desktop"
-      || (testInfo.project.name === "compact" && ["editor", "transcriber"].includes(workspace.route))
-    ) {
-      await expect(page).toHaveScreenshot(`${workspace.route}-ready.png`);
-    }
+    await expect(page).toHaveScreenshot(`${workspace.route}-ready.png`);
   });
 }
 
@@ -412,10 +415,73 @@ test("shows a visible error when backend analysis fails", async ({ page }) => {
       name: "Paste a video or podcast URL (e.g. YouTube, Bilibili, Xiaoyuzhou...)",
     })
     .fill("https://example.test/video");
-  await page.getByRole("button", { name: "Download Media" }).click();
+  await page.getByRole("textbox").press("Enter");
 
   await expect(page.getByText("E2E analysis unavailable", { exact: true })).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
+});
+
+test("keeps editor actions and its full title reachable in the window", async ({ page }) => {
+  await installBackendMock(page);
+  await page.goto('/#/editor');
+  const header = page.locator('header');
+  const title = header.getByRole('heading', { name: 'Editor Workspace' });
+  await expect(title).toBeVisible();
+  expect(await title.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  for (const name of ['Open Media', 'Open Subtitle', 'Translate', 'Save']) {
+    await expectInViewport(page, header.getByRole('button', { name, exact: true }));
+  }
+  await expect(header.getByRole('button', { name: 'Subtitles', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test("fits long provider content and keeps the provider dialog scrollable", async ({ page }) => {
+  await installBackendMock(page, { longProvider: true });
+  await page.goto('/#/settings');
+  const table = page.getByRole('table', { name: 'LLM Providers' });
+  await expect(table).toBeVisible();
+  await expectInViewport(page, table.getByRole('button', { name: 'Edit', exact: true }));
+  await expectNoHorizontalPageOverflow(page);
+
+  const add = page.getByRole('button', { name: 'Add Provider' });
+  await add.click();
+  const dialog = page.getByRole('dialog', { name: 'Add Provider' });
+  await expectInViewport(page, dialog);
+  await expect(dialog.getByRole('textbox', { name: 'Display Name' })).toBeFocused();
+  await expectInViewport(page, dialog.getByRole('button', { name: 'Save Changes' }));
+  await dialog.getByRole('textbox', { name: 'Model Name' }).scrollIntoViewIfNeeded();
+  await expectInViewport(page, dialog.getByRole('textbox', { name: 'Model Name' }));
+  await expect(page).toHaveScreenshot('provider-dialog.png');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(add).toBeFocused();
+});
+
+test("preserves glossary input on failure and restores keyboard focus", async ({ page }) => {
+  await installBackendMock(page);
+  await page.route(`${backendOrigin}/api/v1/glossary/`, async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 503, json: { detail: 'Temporarily unavailable' } });
+    } else {
+      await route.fulfill({ json: [] });
+    }
+  });
+  await page.goto('/#/translator');
+  const trigger = page.getByRole('button', { name: 'Glossary', exact: true });
+  await trigger.click();
+  const panel = page.getByRole('complementary', { name: 'Glossary' });
+  const source = panel.getByRole('textbox', { name: 'Source', exact: true });
+  await expect(source).toBeFocused();
+  await expect(panel.getByRole('button', { name: 'Add Term' })).toBeDisabled();
+  await source.fill('MediaFlow');
+  await panel.getByRole('textbox', { name: 'Target', exact: true }).fill('媒体工作站');
+  await panel.getByRole('textbox', { name: 'Target', exact: true }).press('Enter');
+  await expect(panel.getByRole('alert')).toContainText('Could not save the term');
+  await expect(source).toHaveValue('MediaFlow');
+  await source.focus();
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
 });
 
 test("treats audio-only quality as an audio download workflow", async ({ page }) => {
@@ -436,6 +502,11 @@ test("localizes CUDA diagnostics and uses a specific smart-split save action", a
   await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
   await page.getByRole("button", { name: "通用设置" }).click();
   await expect(page.getByRole("button", { name: "保存智能分割长度" })).toBeVisible();
+
+  const cliPath = page.getByRole('textbox', { name: /faster-whisper-xxl\.exe/ });
+  await cliPath.scrollIntoViewIfNeeded();
+  await expectInViewport(page, cliPath);
+  await expect(page).toHaveScreenshot('settings-general.png');
 
   await page.getByRole("button", { name: "CUDA 就绪检查" }).click();
   await expect(
@@ -479,9 +550,10 @@ test("translates a subtitle and renders the completed task output", async ({ pag
   await expect(page.getByText("Playwright translation source", { exact: true })).toBeVisible();
 
   await page
-    .getByRole("banner")
+    .locator("header")
     .getByRole("button", { name: /Translate/i })
     .click();
 
   await expect(page.locator("textarea")).toHaveValue("Playwright 已显示翻译结果");
+  await expect(page).toHaveScreenshot('translator-completed.png');
 });

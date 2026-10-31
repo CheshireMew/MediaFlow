@@ -125,13 +125,12 @@ export function TranscriptionConfig({
         onClick={onTranscribe}
         disabled={isDisabled}
         aria-live="polite"
-        className={`w-full h-12 rounded-xl flex items-center justify-center gap-2.5 font-bold text-sm transition-all shadow-lg relative overflow-hidden group/btn
+        className={`w-full h-12 rounded-lg flex items-center justify-center gap-2.5 font-semibold text-sm transition-colors
           ${isDisabled
             ? 'bg-slate-800/50 border border-white/5 text-slate-400 cursor-not-allowed shadow-none'
-            : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-purple-500/20 hover:shadow-purple-500/40 hover:-translate-y-0.5 active:translate-y-0 border border-white/10'}
+            : 'bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500/30'}
         `}
       >
-        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 pointer-events-none" />
         <span className="relative z-10 flex items-center gap-2">
           {currentTranscriptionTaskId || isSubmitting ? (
             <>

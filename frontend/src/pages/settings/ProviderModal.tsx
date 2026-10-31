@@ -42,9 +42,9 @@ export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps
       onClose={() => setOpenModal(false)}
       ariaLabelledBy={titleId}
       overlayClassName="z-50 bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200"
-      className="bg-[#1a1a1a] rounded-lg border border-white/10 shadow-2xl w-full max-w-md overflow-hidden ring-1 ring-white/5 animate-in zoom-in-95 duration-200"
+      className="flex max-h-[calc(100dvh-32px)] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-panel)] shadow-2xl"
     >
-        <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+        <div className="shrink-0 px-6 py-4 border-b border-white/5 flex justify-between items-center">
           <h2 id={titleId} className="text-lg font-bold text-white">
             {editingProvider ? t("llm.editProvider") : t("addProvider")}
           </h2>
@@ -58,7 +58,7 @@ export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="min-h-0 overflow-y-auto p-6 space-y-4">
           <div className="space-y-2">
             <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">{t("llm.providerPreset")}</label>
             <div className="grid grid-cols-2 gap-2">
@@ -160,7 +160,7 @@ export function ProviderModal({ controller, t, cancelLabel }: ProviderModalProps
           </div>
         </div>
 
-        <div className="px-6 py-4 bg-white/[0.02] border-t border-white/5 flex justify-end gap-3">
+        <div className="shrink-0 px-6 py-4 bg-white/[0.02] border-t border-white/5 flex flex-wrap justify-end gap-3">
           <button
             onClick={() => setOpenModal(false)}
             className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"

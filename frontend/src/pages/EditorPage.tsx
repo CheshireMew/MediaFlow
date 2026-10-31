@@ -308,7 +308,7 @@ export function EditorPage() {
         </div>
 
         {/* Bottom: Waveform Timeline */}
-        <div className="h-44 bg-[#101010] border-t border-white/5 relative z-30 shrink-0">
+        <div className={mediaUrl ? "h-44 bg-[#101010] border-t border-white/5 relative z-30 shrink-0" : "hidden"}>
              {mediaUrl && currentFileRef && waveformReadySource === mediaUrl && (
                <Suspense fallback={null}>
                  <WaveformPlayer

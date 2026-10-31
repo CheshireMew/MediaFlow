@@ -1,10 +1,10 @@
 import type { LucideIcon } from 'lucide-react';
 
 export const overviewCardClassName =
-  'bg-[#1a1a1a] p-4 rounded-lg border border-white/5 shadow-xl hover:bg-[#222] transition-colors group';
+  'min-w-0 bg-[var(--surface-panel)] p-4 rounded-lg border border-[var(--border-subtle)]';
 
 export const overviewInnerPanelClassName =
-  'rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2';
+  'border-t border-[var(--border-subtle)] py-3';
 
 type OverviewCardHeaderProps = {
   icon: LucideIcon;
@@ -22,7 +22,7 @@ export function OverviewCardHeader({
   iconClassName,
 }: OverviewCardHeaderProps) {
   return (
-    <div className="flex items-start gap-3 mb-3 min-h-[52px]">
+    <div className="flex items-start gap-2 mb-4 min-h-[40px]">
       <div className={`p-1.5 rounded-lg transition-colors ${iconAccentClassName}`}>
         <Icon className={`w-4 h-4 ${iconClassName}`} />
       </div>

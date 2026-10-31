@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SubtitleSegment } from '../../types/task';
-import { Scissors, Trash2, Wand2 } from 'lucide-react';
+import { FileText, Scissors, Trash2, Wand2 } from 'lucide-react';
 import { validateSegment, fixOverlaps } from '../../utils/validation';
 import { highlightSubtitleText } from './subtitleTextHighlight';
 
@@ -204,14 +204,11 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
                 onContextMenu={(e) => onContextMenu(e, idStr)}
                 className={`
                     group flex items-center border-b border-white/[0.035] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400
-                    ${isActive ? 'bg-indigo-500/15 shadow-[inset_3px_0_0_rgba(129,140,248,0.95)]' : 'hover:bg-white/[0.025]'}
-                    ${isSelected && !isActive ? 'bg-indigo-500/[0.07] shadow-[inset_2px_0_0_rgba(129,140,248,0.45)]' : ''}
+                    ${isActive ? 'bg-indigo-500/15 ring-1 ring-inset ring-indigo-400/40' : 'hover:bg-white/[0.025]'}
+                    ${isSelected && !isActive ? 'bg-indigo-500/[0.07]' : ''}
                     ${(hasError || hasWarning) && !isActive && !isSelected ? 'bg-yellow-500/5' : ''}
                 `}
             >
-                {/* Active Indicator Bar */}
-                {isActive && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.55)]" />}
-
                 {/* Timestamp & Status */}
                 <div 
                     className={`w-[52px] text-center py-2 font-mono text-xs select-none flex flex-col items-center justify-center shrink-0 h-full min-h-[2rem]
@@ -320,9 +317,9 @@ const SubtitleListComponent: React.FC<SubtitleListProps> = (props) => {
             {/* Native List Container -> Virtualized */}
             <div className="flex-1 min-h-0 w-full bg-[#090909]">
                 {segments.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-3 px-4 text-center">
-                         <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
-                            <span className="text-2xl opacity-20">T</span>
+                    <div className="flex flex-col items-center justify-center h-full overflow-y-auto text-slate-400 text-sm gap-3 px-4 py-4 text-center">
+                         <div className="w-12 h-12 shrink-0 rounded-lg bg-white/5 flex items-center justify-center">
+                            <FileText size={24} aria-hidden="true" />
                          </div>
                         <p>{t('subtitleList.emptyState')}</p>
                         {onOpenSubtitle && (

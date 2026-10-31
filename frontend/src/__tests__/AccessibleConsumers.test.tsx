@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "../components/layout/Sidebar";
@@ -48,7 +48,7 @@ describe("AudioFileUploader", () => {
 });
 
 describe("GlossarySidebar", () => {
-  it("names the complementary panel and keeps row actions keyboard-visible", () => {
+  it("names the complementary panel and keeps row actions keyboard-visible", async () => {
     const onDeleteTerm = vi.fn().mockResolvedValue(undefined);
     render(
       <GlossarySidebar
@@ -62,7 +62,7 @@ describe("GlossarySidebar", () => {
 
     expect(screen.getByRole("complementary", { name: /glossary\.panelTitle/ })).toBeInTheDocument();
     const deleteButton = screen.getByRole("button", { name: "glossary.deleteTerm" });
-    fireEvent.click(deleteButton);
+    await act(async () => { fireEvent.click(deleteButton); });
     expect(onDeleteTerm).toHaveBeenCalledWith("one");
   });
 });

@@ -10,7 +10,9 @@
     "targetPlaceholder": "Target",
     "addTerm": "Add Term",
     "deleteTerm": "Delete {{term}}",
-    "empty": "No terms yet."
+    "empty": "No terms yet.",
+    "saveFailed": "Could not save the term. Your text is kept; try again.",
+    "deleteFailed": "Could not delete the term. Try again."
   },
   "buttons": {
     "import": { "tooltip": "Import Subtitle", "label": "Import" },

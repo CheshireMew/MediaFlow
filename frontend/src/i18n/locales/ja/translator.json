@@ -10,7 +10,9 @@
     "targetPlaceholder": "訳文",
     "addTerm": "用語を追加",
     "deleteTerm": "{{term}} を削除",
-    "empty": "用語はまだありません"
+    "empty": "用語はまだありません",
+    "saveFailed": "用語を保存できませんでした。入力内容を保持しています。再試行してください。",
+    "deleteFailed": "用語を削除できませんでした。再試行してください。"
   },
   "buttons": {
     "import": { "tooltip": "字幕をインポート", "label": "インポート" },

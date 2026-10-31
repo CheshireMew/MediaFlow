@@ -8,20 +8,18 @@ import {
 } from './overviewCardPrimitives';
 
 const statBadgeClassNames = {
-    pending: 'bg-amber-400/10 text-amber-300 border-amber-400/20',
-    running: 'bg-indigo-400/10 text-indigo-300 border-indigo-400/20',
-    paused: 'bg-slate-400/10 text-slate-300 border-slate-400/20',
+    pending: 'text-amber-300',
+    running: 'text-indigo-300',
+    paused: 'text-slate-300',
 } as const;
 
 const statusClassNames = {
     ready: {
         dot: 'bg-emerald-500',
-        ping: 'bg-emerald-400',
         text: 'text-emerald-400',
     },
     waiting: {
         dot: 'bg-rose-500',
-        ping: 'bg-rose-400',
         text: 'text-rose-400',
     },
 } as const;
@@ -54,9 +52,9 @@ export const TaskMonitorOverviewCards = () => {
                 />
                 <div className="grid grid-cols-3 gap-2">
                     {taskStats.map((item) => (
-                        <div key={item.key} className={`rounded-lg border px-3 py-2 flex flex-col gap-1 ${statBadgeClassNames[item.key]}`}>
-                            <div className="text-xs uppercase tracking-[0.18em] opacity-80">{item.label}</div>
-                            <div className="text-xl font-semibold text-white leading-none">{item.value}</div>
+                        <div key={item.key} className={`min-w-0 py-2 flex flex-col gap-2 ${statBadgeClassNames[item.key]}`}>
+                            <div className="text-xs break-words">{item.label}</div>
+                            <div className="text-xl font-semibold text-white leading-none tabular-nums">{item.value}</div>
                         </div>
                     ))}
                 </div>
@@ -93,7 +91,6 @@ export const TaskMonitorOverviewCards = () => {
                         <div className="flex flex-wrap gap-3">
                             <span className={`text-xs font-medium flex items-center gap-1.5 ${taskFeedReady ? statusClassNames.ready.text : statusClassNames.waiting.text}`}>
                                 <span className="relative flex h-2 w-2">
-                                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${taskFeedReady ? statusClassNames.ready.ping : statusClassNames.waiting.ping}`}></span>
                                     <span className={`relative inline-flex rounded-full h-2 w-2 ${taskFeedReady ? statusClassNames.ready.dot : statusClassNames.waiting.dot}`}></span>
                                 </span>
                                 {t('taskmonitor:status.tasks')}: {taskFeedReady ? t('taskmonitor:status.ready') : t('taskmonitor:status.waiting')}

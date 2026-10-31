@@ -81,7 +81,7 @@ export function ToastContainer() {
     switch (type) {
         case 'success': return 'bg-emerald-600 text-white';
         case 'error': return 'bg-rose-600 text-white';
-        case 'warning': return 'bg-amber-500 text-white';
+        case 'warning': return 'bg-amber-300 text-slate-950';
         default: return 'bg-slate-700 text-white';
     }
   };
@@ -94,12 +94,12 @@ export function ToastContainer() {
           role={toastItem.type === 'error' ? 'alert' : 'status'}
           className={`
             pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg 
-            min-w-[300px] max-w-[400px] animate-in slide-in-from-right-full fade-in duration-300
+            w-[min(400px,calc(100vw-32px))] animate-in slide-in-from-right-full fade-in duration-200
             ${getColorClass(toastItem.type)}
           `}
         >
           <div className="shrink-0" aria-hidden="true">{getIcon(toastItem.type)}</div>
-          <p className="flex-1 text-sm font-medium">{toastItem.message}</p>
+          <p className="min-w-0 flex-1 break-words text-sm font-medium">{toastItem.message}</p>
           <button 
             type="button"
             aria-label={t('close')}

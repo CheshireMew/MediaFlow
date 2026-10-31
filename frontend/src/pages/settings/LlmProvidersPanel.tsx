@@ -9,75 +9,66 @@ type LlmProvidersPanelProps = {
 
 export function LlmProvidersPanel({ controller, t, tc }: LlmProvidersPanelProps) {
   const { handleDelete, handleSetActive, openEdit, settings } = controller;
+  const providers = settings?.llm_providers ?? [];
 
   return (
-    <div className="w-full">
-      <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-[#1a1a1a] border-b border-white/5 text-xs font-bold text-slate-400 uppercase tracking-wider">
-        <div className="col-span-2">{t("llm.status")}</div>
-        <div className="col-span-3">{t("llm.name")}</div>
-        <div className="col-span-3">{t("llm.model")}</div>
-        <div className="col-span-3">{t("llm.baseUrl")}</div>
-        <div className="col-span-1 text-right">{t("llm.actions")}</div>
-      </div>
-
-      <div className="divide-y divide-white/5">
-        {settings?.llm_providers.map((provider) => (
-          <div
-            key={provider.id}
-            className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-colors group"
-          >
-            <div className="col-span-2">
-              {provider.is_active ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                  <CheckCircle size={12} /> {tc("active")}
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleSetActive(provider.id)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10 hover:text-white hover:border-white/20 transition-all"
-                >
-                  {tc("setActive")}
-                </button>
-              )}
-            </div>
-            <div className="col-span-3 font-medium text-slate-200">{provider.name}</div>
-            <div className="col-span-3 font-mono text-xs text-indigo-300/80 bg-indigo-500/5 px-2 py-1 rounded w-fit border border-indigo-500/10">
-              {provider.model}
-            </div>
-            <div className="col-span-3 text-xs text-slate-400 truncate font-mono" title={provider.base_url}>
-              {provider.base_url}
-            </div>
-            <div className="col-span-1 flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-              <button
-                type="button"
-                aria-label={tc("edit")}
-                onClick={() => openEdit(provider)}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                title={tc("edit")}
-              >
-                <Edit2 size={16} />
-              </button>
-              <button
-                type="button"
-                aria-label={tc("delete")}
-                onClick={() => handleDelete(provider.id)}
-                className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors"
-                title={tc("delete")}
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-        ))}
-
-        {(!settings?.llm_providers || settings.llm_providers.length === 0) && (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-            <Shield size={48} className="opacity-20 mb-4" />
-            <p className="text-sm">{t("llm.noProviders")}</p>
-          </div>
-        )}
-      </div>
+    <div className="w-full overflow-x-auto">
+      <table aria-label={t("tabs.llm")} className="w-full min-w-[620px] table-fixed border-collapse text-left text-sm">
+        <colgroup>
+          <col className="w-[17%]" />
+          <col className="w-[23%]" />
+          <col className="w-[22%]" />
+          <col className="w-[24%]" />
+          <col className="w-[14%]" />
+        </colgroup>
+        <thead className="border-b border-[var(--border-subtle)] text-xs font-medium text-slate-400">
+          <tr>
+            <th scope="col" className="px-4 py-3">{t("llm.status")}</th>
+            <th scope="col" className="px-3 py-3">{t("llm.name")}</th>
+            <th scope="col" className="px-3 py-3">{t("llm.model")}</th>
+            <th scope="col" className="px-3 py-3">{t("llm.baseUrl")}</th>
+            <th scope="col" className="px-4 py-3 text-right">{t("llm.actions")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {providers.map((provider) => (
+            <tr key={provider.id} className="border-b border-white/5 transition-colors last:border-0 hover:bg-white/[0.02] focus-within:bg-white/[0.02]">
+              <td className="px-4 py-4 align-top">
+                {provider.is_active ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-300">
+                    <CheckCircle size={12} className="shrink-0" /> {tc("active")}
+                  </span>
+                ) : (
+                  <button type="button" onClick={() => handleSetActive(provider.id)} className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-300 hover:bg-white/10 hover:text-white">
+                    {tc("setActive")}
+                  </button>
+                )}
+              </td>
+              <td className="px-3 py-4 align-top font-medium text-slate-200 [overflow-wrap:anywhere]">{provider.name}</td>
+              <td className="px-3 py-4 align-top font-mono text-xs leading-6 text-indigo-200 [overflow-wrap:anywhere]">{provider.model}</td>
+              <td className="px-3 py-4 align-top">
+                <span className="block truncate font-mono text-xs leading-6 text-slate-400" title={provider.base_url}>{provider.base_url}</span>
+              </td>
+              <td className="px-3 py-4 align-top">
+                <div className="flex justify-end gap-1">
+                  <button type="button" aria-label={tc("edit")} onClick={() => openEdit(provider)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white" title={tc("edit")}>
+                    <Edit2 size={16} />
+                  </button>
+                  <button type="button" aria-label={tc("delete")} onClick={() => handleDelete(provider.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-rose-500/10 hover:text-rose-300" title={tc("delete")}>
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {providers.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-4 py-20 text-slate-400">
+          <Shield size={36} className="text-slate-400" />
+          <p className="text-sm">{t("llm.noProviders")}</p>
+        </div>
+      )}
     </div>
   );
 }

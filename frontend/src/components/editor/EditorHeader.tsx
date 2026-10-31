@@ -50,6 +50,7 @@ export function EditorHeader({
                     <button
                         onClick={() => onModeChange("subtitles")}
                         aria-label={t('header.subtitleMode')}
+                        aria-pressed={mode === "subtitles"}
                         className={`flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-colors ${mode === "subtitles" ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-white"}`}
                         title={t('header.subtitleModeTooltip')}
                     >
@@ -59,6 +60,7 @@ export function EditorHeader({
                     <button
                         onClick={() => onModeChange("clips")}
                         aria-label={t('header.clipMode')}
+                        aria-pressed={mode === "clips"}
                         className={`flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-colors ${mode === "clips" ? "bg-amber-500 text-black" : "text-slate-400 hover:text-white"}`}
                         title={t('header.clipModeTooltip')}
                     >
@@ -97,7 +99,7 @@ export function EditorHeader({
                     disabled={mode !== "subtitles" || !canTranslate}
                     icon={Languages}
                     variant="subtle"
-                    className="h-8 px-2.5 text-xs text-purple-300 hover:text-purple-200 max-[900px]:hidden"
+                    className="h-8 px-2.5 text-xs text-purple-300 hover:text-purple-200"
                     title={canTranslate ? t('header.translateTooltip') : t('header.translateRequiresSubtitlesTooltip')}
                 >
                     <span className="hidden 2xl:inline">{t('header.translateButton')}</span>
@@ -108,7 +110,7 @@ export function EditorHeader({
                     disabled={isDetectingHighlights || !canDetectHighlights}
                     icon={Sparkles}
                     variant="warning"
-                    className="h-8 px-2.5 text-xs max-[900px]:hidden"
+                    className="h-8 px-2.5 text-xs"
                     title={
                         canDetectHighlights
                             ? t('header.detectHighlightsTooltip')

@@ -90,9 +90,12 @@ export const TranslatorPage = () => {
                  <>
                      <ToolbarButton
                         onClick={() => setShowGlossary(!showGlossary)}
+                        aria-label={t('glossary.button')}
                         icon={Book}
                         variant={showGlossary ? 'primary' : 'subtle'}
                         title={t('glossary.tooltip')}
+                        aria-expanded={showGlossary}
+                        aria-controls="translator-glossary"
                      >
                          <span className="hidden lg:inline">{t('glossary.button')}</span>
                      </ToolbarButton>
@@ -103,6 +106,7 @@ export const TranslatorPage = () => {
                      <div className="flex items-center gap-2">
                          <ToolbarButton
                              onClick={handleOpenFile}
+                             aria-label={t('buttons.import.label')}
                              icon={FolderOpen}
                              variant="subtle"
                              title={t('buttons.import.tooltip')}
@@ -112,6 +116,7 @@ export const TranslatorPage = () => {
                          
                          <ToolbarButton
                              onClick={proofreadSubtitle}
+                             aria-label={t('buttons.proofread.label')}
                              disabled={isTranslating || sourceSegments.length === 0}
                              icon={isTranslating && activeMode === 'proofread' ? Loader2 : Sparkles}
                              variant="success"
@@ -123,6 +128,7 @@ export const TranslatorPage = () => {
 
                          <ToolbarButton
                              onClick={startTranslation}
+                             aria-label={t('buttons.translate.label')}
                              disabled={isTranslating || sourceSegments.length === 0}
                              icon={isTranslating && activeMode !== 'proofread' ? Loader2 : Wand2}
                              variant="primary"
@@ -140,6 +146,7 @@ export const TranslatorPage = () => {
                             <div className="flex items-center gap-2">
                                 <ToolbarButton
                                     onClick={exportSRT}
+                                    aria-label={t('buttons.export.label')}
                                     icon={Download}
                                     variant="success"
                                     title={t('buttons.export.tooltip')}
@@ -149,6 +156,7 @@ export const TranslatorPage = () => {
 
                                 <ToolbarButton
                                     onClick={handleOpenInEditor}
+                                    aria-label={t('buttons.editor.label')}
                                     icon={FileEdit}
                                     variant="accent"
                                     title={t('buttons.editor.tooltip')}
@@ -164,8 +172,8 @@ export const TranslatorPage = () => {
              
              {/* Progress Bar */}
              {progress > 0 && progress < 100 && (
-                 <div className="absolute left-0 top-[76px] z-50 h-1 w-full bg-slate-900">
-                     <div className="h-full bg-indigo-500 transition-all duration-300 shadow-[0_0_10px_rgba(99,102,241,0.5)]" style={{ width: `${progress}%` }}></div>
+                 <div role="progressbar" aria-label={t('loading.message')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="h-1 w-full shrink-0 bg-slate-900">
+                     <div className="h-full bg-indigo-400 transition-[width] duration-200" style={{ width: `${progress}%` }}></div>
                  </div>
              )}
 
@@ -173,11 +181,11 @@ export const TranslatorPage = () => {
              {/* Main Card */}
              <WorkPanel className="flex-1 min-h-0 flex flex-col relative">
                  {/* Table Header Controls */}
-                 <div className="flex-none p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+                 <div className="flex-none px-4 py-3 border-b border-[var(--border-subtle)] flex flex-wrap justify-between items-center gap-3">
                      <div className="flex items-center gap-4">
-                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-2 border-l-2 border-slate-700">{t('table.sourceHeader')} ({sourceSegments.length})</span>
+                         <span className="text-xs font-medium text-slate-400 tabular-nums">{t('table.sourceHeader')} ({sourceSegments.length})</span>
                      </div>
-                     <div className="flex items-center gap-6">
+                     <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                          <div className="flex items-center gap-3">
                               <label htmlFor={targetLanguageId} className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('table.targetLangLabel')}</label>
                              <div className="relative group">
@@ -212,7 +220,7 @@ export const TranslatorPage = () => {
                  </div>
 
                  {taskStatus === "failed" && taskError && (
-                     <div className="flex-none px-4 py-3 border-b border-rose-500/20 bg-rose-500/10 text-sm text-rose-200">
+                     <div role="alert" className="flex-none break-words px-4 py-3 border-b border-rose-500/20 bg-rose-500/10 text-sm text-rose-200">
                         {taskError}
                      </div>
                  )}
@@ -230,7 +238,6 @@ export const TranslatorPage = () => {
                  {isTranslating && targetSegments.length === 0 && (
                      <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
                          <div className="relative">
-                             <div className="absolute inset-0 bg-indigo-500 blur-xl opacity-20 animate-pulse rounded-full"></div>
                              <Loader2 className="animate-spin text-indigo-400 relative z-10" size={48} />
                          </div>
                          <div className="text-center">

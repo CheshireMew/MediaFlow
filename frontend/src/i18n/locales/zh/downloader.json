@@ -31,7 +31,8 @@
   },
   "input": {
     "placeholder": "粘贴视频或播客链接（如 YouTube、Bilibili、小宇宙...）",
-    "pasteTooltip": "从剪贴板粘贴"
+    "pasteTooltip": "从剪贴板粘贴",
+    "pasteFailed": "无法读取剪贴板，请在输入框中按 Ctrl+V 粘贴链接。"
   },
   "options": {
     "quality": "画质",

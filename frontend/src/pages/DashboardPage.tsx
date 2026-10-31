@@ -27,8 +27,8 @@ export const DashboardPage = () => {
                 subtitle={t('subtitle')}
             />
 
-            <PageContent className="flex flex-col">
-            <div className="flex-none grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <PageContent scroll className="flex flex-col">
+            <div className="flex-none grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 {/* System Stats */}
                 <section className={overviewCardClassName}>
                     <OverviewCardHeader
@@ -38,7 +38,7 @@ export const DashboardPage = () => {
                         iconClassName="text-emerald-400"
                     />
                     <div className="space-y-2">
-                        <div className={`${overviewInnerPanelClassName} flex items-center justify-between min-h-[60px]`}>
+                        <div className={`${overviewInnerPanelClassName} flex flex-wrap items-center justify-between gap-2 min-h-[60px]`}>
                             <span className="text-xs text-slate-400">{t('stats.backendConnection')}</span>
                             <span
                                 aria-live="polite"
@@ -53,7 +53,7 @@ export const DashboardPage = () => {
                                 {t(`stats.${connectionState}`)}
                             </span>
                         </div>
-                        <div className={`${overviewInnerPanelClassName} flex items-center justify-between min-h-[60px]`}>
+                        <div className={`${overviewInnerPanelClassName} flex flex-wrap items-center justify-between gap-2 min-h-[60px]`}>
                             <span className="text-xs text-slate-400">{t('stats.computeResources')}</span>
                             <span className="text-xs font-medium text-slate-300">{t('stats.autoScaling')}</span>
                         </div>
@@ -63,7 +63,7 @@ export const DashboardPage = () => {
                 <TaskMonitorOverviewCards />
             </div>
 
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <div className="flex-1 min-h-[240px] flex flex-col">
                 {/* Global Monitor - Shows all tasks */}
                 <TaskMonitor showHeaderOverview={false} />
             </div>

@@ -19,11 +19,11 @@ const SettingsPage: React.FC = () => {
   const { activeTab, notification, openAdd, openModal, setActiveTab } = controller;
 
   return (
-    <PageShell padded={false} className="relative fade-in flex flex-col">
+    <PageShell padded={false} className="relative flex flex-col">
       <SettingsHeader activeTab={activeTab} onAddProvider={openAdd} t={t} />
 
       <PageContent scroll>
-      <WorkPanel className="w-full bg-[#161616] ring-1 ring-white/5">
+      <WorkPanel className="w-full">
         <SettingsTabs activeTab={activeTab} onChange={setActiveTab} t={t} />
 
         <div className="p-0 min-h-[400px]">

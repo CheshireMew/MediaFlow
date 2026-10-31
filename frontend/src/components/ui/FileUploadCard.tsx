@@ -7,14 +7,14 @@ import { FileNameLabel } from "./FileNameLabel";
 
 const THEMES = {
   indigo: {
-    selectedBorder: "border-indigo-500/50 bg-indigo-500/5 shadow-[0_0_20px_-5px_rgba(99,102,241,0.15)]",
+    selectedBorder: "border-indigo-400/50 bg-indigo-500/5",
     hover: "hover:border-indigo-500/30",
     icon: "bg-indigo-500/10 border-indigo-500/20 text-indigo-400",
     emptyIcon: "group-hover:bg-indigo-500/10 group-hover:border-indigo-500/20 group-hover:text-indigo-400",
     badge: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20",
   },
   purple: {
-    selectedBorder: "border-purple-500/50 bg-purple-500/5 shadow-[0_0_20px_-5px_rgba(168,85,247,0.15)]",
+    selectedBorder: "border-purple-400/50 bg-purple-500/5",
     hover: "hover:border-purple-500/30",
     icon: "bg-purple-500/10 border-purple-500/20 text-purple-400",
     emptyIcon: "group-hover:bg-purple-500/10 group-hover:border-purple-500/20 group-hover:text-purple-400",
@@ -57,16 +57,9 @@ export function FileUploadCard({
         fileName ? styles.selectedBorder : `border-white/10 bg-black/20 ${styles.hover} hover:bg-black/30`
       }`}
     >
-      <div
-        className={`absolute inset-0 pointer-events-none transition-opacity duration-500 ${fileName ? "opacity-[0.08]" : "opacity-[0.03] group-hover:opacity-[0.06]"}`}
-        style={{
-          backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
-          backgroundSize: "16px 16px",
-        }}
-      />
       {fileName ? (
         <>
-          <div className={`w-16 h-16 rounded-lg flex items-center justify-center border shadow-inner group-hover:scale-105 transition-transform duration-300 ${styles.icon}`}>
+          <div className={`w-12 h-12 shrink-0 rounded-lg flex items-center justify-center border ${styles.icon}`}>
             <SelectedIcon className="w-8 h-8" />
           </div>
           <div className="z-10 flex w-full min-w-0 flex-col items-center text-center">
@@ -81,7 +74,7 @@ export function FileUploadCard({
         </>
       ) : (
         <>
-          <div className={`w-16 h-16 rounded-lg bg-white/5 flex items-center justify-center border border-white/5 text-slate-400 transition-colors duration-300 ${styles.emptyIcon}`}>
+          <div className={`w-12 h-12 shrink-0 rounded-lg bg-white/5 flex items-center justify-center border border-white/5 text-slate-400 transition-colors duration-150 ${styles.emptyIcon}`}>
             <Upload className="w-8 h-8" />
           </div>
           <div className="text-center z-10">

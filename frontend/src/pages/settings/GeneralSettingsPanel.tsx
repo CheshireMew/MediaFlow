@@ -14,8 +14,8 @@ type GeneralSettingsPanelProps = {
 
 export function GeneralSettingsPanel({ controller, t }: GeneralSettingsPanelProps) {
   return (
-    <div className="p-6">
-      <div className="space-y-5">
+    <div className="px-6 py-1">
+      <div>
         <LanguageSetting controller={controller} t={t} />
         <AutoExecuteSetting controller={controller} t={t} />
         <AutoTrimSilenceSetting controller={controller} t={t} />

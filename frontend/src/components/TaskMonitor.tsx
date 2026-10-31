@@ -58,7 +58,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
   );
 
   return (
-    <div className="bg-[#1a1a1a] border border-white/5 rounded-lg shadow-2xl overflow-hidden h-full flex flex-col">
+    <div className="bg-[var(--surface-panel)] border border-[var(--border-subtle)] rounded-lg overflow-hidden h-full min-w-0 flex flex-col">
       <TaskMonitorHeader
         showHeaderOverview={showHeaderOverview}
         connected={connected}
@@ -82,7 +82,7 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
       <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
         {filteredTasks.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
-            <FolderOpen className="w-8 h-8 mb-2 opacity-20" />
+            <FolderOpen className="w-8 h-8 mb-3 text-slate-400" />
             <p className="text-sm">{t("emptyState.message")}</p>
           </div>
         ) : (
@@ -112,14 +112,6 @@ export const TaskMonitor: React.FC<{ filterTypes?: string[]; showHeaderOverview?
         )}
       </div>
 
-      <style>{`
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { bg: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #444; }
-      `}</style>
     </div>
   );
 };

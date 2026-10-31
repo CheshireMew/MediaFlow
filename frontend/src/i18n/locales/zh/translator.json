@@ -10,7 +10,9 @@
     "targetPlaceholder": "译文",
     "addTerm": "添加术语",
     "deleteTerm": "删除术语 {{term}}",
-    "empty": "暂无术语"
+    "empty": "暂无术语",
+    "saveFailed": "术语保存失败，输入内容已保留，请重试。",
+    "deleteFailed": "术语删除失败，请重试。"
   },
   "buttons": {
     "import": { "tooltip": "导入字幕", "label": "导入" },

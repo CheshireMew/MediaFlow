@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, ChevronDown, Check } from "lucide-react";
+import { Download, ChevronDown } from "lucide-react";
 
 interface VideoDownloadOptionsProps {
   mediaKind: "video" | "audio";
@@ -38,10 +38,10 @@ export function VideoDownloadOptions({
     <div className="flex flex-col gap-4">
       
       {/* Settings Grid */}
-      <div className={`grid gap-4 ${isAudio ? "grid-cols-1" : "grid-cols-2"}`}>
+      <div className="grid grid-cols-1 gap-4">
           {/* Quality Card */}
-          <div className="bg-black/20 backdrop-blur-md rounded-xl p-4 border border-white/5 flex flex-col gap-3 group hover:border-white/10 transition-colors">
-            <label htmlFor={resolutionId} className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
+            <label htmlFor={resolutionId} className="text-xs font-medium text-slate-400 flex items-center justify-between gap-2">
               {isAudio ? t('options.format') : t('options.quality')}
               <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-slate-800 text-indigo-300 border border-indigo-500/20">
                 {isAudio ? t('options.audioFile') : t('options.mp4')}
@@ -57,7 +57,7 @@ export function VideoDownloadOptions({
                   if (nextResolution === "audio") setDownloadSubs(false);
                 }}
                 disabled={isSourceAudio}
-                className="w-full h-10 bg-black/40 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 appearance-none cursor-pointer hover:bg-black/60 transition-all font-medium"
+                className="w-full h-10 bg-[var(--surface-input)] border border-[var(--border-subtle)] rounded-lg pl-3 pr-9 text-sm text-white focus:border-indigo-400 appearance-none cursor-pointer hover:border-slate-500 transition-colors"
               >
                 {isSourceAudio ? (
                   <option value="audio" className="bg-[#1a1a1a] text-white">{t('options.originalAudio')}</option>
@@ -81,54 +81,31 @@ export function VideoDownloadOptions({
 
           {/* Subtitles Card */}
           {!isAudio && <label
-              className={`rounded-xl p-4 border transition-all cursor-pointer select-none group relative overflow-hidden flex flex-col justify-between focus-within:ring-2 focus-within:ring-indigo-400
-                ${downloadSubs 
-                  ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_15px_-3px_rgba(99,102,241,0.15)]" 
-                  : "bg-black/20 border-white/5 hover:bg-black/30 hover:border-white/10 backdrop-blur-md"
-                }
-              `}
+              className="flex cursor-pointer select-none items-center justify-between gap-3 py-2 text-sm text-slate-300"
             >
-              <div className="flex justify-between items-start">
-                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('options.subtitles')}</span>
-                   <div className={`w-5 h-5 rounded flex items-center justify-center transition-all duration-300 border
-                      ${downloadSubs
-                          ? "bg-indigo-500 border-indigo-500 rotate-0 scale-100 shadow-sm" 
-                          : "border-slate-600 rotate-90 scale-90 bg-transparent"
-                      }
-                    `}>
-                      {downloadSubs && <Check size={14} className="text-white" strokeWidth={3} />}
-                   </div>
-              </div>
-              
-              <div className={`text-sm font-medium mt-2 transition-colors ${downloadSubs ? "text-indigo-200" : "text-slate-400 group-hover:text-slate-300"}`}>
+              <span>
+                  <span className="sr-only">{t('options.subtitles')}: </span>
                   {t('options.includeCaptions')}
-              </div>
+              </span>
               
               <input 
                 type="checkbox" 
                 checked={downloadSubs} 
                 onChange={e => setDownloadSubs(e.target.checked)}
-                className="sr-only"
+                className="h-4 w-4 shrink-0 accent-indigo-500"
               />
           </label>}
       </div>
 
       {/* Codec Strategy */}
-      {!isAudio && <div className="bg-black/20 backdrop-blur-md rounded-xl p-1 border border-white/5 flex relative">
-        <div 
-          className="absolute inset-y-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 transition-all duration-300"
-          style={{ 
-            left: codec === 'avc' ? '4px' : '50%',
-            width: 'calc(50% - 4px)',
-          }} 
-        />
+      {!isAudio && <div className="bg-[var(--surface-input)] rounded-lg p-1 border border-[var(--border-subtle)] flex gap-1">
         
         <button
           type="button"
           aria-pressed={codec === 'avc'}
           onClick={() => setCodec('avc')}
-          className={`flex-1 relative z-10 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors rounded-lg ${
-            codec === 'avc' ? 'text-indigo-300' : 'text-slate-400 hover:text-slate-300'
+          className={`min-w-0 flex-1 px-2 py-2.5 text-xs font-medium transition-colors rounded-md ${
+            codec === 'avc' ? 'bg-[var(--accent-muted)] text-indigo-200' : 'text-slate-400 hover:text-slate-300'
           }`}
         >
           {t('options.codecCompatible')}
@@ -137,8 +114,8 @@ export function VideoDownloadOptions({
           type="button"
           aria-pressed={codec === 'best'}
           onClick={() => setCodec('best')}
-          className={`flex-1 relative z-10 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors rounded-lg ${
-            codec === 'best' ? 'text-indigo-300' : 'text-slate-400 hover:text-slate-300'
+          className={`min-w-0 flex-1 px-2 py-2.5 text-xs font-medium transition-colors rounded-md ${
+            codec === 'best' ? 'bg-[var(--accent-muted)] text-indigo-200' : 'text-slate-400 hover:text-slate-300'
           }`}
         >
           {t('options.codecEfficient')}
@@ -149,19 +126,15 @@ export function VideoDownloadOptions({
       <button
         type="button"
         onClick={onAction}
-        disabled={loading || analyzing || !url}
-        className={`h-14 rounded-xl font-bold text-base flex items-center justify-center gap-3 transition-all shadow-lg relative overflow-hidden group/btn
-          ${loading || analyzing || !url
+        disabled={loading || analyzing || !url.trim()}
+        aria-busy={loading || analyzing}
+        className={`h-12 shrink-0 rounded-lg font-semibold text-sm flex items-center justify-center gap-3 transition-colors
+          ${loading || analyzing || !url.trim()
             ? "bg-slate-800/50 border border-white/5 text-slate-400 cursor-not-allowed shadow-none"
-            : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 border border-white/10"
+            : "bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500/30"
           }
         `}
       >
-        {/* Hover Effect (Only when active) */}
-        {!loading && !analyzing && url && (
-            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 pointer-events-none" />
-        )}
-        
         {/* Content */}
         {loading || analyzing ? (
              <>

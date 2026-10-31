@@ -1,4 +1,5 @@
-import { Download } from "lucide-react";
+import { AlertTriangle, Download } from "lucide-react";
+import { toast } from "../utils/toast";
 import { useTranslation } from 'react-i18next';
 import { TaskMonitor } from "../components/TaskMonitor";
 import { useDownloaderController } from "../hooks/useDownloaderController";
@@ -25,7 +26,7 @@ export function DownloaderPage() {
       }
     } catch (err) {
       console.error("Failed to read clipboard:", err);
-      // Fallback or notify user? Chrome needs permission.
+      toast.warning(t('input.pasteFailed'));
     }
   };
 
@@ -39,7 +40,13 @@ export function DownloaderPage() {
         <WorkPanel className="flex min-h-[340px] w-full flex-none flex-col md:h-full md:min-h-0 md:w-[390px] lg:w-[480px]">
            <PanelHeader title={t('taskPanel.title')} />
            
-           <div className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6">
+           <form
+              className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (url.trim() && !loading && !analyzing) void analyzeAndDownload();
+              }}
+           >
               <DownloaderInput 
                 url={url} 
                 onChange={setUrl} 
@@ -63,13 +70,13 @@ export function DownloaderPage() {
               </div>
 
               {error && (
-                <div className="mt-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm flex items-start gap-3">
-                  <span className="text-lg">⚠️</span>
-                  <p className="leading-relaxed whitespace-pre-line">{error}</p>
+                <div role="alert" className="mt-6 p-4 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm flex items-start gap-3">
+                  <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                  <p className="min-w-0 break-words leading-relaxed whitespace-pre-line">{error}</p>
                 </div>
               )}
               <div className="mt-auto pt-6 border-t border-white/5">
-                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">{t('supportedPlatforms')}</h3>
+                 <h3 className="text-xs font-medium text-slate-400 mb-3">{t('supportedPlatforms')}</h3>
                  <div className="flex flex-wrap gap-2">
                     {['YouTube', 'Bilibili', 'Douyin', 'TikTok', 'Twitter', 'Instagram', 'Xiaoyuzhou'].map(p => (
                       <span key={p} className="px-2.5 py-1 rounded-md bg-white/5 text-slate-400 text-xs border border-white/5">
@@ -78,7 +85,7 @@ export function DownloaderPage() {
                     ))}
                  </div>
               </div>
-           </div>
+           </form>
         </WorkPanel>
 
         {/* Right Column: Task Monitor */}

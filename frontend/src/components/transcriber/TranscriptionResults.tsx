@@ -35,9 +35,9 @@ export function TranscriptionResults({
   const normalizedResult = normalizeTranscribeResult(result);
 
   return (
-    <div className="h-full flex flex-col bg-[#1a1a1a] border border-white/5 rounded-lg shadow-2xl overflow-hidden">
+    <div className="h-full min-w-0 flex flex-col bg-[var(--surface-panel)] border border-[var(--border-subtle)] rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+      <div className="p-4 border-b border-[var(--border-subtle)] flex flex-wrap justify-between items-center gap-3">
         <h2 className="text-base font-semibold text-white flex items-center gap-2">
            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
              <FileText className="w-4 h-4 text-indigo-400" />
@@ -78,7 +78,7 @@ export function TranscriptionResults({
                 <div className="text-slate-400 w-20 shrink-0 select-none text-xs font-mono pt-1">
                   {new Date(seg.start * 1000).toISOString().substr(11, 8)}
                 </div>
-                <div className="text-slate-300 group-hover:text-white transition-colors text-sm leading-relaxed">
+                <div className="min-w-0 break-words text-slate-300 group-hover:text-white transition-colors text-sm leading-relaxed">
                   {seg.text}
                 </div>
               </div>
@@ -96,7 +96,7 @@ export function TranscriptionResults({
 
       {/* Footer Actions */}
       {normalizedResult && (
-        <div className="p-4 border-t border-white/5 bg-white/[0.02] flex justify-between items-center gap-4">
+        <div className="p-4 border-t border-[var(--border-subtle)] flex flex-wrap justify-between items-center gap-3">
              {normalizedResult.subtitle_ref?.path && (
                  <button 
                   onClick={() => isDesktopRuntime() && void fileService.showInExplorer(normalizedResult.subtitle_ref!.path)}
@@ -107,7 +107,7 @@ export function TranscriptionResults({
                  </button>
              )}
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-2">
                 <button
                 onClick={() => {
                     const payload: TranslatorPayload = createNavigationMediaPayload({
@@ -127,7 +127,7 @@ export function TranscriptionResults({
                 </button>
                 <button
                 onClick={onSendToEditor}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-lg hover:shadow-purple-500/20 text-white rounded-xl text-sm font-medium transition-all transform hover:-translate-y-0.5"
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                 <Clapperboard size={16} />
                 {t("actions.openEditor")}

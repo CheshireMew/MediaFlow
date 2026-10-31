@@ -28,7 +28,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
       <Sidebar />
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#0a0a0a', color: '#eee', position: 'relative' }}>
+      <main style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'var(--surface-canvas)', color: 'var(--text-primary)', position: 'relative' }}>
         {children}
 
         {/* Window Controls (Occupies the reserved space) */}
@@ -38,7 +38,7 @@ export function Layout({ children }: LayoutProps) {
         >
              <WindowControls />
         </div>
-      </div>
+      </main>
     </div>
   );
 }

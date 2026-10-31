@@ -31,7 +31,8 @@
   },
   "input": {
     "placeholder": "動画またはポッドキャストのURLを貼り付け（例：YouTube、Bilibili、小宇宙...）",
-    "pasteTooltip": "クリップボードから貼り付け"
+    "pasteTooltip": "クリップボードから貼り付け",
+    "pasteFailed": "クリップボードを読み取れません。入力欄で Ctrl+V を押してURLを貼り付けてください。"
   },
   "options": {
     "quality": "画質",
